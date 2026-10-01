@@ -5,6 +5,7 @@
  *           | searchMembers&q=輸入的字[&groupType=分組類型&group=負責組] | getSiblings&id=勤務ID（改期可選的同名勤務）
  * 寫入：POST，內容為 JSON 字串（前端以 Content-Type: text/plain 送出，避免 CORS 預檢），
  *       { "action": "signup" | "cancel" | "reschedule", ... }
+ *       管理後台：{ "action": "admin...", "token": 通行碼, ... }（見 Admin.gs）
  *
  * 回應格式：
  *   成功 { ok: true, data: ... }
@@ -33,6 +34,7 @@ function doPost(e) {
     } catch (err) {
       throw new ApiError_('BAD_REQUEST', '請求內容不是正確的 JSON');
     }
+    if (String(body.action || '').indexOf('admin') === 0) return adminDispatch_(body);
     switch (body.action) {
       case 'signup': return signup_(body);
       case 'cancel': return cancelSignup_(body);

@@ -57,6 +57,11 @@ function createEnv(fixedNow) {
       createTextOutput: (text) => ({ text, setMimeType() { return this; } })
     },
     Session: { getScriptTimeZone: () => 'Asia/Taipei' },
+    PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (k === 'ADMIN_PASSWORD' ? 'test-pass' : null) }) },
+    CacheService: (() => {
+      const store = new Map();
+      return { getScriptCache: () => ({ get: (k) => (store.has(k) ? store.get(k) : null), put: (k, v) => store.set(k, v), remove: (k) => store.delete(k) }) };
+    })(),
     Logger: { log() {} },
     console: { error() {}, log() {} }
   };
@@ -394,4 +399,143 @@ test('getSiblings：只列同名、未結束的勤務，日期從今天起', () 
   assert.ok(r.data.duties.every(d => d.name === '彌勒山志工輪值' && d.end >= '2026-10-20'));
   assert.equal(r.data.duties[0].start, '2026-10-24');
   assert.equal(r.data.duties.length, 14); // 共 16 次，扣掉 10/1、10/13
+});
+
+// ---------- 管理後台 ----------
+
+function adminLogin(env) {
+  const r = env.post({ action: 'adminLogin', password: 'test-pass' });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  return r.data.token;
+}
+
+function logRows(env) {
+  return env.sheets['操作紀錄'].data.slice(1);
+}
+
+test('管理登入：密碼錯誤、成功發通行碼、沒有通行碼不能用、連錯 10 次鎖住', () => {
+  const env = createEnv(OCT_1);
+  assert.equal(env.post({ action: 'adminLogin', password: 'wrong' }).error.code, 'UNAUTHORIZED');
+  assert.equal(env.post({ action: 'adminRecent' }).error.code, 'UNAUTHORIZED');
+  assert.equal(env.post({ action: 'adminRecent', token: 'fake' }).error.code, 'UNAUTHORIZED');
+  const token = adminLogin(env);
+  assert.equal(env.post({ action: 'adminRecent', token }).ok, true);
+  env.post({ action: 'adminLogout', token });
+  assert.equal(env.post({ action: 'adminRecent', token }).error.code, 'UNAUTHORIZED');
+
+  for (let i = 0; i < 10; i++) env.post({ action: 'adminLogin', password: 'wrong' });
+  const locked = env.post({ action: 'adminLogin', password: 'test-pass' });
+  assert.equal(locked.error.code, 'LOCKED');
+});
+
+test('管理名單：含身分與組長電話；一般 API 不回傳電話', () => {
+  const env = createEnv(OCT_1);
+  const groups = env.sheets['分組'].data;
+  const g = groups.find(r => r[0] === '佛堂組' && r[1] === '第2組');
+  g[2] = '測試組長'; g[5] = '0900-000-000';
+  const v = findDuty(env, '2026-10-13', '2026-10-13', d => d.name === '彌勒山志工輪值');
+  signupOne(env, v, v.positions[0].id, '2026-10-13', { name: '測試甲', identity: '壇辦' });
+
+  const token = adminLogin(env);
+  const a = env.post({ action: 'adminDuty', token, id: v.id }).data;
+  assert.deepEqual(a.groupContact, { name: '第2組', leader: '測試組長', phone: '0900-000-000' });
+  assert.equal(a.signups[0].identity, '壇辦');
+  assert.ok(!JSON.stringify(env.get({ action: 'getDuty', id: v.id })).includes('0900'));
+  assert.ok(!JSON.stringify(env.get({ action: 'getEvents', from: '2026-10-01', to: '2026-10-31' })).includes('0900'));
+});
+
+test('管理者可以取消當天（含）之後的報名', () => {
+  const env = createEnv(OCT_1);
+  const v = findDuty(env, '2026-10-13', '2026-10-13', d => d.name === '彌勒山志工輪值');
+  const id = signupOne(env, v, v.positions[0].id, '2026-10-13');
+  env.clock.now = Date.UTC(2026, 9, 13, 2); // 台北 10/13
+  const token = adminLogin(env);
+  assert.equal(env.post({ action: 'cancel', signupId: id }).error.code, 'FORBIDDEN');
+  const r = env.post({ action: 'adminCancel', token, signupId: id });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.match(logRows(env).at(-1)[3], /（管理者）$/);
+});
+
+test('操作紀錄：新到舊、可還原的才標示可還原', () => {
+  const env = createEnv(OCT_1);
+  const v = findDuty(env, '2026-10-13', '2026-10-13', d => d.name === '彌勒山志工輪值');
+  const id = signupOne(env, v, v.positions[0].id, '2026-10-13');
+  env.post({ action: 'cancel', signupId: id });
+  const token = adminLogin(env);
+  const r = env.post({ action: 'adminLogs', token }).data;
+  assert.equal(r.total, 2);
+  assert.deepEqual(r.logs.map(l => l.action), ['取消', '報名']);
+  assert.ok(r.logs.every(l => l.restorable));
+});
+
+test('還原報名＝取消該筆；不能重複還原；還原也寫入紀錄', () => {
+  const env = createEnv(OCT_1);
+  const v = findDuty(env, '2026-10-13', '2026-10-13', d => d.name === '彌勒山志工輪值');
+  const id = signupOne(env, v, v.positions[0].id, '2026-10-13');
+  const token = adminLogin(env);
+  const log = env.post({ action: 'adminLogs', token }).data.logs[0];
+  const r = env.post({ action: 'adminRestore', token, row: log.row, signupId: log.signupId });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.equal(signupRow(env, id)['狀態'], '已取消');
+  assert.equal(env.post({ action: 'adminRestore', token, row: log.row, signupId: log.signupId }).error.code, 'ALREADY');
+  const logs = env.post({ action: 'adminLogs', token }).data.logs;
+  assert.equal(logs[0].action, '還原');
+  assert.equal(logs[0].restorable, false);
+  assert.ok(logs[1].restoredAt);
+});
+
+test('還原取消＝恢復該筆；超過名額時照樣恢復並回傳警告', () => {
+  const env = createEnv(OCT_1);
+  const v = findDuty(env, '2026-10-13', '2026-10-13', d => d.name === '彌勒山志工輪值');
+  const pid = v.positions[0].id;
+  const id = signupOne(env, v, pid, '2026-10-13', { name: '測試甲' });
+  env.post({ action: 'cancel', signupId: id });
+  signupOne(env, v, pid, '2026-10-13', { name: '測試乙' });
+  signupOne(env, v, pid, '2026-10-13', { name: '測試丙' }); // 名額 2 已滿
+  const token = adminLogin(env);
+  const cancelLog = env.post({ action: 'adminLogs', token }).data.logs.find(l => l.action === '取消');
+  const r = env.post({ action: 'adminRestore', token, row: cancelLog.row, signupId: cancelLog.signupId });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.equal(signupRow(env, id)['狀態'], '有效');
+  assert.equal(r.data.warnings.length, 1);
+  assert.match(r.data.warnings[0], /額滿/);
+  assert.match(logRows(env).at(-1)[3], /警告/);
+});
+
+test('還原改期＝取消新的一筆、恢復原本那筆', () => {
+  const env = createEnv(OCT_1);
+  const v1 = findDuty(env, '2026-10-13', '2026-10-13', d => d.name === '彌勒山志工輪值');
+  const v2 = findDuty(env, '2026-10-24', '2026-10-24', d => d.name === '彌勒山志工輪值');
+  const id = signupOne(env, v1, v1.positions[0].id, '2026-10-13');
+  const moved = env.post({ action: 'reschedule', signupId: id, dutyId: v2.id, date: '2026-10-24', positionId: v2.positions[0].id }).data.signupId;
+  const token = adminLogin(env);
+  const log = env.post({ action: 'adminLogs', token }).data.logs.find(l => l.action === '改期');
+  const r = env.post({ action: 'adminRestore', token, row: log.row, signupId: log.signupId });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.equal(signupRow(env, id)['狀態'], '有效');
+  assert.equal(signupRow(env, moved)['狀態'], '已取消');
+  assert.deepEqual(r.data.warnings, []);
+});
+
+test('還原時核對報名ID，避免對錯列', () => {
+  const env = createEnv(OCT_1);
+  const v = findDuty(env, '2026-10-13', '2026-10-13', d => d.name === '彌勒山志工輪值');
+  signupOne(env, v, v.positions[0].id, '2026-10-13');
+  const token = adminLogin(env);
+  const log = env.post({ action: 'adminLogs', token }).data.logs[0];
+  assert.equal(env.post({ action: 'adminRestore', token, row: log.row, signupId: 'S-other' }).error.code, 'NOT_FOUND');
+});
+
+test('指定日期名單：各了愿項目的名字與陪同；公告型附輪值組、不含電話', () => {
+  const env = createEnv(OCT_1);
+  const team = findDuty(env, '2026-11-09', '2026-11-09', d => d.name === '12人小組輪值');
+  signupOne(env, team, team.positions[0].id, '2026-11-09', { name: '測試甲' });
+  signupOne(env, team, team.positions[0].id, '2026-11-09', { name: '測試乙', identity: '壇辦', accompany: true });
+  const token = adminLogin(env);
+  const r = env.post({ action: 'adminDay', token, date: '2026-11-09' }).data;
+  const t = r.duties.find(d => d.name === '12人小組輪值');
+  assert.deepEqual(t.positions[0].people, [{ name: '測試甲', accompany: false }, { name: '測試乙', accompany: true }]);
+  const notice = r.duties.find(d => d.mode === '公告型');
+  assert.equal(notice.groupInfo.name, '第三組');
+  assert.ok(!('phone' in notice.groupInfo));
 });
