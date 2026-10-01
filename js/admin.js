@@ -3,6 +3,7 @@
 //   #/admin           近期勤務（未登入時顯示登入）
 //   #/admin/duty/<id> 勤務名單管理
 //   #/admin/duties…   勤務管理：列表、新增、編輯（見 admin-duties.js）
+//   #/admin/import    批次匯入（見 admin-import.js）
 //   #/admin/logs      操作紀錄與還原
 //   #/admin/day       明日名單
 (function () {
@@ -65,6 +66,7 @@
     const m = sub.match(/^duty\/([^?]+)(?:\?date=(\d{4}-\d{2}-\d{2}))?/);
     if (m) return showDuty(decodeURIComponent(m[1]), m[2] || '');
     if (/^duties(\/|\?|$)/.test(sub)) return DutyAdminPage.show(shell('duties'), guard, sub);
+    if (sub === 'import') return ImportPage.show(shell('duties'), guard);
     if (sub === 'logs') return AdminPages.logs(shell('logs'), guard);
     if (sub === 'day') return AdminPages.day(shell('day'), guard);
     return showRecent();

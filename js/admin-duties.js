@@ -588,5 +588,5 @@
     if (current) show(current.body, current.guard, current.sub);
   }
 
-  window.DutyAdminPage = { show, reload };
+  window.DutyAdminPage = { show, reload, setFlash: (html) => { flash = html; } };
 })();

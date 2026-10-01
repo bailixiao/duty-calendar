@@ -1197,3 +1197,30 @@ select.input { appearance: auto; }
   border-radius: var(--radius);
   background: #fff;
 }
+
+/* ---------- 管理後台：批次匯入 ---------- */
+
+.import-help { margin-bottom: 12px; gap: 8px; }
+.import-help p { margin: 0; }
+.import-cols { display: flex; flex-wrap: wrap; gap: 4px; }
+.import-rules { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; font-size: .92rem; color: var(--ink-2); }
+.import-rules code { padding: 0 4px; border-radius: 4px; background: var(--paper-2); font-size: .9em; }
+.import-text { font-family: ui-monospace, Consolas, monospace; font-size: .9rem; white-space: pre; overflow-x: auto; margin-bottom: 10px; }
+
+.import-rows { margin: 0 0 14px; padding: 0; list-style: none; display: grid; gap: 6px; }
+
+.import-row {
+  display: grid;
+  grid-template-columns: 4.5em minmax(0, 1fr);
+  gap: 2px 10px;
+  padding: 8px 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.import-row.is-bad { border-color: var(--accent); background: var(--accent-soft); }
+.import-line { font-size: .85rem; color: var(--muted); padding-top: 2px; }
+.import-main { display: grid; gap: 2px; overflow-wrap: anywhere; }
+.import-pos { font-size: .9rem; color: var(--ink-2); }
+.import-errors { grid-column: 2; color: var(--accent); font-weight: 500; font-size: .92rem; }
