@@ -277,7 +277,7 @@
         entries: state.entries.map((e) => ({ name: e.name, identity: e.identity, accompany: e.accompany }))
       };
       const result = { dutyId: duty.id, entries: payload.entries, dates: payload.dates, positionId: position.id, positionName: position.name };
-      const knownIds = new Set(duty.signups.map((s) => s.id)); // 送出前已有的報名，查證時用
+      const knownIds = new Set((duty.signups || []).map((s) => s.id)); // 送出前已有的報名，查證時用（名單還沒載入時為空）
       try {
         const res = await signupWithRetry(payload, slowTimer);
         clearTimeout(slowTimer);

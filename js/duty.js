@@ -14,22 +14,51 @@
     page.id = id;
     page.data = null;
     page.viewDate = date || null;
-    root.innerHTML = backLink() + '<p class="panel-empty">載入中⋯</p>';
+    // 行事曆已有這個勤務的資料就先立刻顯示（名單除外），報名表單也可以先填；名單到了再補上
+    const preview = window.CalendarPage && CalendarPage.peekDuty(id);
+    if (preview) {
+      preview.signups = null;
+      page.data = preview;
+      pickViewDate();
+      render();
+    } else {
+      root.innerHTML = backLink() + '<p class="panel-empty">載入中⋯</p>';
+    }
     load(token);
+  }
+
+  function pickViewDate() {
+    const d = page.data;
+    const dates = Fmt.datesBetween(d.start, d.end);
+    if (dates.indexOf(page.viewDate) === -1) {
+      page.viewDate = dates.find((x) => x >= d.today) || dates[dates.length - 1];
+    }
   }
 
   async function load(t, flash) {
     try {
       const data = await Api.getDuty(page.id);
       if (t !== token) return;
-      page.data = data;
-      const dates = Fmt.datesBetween(data.start, data.end);
-      if (dates.indexOf(page.viewDate) === -1) {
-        page.viewDate = dates.find((d) => d >= data.today) || dates[dates.length - 1];
+      if (page.data && page.data.signups === null && !flash) {
+        // 先前用行事曆資料顯示：只補上說明、輪值組與名單，不重畫報名表單（避免清掉正在填的名字）
+        Object.assign(page.data, data);
+        renderExtra();
+        renderRoster();
+        return;
       }
+      page.data = data;
+      pickViewDate();
       render(flash);
     } catch (err) {
       if (t !== token) return;
+      if (page.data && page.data.signups === null) {
+        const el = document.getElementById('duty-roster');
+        if (el) {
+          el.innerHTML = `<h2>報名名單</h2><div class="notice notice-error" role="alert"><p>${esc(err.message || '無法載入名單')}</p><button type="button" class="btn" data-retry>重試</button></div>`;
+          el.querySelector('[data-retry]').addEventListener('click', () => { renderRoster(); load(t); });
+        }
+        return;
+      }
       root.innerHTML = backLink() + `
         <div class="notice notice-error" role="alert">
           <p>${esc(err.message || '無法載入勤務')}</p>
@@ -72,19 +101,29 @@
         <dl class="detail-info">
           ${info.map((row) => `<div><dt>${row[0]}</dt><dd>${esc(row[1])}</dd></div>`).join('')}
         </dl>
-        ${isNotice ? groupSection(d) : ''}
-        ${d.description ? `
-          <section class="detail-section">
-            <h2>說明</h2>
-            <p class="detail-desc">${esc(d.description).replace(/\n/g, '<br>')}</p>
-          </section>` : ''}
+        <div id="duty-extra"></div>
         ${isNotice ? '' : '<section id="duty-roster" class="detail-section"></section><section id="duty-signup" class="detail-section"></section>'}
       </article>`;
 
+    renderExtra();
     if (!isNotice) {
       renderRoster();
       mountSignup();
     }
+  }
+
+  /** 公告型的輪值組與說明（行事曆資料沒有這些，等詳情讀到再補） */
+  function renderExtra() {
+    const d = page.data;
+    const el = document.getElementById('duty-extra');
+    if (!el) return;
+    el.innerHTML = `
+      ${d.mode === '公告型' ? groupSection(d) : ''}
+      ${d.description ? `
+        <section class="detail-section">
+          <h2>說明</h2>
+          <p class="detail-desc">${esc(d.description).replace(/\n/g, '<br>')}</p>
+        </section>` : ''}`;
   }
 
   // ---------- 公告型：本次輪值組 ----------
@@ -137,8 +176,8 @@
     const canChange = date > d.today; // 勤務當天（含）之後不能自己取消、改期
     const rows = d.positions.map((p) => {
       const label = positionLabel(p, day);
-      const people = d.signups.filter((s) => s.date === date && s.positionId === p.id);
-      const names = people.length
+      const people = d.signups ? d.signups.filter((s) => s.date === date && s.positionId === p.id) : [];
+      const names = !d.signups ? '<span class="muted">載入名單中⋯</span>' : people.length
         ? `<ul class="people">${people.map((s) => `
             <li class="person-row">
               <span class="person">${esc(s.name)}${s.accompany ? '<span class="tag">陪同</span>' : ''}</span>
@@ -168,7 +207,7 @@
       page.viewDate = btn.dataset.date;
       renderRoster();
     }));
-    const findSignup = (id) => d.signups.find((s) => s.id === id);
+    const findSignup = (id) => (d.signups || []).find((s) => s.id === id);
     el.querySelectorAll('[data-cancel]').forEach((btn) => btn.addEventListener('click', () => cancelSignup(findSignup(btn.dataset.cancel))));
     el.querySelectorAll('[data-reschedule]').forEach((btn) => btn.addEventListener('click', () => {
       Reschedule.open(findSignup(btn.dataset.reschedule), d, (result) => onRescheduled(findSignup(btn.dataset.reschedule), result));
@@ -285,6 +324,7 @@
       </div>`;
     if (window.CalendarPage) CalendarPage.refresh();
     if (!page.data || page.data.id !== result.dutyId) return; // 報名期間已離開這頁（例如按了瀏覽器返回）
+    if (!page.data.signups) { load(token, flash); return; } // 名單還沒載入：直接重新讀取
     res.created.forEach((c) => page.data.signups.push({
       id: c.id, date: c.date, positionId: result.positionId, name: c.name, accompany: c.accompany
     }));

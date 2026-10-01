@@ -523,5 +523,17 @@
     if (state.view !== 'week') calendar.updateSize();
   }
 
-  window.CalendarPage = { init, refresh, onShow };
+  /**
+   * 從已載入的行事曆資料找勤務（詳情頁先用它立刻顯示，名單再向伺服器讀）。
+   * 回傳複本，含 today；找不到回傳 null。
+   */
+  function peekDuty(id) {
+    for (const entry of windows.values()) {
+      const d = entry.data && entry.data.duties.find((x) => x.id === id);
+      if (d) return Object.assign(JSON.parse(JSON.stringify(d)), { today: state.today });
+    }
+    return null;
+  }
+
+  window.CalendarPage = { init, refresh, onShow, peekDuty };
 })();
