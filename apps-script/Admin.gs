@@ -226,6 +226,11 @@ function adminDispatch_(body) {
     case 'adminCreateDuties': return adminCreateDuties_(body);
     case 'adminUpdateDuty': return adminUpdateDuty_(body);
     case 'adminDeleteDuty': return adminDeleteDuty_(body);
+    case 'adminMembers': return adminMembers_(body);
+    case 'adminSaveMember': return adminSaveMember_(body);
+    case 'adminGroups': return adminGroups_(body);
+    case 'adminSaveGroup': return adminSaveGroup_(body);
+    case 'adminDeleteGroup': return adminDeleteGroup_(body);
     default: throw new ApiError_('BAD_REQUEST', '未知的 action：' + body.action);
   }
 }

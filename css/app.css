@@ -1224,3 +1224,31 @@ select.input { appearance: auto; }
 .import-main { display: grid; gap: 2px; overflow-wrap: anywhere; }
 .import-pos { font-size: .9rem; color: var(--ink-2); }
 .import-errors { grid-column: 2; color: var(--accent); font-weight: 500; font-size: .92rem; }
+
+/* ---------- 管理後台：成員、分組 ---------- */
+
+.people-list { margin: 0 0 12px; padding: 0; list-style: none; display: grid; gap: 6px; }
+
+.person-card {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 10px 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.person-card:hover { background: var(--paper-2); }
+.person-card.is-inactive { opacity: .6; }
+.person-card-name { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-weight: 700; }
+.person-card-meta { font-size: .9rem; color: var(--ink-2); overflow-wrap: anywhere; }
+
+.modal-form { display: grid; gap: 12px; }
+.modal-form .modal-title { margin-bottom: 0; }
+.modal-form .modal-actions { margin-top: 4px; }

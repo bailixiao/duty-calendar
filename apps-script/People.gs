@@ -1,0 +1,176 @@
+/**
+ * 管理後台：成員名單管理、分組管理（規格第 8 節管理者後台第 7 項）。
+ *   - 成員不刪除，改用「啟用中＝否」停用（停用後不會出現在報名的名字提示）。
+ *   - 這兩張表沒有 ID 欄，以列號找資料，並核對原本的姓名（組名）避免對錯列。
+ *   - 分組改名時，一併更新「勤務」的負責組與「成員」的組別；有勤務指定負責的組不能刪除。
+ *   - 全部寫入都排進同一把鎖，並寫入操作紀錄（不提供還原）。
+ *   - 這些資料含人名與電話，只透過管理 API（需通行碼）回傳。
+ */
+
+var MEMBER_GROUP_COLUMNS = ['勤務了愿組', '打掃組', '拜香輪值組']; // 「成員」分頁的組別欄＝分組類型
+
+/** 全部成員（含停用） */
+function adminMembers_() {
+  return {
+    members: readTable_(SHEETS.MEMBERS).filter(function (m) { return m['姓名']; }).map(memberToJson_),
+    groups: groupList_()
+  };
+}
+
+/** body = { row?, original?, member: { name, identity, groups: { 分組類型: 組名 }, note, active } }；沒有 row 就是新增 */
+function adminSaveMember_(body) {
+  var input = body.member || {};
+  var name = normalizeName_(input.name);
+  var identity = cleanText_(input.identity);
+  var groupsIn = input.groups || {};
+  var errors = [];
+  if (!name) errors.push('請填姓名');
+  if (identity && OPTIONS.identity.indexOf(identity) === -1) errors.push('身分只能是道親或壇辦');
+  var keys = groupKeys_();
+  var groups = {};
+  MEMBER_GROUP_COLUMNS.forEach(function (type) {
+    var g = cleanText_(groupsIn[type]);
+    if (g && keys.indexOf(type + '|' + g) === -1) errors.push('「' + type + '」沒有「' + g + '」這一組');
+    groups[type] = g;
+  });
+  if (errors.length) throw new ApiError_('VALIDATION', '成員資料有錯，沒有存檔', errors.map(function (m) { return { message: m }; }));
+
+  return withSignupLock_(function () {
+    var rows = readTable_(SHEETS.MEMBERS);
+    var row = body.row ? findRowChecked_(rows, body.row, '姓名', body.original, '成員') : null;
+    var dup = rows.filter(function (m) { return m !== row && normalizeName_(m['姓名']) === name; })[0];
+    if (dup) throw new ApiError_('VALIDATION', '成員資料有錯，沒有存檔', [{ message: '已經有「' + name + '」這個人了' }]);
+
+    var values = { '姓名': name, '身分': identity, '備註': cleanText_(input.note), '啟用中': input.active === false ? '否' : '是' };
+    MEMBER_GROUP_COLUMNS.forEach(function (type) { values[type] = groups[type]; });
+    var summary;
+    if (row) {
+      summary = '修改｜' + row['姓名'] + (row['姓名'] !== name ? ' → ' + name : '') +
+        (row['啟用中'] !== values['啟用中'] ? (values['啟用中'] === '否' ? '（停用）' : '（重新啟用）') : '');
+      updateRow_(SHEETS.MEMBERS, row, values);
+    } else {
+      summary = '新增｜' + name;
+      appendRows_(SHEETS.MEMBERS, [values]);
+    }
+    writeDutyLog_('成員', summary);
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.MEMBERS);
+    return {};
+  });
+}
+
+/** 全部分組（含組長電話）與各組被幾筆勤務指定負責 */
+function adminGroups_() {
+  var usage = {};
+  readTableCached_(SHEETS.DUTIES).forEach(function (d) {
+    if (d['負責組']) usage[d['分組類型'] + '|' + d['負責組']] = (usage[d['分組類型'] + '|' + d['負責組']] || 0) + 1;
+  });
+  return {
+    groups: readTable_(SHEETS.GROUPS).filter(function (g) { return g['組名']; }).map(function (g) {
+      return {
+        row: g._row, type: g['分組類型'], name: g['組名'], leader: g['組長或召集人'], assistant: g['佐理'],
+        members: splitNames_(g['組員']), phone: g['組長電話'],
+        duties: usage[g['分組類型'] + '|' + g['組名']] || 0
+      };
+    })
+  };
+}
+
+/**
+ * body = { row?, original?: 原組名, group: { type, name, leader, assistant, members: [..] | 文字, phone } }
+ * 改組名時一併更新勤務的負責組與成員的組別（分組類型不能改，要改請新增一組）。
+ */
+function adminSaveGroup_(body) {
+  var input = body.group || {};
+  var type = cleanText_(input.type);
+  var name = cleanText_(input.name);
+  var errors = [];
+  if (OPTIONS.groupType.indexOf(type) === -1) errors.push('請選分組類型');
+  if (!name) errors.push('請填組名');
+  if (errors.length) throw new ApiError_('VALIDATION', '分組資料有錯，沒有存檔', errors.map(function (m) { return { message: m }; }));
+  var members = (Array.isArray(input.members) ? input.members : splitNames_(input.members)).map(normalizeName_).filter(function (x) { return x; });
+
+  return withSignupLock_(function () {
+    var rows = readTable_(SHEETS.GROUPS);
+    var row = body.row ? findRowChecked_(rows, body.row, '組名', body.original, '分組') : null;
+    if (row && row['分組類型'] !== type) throw new ApiError_('BAD_REQUEST', '分組類型不能修改，要換類型請新增一組');
+    var dup = rows.filter(function (g) { return g !== row && g['分組類型'] === type && g['組名'] === name; })[0];
+    if (dup) throw new ApiError_('VALIDATION', '分組資料有錯，沒有存檔', [{ message: '「' + type + '」已經有「' + name + '」了' }]);
+
+    var values = {
+      '分組類型': type, '組名': name, '組長或召集人': normalizeName_(input.leader), '佐理': cleanText_(input.assistant),
+      '組員': members.join(NAME_LIST_SEPARATOR), '組長電話': cleanText_(input.phone)
+    };
+    var renamed = { duties: 0, members: 0 };
+    var summary;
+    if (row) {
+      var oldName = row['組名'];
+      updateRow_(SHEETS.GROUPS, row, values);
+      if (oldName !== name) renamed = renameGroupRefs_(type, oldName, name);
+      summary = '修改｜' + type + ' ' + oldName + (oldName !== name ? ' → ' + name + '（勤務 ' + renamed.duties + ' 筆、成員 ' + renamed.members + ' 人一併更新）' : '');
+    } else {
+      appendRows_(SHEETS.GROUPS, [values]);
+      summary = '新增｜' + type + ' ' + name;
+    }
+    writeDutyLog_('分組', summary);
+    SpreadsheetApp.flush();
+    invalidateAllTables_();
+    return { renamed: renamed };
+  });
+}
+
+/** body = { row, original }：有勤務指定負責就不能刪；成員的組別一併清空 */
+function adminDeleteGroup_(body) {
+  return withSignupLock_(function () {
+    var row = findRowChecked_(readTable_(SHEETS.GROUPS), body.row, '組名', body.original, '分組');
+    var type = row['分組類型'];
+    var name = row['組名'];
+    var used = readTable_(SHEETS.DUTIES).filter(function (d) { return d['分組類型'] === type && d['負責組'] === name; });
+    if (used.length) {
+      throw new ApiError_('FORBIDDEN', '還有 ' + used.length + ' 筆勤務由「' + name + '」負責，不能刪除；請先把這些勤務改成其他組');
+    }
+    var cleared = 0;
+    if (MEMBER_GROUP_COLUMNS.indexOf(type) !== -1) {
+      readTable_(SHEETS.MEMBERS).forEach(function (m) {
+        if (m[type] === name) { var c = {}; c[type] = ''; updateRow_(SHEETS.MEMBERS, m, c); cleared++; }
+      });
+    }
+    deleteRows_(SHEETS.GROUPS, [row._row]);
+    writeDutyLog_('分組', '刪除｜' + type + ' ' + name + (cleared ? '（' + cleared + ' 位成員的組別一併清空）' : ''),
+      rowSnapshot_(SHEETS.GROUPS, row));
+    SpreadsheetApp.flush();
+    invalidateAllTables_();
+    return { clearedMembers: cleared };
+  });
+}
+
+// ---- 共用 ----
+
+function memberToJson_(m) {
+  var groups = {};
+  MEMBER_GROUP_COLUMNS.forEach(function (t) { groups[t] = m[t]; });
+  return { row: m._row, name: m['姓名'], identity: m['身分'], groups: groups, note: m['備註'], active: m['啟用中'] !== '否' };
+}
+
+/** 以列號找資料並核對原本的值（姓名或組名），不符代表資料已被移動或修改 */
+function findRowChecked_(rows, rowNumber, key, original, label) {
+  var row = rows.filter(function (r) { return r._row === Number(rowNumber); })[0];
+  if (!row || row[key] !== String(original || '')) {
+    throw new ApiError_('CONFLICT', label + '資料已經被修改過，請重新整理後再試');
+  }
+  return row;
+}
+
+/** 分組改名：勤務的負責組、成員的組別一併改成新名字 */
+function renameGroupRefs_(type, oldName, newName) {
+  var count = { duties: 0, members: 0 };
+  readTable_(SHEETS.DUTIES).forEach(function (d) {
+    if (d['分組類型'] === type && d['負責組'] === oldName) { updateRow_(SHEETS.DUTIES, d, { '負責組': newName }); count.duties++; }
+  });
+  if (MEMBER_GROUP_COLUMNS.indexOf(type) !== -1) {
+    readTable_(SHEETS.MEMBERS).forEach(function (m) {
+      if (m[type] === oldName) { var c = {}; c[type] = newName; updateRow_(SHEETS.MEMBERS, m, c); count.members++; }
+    });
+  }
+  return count;
+}
