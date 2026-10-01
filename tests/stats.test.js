@@ -107,3 +107,11 @@ test('匯入歷史資料：同一批同名同日的兩場合併，不會漏人',
   ] });
   assert.deepEqual(r.data, { duties: 1, signups: 3, skipped: 0 });
 });
+
+test('匯入歷史資料：不知道身分的人記為未填身分，統計看得到', () => {
+  const { call } = setup();
+  const r = call('adminImportHistory', { events: [{ date: '2026-03-06', name: '區中心打掃', tan: [], dao: ['測試甲'], unknown: ['測試乙'], accompany: [] }] });
+  assert.equal(r.data.signups, 2);
+  const e = call('adminStats').data.events.find((x) => x.date === '2026-03-06');
+  assert.deepEqual(e.unknown, ['測試乙']);
+});

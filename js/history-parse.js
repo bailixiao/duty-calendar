@@ -64,7 +64,42 @@
   }
 
   function splitNames(v) {
-    return clean(v).split(/[、,，.．;；\s]+/).map(cleanName).filter((x) => x);
+    return clean(v).split(/[、,，.．;；/／\s]+/).map(cleanName).filter((x) => x);
+  }
+
+  /** 去掉名字後面的稱呼（端美姐 → 端美） */
+  function stripHonorific(n) {
+    return n.replace(/(師姐|師兄|師姊|姐姐|姊姊|哥哥|姐|姊|哥|兄)$/, '');
+  }
+
+  /**
+   * 備註欄（管理者的寫法）：
+   *   「視廳：世凱」「道歌：端美姐」 冒號前是勤務內容 → 算出勤人數（count）
+   *   「某某陪同」「某某-護持」       → 陪同（accompany，不算人數）
+   *   「甲/乙/丙」「甲、乙」          → 好幾個人
+   *   其他單純的名字                 → 陪同
+   * 名字要 2–4 個字，其他（一個字、說明文字）放 bad，給管理者看。
+   */
+  function parseNote(v) {
+    const out = { count: [], accompany: [], bad: [] };
+    const s = clean(v).replace(/\s*([：:\-－—])\s*/g, '$1');
+    // 「1.名字」這類編號略過
+    s.split(/[、,，.．;；/／\s]+/).filter((t) => t && !/^[0-9０-９]+$/.test(t)).forEach((token) => {
+      let name = token;
+      let dest = 'accompany';
+      if (/[：:]/.test(token)) {
+        name = token.split(/[：:]/).pop();
+        dest = 'count';
+      } else if (/(陪同|護持)$/.test(token)) {
+        name = token.replace(/[-－—(（]?(陪同|護持)[)）]?$/, '');
+      } else if (/^(陪同|護持)[-－—]?/.test(token)) {
+        name = token.replace(/^(陪同|護持)[-－—]?/, '');
+      }
+      name = stripHonorific(cleanName(name));
+      if (name.length >= 2 && name.length <= 4) out[dest].push(name);
+      else out.bad.push(token);
+    });
+    return out;
   }
 
   /** 找標題列與欄位位置 */
@@ -89,7 +124,8 @@
   /**
    * 解析一個月的分頁。rows：二維陣列（SheetJS sheet_to_json header:1 的結果）。
    * yearHint：標題沒寫年份時用（例如檔名的年份）。
-   * 回傳 { events: [{ date, end, name, nature, tan: [], dao: [], accompany: [] }], problems: [字串] }
+   * 回傳 { events: [{ date, end, name, nature, tan: [], dao: [], extra: [], accompany: [] }], problems: [字串] }
+   * extra：備註裡要算人數、但沒寫身分的人（匯入時依同一批資料推斷身分，見 inferIdentity）。
    * 多天勤務（日期寫「8/24~8/31」）：date＝第一天、end＝最後一天，每人只算一次（與原 Excel 相同）。
    */
   function parseMonth(rows, yearHint) {
@@ -111,7 +147,7 @@
       const sameEvent = cur && name === cur.name && (!date || date === cur.date);
       if (name && !sameEvent) {
         const nature = clean(r[c.nature]);
-        cur = { date, end: range ? range.end : '', name, nature: ['勤務', '支援', '烹飪'].indexOf(nature) !== -1 ? nature : '勤務', tan: [], dao: [], accompany: [], row: i + 1 };
+        cur = { date, end: range ? range.end : '', name, nature: ['勤務', '支援', '烹飪'].indexOf(nature) !== -1 ? nature : '勤務', tan: [], dao: [], extra: [], accompany: [], row: i + 1 };
         if (!date) problems.push(`第 ${i + 1} 列「${name}」沒有日期`);
         events.push(cur);
       } else if (!cur && (tan || dao)) {
@@ -121,12 +157,12 @@
       if (!cur) continue;
       if (tan) cur.tan.push(tan);
       if (dao) cur.dao.push(dao);
-      // 備註：2–4 個字的當作陪同者姓名；其他（一個字、說明文字、黏在一起的名字）列出來給管理者看
+      // 備註：見 parseNote；看不懂的列出來給管理者看
       if (c.note !== -1 && r[c.note] !== undefined) {
-        splitNames(r[c.note]).forEach((n) => {
-          if (n.length >= 2 && n.length <= 4) cur.accompany.push(n);
-          else problems.push(`第 ${i + 1} 列備註「${n}」不像姓名，沒有匯入`);
-        });
+        const note = parseNote(r[c.note]);
+        note.count.forEach((n) => cur.extra.push(n));
+        note.accompany.forEach((n) => cur.accompany.push(n));
+        note.bad.forEach((t) => problems.push(`第 ${i + 1} 列備註「${t}」不像姓名，沒有匯入`));
       }
     }
     return { events: events.filter((e) => e.date), problems };
@@ -155,7 +191,7 @@
       const res = parseMonth(sheets[title], yearHint);
       const month = Number(m[1]);
       const count = (k) => res.events.reduce((n, e) => n + e[k].length, 0);
-      months.push({ month, events: res.events, tan: count('tan'), dao: count('dao'), expected: summary[month] || null, problems: res.problems });
+      months.push({ month, events: res.events, tan: count('tan'), dao: count('dao'), extra: count('extra'), expected: summary[month] || null, problems: res.problems });
     });
     months.sort((a, b) => a.month - b.month);
     return { months };
@@ -204,7 +240,28 @@
       });
   }
 
-  const api = { toDate, toDateRange, parseMonth, parseSummary, parseWorkbook, similarGroups, splitNames };
+  /**
+   * 備註裡算人數的人（extra）推斷身分：同一批資料裡這個名字當壇辦或道親出現較多次的那個；
+   * 都沒出現過就是未填身分。events 會被改寫：extra 分到 tan／dao／unknown（名字不重複）。
+   */
+  function inferIdentity(events) {
+    const seen = new Map();
+    const bump = (n, k) => { const v = seen.get(n) || { tan: 0, dao: 0 }; v[k] += 1; seen.set(n, v); };
+    events.forEach((e) => { e.tan.forEach((n) => bump(n, 'tan')); e.dao.forEach((n) => bump(n, 'dao')); });
+    events.forEach((e) => {
+      e.unknown = e.unknown || [];
+      (e.extra || []).forEach((n) => {
+        if (e.tan.indexOf(n) !== -1 || e.dao.indexOf(n) !== -1 || e.unknown.indexOf(n) !== -1) return;
+        const v = seen.get(n);
+        if (!v) e.unknown.push(n);
+        else (v.dao > v.tan ? e.dao : e.tan).push(n);
+      });
+      e.extra = [];
+    });
+    return events;
+  }
+
+  const api = { parseNote, inferIdentity, toDate, toDateRange, parseMonth, parseSummary, parseWorkbook, similarGroups, splitNames };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.HistoryParse = api;
 })();

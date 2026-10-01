@@ -85,7 +85,7 @@
     }
 
     function allNames() {
-      return selected().flatMap((m) => m.events.flatMap((e) => e.tan.concat(e.dao, e.accompany)));
+      return selected().flatMap((m) => m.events.flatMap((e) => e.tan.concat(e.dao, e.extra || [], e.accompany)));
     }
 
     function render() {
@@ -97,14 +97,14 @@
         names.forEach((n) => merge.set(n, g.suggest || n));
       });
       const sel = selected();
-      const total = sel.reduce((a, m) => ({ events: a.events + m.events.length, tan: a.tan + m.tan, dao: a.dao + m.dao }), { events: 0, tan: 0, dao: 0 });
+      const total = sel.reduce((a, m) => ({ events: a.events + m.events.length, tan: a.tan + m.tan, dao: a.dao + m.dao, extra: a.extra + (m.extra || 0) }), { events: 0, tan: 0, dao: 0, extra: 0 });
 
       box.innerHTML = `
         <section class="stats-section">
           <h3 class="admin-sub">各月核對</h3>
           <p class="hint">「Excel」是原檔「統計」分頁的數字（人數欄是手動填的，可能和名單對不上）；「名單」是實際讀到的名字數，匯入以名單為準。</p>
           <table class="stats-table history-table">
-            <thead><tr><th>匯入</th><th>月份</th><th>場次</th><th>壇辦<br><small>名單／Excel</small></th><th>道親<br><small>名單／Excel</small></th></tr></thead>
+            <thead><tr><th>匯入</th><th>月份</th><th>場次</th><th>壇辦<br><small>名單／Excel</small></th><th>道親<br><small>名單／Excel</small></th><th>備註<br><small>計入</small></th></tr></thead>
             <tbody>${months.map((m, i) => {
               const diff = m.expected && (m.expected.tan !== m.tan || m.expected.dao !== m.dao);
               return `<tr class="${diff ? 'is-diff' : ''}">
@@ -113,7 +113,8 @@
                 <td>${m.events.length}</td>
                 <td>${m.tan}${m.expected ? `／${m.expected.tan}` : ''}</td>
                 <td>${m.dao}${m.expected ? `／${m.expected.dao}` : ''}</td>
-              </tr>${m.problems.length ? `<tr><td></td><td colspan="4" class="warn">${m.problems.map(esc).join('<br>')}</td></tr>` : ''}`;
+                <td>${m.extra || ''}</td>
+              </tr>${m.problems.length ? `<tr><td></td><td colspan="5" class="warn">${m.problems.map(esc).join('<br>')}</td></tr>` : ''}`;
             }).join('')}</tbody>
           </table>
           <p class="hint">這個月起的資料由新系統記錄，預設不匯入，避免重複。</p>
@@ -132,7 +133,7 @@
           }).join('')}</ul>` : '<p class="muted">沒有發現寫法相近的名字。</p>'}
         </section>
 
-        <div class="notice notice-success"><p><strong>將匯入 ${total.events} 場、壇辦 ${total.tan} 人次、道親 ${total.dao} 人次</strong></p></div>
+        <div class="notice notice-success"><p><strong>將匯入 ${total.events} 場、壇辦 ${total.tan} 人次、道親 ${total.dao} 人次${total.extra ? `、備註計入 ${total.extra} 人次` : ""}</strong></p>${total.extra ? "<p>備註裡「工作：名字」的人算出勤，身分依同一批資料推斷（找不到就記為未填身分）。</p>" : ""}</div>
         <div class="form-error" data-error hidden></div>
         <button type="button" class="btn btn-primary btn-block" data-go${total.events ? '' : ' disabled'}>開始匯入</button>`;
 
@@ -149,7 +150,7 @@
     async function go(total) {
       const ok = await Confirm.open({
         title: '確定開始匯入嗎？',
-        rows: [['場次', `${total.events} 場`], ['壇辦', `${total.tan} 人次`], ['道親', `${total.dao} 人次`]],
+        rows: [['場次', `${total.events} 場`], ['壇辦', `${total.tan} 人次`], ['道親', `${total.dao} 人次`]].concat(total.extra ? [['備註計入', `${total.extra} 人次`]] : []),
         note: '匯入後會出現在行事曆的過去日期與統計表。同名同日的勤務已存在會略過。',
         confirmText: '開始匯入'
       });
@@ -161,13 +162,13 @@
         const key = e.name + '|' + e.date;
         const into = byKey.get(key);
         if (!into) {
-          byKey.set(key, { date: e.date, end: e.end, name: e.name, nature: e.nature, tan: fix(e.tan), dao: fix(e.dao), accompany: fix(e.accompany) });
+          byKey.set(key, { date: e.date, end: e.end, name: e.name, nature: e.nature, tan: fix(e.tan), dao: fix(e.dao), extra: fix(e.extra || []), accompany: fix(e.accompany) });
           return;
         }
-        ['tan', 'dao', 'accompany'].forEach((k) => { into[k] = [...new Set(into[k].concat(fix(e[k])))]; });
+        ['tan', 'dao', 'extra', 'accompany'].forEach((k) => { into[k] = [...new Set(into[k].concat(fix(e[k] || [])))]; });
         if (e.end > into.end) into.end = e.end;
       });
-      const events = [...byKey.values()];
+      const events = HistoryParse.inferIdentity([...byKey.values()]);
       const sum = { duties: 0, signups: 0, skipped: 0 };
       try {
         for (let i = 0; i < events.length; i += CHUNK) {

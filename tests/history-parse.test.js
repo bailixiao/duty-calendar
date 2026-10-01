@@ -41,7 +41,7 @@ test('解析每月分頁：依標題找欄位、同一場的多列合併、名�
   const r = H.parseMonth(monthNew);
   assert.deepEqual(r.problems, []);
   assert.equal(r.events.length, 3);
-  assert.deepEqual(r.events[0], { date: '2026-09-05', end: '2026-09-05', name: '宏宗打掃', nature: '勤務', tan: ['測試甲', '測試戊'], dao: ['測試乙', '測試己'], accompany: ['測試丙', '測試丁'], row: 4 });
+  assert.deepEqual(r.events[0], { date: '2026-09-05', end: '2026-09-05', name: '宏宗打掃', nature: '勤務', tan: ['測試甲', '測試戊'], dao: ['測試乙', '測試己'], extra: [], accompany: ['測試丙', '測試丁'], row: 4 });
   assert.deepEqual(r.events[1].dao, ['測試庚', '測試辛']);
   assert.equal(r.events[2].date, '2026-09-23');
   assert.equal(r.events[1].nature, '支援');
@@ -87,4 +87,24 @@ test('備註：只收 2–4 個字的姓名，其他列為問題', () => {
   assert.deepEqual(r.events[0].accompany, ['測試乙']);
   assert.equal(r.problems.length, 2);
   assert.match(r.problems[0], /第 2 列備註「甲」不像姓名/);
+});
+
+test('備註的寫法：工作：名字算人數、陪同／護持歸陪同、斜線分隔多人、去掉稱呼', () => {
+  assert.deepEqual(H.parseNote('視廳：測試甲　道歌： 測試乙姐'), { count: ['測試甲', '測試乙'], accompany: [], bad: [] });
+  assert.deepEqual(H.parseNote('測試丙陪同、測試丁-護持、測試戊 - 護持'), { count: [], accompany: ['測試丙', '測試丁', '測試戊'], bad: [] });
+  assert.deepEqual(H.parseNote('郭測試甲/測試乙/測試丙'), { count: [], accompany: ['郭測試甲', '測試乙', '測試丙'], bad: [] });
+  assert.deepEqual(H.parseNote('甲、支援烹飪組協助'), { count: [], accompany: [], bad: ['甲', '支援烹飪組協助'] });
+  assert.deepEqual(H.parseNote('1.測試甲 2.測試乙'), { count: [], accompany: ['測試甲', '測試乙'], bad: [] });
+});
+
+test('推斷身分：同一批資料出現較多的身分；沒出現過就是未填身分；不重複', () => {
+  const events = [
+    { tan: ['測試甲'], dao: ['測試乙'], extra: [], accompany: [] },
+    { tan: [], dao: ['測試乙'], extra: ['測試甲', '測試乙', '測試丙'], accompany: [] }
+  ];
+  H.inferIdentity(events);
+  assert.deepEqual(events[1].tan, ['測試甲']);
+  assert.deepEqual(events[1].dao, ['測試乙'], '已經在名單上的不重複加');
+  assert.deepEqual(events[1].unknown, ['測試丙']);
+  assert.deepEqual(events[1].extra, []);
 });
