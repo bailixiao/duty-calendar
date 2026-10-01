@@ -8,7 +8,7 @@ var MAX_ENTRIES_PER_SIGNUP = 20;
 var MAX_DATES_PER_SIGNUP = 31;
 
 /**
- * body = { dutyId, positionId, dates: ['yyyy-MM-dd'], entries: [{ name, accompany }] }
+ * body = { dutyId, positionId, dates: ['yyyy-MM-dd'], entries: [{ name, identity, accompany }] }
  */
 function signup_(body) {
   var dates = uniqueList_(body.dates);
@@ -59,6 +59,7 @@ function signup_(body) {
           '日期': date,
           '崗位ID': position['崗位ID'],
           '姓名': name,
+          '身分': e.identity,
           '陪同': accompany ? '是' : '否',
           '出席': '出席',
           '狀態': '有效',
@@ -70,10 +71,10 @@ function signup_(body) {
           '時間': now,
           '動作': '報名',
           '報名ID': id,
-          '內容摘要': [name + (accompany ? '（陪同）' : ''), date, duty['名稱'], position['崗位名稱']].join('｜'),
+          '內容摘要': [name + '（' + e.identity + (accompany ? '・陪同' : '') + '）', date, duty['名稱'], position['崗位名稱']].join('｜'),
           '還原用的前一版資料': ''
         });
-        created.push({ id: id, date: date, name: name, accompany: accompany });
+        created.push({ id: id, date: date, name: name, identity: e.identity, accompany: accompany });
       });
     });
 

@@ -1,10 +1,11 @@
-// 報名表單：選崗位（額滿反灰）→ 選日期（多天勤務）→ 填名字（自動提示、可多人、可勾陪同）→ 確認報名。
+// 報名表單：選崗位（額滿反灰）→ 選日期（多天勤務）→ 填名字（自動提示、可多人、選道親／壇辦、可勾陪同）→ 確認報名。
 // 名額與重複的最終判斷在伺服器（LockService 鎖定），這裡只做提示。
 (function () {
   'use strict';
 
   const esc = Fmt.esc;
   const SEARCH_LIMIT = 10; // 與後端 MEMBER_SEARCH_LIMIT 相同；結果少於此數代表已完整
+  const IDENTITIES = ['道親', '壇辦'];
 
   function normalize(name) {
     return String(name || '').replace(/^[\s　]+|[\s　]+$/g, '');
@@ -17,10 +18,12 @@
     const state = {
       positionId: duty.positions.length === 1 ? duty.positions[0].id : null,
       dates: new Set([openDates.indexOf(defaultDate) !== -1 ? defaultDate : openDates[0]]),
-      entries: [], // { name, accompany }
+      entries: [], // { name, identity: '道親'|'壇辦'|'', accompany }
+      showMissing: false, // 送出時有人沒選身分，標示出來
       submitting: false
     };
     const searchCache = new Map(); // 查詢字 → 成員陣列
+    const knownIdentity = new Map(); // 提示中出現過的成員 → 成員名單上的身分
     let searchToken = 0;
     let searchTimer = null;
     let step = 1;
@@ -45,7 +48,7 @@
           </div>
           <div class="suggestions" data-suggestions aria-live="polite"></div>
           <ul class="name-list" data-names></ul>
-          <p class="hint">幫長輩或家人報名時，可以連續加入多個名字。勾「陪同」的人不佔名額。</p>
+          <p class="hint">幫長輩或家人報名時，可以連續加入多個名字。每個名字都要選「道親」或「壇辦」。勾「陪同」的人不佔名額。</p>
         </fieldset>
         <div class="form-error" data-error role="alert" hidden></div>
         <button type="submit" class="btn btn-primary btn-block" data-submit>確認報名</button>
@@ -111,26 +114,41 @@
     // ---------- 名字 ----------
 
     function renderNames() {
-      $('[data-names]').innerHTML = state.entries.map((e, i) => `
-        <li class="name-item">
-          <span class="name-text">${esc(e.name)}</span>
-          <label class="accompany">
-            <input type="checkbox" data-accompany="${i}"${e.accompany ? ' checked' : ''}> 陪同
-          </label>
-          <button type="button" class="btn-remove" data-remove="${i}" aria-label="移除 ${esc(e.name)}">×</button>
-        </li>`).join('');
+      $('[data-names]').innerHTML = state.entries.map((e, i) => {
+        const missing = state.showMissing && !e.identity;
+        return `
+        <li class="name-item${missing ? ' is-missing' : ''}">
+          <div class="name-top">
+            <span class="name-text">${esc(e.name)}</span>
+            <button type="button" class="btn-remove" data-remove="${i}" aria-label="移除 ${esc(e.name)}">×</button>
+          </div>
+          <div class="name-options">
+            <div class="identity" role="radiogroup" aria-label="${esc(e.name)} 的身分">
+              ${IDENTITIES.map((id) => `
+                <label class="identity-option${e.identity === id ? ' is-checked' : ''}">
+                  <input type="radio" name="identity-${i}" value="${id}" data-identity="${i}"${e.identity === id ? ' checked' : ''}>${id}
+                </label>`).join('')}
+            </div>
+            <label class="accompany">
+              <input type="checkbox" data-accompany="${i}"${e.accompany ? ' checked' : ''}> 陪同
+            </label>
+          </div>
+          ${missing ? '<p class="name-missing">請選擇道親或壇辦</p>' : ''}
+        </li>`;
+      }).join('');
       const n = state.entries.length;
       $('[data-submit]').textContent = state.submitting ? '報名中⋯' : n ? `確認報名（${n} 人）` : '確認報名';
     }
 
-    function addName(raw) {
+    /** identity：從提示點選時帶入成員名單上的身分；手動輸入的名字留空，由報名者選 */
+    function addName(raw, identity) {
       const name = normalize(raw);
       if (!name) return false;
       if (state.entries.some((e) => e.name === name)) {
         showError(`「${name}」已經在名單裡了`);
         return false;
       }
-      state.entries.push({ name, accompany: false });
+      state.entries.push({ name, identity: IDENTITIES.indexOf(identity) !== -1 ? identity : '', accompany: false });
       hideError();
       renderNames();
       return true;
@@ -163,6 +181,7 @@
     function renderSuggestions(list) {
       const taken = new Set(state.entries.map((e) => e.name));
       const items = list.filter((m) => !taken.has(m.name));
+      items.forEach((m) => knownIdentity.set(m.name, m.identity || ''));
       const inGroup = (m) => duty.groupType && duty.group && m.groups && m.groups[duty.groupType] === duty.group;
       $('[data-suggestions]').innerHTML = items.length
         ? items.map((m) => `<button type="button" class="suggestion" data-suggest="${esc(m.name)}">${esc(m.name)}${inGroup(m) ? '<small>本組</small>' : ''}</button>`).join('')
@@ -224,6 +243,11 @@
       if (!state.positionId) problems.push('請選擇崗位');
       if (!state.dates.size) problems.push('請選擇日期');
       if (!state.entries.length) problems.push('請填寫名字，並按「加入」');
+      if (state.entries.some((e) => !e.identity)) {
+        problems.push('請為每個名字選擇「道親」或「壇辦」');
+        state.showMissing = true;
+        renderNames();
+      }
       if (problems.length) {
         showError(problems.map(esc).join('<br>'));
         return;
@@ -238,7 +262,7 @@
         dutyId: duty.id,
         positionId: state.positionId,
         dates: Array.from(state.dates).sort(),
-        entries: state.entries.map((e) => ({ name: e.name, accompany: e.accompany }))
+        entries: state.entries.map((e) => ({ name: e.name, identity: e.identity, accompany: e.accompany }))
       };
       try {
         await Api.signup(payload);
@@ -286,7 +310,7 @@
     $('[data-suggestions]').addEventListener('click', (ev) => {
       const btn = ev.target.closest('[data-suggest]');
       if (!btn) return;
-      addName(btn.dataset.suggest);
+      addName(btn.dataset.suggest, knownIdentity.get(btn.dataset.suggest));
       input.value = '';
       clearSuggestions();
       input.focus();
@@ -300,8 +324,13 @@
     });
 
     $('[data-names]').addEventListener('change', (ev) => {
-      const i = ev.target.dataset.accompany;
-      if (i !== undefined) state.entries[Number(i)].accompany = ev.target.checked;
+      const t = ev.target;
+      if (t.dataset.accompany !== undefined) state.entries[Number(t.dataset.accompany)].accompany = t.checked;
+      if (t.dataset.identity !== undefined) {
+        state.entries[Number(t.dataset.identity)].identity = t.value;
+        renderNames();
+        if (!state.entries.some((e) => !e.identity)) hideError();
+      }
     });
 
     form.addEventListener('submit', submit);

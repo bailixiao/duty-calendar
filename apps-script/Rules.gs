@@ -4,6 +4,8 @@
  * 資料一律以字串處理：日期 yyyy-MM-dd、陪同「是／否」、狀態「有效／已取消」。
  */
 
+var IDENTITIES_ = ['壇辦', '道親'];
+
 /** 去掉名字前後的半形與全形空白 */
 function normalizeName_(name) {
   return String(name === undefined || name === null ? '' : name).replace(/^[\s　]+|[\s　]+$/g, '');
@@ -72,11 +74,12 @@ function dayStatus_(positions, signups, date) {
  *   - 已經過去的勤務不能報名，當天可以（today 為台北時間的 yyyy-MM-dd）。
  *   - 同一人同一天在同一個勤務內只能報一個崗位；陪同者不受此限制。
  *   - 陪同者不佔名額。
+ *   - 每個名字都要選身分（壇辦／道親），統計道親佔比用。
  *   - 任何一筆有錯，整批都不寫入（由呼叫端負責）。
  *
  * req = {
  *   duty: 勤務列物件, positions: 該勤務的崗位列, signups: 該勤務的報名列,
- *   positionId, dates: [yyyy-MM-dd], entries: [{ name, accompany: boolean }], today
+ *   positionId, dates: [yyyy-MM-dd], entries: [{ name, identity: '壇辦'|'道親', accompany: boolean }], today
  * }
  * 錯誤格式：{ name?, date?, message }
  */
@@ -94,10 +97,13 @@ function validateSignup_(req) {
   if (!dates.length) return [{ message: '請選擇日期' }];
 
   var entries = (req.entries || []).map(function (e) {
-    return { name: normalizeName_(e && e.name), accompany: !!(e && e.accompany) };
+    return { name: normalizeName_(e && e.name), identity: e && e.identity, accompany: !!(e && e.accompany) };
   });
   if (!entries.length) return [{ message: '請填寫名字' }];
   if (entries.some(function (e) { return e.name === ''; })) return [{ message: '名字不可空白' }];
+  entries.forEach(function (e) {
+    if (IDENTITIES_.indexOf(e.identity) === -1) errors.push({ name: e.name, message: '請選擇身分（道親或壇辦）' });
+  });
 
   // 同一批不可重複填同一個名字
   var seen = {};

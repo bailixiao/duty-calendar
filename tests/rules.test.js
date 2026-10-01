@@ -20,11 +20,14 @@ function signup(name, positionId, date, extra) {
   return Object.assign({ '姓名': name, '崗位ID': positionId, '日期': date, '陪同': '否', '狀態': '有效' }, extra);
 }
 
+// entries 沒寫身分的，預設「道親」
 function req(overrides) {
-  return Object.assign({
+  const r = Object.assign({
     duty, positions, signups: [], positionId: 'P1', dates: ['2026-11-08'],
     entries: [{ name: '測試甲' }], today: '2026-10-01'
   }, overrides);
+  r.entries = r.entries.map((e) => Object.assign({ identity: '道親' }, e));
+  return r;
 }
 
 test('normalizeName_ 去掉半形與全形空白', () => {
@@ -167,6 +170,15 @@ test('不限人數的崗位不會額滿', () => {
 test('同一批重複填同一個名字', () => {
   const errors = validateSignup_(req({ positionId: 'P2', entries: [{ name: '測試甲' }, { name: '測試甲　' }] }));
   assert.match(errors[0].message, /名字重複填寫/);
+});
+
+test('每個名字都要選身分（壇辦／道親），陪同者也一樣', () => {
+  assert.deepEqual(validateSignup_(req({ entries: [{ name: '測試甲', identity: '壇辦' }] })), []);
+  const errors = validateSignup_(req({
+    entries: [{ name: '測試甲', identity: undefined }, { name: '測試乙', identity: '其他' }, { name: '測試丙', identity: undefined, accompany: true }]
+  }));
+  assert.deepEqual(errors.map(e => e.name), ['測試甲', '測試乙', '測試丙']);
+  assert.match(errors[0].message, /請選擇身分/);
 });
 
 test('空白名字、未選崗位、公告型勤務', () => {

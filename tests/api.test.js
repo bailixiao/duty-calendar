@@ -78,7 +78,11 @@ function createEnv(fixedNow) {
     sheets,
     clock,
     get(params) { return JSON.parse(api.doGet({ parameter: params }).text); },
-    post(body) { return this.postRaw(JSON.stringify(body)); },
+    // 報名的 entries 沒寫身分的，預設「道親」
+    post(body) {
+      if (Array.isArray(body.entries)) body = { ...body, entries: body.entries.map(e => ({ identity: '道親', ...e })) };
+      return this.postRaw(JSON.stringify(body));
+    },
     postRaw(text) { return JSON.parse(api.doPost({ postData: { contents: text } }).text); }
   };
 }
@@ -142,7 +146,32 @@ test('報名成功後，詳情頁看得到名字、人數更新、寫入操作�
   assert.deepEqual(names, ['測試丙', '測試乙', '測試甲'].sort());
   assert.equal(detail.days['2026-11-08'].total, 2);
   assert.equal(env.sheets['操作紀錄'].data.length, 1 + 6);
-  assert.match(env.sheets['操作紀錄'].data[1][3], /^測試甲｜2026-11-08｜12人小組輪值｜烹飪$/);
+  assert.match(env.sheets['操作紀錄'].data[1][3], /^測試甲（道親）｜2026-11-08｜12人小組輪值｜烹飪$/);
+});
+
+test('報名寫入身分欄（報名分頁最後一欄），操作紀錄含身分', () => {
+  const env = createEnv(OCT_1);
+  const v = findDuty(env, '2026-10-13', '2026-10-13', d => d.name === '彌勒山志工輪值');
+  const r = env.post({
+    action: 'signup', dutyId: v.id, positionId: v.positions[0].id, dates: ['2026-10-13'],
+    entries: [{ name: '測試甲', identity: '壇辦' }, { name: '測試乙', identity: '道親', accompany: true }]
+  });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  const rows = env.sheets['報名'].data;
+  assert.equal(rows[0][10], '身分');
+  assert.deepEqual(rows.slice(1).map(x => [x[4], x[10], x[5]]), [['測試甲', '壇辦', '否'], ['測試乙', '道親', '是']]);
+  assert.match(env.sheets['操作紀錄'].data[2][3], /^測試乙（道親・陪同）｜/);
+});
+
+test('沒選身分的報名被擋', () => {
+  const env = createEnv(OCT_1);
+  const v = findDuty(env, '2026-10-13', '2026-10-13', d => d.name === '彌勒山志工輪值');
+  const r = env.postRaw(JSON.stringify({
+    action: 'signup', dutyId: v.id, positionId: v.positions[0].id, dates: ['2026-10-13'], entries: [{ name: '測試甲' }]
+  }));
+  assert.equal(r.ok, false);
+  assert.match(r.error.details[0].message, /請選擇身分/);
+  assert.equal(env.sheets['報名'].data.length, 1);
 });
 
 test('同一勤務同一天報第二個崗位被擋，整批不寫入', () => {
@@ -227,9 +256,8 @@ test('searchMembers 只回相符者的姓名與組別，略過停用者', () => 
   m.push(['測試乙', '壇辦', '', '', '', '', '否']);
   m.push(['範例丙', '道親', '', '', '', '', '是']);
   const r = env.get({ action: 'searchMembers', q: '測試' });
-  assert.deepEqual(r.data.members, [{ name: '測試甲', groups: { '佛堂組': '第1組', '打掃組': '第2組', '班輪值組': '第一組' } }]);
+  assert.deepEqual(r.data.members, [{ name: '測試甲', identity: '道親', groups: { '佛堂組': '第1組', '打掃組': '第2組', '班輪值組': '第一組' } }]);
   assert.ok(!JSON.stringify(r).includes('備註內容'));
-  assert.ok(!JSON.stringify(r).includes('道親'));
 });
 
 test('searchMembers 負責組組員排最前面，最多 10 筆', () => {

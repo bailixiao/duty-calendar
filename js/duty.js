@@ -176,7 +176,7 @@
   }
 
   function onSignedUp(result) {
-    const names = result.entries.map((e) => e.name + (e.accompany ? '（陪同）' : '')).join('、');
+    const names = result.entries.map((e) => `${e.name}（${e.identity}${e.accompany ? '・陪同' : ''}）`).join('、');
     const dates = result.dates.map(Fmt.shortDate).join('、');
     const flash = `
       <div class="notice notice-success" role="status">

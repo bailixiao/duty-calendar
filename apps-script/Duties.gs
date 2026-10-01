@@ -70,7 +70,7 @@ var MEMBER_SEARCH_LIMIT = 10;
 
 /**
  * 報名時的名字自動提示。至少輸入一個字才回傳，只回名字含有該字串的成員（最多 10 筆），
- * 不提供整份名單。只回姓名與所屬組別。
+ * 不提供整份名單。只回姓名、身分（壇辦／道親，用來自動帶入報名表）與所屬組別。
  * params: q（輸入的字）、groupType + group（選填，該組組員排最前面）
  */
 function searchMembers_(params) {
@@ -82,6 +82,7 @@ function searchMembers_(params) {
     .map(function (m) {
       return {
         name: normalizeName_(m['姓名']),
+        identity: OPTIONS.identity.indexOf(m['身分']) !== -1 ? m['身分'] : '',
         groups: { '佛堂組': m['佛堂組'], '打掃組': m['打掃組'], '班輪值組': m['班輪值組'] }
       };
     })

@@ -1,5 +1,6 @@
 /**
  * 建立 Sheet 結構。可重複執行：已存在的分頁不會被清空，只補上缺少的分頁與欄位標題。
+ * 規格新增欄位時一律加在最後；既有分頁的標題若是新標題的前段，會自動補上新欄位。
  * 在 Apps Script 編輯器選 setupSheets 後按「執行」。
  */
 function setupSheets() {
@@ -11,14 +12,18 @@ function setupSheets() {
     var sheet = ss.getSheetByName(def.name) || ss.insertSheet(def.name);
     if (!def.headers.length) return;
 
+    if (sheet.getMaxColumns() < def.headers.length) {
+      sheet.insertColumnsAfter(sheet.getMaxColumns(), def.headers.length - sheet.getMaxColumns());
+    }
     var headerRange = sheet.getRange(1, 1, 1, def.headers.length);
     var current = headerRange.getValues()[0];
-    var isEmpty = current.every(function (v) { return v === ''; });
-    if (isEmpty) {
-      headerRange.setValues([def.headers]);
-    } else if (current.join('|') !== def.headers.join('|')) {
+    var filled = current.filter(function (v) { return v !== ''; }).length;
+    var isPrefix = current.slice(0, filled).join('|') === def.headers.slice(0, filled).join('|') &&
+      current.slice(filled).every(function (v) { return v === ''; });
+    if (!isPrefix) {
       throw new Error('「' + def.name + '」分頁的欄位標題與規格不符，請檢查第一列：' + current.join('、'));
     }
+    if (filled < def.headers.length) headerRange.setValues([def.headers]);
 
     headerRange.setFontWeight('bold');
     sheet.setFrozenRows(1);
@@ -49,6 +54,7 @@ function applyValidations_(ss) {
     [SHEETS.SIGNUPS, '陪同', OPTIONS.yesNo],
     [SHEETS.SIGNUPS, '出席', OPTIONS.attendance],
     [SHEETS.SIGNUPS, '狀態', OPTIONS.signupStatus],
+    [SHEETS.SIGNUPS, '身分', OPTIONS.identity],
     [SHEETS.LOGS, '動作', OPTIONS.logAction]
   ];
   rules.forEach(function (r) {
