@@ -75,6 +75,7 @@ function dayStatus_(positions, signups, date) {
  *   - 同一人同一天在同一個勤務內只能報一個崗位；陪同者不受此限制。
  *   - 陪同者不佔名額。
  *   - 每個名字都要選身分（壇辦／道親），統計道親佔比用。
+ *   - 只有壇辦可以選「陪同」；道親一律是了愿。
  *   - 任何一筆有錯，整批都不寫入（由呼叫端負責）。
  *
  * req = {
@@ -103,6 +104,7 @@ function validateSignup_(req) {
   if (entries.some(function (e) { return e.name === ''; })) return [{ message: '名字不可空白' }];
   entries.forEach(function (e) {
     if (IDENTITIES_.indexOf(e.identity) === -1) errors.push({ name: e.name, message: '請選擇身分（道親或壇辦）' });
+    else if (e.accompany && e.identity !== '壇辦') errors.push({ name: e.name, message: '只有壇辦可以選「陪同」' });
   });
 
   // 同一批不可重複填同一個名字

@@ -135,7 +135,7 @@ test('報名成功後，詳情頁看得到名字、人數更新、寫入操作�
 
   const r = env.post({
     action: 'signup', dutyId: team.id, positionId: cook.id, dates: ['2026-11-08', '2026-11-09'],
-    entries: [{ name: ' 測試甲　' }, { name: '測試乙' }, { name: '測試丙', accompany: true }]
+    entries: [{ name: ' 測試甲　' }, { name: '測試乙' }, { name: '測試丙', identity: '壇辦', accompany: true }]
   });
   assert.equal(r.ok, true, JSON.stringify(r.error));
   assert.equal(r.data.created.length, 6);
@@ -154,13 +154,13 @@ test('報名寫入身分欄（報名分頁最後一欄），操作紀錄含身�
   const v = findDuty(env, '2026-10-13', '2026-10-13', d => d.name === '彌勒山志工輪值');
   const r = env.post({
     action: 'signup', dutyId: v.id, positionId: v.positions[0].id, dates: ['2026-10-13'],
-    entries: [{ name: '測試甲', identity: '壇辦' }, { name: '測試乙', identity: '道親', accompany: true }]
+    entries: [{ name: '測試甲', identity: '壇辦' }, { name: '測試乙', identity: '壇辦', accompany: true }]
   });
   assert.equal(r.ok, true, JSON.stringify(r.error));
   const rows = env.sheets['報名'].data;
   assert.equal(rows[0][10], '身分');
-  assert.deepEqual(rows.slice(1).map(x => [x[4], x[10], x[5]]), [['測試甲', '壇辦', '否'], ['測試乙', '道親', '是']]);
-  assert.match(env.sheets['操作紀錄'].data[2][3], /^測試乙（道親・陪同）｜/);
+  assert.deepEqual(rows.slice(1).map(x => [x[4], x[10], x[5]]), [['測試甲', '壇辦', '否'], ['測試乙', '壇辦', '是']]);
+  assert.match(env.sheets['操作紀錄'].data[2][3], /^測試乙（壇辦・陪同）｜/);
 });
 
 test('沒選身分的報名被擋', () => {
@@ -210,7 +210,7 @@ test('彌勒山志工輪值最多 2 人，第 3 人被擋，陪同仍可加', ()
   const third = env.post({ ...base, entries: [{ name: '測試丙' }] });
   assert.equal(third.ok, false);
   assert.match(third.error.details[0].message, /已額滿/);
-  assert.equal(env.post({ ...base, entries: [{ name: '測試丙', accompany: true }] }).ok, true);
+  assert.equal(env.post({ ...base, entries: [{ name: '測試丙', identity: '壇辦', accompany: true }] }).ok, true);
   assert.equal(findDuty(env, '2026-10-13', '2026-10-13', d => d.id === v.id).days['2026-10-13'].full, true);
 });
 

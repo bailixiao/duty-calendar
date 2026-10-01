@@ -123,7 +123,7 @@ test('已取消的報名不算重複', () => {
 test('陪同者不受同日重複檢查限制', () => {
   const errors = validateSignup_(req({
     positionId: 'P2',
-    entries: [{ name: '測試甲', accompany: true }],
+    entries: [{ name: '測試甲', identity: '壇辦', accompany: true }],
     signups: [signup('測試甲', 'P1', '2026-11-08')]
   }));
   assert.deepEqual(errors, []);
@@ -152,7 +152,7 @@ test('一次報多人超過剩餘名額，整批擋下並說明剩幾個', () =>
 
 test('陪同者不佔名額：額滿時仍可加陪同', () => {
   const full = ['測試甲', '測試乙', '測試丙', '測試丁'].map(n => signup(n, 'P1', '2026-11-08'));
-  const errors = validateSignup_(req({ entries: [{ name: '測試戊', accompany: true }], signups: full }));
+  const errors = validateSignup_(req({ entries: [{ name: '測試戊', identity: '壇辦', accompany: true }], signups: full }));
   assert.deepEqual(errors, []);
 });
 
@@ -179,6 +179,13 @@ test('每個名字都要選身分（壇辦／道親），陪同者也一樣', ()
   }));
   assert.deepEqual(errors.map(e => e.name), ['測試甲', '測試乙', '測試丙']);
   assert.match(errors[0].message, /請選擇身分/);
+});
+
+test('只有壇辦可以選陪同', () => {
+  assert.deepEqual(validateSignup_(req({ entries: [{ name: '測試甲', identity: '壇辦', accompany: true }] })), []);
+  const errors = validateSignup_(req({ entries: [{ name: '測試乙', identity: '道親', accompany: true }] }));
+  assert.equal(errors.length, 1);
+  assert.match(errors[0].message, /只有壇辦可以選「陪同」/);
 });
 
 test('空白名字、未選崗位、公告型勤務', () => {

@@ -1,4 +1,4 @@
-// 報名表單：選崗位（額滿反灰）→ 選日期（多天勤務）→ 填名字（自動提示、可多人、選道親／壇辦、可勾陪同）→ 確認報名。
+// 報名表單：選崗位（額滿反灰）→ 選日期（多天勤務）→ 填名字（自動提示、可多人、選道親／壇辦；壇辦可選了愿／陪同）→ 確認報名。
 // 名額與重複的最終判斷在伺服器（LockService 鎖定），這裡只做提示。
 (function () {
   'use strict';
@@ -48,7 +48,7 @@
           </div>
           <div class="suggestions" data-suggestions aria-live="polite"></div>
           <ul class="name-list" data-names></ul>
-          <p class="hint">幫長輩或家人報名時，可以連續加入多個名字。每個名字都要選「道親」或「壇辦」。「陪同」的人不佔名額。</p>
+          <p class="hint">幫長輩或家人報名時，可以連續加入多個名字。每個名字都要選「道親」或「壇辦」。壇辦可選「陪同」，陪同不佔名額。</p>
         </fieldset>
         <div class="form-error" data-error role="alert" hidden></div>
         <button type="submit" class="btn btn-primary btn-block" data-submit>確認報名</button>
@@ -132,15 +132,15 @@
                   </label>`).join('')}
               </div>
             </div>
-            <div class="option-row">
+            ${e.identity === '壇辦' ? `<div class="option-row">
               <span class="option-label">方式</span>
               <div class="segmented" role="radiogroup" aria-label="${esc(e.name)} 的參加方式">
-                ${[['值勤', false], ['陪同', true]].map(([label, value]) => `
+                ${[['了愿', false], ['陪同', true]].map(([label, value]) => `
                   <label class="segment${e.accompany === value ? ' is-checked' : ''}">
                     <input type="radio" name="accompany-${i}" value="${value}" data-accompany="${i}"${e.accompany === value ? ' checked' : ''}>${label}
                   </label>`).join('')}
               </div>
-            </div>
+            </div>` : ''}
           </div>
           ${missing ? '<p class="name-missing">請選擇道親或壇辦</p>' : ''}
         </li>`;
@@ -339,7 +339,9 @@
         renderNames();
       }
       if (t.dataset.identity !== undefined) {
-        state.entries[Number(t.dataset.identity)].identity = t.value;
+        const entry = state.entries[Number(t.dataset.identity)];
+        entry.identity = t.value;
+        if (entry.identity !== '壇辦') entry.accompany = false; // 只有壇辦可以陪同，道親一律了愿
         renderNames();
         if (!state.entries.some((e) => !e.identity)) hideError();
       }
