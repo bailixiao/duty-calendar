@@ -31,6 +31,24 @@ function dataRowCount_(def) {
 }
 
 /**
+ * 讀取整個分頁，回傳物件陣列（key 為欄位名稱，值一律為字串）。
+ * 每個物件另帶 _row（Sheet 列號），供之後更新使用。空白列略過。
+ */
+function readTable_(def) {
+  var count = dataRowCount_(def);
+  if (!count) return [];
+  var values = getSheet_(def).getRange(2, 1, count, def.headers.length).getDisplayValues();
+  var rows = [];
+  values.forEach(function (row, i) {
+    if (row.every(function (v) { return v === ''; })) return;
+    var obj = { _row: i + 2 };
+    def.headers.forEach(function (h, j) { obj[h] = String(row[j]).trim(); });
+    rows.push(obj);
+  });
+  return rows;
+}
+
+/**
  * 一次寫入多列。rows 為物件陣列，key 為欄位名稱；缺少的欄位寫空字串。
  * 所有值轉成字串寫入，配合整張表的純文字格式。
  */

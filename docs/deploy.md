@@ -27,6 +27,10 @@
 | `Sheets.gs` | 讀寫分頁的共用函式 |
 | `Setup.gs` | 建立分頁與欄位 |
 | `Seed.gs` | 匯入初始勤務資料 |
+| `Rules.gs` | 報名規則（名額、同日重複、日期檢查） |
+| `Duties.gs` | 讀取 API：行事曆、勤務詳情、成員名單 |
+| `Signup.gs` | 報名 API |
+| `Code.gs` | Web App 進入點（doGet / doPost） |
 
 （預設的 `程式碼.gs` 可刪除。）
 
@@ -42,7 +46,41 @@
 
 ## 5. 部署 Web App
 
-（第 2 段完成 API 後補上。）
+1. Apps Script 右上角點「**部署 → 新增部署作業**」。
+2. 「選取類型」旁的齒輪選「**網頁應用程式**」。
+3. 設定：
+   - 說明：例如「第一版」
+   - 執行身分：**我**
+   - 誰可以存取：**所有人**（不需要登入；網址公開後任何人都能報名，這是規格要求）
+4. 按「部署」，複製畫面上的「**網頁應用程式網址**」（結尾是 `/exec`）。
+5. 驗證：在瀏覽器開啟 `網址?action=ping`，應看到類似：
+   ```json
+   {"ok":true,"data":{"now":"2026-10-01 10:00:00","today":"2026-10-01","timeZone":"Asia/Taipei"}}
+   ```
+   `timeZone` 必須是 `Asia/Taipei`，`now` 要是現在的台北時間。
+6. 再開啟 `網址?action=getEvents&from=2026-11-01&to=2026-11-30`，應看到 11 月的勤務資料。
+
+### 程式更新後重新部署
+
+改了程式碼之後，原網址**不會**自動更新，要：「部署 → 管理部署作業 → 選原本的部署 → 鉛筆圖示（編輯）→ 版本選『新版本』→ 部署」。這樣網址不變，前端不用改。
+
+### API 一覽
+
+| 方法 | 參數 | 說明 |
+|---|---|---|
+| GET | `action=ping` | 檢查時區與連線 |
+| GET | `action=getEvents&from=yyyy-MM-dd&to=yyyy-MM-dd` | 區間內勤務與每日人數（不含名字） |
+| GET | `action=getDuty&id=勤務ID` | 勤務詳情、報名名單；公告型另含輪值組 |
+| GET | `action=getMembers` | 成員姓名與組別（自動提示用） |
+| POST | `{"action":"signup","dutyId":…,"positionId":…,"dates":[…],"entries":[{"name":…,"accompany":false}]}` | 報名；內容以 `text/plain` 送出 |
+
+## 開發者：執行測試
+
+在專案根目錄執行（需 Node 18 以上，不用安裝套件）：
+
+```bash
+node --test
+```
 
 ## 6. 發布前端（GitHub Pages）
 
