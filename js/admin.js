@@ -5,6 +5,7 @@
 //   #/admin/duties…   勤務管理：列表、新增、編輯（見 admin-duties.js）
 //   #/admin/import    批次匯入（見 admin-import.js）
 //   #/admin/members   成員名單管理、#/admin/groups 分組管理（見 admin-people.js）
+//   #/admin/stats     統計（見 admin-stats.js）
 //   #/admin/logs      操作紀錄與還原
 //   #/admin/day       明日名單
 (function () {
@@ -70,6 +71,7 @@
     if (sub === 'import') return ImportPage.show(shell('duties'), guard);
     if (sub === 'members') return PeoplePage.members(shell('members'), guard);
     if (sub === 'groups') return PeoplePage.groups(shell('groups'), guard);
+    if (sub === 'stats') return StatsPage.show(shell('stats'), guard);
     if (sub === 'logs') return AdminPages.logs(shell('logs'), guard);
     if (sub === 'day') return AdminPages.day(shell('day'), guard);
     return showRecent();
@@ -77,7 +79,7 @@
 
   /** 管理頁共用外框：上方分頁＋內容區，回傳內容區元素 */
   function shell(active) {
-    const tabs = [['', '近期勤務'], ['duties', '勤務管理'], ['members', '成員'], ['groups', '分組'], ['logs', '操作紀錄'], ['day', '明日名單']];
+    const tabs = [['', '近期勤務'], ['duties', '勤務管理'], ['members', '成員'], ['groups', '分組'], ['stats', '統計'], ['logs', '操作紀錄'], ['day', '明日名單']];
     root.innerHTML = `
       <div class="admin-head">
         <h1 class="admin-title">管理後台</h1>
