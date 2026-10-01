@@ -268,6 +268,7 @@
       form.inert = true;
       renderNames();
       Busy.show('報名中，請稍候⋯', '約需 3–5 秒，請不要關閉畫面');
+      const slowTimer = setTimeout(() => Busy.show('報名中，請稍候⋯', '伺服器較慢，仍在處理中，請不要關閉畫面'), 10000);
       const position = duty.positions.find((p) => p.id === state.positionId);
       const payload = {
         dutyId: duty.id,
@@ -275,24 +276,68 @@
         dates: Array.from(state.dates).sort(),
         entries: state.entries.map((e) => ({ name: e.name, identity: e.identity, accompany: e.accompany }))
       };
+      const result = { dutyId: duty.id, entries: payload.entries, dates: payload.dates, positionId: position.id, positionName: position.name };
+      const knownIds = new Set(duty.signups.map((s) => s.id)); // 送出前已有的報名，查證時用
       try {
         const res = await Api.signup(payload);
+        clearTimeout(slowTimer);
         Busy.hide();
-        onSuccess({ dutyId: duty.id, entries: payload.entries, dates: payload.dates, positionId: position.id, positionName: position.name }, res);
+        onSuccess(result, res);
       } catch (err) {
-        Busy.hide();
-        state.submitting = false;
-        $('[data-submit]').disabled = false;
-        form.inert = false;
-        renderNames();
+        clearTimeout(slowTimer);
+        if (err.code === 'NETWORK') {
+          // 沒收到回應不代表沒報到（伺服器可能已寫入），自動重新讀名單查證
+          Busy.show('正在確認報名結果⋯', '請不要關閉畫面');
+          const verified = await verify(payload, knownIds);
+          if (verified) {
+            Busy.hide();
+            onSuccess(result, verified);
+            return;
+          }
+          fail(verified === false
+            ? '<strong>報名沒有成功</strong>（伺服器沒有收到），請再按一次「確認報名」。'
+            : '網路不穩，無法確定是否報名成功。請按「回行事曆」後重新點進來，查看名單上有沒有名字，再決定是否重報。');
+          return;
+        }
         if (err.code === 'VALIDATION' && err.details.length) {
-          showError(`<strong>${esc(err.message)}</strong><br>${err.details.map(detailText).join('<br>')}`);
-        } else if (err.code === 'NETWORK') {
-          showError('網路不穩，無法確定是否報名成功。請按「回行事曆」後重新點進來，查看名單上有沒有名字，再決定是否重報。');
+          fail(`<strong>${esc(err.message)}</strong><br>${err.details.map(detailText).join('<br>')}`);
         } else {
-          showError(esc(err.message || '報名失敗，請稍後再試'));
+          fail(esc(err.message || '報名失敗，請稍後再試'));
         }
       }
+    }
+
+    function fail(html) {
+      Busy.hide();
+      state.submitting = false;
+      $('[data-submit]').disabled = false;
+      form.inert = false;
+      renderNames();
+      showError(html);
+    }
+
+    /**
+     * 報名回應沒收到時，重新讀名單確認是否已寫入。
+     * 回傳：與報名回應相同格式的物件（已寫入）｜false（確定沒寫入）｜null（查證也失敗，無法確定）
+     * 報名是整批全有或全無，所以只要每個名字在每個日期都出現新的一筆，就是成功。
+     */
+    async function verify(payload, knownIds) {
+      let fresh;
+      try {
+        fresh = await Api.getDuty(payload.dutyId);
+      } catch (e) {
+        return null;
+      }
+      const added = fresh.signups.filter((s) => !knownIds.has(s.id) && s.positionId === payload.positionId);
+      const found = [];
+      for (const date of payload.dates) {
+        for (const e of payload.entries) {
+          const s = added.find((x) => x.date === date && x.name === e.name);
+          if (!s) return found.length ? null : false;
+          found.push({ id: s.id, date, name: s.name, identity: e.identity, accompany: s.accompany });
+        }
+      }
+      return { created: found, days: fresh.days };
     }
 
     // ---------- 事件 ----------

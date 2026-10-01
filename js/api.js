@@ -53,10 +53,10 @@
     }
   }
 
-  /** 寫入（報名）。不自動重送，避免重複寫入；超過 45 秒視為連線問題 */
+  /** 寫入（報名）。不自動重送，避免重複寫入；超過 90 秒視為連線問題（之後由報名表單查證是否已寫入） */
   async function post(body) {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 45000);
+    const timer = setTimeout(() => ctrl.abort(), 90000);
     try {
       const res = await fetch(window.APP_CONFIG.API_URL, {
         method: 'POST',
