@@ -107,14 +107,24 @@
     return { kind: 'ok', label: unlimited ? `已報 ${d.total} 人` : `人數足・${d.total} 人` };
   }
 
-  /** 卡片上顯示的負責組（12人小組不顯示，規格第 4 節） */
+  /** 卡片上顯示的負責組與組長或召集人（12人小組不顯示，規格第 4 節） */
   function groupText(duty) {
     if (!duty.group || duty.mode === '公告型' || duty.name.indexOf('12人小組') !== -1) return '';
-    return `負責：${duty.group}`;
+    return `負責：${duty.group}${duty.groupLeader ? `（${duty.groupLeader}）` : ''}`;
+  }
+
+  // 管理者聯絡人：伺服器從指令碼屬性 ADMIN_CONTACT 讀出、隨資料傳來（程式碼裡不放人名）
+  let contact = '';
+  function setContact(name) {
+    if (typeof name === 'string') contact = name;
+  }
+  /** 「請聯絡管理者○○○」 */
+  function askAdmin() {
+    return '請聯絡管理者' + contact;
   }
 
   window.Fmt = {
     esc, toDateStr, parseDate, addDays, datesBetween, rocYear, weekday, shortDate, rocDate,
-    timeRange, cardTime, effectiveMin, dayState, groupText
+    timeRange, cardTime, effectiveMin, dayState, groupText, setContact, askAdmin
   };
 })();

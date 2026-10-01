@@ -57,7 +57,7 @@ function createEnv(fixedNow) {
       createTextOutput: (text) => ({ text, setMimeType() { return this; } })
     },
     Session: { getScriptTimeZone: () => 'Asia/Taipei' },
-    PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (k === 'ADMIN_PASSWORD' ? 'test-pass' : null) }) },
+    PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => ({ ADMIN_PASSWORD: 'test-pass', ADMIN_CONTACT: '測試管理者' })[k] || null }) },
     CacheService: (() => {
       const store = new Map();
       return {
@@ -579,4 +579,28 @@ test('快取：keepWarm 重新讀取；大表切塊存取正確', () => {
   const d = env.get({ action: 'getDuty', id: v.id }).data;
   assert.equal(d.signups.length, 800);
   assert.equal(d.signups[799].name, '測試799');
+});
+
+// ---------- 管理者聯絡人、負責組組長 ----------
+
+test('「請聯絡管理者」接上管理者聯絡人（指令碼屬性 ADMIN_CONTACT）', () => {
+  const env = createEnv(Date.UTC(2026, 9, 13, 2)); // 台北 10/13
+  const v = findDuty(env, '2026-10-13', '2026-10-13', d => d.name === '彌勒山志工輪值');
+  const r = env.post({ action: 'signup', dutyId: v.id, positionId: v.positions[0].id, dates: ['2026-10-13'], entries: [{ name: '測試甲' }] });
+  assert.match(r.error.details[0].message, /請聯絡管理者測試管理者$/);
+  assert.equal(env.get({ action: 'getEvents', from: '2026-10-13', to: '2026-10-13' }).data.contact, '測試管理者');
+  assert.equal(env.get({ action: 'getDuty', id: v.id }).data.contact, '測試管理者');
+});
+
+test('勤務資料含負責組的組長或召集人，不含電話', () => {
+  const env = createEnv(OCT_1);
+  const g = env.sheets['分組'].data.find(r => r[0] === '佛堂組' && r[1] === '第1組');
+  g[2] = '測試組長'; g[5] = '0900-000-000';
+  const ev = env.get({ action: 'getEvents', from: '2026-10-01', to: '2026-10-01' });
+  const v = ev.data.duties.find(d => d.name === '彌勒山志工輪值');
+  assert.equal(v.groupLeader, '測試組長');
+  assert.ok(!JSON.stringify(ev).includes('0900'));
+  assert.equal(env.get({ action: 'getDuty', id: v.id }).data.groupLeader, '測試組長');
+  const noGroup = ev.data.duties.find(d => !d.group);
+  if (noGroup) assert.equal(noGroup.groupLeader, '');
 });

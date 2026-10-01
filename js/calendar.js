@@ -285,6 +285,7 @@
   }
 
   function render(data, from, to) {
+    Fmt.setContact(data.contact);
     indexEvents(data, from, to);
     state.loading = false;
     paintAllCells();

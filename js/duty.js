@@ -39,6 +39,7 @@
     try {
       const data = await Api.getDuty(page.id);
       if (t !== token) return;
+      Fmt.setContact(data.contact);
       if (window.CalendarPage) CalendarPage.patchDuty(data); // 行事曆的人數一起更新
       if (page.data && page.data.signups === null && !flash) {
         // 先前用行事曆資料顯示：只補上說明、輪值組與名單，不重畫報名表單（避免清掉正在填的名字）
@@ -88,7 +89,8 @@
       ['時段', Fmt.timeRange(d)],
       ['地點', d.location],
       ['服裝', d.attire],
-      ['負責組', isNotice ? '' : Fmt.groupText(d).replace(/^負責：/, '')]
+      ['負責組', isNotice ? '' : (Fmt.groupText(d) ? d.group : '')],
+      ['組長／召集人', isNotice || !Fmt.groupText(d) ? '' : d.groupLeader]
     ].filter((row) => row[1]);
 
     root.innerHTML = `
@@ -203,7 +205,7 @@
       <h2>報名名單${dates.length > 1 ? `<span class="h2-sub">${Fmt.shortDate(date)}</span>` : ''}</h2>
       ${tabs}
       <ul class="position-list">${rows}</ul>
-      <p class="hint">「陪同」不佔名額。${canChange ? '要取消或改期，請按名字旁的按鈕。' : '勤務當天（含）之後不能自己取消或改期，請聯絡管理者。'}</p>`;
+      <p class="hint">「陪同」不佔名額。${canChange ? '要取消或改期，請按名字旁的按鈕。' : `勤務當天（含）之後不能自己取消或改期，${Fmt.askAdmin()}。`}</p>`;
 
     el.querySelectorAll('[data-date]').forEach((btn) => btn.addEventListener('click', () => {
       page.viewDate = btn.dataset.date;
@@ -311,7 +313,7 @@
     if (!open) {
       const isToday = Fmt.datesBetween(d.start, d.end).indexOf(d.today) !== -1;
       el.innerHTML = `<h2>我要報名</h2><p class="muted">${isToday
-        ? '勤務當天不能報名。如需報名、取消或改期，請聯絡管理者。'
+        ? `勤務當天不能報名。如需報名、取消或改期，${Fmt.askAdmin()}。`
         : '這個勤務已經結束，不能報名。'}</p>`;
       return;
     }

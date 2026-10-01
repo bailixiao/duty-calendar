@@ -5,6 +5,27 @@
 
 var MAX_RANGE_DAYS = 400;
 
+/**
+ * 管理者聯絡人（例如「○○○ 後學」）。存在 Script Properties 的 ADMIN_CONTACT，不寫進程式碼（儲存庫公開，不可放人名）。
+ * 畫面上「請聯絡管理者」會接上這個名字。
+ */
+function adminContact_() {
+  return PropertiesService.getScriptProperties().getProperty('ADMIN_CONTACT') || '';
+}
+
+/** 負責組的組長或召集人（不含電話）；同一次執行只讀一次分組表 */
+var groupLeaderMemo_ = null;
+function groupLeader_(groupType, groupName) {
+  if (!groupType || !groupName) return '';
+  if (!groupLeaderMemo_) {
+    groupLeaderMemo_ = {};
+    readTableCached_(SHEETS.GROUPS).forEach(function (g) {
+      groupLeaderMemo_[g['分組類型'] + '|' + g['組名']] = g['組長或召集人'];
+    });
+  }
+  return groupLeaderMemo_[groupType + '|' + groupName] || '';
+}
+
 /** 行事曆區間內的勤務與每日人數（不含名字） */
 function getEvents_(params) {
   var from = params.from;
@@ -26,6 +47,7 @@ function getEvents_(params) {
     from: from,
     to: to,
     today: todayString_(),
+    contact: adminContact_(),
     duties: duties.map(function (d) {
       var positions = positionsByDuty[d['勤務ID']] || [];
       var signups = signupsByDuty[d['勤務ID']] || [];
@@ -49,6 +71,7 @@ function getDuty_(params) {
   var json = dutyToJson_(duty, positions);
   json.description = duty['說明'];
   json.today = todayString_();
+  json.contact = adminContact_();
   json.days = daysStatus_(duty, positions, signups, datesInRange_(duty['開始日'], duty['結束日']));
   json.signups = signups.map(function (s) {
     return {
@@ -119,6 +142,7 @@ function dutyToJson_(d, positions) {
     location: d['地點'],
     groupType: d['分組類型'],
     group: d['負責組'],
+    groupLeader: groupLeader_(d['分組類型'], d['負責組']),
     attire: d['服裝'],
     positions: positions.map(function (p) {
       return {

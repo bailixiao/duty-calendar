@@ -67,13 +67,23 @@ function ApiError_(code, message, details) {
   this.details = details;
 }
 
+/** 「請聯絡管理者」後面接上管理者聯絡人（ADMIN_CONTACT，未設定就不變） */
+function withContact_(message) {
+  if (!message || String(message).indexOf('請聯絡管理者') === -1) return message;
+  var name = adminContact_();
+  return name ? String(message).split('請聯絡管理者').join('請聯絡管理者' + name) : message;
+}
+
 function respond_(fn) {
   var result;
   try {
     result = { ok: true, data: fn() };
   } catch (err) {
     if (err instanceof ApiError_) {
-      result = { ok: false, error: { code: err.code, message: err.message, details: err.details } };
+      result = { ok: false, error: { code: err.code, message: withContact_(err.message), details: err.details } };
+      if (Array.isArray(err.details)) {
+        err.details.forEach(function (d) { if (d && d.message) d.message = withContact_(d.message); });
+      }
     } else {
       console.error(err && err.stack ? err.stack : err);
       result = { ok: false, error: { code: 'INTERNAL', message: '系統發生錯誤，請稍後再試' } };
