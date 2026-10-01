@@ -279,7 +279,7 @@
       const result = { dutyId: duty.id, entries: payload.entries, dates: payload.dates, positionId: position.id, positionName: position.name };
       const knownIds = new Set(duty.signups.map((s) => s.id)); // 送出前已有的報名，查證時用
       try {
-        const res = await Api.signup(payload);
+        const res = await signupWithRetry(payload, slowTimer);
         clearTimeout(slowTimer);
         Busy.hide();
         onSuccess(result, res);
@@ -303,6 +303,23 @@
           fail(`<strong>${esc(err.message)}</strong><br>${err.details.map(detailText).join('<br>')}`);
         } else {
           fail(esc(err.message || '報名失敗，請稍後再試'));
+        }
+      }
+    }
+
+    /**
+     * 伺服器回 BUSY（同時報名的人太多、排隊逾時）代表確定沒有寫入，可以安全地自動重送。
+     * 等 1–3 秒（隨機，避免大家同時再擠進來）後重送，最多重送 3 次。
+     */
+    async function signupWithRetry(payload, slowTimer) {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          return await Api.signup(payload);
+        } catch (err) {
+          if (err.code !== 'BUSY' || attempt >= 3) throw err;
+          clearTimeout(slowTimer);
+          Busy.show('報名的人較多，正在排隊⋯', '系統會自動重試，請不要關閉畫面');
+          await new Promise((r) => setTimeout(r, 1000 + Math.random() * 2000));
         }
       }
     }

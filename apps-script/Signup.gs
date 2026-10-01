@@ -20,13 +20,16 @@ function signup_(body) {
     throw new ApiError_('BAD_REQUEST', '一次最多選 ' + MAX_DATES_PER_SIGNUP + ' 天');
   }
 
+  // 勤務與了愿項目在報名過程中不會變動，在排隊前先讀，縮短每筆佔用鎖的時間（壓力測試：每筆約 0.9 秒）
+  var duty = readTable_(SHEETS.DUTIES).filter(function (d) { return d['勤務ID'] === body.dutyId; })[0];
+  var positions = duty ? readTable_(SHEETS.POSITIONS).filter(function (p) { return p['勤務ID'] === duty['勤務ID']; }) : [];
+
+  // 同時報名的人多時要排隊；最多等 30 秒，等不到就回 BUSY（確定沒寫入，前端會自動重試）
   var lock = LockService.getScriptLock();
-  if (!lock.tryLock(15000)) {
+  if (!lock.tryLock(30000)) {
     throw new ApiError_('BUSY', '目前報名的人較多，請稍後再試一次');
   }
   try {
-    var duty = readTable_(SHEETS.DUTIES).filter(function (d) { return d['勤務ID'] === body.dutyId; })[0];
-    var positions = duty ? readTable_(SHEETS.POSITIONS).filter(function (p) { return p['勤務ID'] === duty['勤務ID']; }) : [];
     var signups = duty ? readTable_(SHEETS.SIGNUPS).filter(function (s) { return s['勤務ID'] === duty['勤務ID']; }) : [];
 
     var errors = validateSignup_({
