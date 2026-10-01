@@ -23,15 +23,34 @@
     return json.data;
   }
 
-  async function get(action, params) {
-    const qs = new URLSearchParams(Object.assign({ action }, params || {}));
+  async function getOnce(url, timeoutMs) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     let res;
     try {
-      res = await fetch(window.APP_CONFIG.API_URL + '?' + qs.toString());
+      res = await fetch(url, { signal: ctrl.signal });
+      return await parse(res);
     } catch (e) {
+      if (e instanceof ApiError) throw e;
       throw new ApiError('NETWORK', '無法連線，請檢查網路後再試');
+    } finally {
+      clearTimeout(timer);
     }
-    return parse(res);
+  }
+
+  /**
+   * 讀取。Apps Script 偶爾會卡住幾十秒或無故失敗，但馬上重送通常 2–3 秒就回應，
+   * 所以第一次只等 8 秒，逾時或連線失敗就重送一次（第二次等久一點）。
+   * 只有讀取會自動重送；報名（寫入）不重送，避免重複寫入。
+   */
+  async function get(action, params) {
+    const url = window.APP_CONFIG.API_URL + '?' + new URLSearchParams(Object.assign({ action }, params || {})).toString();
+    try {
+      return await getOnce(url, 8000);
+    } catch (err) {
+      if (err.code !== 'NETWORK') throw err;
+      return getOnce(url, 30000);
+    }
   }
 
   async function post(body) {

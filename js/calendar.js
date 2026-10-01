@@ -18,7 +18,8 @@
     loading: true, // 載入中不顯示舊區間的資料，避免誤判「沒有勤務」
     pendingScroll: null // 年檢視載入完成後要捲到的月份
   };
-  const cache = new Map(); // 'from|to' → Promise
+  const EVENTS_STORAGE_PREFIX = 'duty-calendar:events:';
+  const windows = new Map(); // 年份 → { data, fresh, promise }
   const dayMap = new Map(); // 'yyyy-MM-dd' → [{ duty, day, state }]
   const cells = new Map(); // 'yyyy-MM-dd' → Set<HTMLElement>
   let calendar = null;
@@ -176,41 +177,109 @@
 
   // ---------- 資料 ----------
 
-  function fetchEvents(from, to) {
-    const key = from + '|' + to;
-    if (!cache.has(key)) {
-      const p = Api.getEvents(from, to).catch((err) => {
-        cache.delete(key);
+  // Apps Script 每次呼叫本身就要 2–3 秒，查一週跟查一年差不多快，
+  // 所以一次載入一整年（前後各多 7 天，涵蓋月檢視與跨年的週），之後切換檢視、翻頁都不用再等。
+  // 上次的資料存在 localStorage，再次開啟時先顯示，同時在背景更新（報名時伺服器會再檢查名額，不會因此超收）。
+
+  function windowRange(year) {
+    return { from: Fmt.addDays(`${year}-01-01`, -7), to: Fmt.addDays(`${year}-12-31`, 7) };
+  }
+
+  /** 涵蓋 from～to 的資料年份 */
+  function windowYearFor(from, to) {
+    const y = Number(from.slice(0, 4));
+    return to <= windowRange(y).to ? y : y + 1;
+  }
+
+  function ensureWindow(year) {
+    let entry = windows.get(year);
+    if (!entry) {
+      entry = { data: readStoredEvents(year), fresh: false, promise: null };
+      windows.set(year, entry);
+    }
+    if (!entry.fresh && !entry.promise) {
+      const r = windowRange(year);
+      entry.promise = Api.getEvents(r.from, r.to).then((data) => {
+        entry.data = data;
+        entry.fresh = true;
+        if (data.today) state.today = data.today;
+        entry.promise = null;
+        storeEvents(year, data);
+        return data;
+      }, (err) => {
+        entry.promise = null;
         throw err;
       });
-      cache.set(key, p);
     }
-    return cache.get(key);
+    return entry;
   }
 
   async function load(from, to) {
     const token = ++loadToken;
     state.range = { from, to };
-    state.loading = true;
-    showStatus('loading');
-    paintAllCells();
-    if (state.view === 'week') renderWeek();
-    else renderPanel();
-    try {
-      const data = await fetchEvents(from, to);
-      if (token !== loadToken) return;
-      state.today = data.today || state.today;
-      indexEvents(data, from, to);
-      state.loading = false;
-      hideStatus();
+    const year = windowYearFor(from, to);
+    const entry = ensureWindow(year);
+
+    if (entry.data) {
+      render(entry.data, from, to);
+      if (entry.fresh) hideStatus();
+      else showStatus('refreshing');
+    } else {
+      state.loading = true;
+      showStatus('loading');
       paintAllCells();
       if (state.view === 'week') renderWeek();
       else renderPanel();
-      scrollToPendingMonth();
-    } catch (err) {
-      if (token !== loadToken) return;
-      showStatus('error', err.message || '無法載入勤務資料');
     }
+
+    if (!entry.fresh) {
+      try {
+        const data = await entry.promise;
+        if (token !== loadToken) return;
+        render(data, from, to);
+        hideStatus();
+      } catch (err) {
+        if (token !== loadToken) return;
+        if (entry.data) showStatus('error', '無法更新，目前顯示的是上次的資料');
+        else showStatus('error', err.message || '無法載入勤務資料');
+      }
+    }
+    prefetchNeighbor(state.anchor);
+  }
+
+  function render(data, from, to) {
+    indexEvents(data, from, to);
+    state.loading = false;
+    paintAllCells();
+    if (state.view === 'week') renderWeek();
+    else renderPanel();
+    scrollToPendingMonth();
+  }
+
+  /** 看的日期接近年底或年初時，先在背景載入相鄰年份 */
+  function prefetchNeighbor(dateStr) {
+    const year = Number(dateStr.slice(0, 4));
+    const month = Number(dateStr.slice(5, 7));
+    const next = month >= 10 ? year + 1 : month <= 2 ? year - 1 : null;
+    if (next === null || (windows.get(next) && windows.get(next).fresh)) return;
+    const entry = ensureWindow(next);
+    if (entry.promise) entry.promise.catch(() => { /* 背景預先載入失敗無妨，用到時會再試 */ });
+  }
+
+  function readStoredEvents(year) {
+    try {
+      const raw = localStorage.getItem(EVENTS_STORAGE_PREFIX + year);
+      const data = raw ? JSON.parse(raw) : null;
+      return data && Array.isArray(data.duties) ? data : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function storeEvents(year, data) {
+    try {
+      localStorage.setItem(EVENTS_STORAGE_PREFIX + year, JSON.stringify(data));
+    } catch (e) { /* 無痕模式或空間不足，忽略 */ }
   }
 
   function indexEvents(data, from, to) {
@@ -233,7 +302,7 @@
 
   /** 重新向伺服器讀取目前畫面（報名後呼叫） */
   function refresh() {
-    cache.clear();
+    windows.forEach((entry) => { entry.fresh = false; });
     if (state.range) load(state.range.from, state.range.to);
   }
 
@@ -382,6 +451,8 @@
     el.status.className = 'status status-' + kind;
     if (kind === 'loading') {
       el.status.innerHTML = '<span>載入勤務中⋯</span>';
+    } else if (kind === 'refreshing') {
+      el.status.innerHTML = '<span>更新中⋯（先顯示上次的資料）</span>';
     } else {
       el.status.innerHTML = `<span>${Fmt.esc(message)}</span><button type="button" class="btn btn-small">重試</button>`;
       el.status.querySelector('button').addEventListener('click', refresh);

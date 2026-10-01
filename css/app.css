@@ -175,6 +175,7 @@ a { color: var(--accent); }
 }
 
 .status-loading { background: var(--paper-2); color: var(--ink-2); }
+.status-refreshing { background: transparent; color: var(--muted); padding: 0 2px; font-size: .85rem; }
 .status-error { background: var(--accent-soft); color: var(--accent); }
 
 /* ---------- 色點 ---------- */
