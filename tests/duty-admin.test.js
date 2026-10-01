@@ -1,0 +1,274 @@
+// 管理後台：勤務新增、修改、同名勤務一次改、刪除。
+// 執行：在專案根目錄執行 node --test
+// 測試用的名字一律用假名，本儲存庫不放真實人名。
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const fs = require('node:fs');
+const { createEnv } = require('./env');
+
+// DutyRules.gs 用到 Rules.gs 的函式，兩個檔案接在一起執行
+const mod = { exports: {} };
+const dir = path.join(__dirname, '..', 'apps-script');
+const src = ['Rules.gs', 'DutyRules.gs'].map((f) => fs.readFileSync(path.join(dir, f), 'utf8')
+  .replace(/if \(typeof module !== 'undefined'\) \{[\s\S]*?\n\}\n?/, '')).join('\n');
+new Function('module', src + `
+module.exports = { normalizeDutyInput_, checkDutyChange_, mergeBulkInput_, seriesKey_, renameLike_, cleanTime_ };`)(mod);
+const { normalizeDutyInput_, checkDutyChange_, mergeBulkInput_, seriesKey_, renameLike_, cleanTime_ } = mod.exports;
+
+const OCT_1 = Date.UTC(2026, 9, 1, 2, 0, 0);
+
+function base(overrides) {
+  return Object.assign({
+    name: '測試勤務', nature: '勤務', mode: '報名型', start: '2026-12-01', end: '',
+    startTime: '8:00', endTime: '12:00', location: '宏宗',
+    positions: [{ name: '志工', min: '', max: '2' }]
+  }, overrides);
+}
+
+// ---------- 純邏輯 ----------
+
+test('normalizeDutyInput_：補預設值、時間補零、結束日預設同開始日', () => {
+  const n = normalizeDutyInput_(base(), { groups: [] });
+  assert.deepEqual(n.errors, []);
+  assert.equal(n.duty['結束日'], '2026-12-01');
+  assert.equal(n.duty['開始時間'], '08:00');
+  assert.deepEqual(n.positions, [{ id: '', '了愿項目名稱': '志工', '時段': '', '最少': '', '最多': '2' }]);
+  assert.equal(cleanTime_('9：30'), '09:30');
+});
+
+test('normalizeDutyInput_：各種錯誤', () => {
+  const errs = (o, ctx) => normalizeDutyInput_(base(o), ctx || { groups: ['打掃組|第1組'] }).errors.join('／');
+  assert.match(errs({ name: ' ' }), /請填勤務名稱/);
+  assert.match(errs({ start: '2026/12/01' }), /開始日格式錯誤/);
+  assert.match(errs({ end: '2026-11-30' }), /結束日不能早於開始日/);
+  assert.match(errs({ end: '2027-03-01' }), /最多 60 天/);
+  assert.match(errs({ startTime: '25:00' }), /開始時間格式錯誤/);
+  assert.match(errs({ group: '第1組' }), /要選分組類型/);
+  assert.match(errs({ groupType: '打掃組', group: '第9組' }), /沒有「第9組」/);
+  assert.match(errs({ positions: [] }), /至少要有一個了愿項目/);
+  assert.match(errs({ positions: [{ name: '甲' }, { name: '甲' }] }), /重複/);
+  assert.match(errs({ positions: [{ name: '甲', min: '3', max: '2' }] }), /最少人數不能大於最多人數/);
+  assert.match(errs({ positions: [{ name: '甲', min: '兩' }] }), /最少人數要是整數/);
+  assert.match(errs({ mode: '公告型' }), /要選輪值的負責組/);
+  // 公告型不留了愿項目
+  const notice = normalizeDutyInput_(base({ mode: '公告型', groupType: '打掃組', group: '第1組' }), { groups: ['打掃組|第1組'] });
+  assert.deepEqual(notice.errors, []);
+  assert.deepEqual(notice.positions, []);
+});
+
+const oldPositions = [
+  { '了愿項目ID': 'P1', '了愿項目名稱': '烹飪', '最少': '4', '最多': '4' },
+  { '了愿項目ID': 'P2', '了愿項目名稱': '清潔', '最少': '', '最多': '' }
+];
+const signup = (p, date, extra) => Object.assign({ '了愿項目ID': p, '日期': date, '狀態': '有效', '陪同': '否' }, extra);
+
+test('checkDutyChange_：有人報名的了愿項目不能刪、日期不能移出、不能改公告型；最多調低只警告', () => {
+  const next = (o) => normalizeDutyInput_(base(Object.assign({ start: '2026-11-08', end: '2026-11-10' }, o)), {});
+  const signups = [signup('P1', '2026-11-08'), signup('P1', '2026-11-08'), signup('P2', '2026-11-10'), signup('P2', '2026-11-09', { '狀態': '已取消' })];
+
+  const removed = checkDutyChange_(oldPositions, next({ positions: [{ id: 'P1', name: '烹飪', max: '4' }] }), signups);
+  assert.match(removed.errors.join(), /「清潔」已有 1 筆報名，不能刪除/);
+
+  const shrink = checkDutyChange_(oldPositions, next({ end: '2026-11-09', positions: [{ id: 'P1', name: '烹飪' }, { id: 'P2', name: '清潔' }] }), signups);
+  assert.match(shrink.errors.join(), /11\/10 已有 1 筆報名，不能移出勤務期間/);
+
+  const lower = checkDutyChange_(oldPositions, next({ positions: [{ id: 'P1', name: '烹飪', max: '1' }, { id: 'P2', name: '清潔' }] }), signups);
+  assert.deepEqual(lower.errors, []);
+  assert.match(lower.warnings.join(), /11\/8「烹飪」已有 2 人，超過新的最多人數 1 人/);
+
+  const notice = checkDutyChange_(oldPositions, normalizeDutyInput_(base({ mode: '公告型', groupType: '打掃組', group: '第1組' }), {}), signups);
+  assert.match(notice.errors.join(), /不能改成公告型/);
+
+  // 只有已取消的報名：什麼都能改
+  assert.deepEqual(checkDutyChange_(oldPositions, next({ positions: [{ name: '新的' }] }), [signup('P1', '2026-11-08', { '狀態': '已取消' })]),
+    { errors: [], warnings: [] });
+});
+
+test('seriesKey_：去掉農曆日期與括號說明', () => {
+  assert.equal(seriesKey_('九月初一拜香輪值'), '拜香輪值');
+  assert.equal(seriesKey_('十二月十五拜香輪值（大典）'), '拜香輪值');
+  assert.equal(seriesKey_('閏六月初一拜香輪值'), '拜香輪值');
+  assert.equal(seriesKey_('初一十五打掃（宏宗）'), '初一十五打掃');
+  assert.equal(seriesKey_('彌勒山志工輪值'), '彌勒山志工輪值');
+});
+
+test('renameLike_：只換改動的那一段', () => {
+  assert.equal(renameLike_('十月初一拜香輪值', '九月初一拜香輪值', '九月初一拜香開課'), '十月初一拜香開課');
+  assert.equal(renameLike_('十月十五拜香輪值（大典）', '九月初一拜香輪值', '九月初一拜香開課'), '十月十五拜香開課（大典）');
+  assert.equal(renameLike_('彌勒山志工輪值', '彌勒山志工輪值', '彌勒山志工'), '彌勒山志工');
+  assert.equal(renameLike_('甲乙', '甲乙', '甲乙丙'), '甲乙丙');
+});
+
+test('mergeBulkInput_：只套用勾選的欄位；了愿項目依原名稱對應更新、新增、刪除；日期不動', () => {
+  const target = { '名稱': '十月初一測試', '性質': '勤務', '模式': '報名型', '開始日': '2026-11-09', '結束日': '2026-11-09',
+    '開始時間': '08:00', '結束時間': '10:00', '地點': '宏宗', '分組類型': '', '負責組': '', '服裝': '自行穿著', '說明': '原說明' };
+  const targetPositions = [
+    { '了愿項目ID': 'T1', '了愿項目名稱': '烹飪', '時段': '', '最少': '4', '最多': '4' },
+    { '了愿項目ID': 'T2', '了愿項目名稱': '清潔', '時段': '', '最少': '', '最多': '' },
+    { '了愿項目ID': 'T3', '了愿項目名稱': '只有對方有', '時段': '', '最少': '', '最多': '' }
+  ];
+  // 來源：烹飪改名「廚房」人數 3、刪掉清潔、新增「交通」；服裝改白色 POLO 衫；說明也改了但沒勾
+  const next = normalizeDutyInput_(base({
+    name: '九月初一測試', start: '2026-10-10', attire: '白色 POLO 衫', description: '新說明',
+    positions: [{ id: 'P1', name: '廚房', max: '3' }, { name: '交通', max: '2' }]
+  }), {});
+  const merged = mergeBulkInput_(target, targetPositions, '九月初一測試', oldPositions, next, ['attire', 'positions']);
+  assert.equal(merged.attire, '白色 POLO 衫');
+  assert.equal(merged.description, '原說明');
+  assert.equal(merged.start, '2026-11-09');
+  assert.equal(merged.name, '十月初一測試');
+  assert.deepEqual(merged.positions.map((p) => [p.id, p.name, p.max]), [
+    ['T1', '廚房', '3'], ['T3', '只有對方有', ''], [undefined, '交通', '2']
+  ]);
+});
+
+// ---------- API ----------
+
+function login(env) {
+  return env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+}
+
+function admin(env, token, action, body) {
+  return env.post(Object.assign({ action, token }, body));
+}
+
+test('新增勤務：一筆與多筆；有錯整批不寫入；沒有通行碼不能用', () => {
+  const env = createEnv(OCT_1);
+  const token = login(env);
+  const before = env.sheets['勤務'].data.length;
+
+  assert.equal(env.post({ action: 'adminCreateDuties', duties: [base()] }).error.code, 'UNAUTHORIZED');
+
+  const bad = admin(env, token, 'adminCreateDuties', { duties: [base(), base({ name: '' })] });
+  assert.equal(bad.error.code, 'VALIDATION');
+  assert.deepEqual(bad.error.details.map((d) => d.index), [1]);
+  assert.equal(env.sheets['勤務'].data.length, before);
+
+  const ok = admin(env, token, 'adminCreateDuties', { duties: [base(), base({ start: '2026-12-15', positions: [{ name: '甲' }, { name: '乙', min: '1', max: '3' }] })] });
+  assert.equal(ok.ok, true, JSON.stringify(ok.error));
+  assert.equal(ok.data.ids.length, 2);
+  assert.equal(env.sheets['勤務'].data.length, before + 2);
+
+  const duty = env.get({ action: 'getDuty', id: ok.data.ids[1] }).data;
+  assert.deepEqual(duty.positions.map((p) => [p.name, p.min, p.max]), [['甲', 2, null], ['乙', 1, 3]]);
+  assert.equal(duty.startTime, '08:00');
+
+  const log = env.sheets['操作紀錄'].data.slice(-1)[0];
+  assert.equal(log[1], '新增勤務');
+  assert.match(log[3], /共 2 筆/);
+});
+
+test('勤務列表與編輯資料：了愿項目照原樣（空白就是空白），附同名勤務', () => {
+  const env = createEnv(OCT_1);
+  const token = login(env);
+  const list = admin(env, token, 'adminDutyList').data;
+  const first = list.duties.find((d) => d.name === '九月初一拜香輪值');
+  assert.ok(first);
+  const edit = admin(env, token, 'adminDutyForEdit', { id: first.id }).data;
+  assert.equal(edit.duty.name, '九月初一拜香輪值');
+  assert.equal(edit.siblings.length, 7, '其他月份的拜香輪值（含大典）都算同名');
+  assert.ok(edit.siblings.every((s) => /拜香輪值/.test(s.name)));
+  assert.ok(edit.groups.some((g) => g.type === '拜香輪值組'));
+
+  const volunteer = list.duties.find((d) => d.name === '彌勒山志工輪值');
+  const v = admin(env, token, 'adminDutyForEdit', { id: volunteer.id }).data;
+  assert.deepEqual(v.duty.positions.map((p) => [p.name, p.min, p.max]), [['志工', '', '2']]);
+});
+
+test('修改勤務：欄位、了愿項目新增與刪除；有人報名的了愿項目不能刪；最多調低只警告', () => {
+  const env = createEnv(OCT_1);
+  const token = login(env);
+  const id = admin(env, token, 'adminCreateDuties', { duties: [base({ start: '2026-12-01', end: '2026-12-03', positions: [{ name: '烹飪', max: '4' }, { name: '清潔' }] })] }).data.ids[0];
+  const edit = admin(env, token, 'adminDutyForEdit', { id }).data.duty;
+  const [cook, clean] = edit.positions;
+
+  // 兩人報烹飪
+  const s = env.post({ action: 'signup', dutyId: id, positionId: cook.id, dates: ['2026-12-02'], entries: [{ name: '測試甲' }, { name: '測試乙' }] });
+  assert.equal(s.ok, true, JSON.stringify(s.error));
+
+  const blocked = admin(env, token, 'adminUpdateDuty', { id, duty: Object.assign({}, edit, { positions: [clean] }) });
+  assert.equal(blocked.error.code, 'VALIDATION');
+  assert.match(blocked.error.details[0].message, /「烹飪」已有 2 筆報名，不能刪除/);
+
+  const r = admin(env, token, 'adminUpdateDuty', {
+    id, duty: Object.assign({}, edit, { location: '區中心', positions: [Object.assign({}, cook, { max: '1' }), { name: '交通', max: '2' }] })
+  });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.match(r.data.warnings.join(), /12\/2「烹飪」已有 2 人/);
+
+  const after = env.get({ action: 'getDuty', id }).data;
+  assert.equal(after.location, '區中心');
+  assert.deepEqual(after.positions.map((p) => [p.id === cook.id, p.name, p.max]), [[true, '烹飪', 1], [false, '交通', 2]]);
+  assert.equal(after.signups.length, 2, '報名不受影響');
+  assert.equal(env.sheets['操作紀錄'].data.slice(-1)[0][1], '修改勤務');
+});
+
+test('同名勤務一次改：服裝套用到其他月份的拜香輪值，日期與名稱不動', () => {
+  const env = createEnv(OCT_1);
+  const token = login(env);
+  const list = admin(env, token, 'adminDutyList').data.duties;
+  const first = list.find((d) => d.name === '九月初一拜香輪值');
+  const edit = admin(env, token, 'adminDutyForEdit', { id: first.id }).data;
+  const alsoIds = edit.siblings.map((s) => s.id);
+
+  const r = admin(env, token, 'adminUpdateDuty', {
+    id: first.id, duty: Object.assign({}, edit.duty, { attire: '自行穿著', description: '只改這一筆' }),
+    alsoIds, fields: ['attire']
+  });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.equal(r.data.updated, alsoIds.length + 1);
+
+  const other = env.get({ action: 'getDuty', id: alsoIds[3] }).data;
+  assert.equal(other.attire, '自行穿著');
+  assert.notEqual(other.description, '只改這一筆');
+  assert.equal(other.name, edit.siblings[3].name);
+  assert.equal(other.start, edit.siblings[3].start);
+  assert.match(env.sheets['操作紀錄'].data.slice(-1)[0][3], /連同其他 \d+ 筆同名勤務：服裝/);
+
+  // 不同名的勤務不能一起改
+  const volunteer = list.find((d) => d.name === '彌勒山志工輪值');
+  const bad = admin(env, token, 'adminUpdateDuty', { id: first.id, duty: edit.duty, alsoIds: [volunteer.id], fields: ['attire'] });
+  assert.equal(bad.error.code, 'BAD_REQUEST');
+});
+
+test('同名勤務一次改：其中一筆不能改就全部不寫入', () => {
+  const env = createEnv(OCT_1);
+  const token = login(env);
+  const ids = admin(env, token, 'adminCreateDuties', {
+    duties: ['2026-12-01', '2026-12-08'].map((d) => base({ start: d, positions: [{ name: '烹飪' }, { name: '清潔' }] }))
+  }).data.ids;
+  const second = admin(env, token, 'adminDutyForEdit', { id: ids[1] }).data.duty;
+  env.post({ action: 'signup', dutyId: ids[1], positionId: second.positions[1].id, dates: ['2026-12-08'], entries: [{ name: '測試甲' }] });
+
+  const first = admin(env, token, 'adminDutyForEdit', { id: ids[0] }).data.duty;
+  const r = admin(env, token, 'adminUpdateDuty', {
+    id: ids[0], duty: Object.assign({}, first, { location: '區中心', positions: [first.positions[0]] }),
+    alsoIds: [ids[1]], fields: ['location', 'positions']
+  });
+  assert.equal(r.error.code, 'VALIDATION');
+  assert.match(r.error.details[0].message, /^12\/8：了愿項目「清潔」已有 1 筆報名/);
+  assert.equal(env.get({ action: 'getDuty', id: ids[0] }).data.location, '宏宗', '第一筆也沒改');
+});
+
+test('刪除勤務：有有效報名不能刪；沒有就連同了愿項目刪掉', () => {
+  const env = createEnv(OCT_1);
+  const token = login(env);
+  const id = admin(env, token, 'adminCreateDuties', { duties: [base()] }).data.ids[0];
+  const pid = admin(env, token, 'adminDutyForEdit', { id }).data.duty.positions[0].id;
+  const s = env.post({ action: 'signup', dutyId: id, positionId: pid, dates: ['2026-12-01'], entries: [{ name: '測試甲' }] });
+
+  assert.equal(admin(env, token, 'adminDeleteDuty', { id }).error.code, 'FORBIDDEN');
+  env.post({ action: 'cancel', signupId: s.data.created[0].id });
+
+  const positionsBefore = env.sheets['了愿項目'].data.length;
+  const r = admin(env, token, 'adminDeleteDuty', { id });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.equal(env.get({ action: 'getDuty', id }).error.code, 'NOT_FOUND');
+  assert.equal(env.sheets['了愿項目'].data.length, positionsBefore - 1);
+  const log = env.sheets['操作紀錄'].data.slice(-1)[0];
+  assert.equal(log[1], '刪除勤務');
+  assert.match(log[4], /"勤務ID"/);
+  // 刪除後其他勤務照常
+  assert.equal(admin(env, token, 'adminDutyList').ok, true);
+});
