@@ -15,6 +15,7 @@ function adminDutyList_() {
   duties.sort(function (a, b) { return a['開始日'] < b['開始日'] ? -1 : a['開始日'] > b['開始日'] ? 1 : 0; });
   return {
     today: todayString_(),
+    groups: groupList_(),
     duties: duties.map(function (d) {
       return {
         id: d['勤務ID'], name: d['名稱'], mode: d['模式'] || '報名型',
@@ -43,7 +44,7 @@ function adminDutyForEdit_(body) {
       .filter(function (d) { return d['勤務ID'] !== duty['勤務ID'] && seriesKey_(d['名稱']) === seriesKey_(duty['名稱']); })
       .map(function (d) { return { id: d['勤務ID'], name: d['名稱'], start: d['開始日'], end: d['結束日'] || d['開始日'], location: d['地點'], group: d['負責組'] }; })
       .sort(function (a, b) { return a.start < b.start ? -1 : 1; }),
-    groups: readTableCached_(SHEETS.GROUPS).map(function (g) { return { type: g['分組類型'], name: g['組名'] }; })
+    groups: groupList_()
   };
 }
 
@@ -193,6 +194,13 @@ function dutyInputFromRow_(d, positions, counts) {
     };
   });
   return input;
+}
+
+/** 分組類型與組名（不含組長、電話），表單的負責組選單用 */
+function groupList_() {
+  return readTableCached_(SHEETS.GROUPS)
+    .filter(function (g) { return g['分組類型'] && g['組名']; })
+    .map(function (g) { return { type: g['分組類型'], name: g['組名'] }; });
 }
 
 function groupKeys_() {

@@ -2,6 +2,7 @@
 // 操作紀錄與明日名單在 admin-pages.js。
 //   #/admin           近期勤務（未登入時顯示登入）
 //   #/admin/duty/<id> 勤務名單管理
+//   #/admin/duties…   勤務管理：列表、新增、編輯（見 admin-duties.js）
 //   #/admin/logs      操作紀錄與還原
 //   #/admin/day       明日名單
 (function () {
@@ -63,6 +64,7 @@
     if (!Api.isAdmin()) return renderLogin();
     const m = sub.match(/^duty\/([^?]+)(?:\?date=(\d{4}-\d{2}-\d{2}))?/);
     if (m) return showDuty(decodeURIComponent(m[1]), m[2] || '');
+    if (/^duties(\/|\?|$)/.test(sub)) return DutyAdminPage.show(shell('duties'), guard, sub);
     if (sub === 'logs') return AdminPages.logs(shell('logs'), guard);
     if (sub === 'day') return AdminPages.day(shell('day'), guard);
     return showRecent();
@@ -70,7 +72,7 @@
 
   /** 管理頁共用外框：上方分頁＋內容區，回傳內容區元素 */
   function shell(active) {
-    const tabs = [['', '近期勤務'], ['logs', '操作紀錄'], ['day', '明日名單']];
+    const tabs = [['', '近期勤務'], ['duties', '勤務管理'], ['logs', '操作紀錄'], ['day', '明日名單']];
     root.innerHTML = `
       <div class="admin-head">
         <h1 class="admin-title">管理後台</h1>
@@ -260,7 +262,7 @@
           <ul class="position-list">${positions}</ul>
           <p class="hint">管理者可以取消、改期任何日期（含當天與過去）的報名。</p>
         </section>`}
-      <p><a href="#/duty/${encodeURIComponent(d.id)}?date=${date}">查看一般使用者看到的頁面 ›</a></p>`;
+      <p class="admin-links"><a href="#/admin/duties/edit/${encodeURIComponent(d.id)}">編輯勤務 ›</a><a href="#/duty/${encodeURIComponent(d.id)}?date=${date}">查看一般使用者看到的頁面 ›</a></p>`;
 
     body.querySelectorAll('[data-date]').forEach((b) => b.addEventListener('click', () => {
       dutyPage.viewDate = b.dataset.date;
