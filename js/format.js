@@ -114,6 +114,26 @@
     return `負責：${duty.group}${duty.groupLeader ? `（${duty.groupLeader}）` : ''}`;
   }
 
+  /**
+   * 兩個名字是否視為同一人（與後端 Rules.gs sameName_ 相同）：
+   * 三個字以上先去掉第一個字（姓），剩下的部分只要有連續兩個字相同就算同一人。
+   */
+  function sameName(a, b) {
+    const clean = (s) => String(s || '').replace(/[\s　]/g, '');
+    const keys = (n) => {
+      const s = n.length >= 3 ? n.slice(1) : n;
+      const out = [];
+      for (let i = 0; i + 1 < s.length; i++) out.push(s.substr(i, 2));
+      return out;
+    };
+    a = clean(a);
+    b = clean(b);
+    if (!a || !b) return false;
+    if (a === b) return true;
+    const kb = keys(b);
+    return keys(a).some((k) => kb.indexOf(k) !== -1);
+  }
+
   // 管理者聯絡人：伺服器從指令碼屬性 ADMIN_CONTACT 讀出、隨資料傳來（程式碼裡不放人名）
   let contact = '';
   function setContact(name) {
@@ -126,6 +146,6 @@
 
   window.Fmt = {
     esc, toDateStr, parseDate, addDays, datesBetween, rocYear, weekday, shortDate, rocDate,
-    timeRange, cardTime, effectiveMin, dayState, groupText, setContact, askAdmin
+    timeRange, cardTime, effectiveMin, dayState, groupText, sameName, setContact, askAdmin
   };
 })();

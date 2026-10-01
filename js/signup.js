@@ -153,8 +153,9 @@
     function addName(raw, identity) {
       const name = normalize(raw);
       if (!name) return false;
-      if (state.entries.some((e) => e.name === name)) {
-        showError(`「${name}」已經在名單裡了`);
+      const same = state.entries.find((e) => Fmt.sameName(e.name, name));
+      if (same) {
+        showError(same.name === name ? `「${name}」已經在名單裡了` : `「${name}」與「${same.name}」視為同一人，已經在名單裡了`);
         return false;
       }
       state.entries.push({ name, identity: IDENTITIES.indexOf(identity) !== -1 ? identity : '', accompany: false });

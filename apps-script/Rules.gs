@@ -11,6 +11,27 @@ function normalizeName_(name) {
   return String(name === undefined || name === null ? '' : name).replace(/^[\s　]+|[\s　]+$/g, '');
 }
 
+/**
+ * 兩個名字是否視為同一人（同日重複檢查用）：
+ * 三個字以上先去掉第一個字（姓），剩下的部分只要有連續兩個字相同就算同一人。
+ * 例：「小明」與「王小明」、「王小明」與「林小明」都視為同一人；一個字的名字只比對完全相同。
+ */
+function sameName_(a, b) {
+  a = normalizeName_(a).replace(/[\s　]/g, '');
+  b = normalizeName_(b).replace(/[\s　]/g, '');
+  if (!a || !b) return false;
+  if (a === b) return true;
+  var kb = nameKeys_(b);
+  return nameKeys_(a).some(function (k) { return kb.indexOf(k) !== -1; });
+}
+
+function nameKeys_(name) {
+  var n = name.length >= 3 ? name.slice(1) : name;
+  var keys = [];
+  for (var i = 0; i + 1 < n.length; i++) keys.push(n.substr(i, 2));
+  return keys;
+}
+
 function isDateString_(s) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(s));
 }
@@ -118,11 +139,12 @@ function validateSignup_(req) {
     else if (e.accompany && e.identity !== '壇辦') errors.push({ name: e.name, message: '只有壇辦可以選「陪同」' });
   });
 
-  // 同一批不可重複填同一個名字
-  var seen = {};
-  entries.forEach(function (e) {
-    if (seen[e.name]) errors.push({ name: e.name, message: '名字重複填寫' });
-    seen[e.name] = true;
+  // 同一批不可重複填同一個人（名字視為同一人的規則見 sameName_）
+  entries.forEach(function (e, i) {
+    var prev = entries.slice(0, i).filter(function (x) { return sameName_(x.name, e.name); })[0];
+    if (prev) {
+      errors.push({ name: e.name, message: prev.name === e.name ? '名字重複填寫' : '「' + prev.name + '」與「' + e.name + '」視為同一人，名字重複填寫' });
+    }
   });
 
   var dutyDates = datesInRange_(duty['開始日'], duty['結束日']);
@@ -148,11 +170,13 @@ function validateSignup_(req) {
     entries.forEach(function (e) {
       if (e.accompany) return;
       var dup = active.filter(function (s) {
-        return s['陪同'] !== '是' && normalizeName_(s['姓名']) === e.name;
+        return s['陪同'] !== '是' && sameName_(s['姓名'], e.name);
       })[0];
       if (dup) {
         var posName = positionName_(req.positions, dup['了愿項目ID']);
-        errors.push({ name: e.name, date: date, message: '這天已報名「' + posName + '」，同一勤務同一天只能報一個了愿項目' });
+        var dupName = normalizeName_(dup['姓名']);
+        var who = dupName === e.name ? '' : '（已有「' + dupName + '」，視為同一人）';
+        errors.push({ name: e.name, date: date, message: '這天已報名「' + posName + '」' + who + '，同一勤務同一天只能報一個了愿項目' });
       }
     });
 
@@ -189,7 +213,7 @@ function positionName_(positions, id) {
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    normalizeName_: normalizeName_, datesInRange_: datesInRange_, parseLimit_: parseLimit_, effectiveMin_: effectiveMin_,
+    normalizeName_: normalizeName_, sameName_: sameName_, datesInRange_: datesInRange_, parseLimit_: parseLimit_, effectiveMin_: effectiveMin_,
     dayStatus_: dayStatus_, validateSignup_: validateSignup_, canSelfChange_: canSelfChange_
   };
 }

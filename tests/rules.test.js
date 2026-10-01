@@ -216,3 +216,24 @@ test('dayStatus_：不限人數的了愿項目不到 2 人算缺人，2 人以�
   const withAccompany = [signup('測試甲', 'P9', '2026-10-10'), signup('測試乙', 'P9', '2026-10-10', { '陪同': '是' })];
   assert.equal(dayStatus_(open, withAccompany, '2026-10-10').shortage, 1);
 });
+
+test('sameName_：三個字以上去掉第一個字，有連續兩個字相同就視為同一人', () => {
+  const { sameName_ } = rulesModule.exports;
+  assert.equal(sameName_('小明', '王小明'), true);
+  assert.equal(sameName_('王小明', '林小明'), true);
+  assert.equal(sameName_('測試甲', ' 測試甲　'), true);
+  assert.equal(sameName_('測試甲', '測試乙'), false); // 只有姓相同不算
+  assert.equal(sameName_('蔡甲', '蔡乙'), false);
+  assert.equal(sameName_('甲', '甲乙'), false);
+  assert.equal(sameName_('甲', '甲'), true);
+});
+
+test('名字相近視為同一人：同一勤務同一天被擋，同一批也不能重複填', () => {
+  const errors = validateSignup_(req({
+    positionId: 'P2', entries: [{ name: '試甲' }], signups: [signup('測試甲', 'P1', '2026-11-08')]
+  }));
+  assert.equal(errors.length, 1);
+  assert.match(errors[0].message, /已有「測試甲」，視為同一人/);
+  const batch = validateSignup_(req({ positionId: 'P2', entries: [{ name: '測試甲' }, { name: '試甲' }] }));
+  assert.match(batch[0].message, /視為同一人，名字重複填寫/);
+});
