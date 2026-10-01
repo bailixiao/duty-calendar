@@ -39,6 +39,7 @@
     try {
       const data = await Api.getDuty(page.id);
       if (t !== token) return;
+      if (window.CalendarPage) CalendarPage.patchDuty(data); // 行事曆的人數一起更新
       if (page.data && page.data.signups === null && !flash) {
         // 先前用行事曆資料顯示：只補上說明、輪值組與名單，不重畫報名表單（避免清掉正在填的名字）
         Object.assign(page.data, data);

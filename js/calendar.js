@@ -550,5 +550,31 @@
     return seen.size ? { from, to, today: state.today, duties: [...seen.values()] } : null;
   }
 
-  window.CalendarPage = { init, refresh, onShow, peekDuty, peekRange };
+  /**
+   * 詳情頁讀到某勤務的最新人數時呼叫：更新行事曆已載入的資料並重畫（不用再向伺服器讀整年）。
+   * fresh 為 getDuty 的資料（含 days）。
+   */
+  function patchDuty(fresh) {
+    let changed = false;
+    windows.forEach((entry) => {
+      const d = entry.data && entry.data.duties.find((x) => x.id === fresh.id);
+      if (!d) return;
+      Object.keys(fresh.days || {}).forEach((date) => {
+        if (date in d.days && JSON.stringify(d.days[date]) !== JSON.stringify(fresh.days[date])) {
+          d.days[date] = fresh.days[date];
+          changed = true;
+        }
+      });
+    });
+    if (changed && state.range && !state.loading) {
+      const year = windowYearFor(state.range.from, state.range.to);
+      const entry = windows.get(year);
+      if (entry && entry.data) {
+        render(entry.data, state.range.from, state.range.to);
+        storeEvents(year, entry.data);
+      }
+    }
+  }
+
+  window.CalendarPage = { init, refresh, onShow, peekDuty, peekRange, patchDuty };
 })();
