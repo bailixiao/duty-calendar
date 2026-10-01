@@ -41,7 +41,7 @@ test('解析每月分頁：依標題找欄位、同一場的多列合併、名�
   const r = H.parseMonth(monthNew);
   assert.deepEqual(r.problems, []);
   assert.equal(r.events.length, 3);
-  assert.deepEqual(r.events[0], { date: '2026-09-05', end: '2026-09-05', name: '宏宗打掃', nature: '勤務', tan: ['測試甲', '測試戊'], dao: ['測試乙', '測試己'], extra: [], accompany: ['測試丙', '測試丁'], row: 4 });
+  assert.deepEqual(r.events[0], { date: '2026-09-05', end: '2026-09-05', name: '宏宗打掃', nature: '勤務', tan: ['測試甲', '測試戊'], dao: ['測試乙', '測試己'], extra: [], accompany: ['測試丙', '測試丁'], unparsed: [], row: 4 });
   assert.deepEqual(r.events[1].dao, ['測試庚', '測試辛']);
   assert.equal(r.events[2].date, '2026-09-23');
   assert.equal(r.events[1].nature, '支援');
@@ -107,4 +107,21 @@ test('推斷身分：同一批資料出現較多的身分；沒出現過就是�
   assert.deepEqual(events[1].dao, ['測試乙'], '已經在名單上的不重複加');
   assert.deepEqual(events[1].unknown, ['測試丙']);
   assert.deepEqual(events[1].extra, []);
+});
+
+test('備註「名字＋勤務內容」：開頭是名單上的名字就拆出來算人數；名字＋陪同歸陪同', () => {
+  const rows = [
+    ['活動項目', '日期', '性質', '壇辦姓名', '人數', '道親姓名', '人數', '道親%', '備註'],
+    ['參訪', 46006, '勤務', '測試甲', 1, '測試乙', 1, 0.5, '測試甲維安、測試乙（陪同）、測試丙維安']
+  ];
+  const r = H.parseMonth(rows, 2025);
+  assert.deepEqual(r.events[0].extra, ['測試甲']);
+  assert.deepEqual(r.events[0].accompany, ['測試乙']);
+  assert.match(r.problems.join(), /「測試丙維安」不像姓名/, '不認得的名字還是列出來');
+  // 整本解析時，其他月份出現過的名字也認得
+  const other = [['活動項目', '日期', '性質', '壇辦姓名', '人數', '道親姓名'], ['打掃', 46010, '勤務', '測試丙', 1, '']];
+  const wb = H.parseWorkbook({ '12月': rows, '11月': other }, 2025);
+  const dec = wb.months.find((m) => m.month === 12);
+  assert.deepEqual(dec.events[0].extra, ['測試甲', '測試丙']);
+  assert.equal(dec.problems.length, 0);
 });

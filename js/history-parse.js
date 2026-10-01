@@ -123,12 +123,12 @@
 
   /**
    * 解析一個月的分頁。rows：二維陣列（SheetJS sheet_to_json header:1 的結果）。
-   * yearHint：標題沒寫年份時用（例如檔名的年份）。
+   * yearHint：標題沒寫年份時用（例如檔名的年份）；moreNames：其他月份的名字（拆「名字＋勤務內容」用）。
    * 回傳 { events: [{ date, end, name, nature, tan: [], dao: [], extra: [], accompany: [] }], problems: [字串] }
    * extra：備註裡要算人數、但沒寫身分的人（匯入時依同一批資料推斷身分，見 inferIdentity）。
    * 多天勤務（日期寫「8/24~8/31」）：date＝第一天、end＝最後一天，每人只算一次（與原 Excel 相同）。
    */
-  function parseMonth(rows, yearHint) {
+  function parseMonth(rows, yearHint, moreNames) {
     const c = findColumns(rows);
     if (!c) return { events: [], problems: ['找不到標題列（要有「活動項目」「壇辦姓名」）'] };
     const year = titleYear(rows) || yearHint || 0;
@@ -147,7 +147,7 @@
       const sameEvent = cur && name === cur.name && (!date || date === cur.date);
       if (name && !sameEvent) {
         const nature = clean(r[c.nature]);
-        cur = { date, end: range ? range.end : '', name, nature: ['勤務', '支援', '烹飪'].indexOf(nature) !== -1 ? nature : '勤務', tan: [], dao: [], extra: [], accompany: [], row: i + 1 };
+        cur = { date, end: range ? range.end : '', name, nature: ['勤務', '支援', '烹飪'].indexOf(nature) !== -1 ? nature : '勤務', tan: [], dao: [], extra: [], accompany: [], unparsed: [], row: i + 1 };
         if (!date) problems.push(`第 ${i + 1} 列「${name}」沒有日期`);
         events.push(cur);
       } else if (!cur && (tan || dao)) {
@@ -162,10 +162,43 @@
         const note = parseNote(r[c.note]);
         note.count.forEach((n) => cur.extra.push(n));
         note.accompany.forEach((n) => cur.accompany.push(n));
-        note.bad.forEach((t) => problems.push(`第 ${i + 1} 列備註「${t}」不像姓名，沒有匯入`));
+        note.bad.forEach((t) => cur.unparsed.push({ row: i + 1, token: t }));
       }
     }
-    return { events: events.filter((e) => e.date), problems };
+    const list = events.filter((e) => e.date);
+    const known = knownNames(list);
+    if (moreNames) moreNames.forEach((n) => known.add(n));
+    return { events: list, problems: problems.concat(resolveUnparsed(list, known)) };
+  }
+
+  /** 名單上出現過的名字（壇辦、道親） */
+  function knownNames(events) {
+    const set = new Set();
+    events.forEach((e) => e.tan.concat(e.dao).forEach((n) => set.add(n)));
+    return set;
+  }
+
+  /**
+   * 備註裡看不懂的字（例如「蔡○○維安」）：開頭是名單上出現過的名字，就把名字拆出來——
+   * 後面是「陪同／護持」歸陪同，其他（勤務內容）算人數。其餘回傳成問題清單給管理者看。
+   */
+  function resolveUnparsed(events, known) {
+    const problems = [];
+    events.forEach((e) => {
+      (e.unparsed || []).forEach(({ row, token }) => {
+        let hit = '';
+        known.forEach((n) => { if (token.indexOf(n) === 0 && n.length > hit.length && n.length < token.length) hit = n; });
+        if (!hit) {
+          problems.push(`第 ${row} 列備註「${token}」不像姓名，沒有匯入`);
+          return;
+        }
+        const rest = token.slice(hit.length).replace(/^[-－—(（]+|[)）]+$/g, '');
+        if (/^(陪同|護持)$/.test(rest)) e.accompany.push(hit);
+        else e.extra.push(hit);
+      });
+      e.unparsed = [];
+    });
+    return problems;
   }
 
   /** 「統計」分頁：{ 月份數字: { tan, dao } }，核對用 */
@@ -185,10 +218,13 @@
   function parseWorkbook(sheets, yearHint) {
     const summary = parseSummary(sheets['統計']);
     const months = [];
-    Object.keys(sheets).forEach((title) => {
+    const titles = Object.keys(sheets).filter((t) => /^\d{1,2}月$/.test(t.trim()));
+    // 先收集整本的名字，備註「名字＋勤務內容」才認得出其他月份出現過的人
+    const allNames = new Set();
+    titles.forEach((t) => knownNames(parseMonth(sheets[t], yearHint).events).forEach((n) => allNames.add(n)));
+    titles.forEach((title) => {
       const m = /^(\d{1,2})月$/.exec(title.trim());
-      if (!m) return;
-      const res = parseMonth(sheets[title], yearHint);
+      const res = parseMonth(sheets[title], yearHint, allNames);
       const month = Number(m[1]);
       const count = (k) => res.events.reduce((n, e) => n + e[k].length, 0);
       months.push({ month, events: res.events, tan: count('tan'), dao: count('dao'), extra: count('extra'), expected: summary[month] || null, problems: res.problems });

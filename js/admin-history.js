@@ -40,7 +40,7 @@
           <li>匯入前會先列出各月人數，並和 Excel 的「統計」分頁核對。</li>
           <li>名字寫法不同但可能是同一人的，會請你確認要用哪個寫法。</li>
           <li>備註欄的名字當作「陪同」（不算人數）。</li>
-          <li>同名同日的勤務已經存在就會略過，不小心匯入兩次也不會重複。</li>
+          <li>同名同日的勤務已經存在就會略過，不小心匯入兩次也不會重複；之前匯入過的，會補上這次多讀到的人。</li>
         </ul>
         <input type="file" accept=".xlsx,.xls" multiple data-file class="input file-input">
       </div>
@@ -169,7 +169,7 @@
         if (e.end > into.end) into.end = e.end;
       });
       const events = HistoryParse.inferIdentity([...byKey.values()]);
-      const sum = { duties: 0, signups: 0, skipped: 0 };
+      const sum = { duties: 0, signups: 0, skipped: 0, updated: 0 };
       try {
         for (let i = 0; i < events.length; i += CHUNK) {
           Busy.show(`匯入中⋯（${Math.min(i + CHUNK, events.length)}／${events.length} 場）`, '請不要關閉畫面');
@@ -177,12 +177,13 @@
           sum.duties += res.duties;
           sum.signups += res.signups;
           sum.skipped += res.skipped;
+          sum.updated += res.updated || 0;
         }
         Busy.hide();
         AdminPage.clearMemo();
         if (window.CalendarPage) CalendarPage.refresh();
-        box.innerHTML = `<div class="notice notice-success" role="status"><p><strong>匯入完成：${sum.duties} 場、${sum.signups} 筆出席</strong></p>
-          ${sum.skipped ? `<p>已存在而略過 ${sum.skipped} 場。</p>` : ''}<p><a href="#/admin/stats">到統計頁看結果 ›</a></p></div>`;
+        box.innerHTML = `<div class="notice notice-success" role="status"><p><strong>匯入完成：新增 ${sum.duties} 場、${sum.signups} 筆出席</strong></p>
+          ${sum.updated ? `<p>之前匯入過的 ${sum.updated} 場，已補上這次多讀到的人。</p>` : ''}${sum.skipped ? `<p>已存在而略過 ${sum.skipped} 場。</p>` : ''}<p><a href="#/admin/stats">到統計頁看結果 ›</a></p></div>`;
       } catch (err) {
         Busy.hide();
         if (guard(err)) return;

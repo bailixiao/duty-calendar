@@ -85,7 +85,7 @@ test('匯入歷史資料：建立過去的勤務與出席、陪同不算人數�
 
   const r = call('adminImportHistory', { events, source: '測試檔' });
   assert.equal(r.ok, true, JSON.stringify(r.error));
-  assert.deepEqual(r.data, { duties: 2, signups: 5, skipped: 0 });
+  assert.deepEqual(r.data, { duties: 2, signups: 5, skipped: 0, updated: 0 });
 
   const stats = call('adminStats').data.events;
   const mar = stats.find((e) => e.date === '2026-03-05');
@@ -95,7 +95,7 @@ test('匯入歷史資料：建立過去的勤務與出席、陪同不算人數�
   assert.ok(!stats.some((e) => e.date === '2025-08-25'), '多天勤務每人只記第一天');
 
   const again = call('adminImportHistory', { events });
-  assert.deepEqual(again.data, { duties: 0, signups: 0, skipped: 2 });
+  assert.deepEqual(again.data, { duties: 0, signups: 0, skipped: 2, updated: 0 });
   assert.match(env.sheets['操作紀錄'].data.slice(-2)[0][3], /測試檔｜匯入 2 場、5 筆出席/);
 });
 
@@ -105,7 +105,7 @@ test('匯入歷史資料：同一批同名同日的兩場合併，不會漏人',
     { date: '2026-03-05', name: '宏宗打掃', tan: ['測試甲'], dao: [], accompany: [] },
     { date: '2026-03-05', name: '宏宗打掃', tan: ['測試甲', '測試乙'], dao: ['測試丙'], accompany: [] }
   ] });
-  assert.deepEqual(r.data, { duties: 1, signups: 3, skipped: 0 });
+  assert.deepEqual(r.data, { duties: 1, signups: 3, skipped: 0, updated: 0 });
 });
 
 test('匯入歷史資料：不知道身分的人記為未填身分，統計看得到', () => {
@@ -114,4 +114,17 @@ test('匯入歷史資料：不知道身分的人記為未填身分，統計看�
   assert.equal(r.data.signups, 2);
   const e = call('adminStats').data.events.find((x) => x.date === '2026-03-06');
   assert.deepEqual(e.unknown, ['測試乙']);
+});
+
+test('重新匯入歷史資料：之前匯入的場次補上漏掉的人；不是歷史匯入的勤務照樣略過', () => {
+  const { env, call } = setup();
+  call('adminImportHistory', { events: [{ date: '2026-03-05', name: '宏宗打掃', tan: ['測試甲'], dao: [], accompany: [] }] });
+  const vol = env.get({ action: 'getEvents', from: '2026-10-13', to: '2026-10-13' }).data.duties[0];
+  const r = call('adminImportHistory', { events: [
+    { date: '2026-03-05', name: '宏宗打掃', tan: ['測試甲'], dao: [], unknown: ['測試乙'], accompany: ['測試丙'] },
+    { date: vol.start, name: vol.name, tan: ['測試丁'], dao: [], accompany: [] }
+  ] });
+  assert.deepEqual(r.data, { duties: 0, signups: 2, skipped: 1, updated: 1 });
+  const e = call('adminStats').data.events.find((x) => x.date === '2026-03-05');
+  assert.deepEqual([e.tan, e.unknown, e.accompany], [['測試甲'], ['測試乙'], ['測試丙']]);
 });
