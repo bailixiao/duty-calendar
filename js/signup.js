@@ -307,21 +307,12 @@
       }
     }
 
-    /**
-     * 伺服器回 BUSY（同時報名的人太多、排隊逾時）代表確定沒有寫入，可以安全地自動重送。
-     * 等 1–3 秒（隨機，避免大家同時再擠進來）後重送，最多重送 3 次。
-     */
-    async function signupWithRetry(payload, slowTimer) {
-      for (let attempt = 0; ; attempt++) {
-        try {
-          return await Api.signup(payload);
-        } catch (err) {
-          if (err.code !== 'BUSY' || attempt >= 3) throw err;
-          clearTimeout(slowTimer);
-          Busy.show('報名的人較多，正在排隊⋯', '系統會自動重試，請不要關閉畫面');
-          await new Promise((r) => setTimeout(r, 1000 + Math.random() * 2000));
-        }
-      }
+    /** 報名；人太多（BUSY）時自動排隊重送 */
+    function signupWithRetry(payload, slowTimer) {
+      return Api.retryBusy(() => Api.signup(payload), () => {
+        clearTimeout(slowTimer);
+        Busy.show('報名的人較多，正在排隊⋯', '系統會自動重試，請不要關閉畫面');
+      });
     }
 
     function fail(html) {

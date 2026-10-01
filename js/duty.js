@@ -1,5 +1,5 @@
 // 勤務詳情頁：勤務說明、報名名單（依了愿項目列出，名字只在這裡出現）、報名表單；公告型顯示輪值組，沒有報名。
-// 第一階段不提供取消、改期（第二階段加入）。
+// 名單上每人有「改期」「取消」（勤務當天含之後不能自己改，請聯絡管理者）。
 (function () {
   'use strict';
 
@@ -134,11 +134,19 @@
         }).join('')}
       </div>` : '';
 
+    const canChange = date > d.today; // 勤務當天（含）之後不能自己取消、改期
     const rows = d.positions.map((p) => {
       const label = positionLabel(p, day);
       const people = d.signups.filter((s) => s.date === date && s.positionId === p.id);
       const names = people.length
-        ? people.map((s) => `<span class="person">${esc(s.name)}${s.accompany ? '<span class="tag">陪同</span>' : ''}</span>`).join('')
+        ? `<ul class="people">${people.map((s) => `
+            <li class="person-row">
+              <span class="person">${esc(s.name)}${s.accompany ? '<span class="tag">陪同</span>' : ''}</span>
+              ${canChange ? `<span class="person-actions">
+                <button type="button" class="btn btn-small" data-reschedule="${esc(s.id)}">改期</button>
+                <button type="button" class="btn btn-small btn-quiet-danger" data-cancel="${esc(s.id)}">取消</button>
+              </span>` : ''}
+            </li>`).join('')}</ul>`
         : '<span class="muted">還沒有人報名</span>';
       return `
         <li class="position">
@@ -154,12 +162,103 @@
       <h2>報名名單${dates.length > 1 ? `<span class="h2-sub">${Fmt.shortDate(date)}</span>` : ''}</h2>
       ${tabs}
       <ul class="position-list">${rows}</ul>
-      <p class="hint">「陪同」不佔名額。要取消或改期請聯絡管理者。</p>`;
+      <p class="hint">「陪同」不佔名額。${canChange ? '要取消或改期，請按名字旁的按鈕。' : '勤務當天（含）之後不能自己取消或改期，請聯絡管理者。'}</p>`;
 
     el.querySelectorAll('[data-date]').forEach((btn) => btn.addEventListener('click', () => {
       page.viewDate = btn.dataset.date;
       renderRoster();
     }));
+    const findSignup = (id) => d.signups.find((s) => s.id === id);
+    el.querySelectorAll('[data-cancel]').forEach((btn) => btn.addEventListener('click', () => cancelSignup(findSignup(btn.dataset.cancel))));
+    el.querySelectorAll('[data-reschedule]').forEach((btn) => btn.addEventListener('click', () => {
+      Reschedule.open(findSignup(btn.dataset.reschedule), d, (result) => onRescheduled(findSignup(btn.dataset.reschedule), result));
+    }));
+  }
+
+  // ---------- 取消、改期 ----------
+
+  function flashBox(kind, title, text) {
+    return `<div class="notice notice-${kind}" role="${kind === 'error' ? 'alert' : 'status'}">
+      <p><strong>${esc(title)}</strong></p>${text ? `<p>${esc(text)}</p>` : ''}</div>`;
+  }
+
+  function positionName(id) {
+    const p = page.data.positions.find((x) => x.id === id);
+    return p ? p.name : '';
+  }
+
+  /** 換上新資料並顯示訊息；行事曆在背景更新 */
+  function showResult(flash) {
+    if (window.CalendarPage) CalendarPage.refresh();
+    render(flash);
+    const box = document.getElementById('duty-flash');
+    if (box) box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  async function cancelSignup(s) {
+    if (!s) return;
+    const d = page.data;
+    const who = s.name + (s.accompany ? '（陪同）' : '');
+    const ok = await Confirm.open({
+      title: '確定要取消這筆報名嗎？',
+      rows: [['姓名', who], ['日期', Fmt.rocDate(s.date)], ['勤務', d.name], ['了愿項目', positionName(s.positionId)]],
+      confirmText: '確定取消報名',
+      cancelText: '不要取消',
+      danger: true
+    });
+    if (!ok) return;
+
+    const doneText = `${who}・${Fmt.shortDate(s.date)}・${positionName(s.positionId)}`;
+    Busy.show('取消中，請稍候⋯', '請不要關閉畫面');
+    try {
+      const res = await Api.retryBusy(() => Api.cancel(s.id),
+        () => Busy.show('使用的人較多，正在排隊⋯', '系統會自動重試，請不要關閉畫面'));
+      Busy.hide();
+      if (!page.data || page.data.id !== d.id) return;
+      page.data.signups = page.data.signups.filter((x) => x.id !== s.id);
+      Object.assign(page.data.days, res.days);
+      showResult(flashBox('success', '已取消報名', doneText));
+    } catch (err) {
+      if (err.code === 'NETWORK' || err.code === 'ALREADY' || err.code === 'NOT_FOUND') {
+        // 沒收到回應、或已被別人取消：重新讀名單，看這筆還在不在
+        Busy.show('正在確認結果⋯', '請不要關閉畫面');
+        try {
+          const fresh = await Api.getDuty(d.id);
+          Busy.hide();
+          if (!page.data || page.data.id !== d.id) return;
+          page.data = fresh;
+          const gone = !fresh.signups.some((x) => x.id === s.id);
+          showResult(gone
+            ? flashBox('success', '已取消報名', doneText)
+            : flashBox('error', '沒有取消成功', '請再按一次「取消」。'));
+        } catch (e) {
+          Busy.hide();
+          showResult(flashBox('error', '網路不穩，無法確定是否取消成功', '請回行事曆後重新點進來，查看名單。'));
+        }
+        return;
+      }
+      Busy.hide();
+      showResult(flashBox('error', err.message || '取消失敗，請稍後再試', ''));
+    }
+  }
+
+  function onRescheduled(s, result) {
+    const d = page.data;
+    if (!d) return;
+    const who = s.name + (s.accompany ? '（陪同）' : '');
+    const text = `${who}：${Fmt.shortDate(s.date)} ${positionName(s.positionId)} → ${Fmt.shortDate(result.date)} ${result.positionName}`;
+    if (result.verified) {
+      page.data = result.verified;
+    } else {
+      const res = result.res;
+      d.signups = d.signups.filter((x) => x.id !== s.id);
+      if (res.from.dutyId === d.id) Object.assign(d.days, res.from.days);
+      if (res.to.dutyId === d.id) {
+        d.signups.push({ id: res.signupId, date: res.to.date, positionId: result.positionId, name: s.name, accompany: s.accompany });
+        Object.assign(d.days, res.to.days);
+      }
+    }
+    showResult(flashBox('success', '已改期', text));
   }
 
   // ---------- 報名表單 ----------

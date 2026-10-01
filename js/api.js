@@ -73,11 +73,31 @@
     }
   }
 
+  /**
+   * 寫入時伺服器回 BUSY（同時使用的人太多、排隊逾時）代表確定沒有寫入，可以安全地自動重送。
+   * 隨機等 1–3 秒（避免大家同時再擠進來）後重送，最多重送 3 次；每次重送前呼叫 onBusy()。
+   */
+  async function retryBusy(fn, onBusy) {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await fn();
+      } catch (err) {
+        if (err.code !== 'BUSY' || attempt >= 3) throw err;
+        if (onBusy) onBusy();
+        await new Promise((r) => setTimeout(r, 1000 + Math.random() * 2000));
+      }
+    }
+  }
+
   window.Api = {
     ApiError,
+    retryBusy,
     getEvents: (from, to) => get('getEvents', { from, to }),
     getDuty: (id) => get('getDuty', { id }),
     searchMembers: (q, groupType, group) => get('searchMembers', { q, groupType: groupType || '', group: group || '' }),
-    signup: (payload) => post(Object.assign({ action: 'signup' }, payload))
+    getSiblings: (dutyId) => get('getSiblings', { id: dutyId }),
+    signup: (payload) => post(Object.assign({ action: 'signup' }, payload)),
+    cancel: (signupId) => post({ action: 'cancel', signupId }),
+    reschedule: (payload) => post(Object.assign({ action: 'reschedule' }, payload))
   };
 })();
