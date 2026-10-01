@@ -38,7 +38,7 @@ function getEvents_(params) {
   };
 }
 
-/** 勤務詳情：說明、崗位、每日人數，以及報名名單（名字只在這裡出現） */
+/** 勤務詳情：說明、了愿項目、每日人數，以及報名名單（名字只在這裡出現） */
 function getDuty_(params) {
   var duty = readTable_(SHEETS.DUTIES).filter(function (d) { return d['勤務ID'] === params.id; })[0];
   if (!duty) throw new ApiError_('NOT_FOUND', '找不到這個勤務');
@@ -54,7 +54,7 @@ function getDuty_(params) {
     return {
       id: s['報名ID'],
       date: s['日期'],
-      positionId: s['崗位ID'],
+      positionId: s['了愿項目ID'],
       name: s['姓名'],
       accompany: s['陪同'] === '是'
     };
@@ -122,8 +122,8 @@ function dutyToJson_(d, positions) {
     attire: d['服裝'],
     positions: positions.map(function (p) {
       return {
-        id: p['崗位ID'],
-        name: p['崗位名稱'],
+        id: p['了愿項目ID'],
+        name: p['了愿項目名稱'],
         slot: p['時段'],
         min: parseLimit_(p['最少']),
         max: parseLimit_(p['最多'])
@@ -132,7 +132,7 @@ function dutyToJson_(d, positions) {
   };
 }
 
-/** 每一天的人數狀態：{ 'yyyy-MM-dd': { total, shortage, full, counts: { 崗位ID: 人數 } } }；公告型回傳空物件 */
+/** 每一天的人數狀態：{ 'yyyy-MM-dd': { total, shortage, full, counts: { 了愿項目ID: 人數 } } }；公告型回傳空物件 */
 function daysStatus_(duty, positions, signups, dates) {
   var days = {};
   if (duty['模式'] === '公告型') return days;

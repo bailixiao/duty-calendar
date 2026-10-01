@@ -169,9 +169,9 @@ function seedInitialDuties() {
     });
     d.positions.forEach(function (p) {
       positionRows.push({
-        '崗位ID': newId_('P'),
+        '了愿項目ID': newId_('P'),
         '勤務ID': dutyId,
-        '崗位名稱': p.name,
+        '了愿項目名稱': p.name,
         '時段': p.slot,
         '最少': p.min,
         '最多': p.max
@@ -183,7 +183,7 @@ function seedInitialDuties() {
   appendRows_(SHEETS.POSITIONS, positionRows);
   seedGroups_();
 
-  Logger.log('已匯入勤務 ' + dutyRows.length + ' 筆、崗位 ' + positionRows.length + ' 筆');
+  Logger.log('已匯入勤務 ' + dutyRows.length + ' 筆、了愿項目 ' + positionRows.length + ' 筆');
 }
 
 /** 只建立組名，組長、佐理、組員留空由管理者在 Sheet 填寫。分組分頁已有資料時略過。 */

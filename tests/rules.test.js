@@ -12,12 +12,12 @@ const { normalizeName_, datesInRange_, parseLimit_, dayStatus_, validateSignup_ 
 
 const duty = { '勤務ID': 'D1', '模式': '報名型', '開始日': '2026-11-08', '結束日': '2026-11-10' };
 const positions = [
-  { '崗位ID': 'P1', '勤務ID': 'D1', '崗位名稱': '烹飪', '最少': '4', '最多': '4' },
-  { '崗位ID': 'P2', '勤務ID': 'D1', '崗位名稱': '清潔', '最少': '2', '最多': '' }
+  { '了愿項目ID': 'P1', '勤務ID': 'D1', '了愿項目名稱': '烹飪', '最少': '4', '最多': '4' },
+  { '了愿項目ID': 'P2', '勤務ID': 'D1', '了愿項目名稱': '清潔', '最少': '2', '最多': '' }
 ];
 
 function signup(name, positionId, date, extra) {
-  return Object.assign({ '姓名': name, '崗位ID': positionId, '日期': date, '陪同': '否', '狀態': '有效' }, extra);
+  return Object.assign({ '姓名': name, '了愿項目ID': positionId, '日期': date, '陪同': '否', '狀態': '有效' }, extra);
 }
 
 // entries 沒寫身分的，預設「道親」
@@ -65,8 +65,8 @@ test('dayStatus_ 計算人數、缺人與額滿，陪同與已取消不計', () 
   assert.equal(s.full, false);
 });
 
-test('dayStatus_ 所有崗位都額滿才算額滿；有不限人數崗位就不會額滿', () => {
-  const p = [{ '崗位ID': 'P9', '崗位名稱': '志工', '最多': '2' }];
+test('dayStatus_ 所有了愿項目都額滿才算額滿；有不限人數了愿項目就不會額滿', () => {
+  const p = [{ '了愿項目ID': 'P9', '了愿項目名稱': '志工', '最多': '2' }];
   const full = dayStatus_(p, [signup('測試甲', 'P9', '2026-11-08'), signup('測試乙', 'P9', '2026-11-08')], '2026-11-08');
   assert.equal(full.full, true);
   const notFull = dayStatus_(positions, [], '2026-11-08');
@@ -95,7 +95,7 @@ test('日期不在勤務期間內', () => {
   assert.match(errors[0].message, /不在勤務期間/);
 });
 
-test('同一勤務同一天重複報另一個崗位會被擋，名字比對忽略全形空白', () => {
+test('同一勤務同一天重複報另一個了愿項目會被擋，名字比對忽略全形空白', () => {
   const errors = validateSignup_(req({
     positionId: 'P2',
     entries: [{ name: '　測試甲 ' }],
@@ -162,7 +162,7 @@ test('陪同紀錄不計入既有人數', () => {
   assert.deepEqual(validateSignup_(req({ entries: [{ name: '測試戊' }], signups })), []);
 });
 
-test('不限人數的崗位不會額滿', () => {
+test('不限人數的了愿項目不會額滿', () => {
   const many = Array.from({ length: 30 }, (_, i) => signup('測試' + i, 'P2', '2026-11-08'));
   assert.deepEqual(validateSignup_(req({ positionId: 'P2', signups: many })), []);
 });
@@ -188,7 +188,7 @@ test('只有壇辦可以選陪同', () => {
   assert.match(errors[0].message, /只有壇辦可以選「陪同」/);
 });
 
-test('空白名字、未選崗位、公告型勤務', () => {
+test('空白名字、未選了愿項目、公告型勤務', () => {
   assert.match(validateSignup_(req({ entries: [{ name: '　' }] }))[0].message, /不可空白/);
   assert.match(validateSignup_(req({ entries: [] }))[0].message, /請填寫名字/);
   assert.match(validateSignup_(req({ positionId: 'PX' }))[0].message, /請選擇了愿項目/);

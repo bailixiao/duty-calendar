@@ -42,7 +42,7 @@ function signup_(body) {
       throw new ApiError_('VALIDATION', '報名沒有完成，請看下面的說明', errors);
     }
 
-    var position = positions.filter(function (p) { return p['崗位ID'] === body.positionId; })[0];
+    var position = positions.filter(function (p) { return p['了愿項目ID'] === body.positionId; })[0];
     var now = nowString_();
     var signupRows = [];
     var logRows = [];
@@ -57,7 +57,7 @@ function signup_(body) {
           '報名ID': id,
           '勤務ID': duty['勤務ID'],
           '日期': date,
-          '崗位ID': position['崗位ID'],
+          '了愿項目ID': position['了愿項目ID'],
           '姓名': name,
           '身分': e.identity,
           '陪同': accompany ? '是' : '否',
@@ -71,7 +71,7 @@ function signup_(body) {
           '時間': now,
           '動作': '報名',
           '報名ID': id,
-          '內容摘要': [name + '（' + e.identity + (accompany ? '・陪同' : '') + '）', date, duty['名稱'], position['崗位名稱']].join('｜'),
+          '內容摘要': [name + '（' + e.identity + (accompany ? '・陪同' : '') + '）', date, duty['名稱'], position['了愿項目名稱']].join('｜'),
           '還原用的前一版資料': ''
         });
         created.push({ id: id, date: date, name: name, identity: e.identity, accompany: accompany });

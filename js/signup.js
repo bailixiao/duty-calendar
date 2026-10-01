@@ -1,4 +1,4 @@
-// 報名表單：選了愿項目（程式內稱崗位，額滿反灰）→ 選日期（多天勤務）→ 填名字（自動提示、可多人、選道親／壇辦；壇辦可選了愿／陪同）→ 確認報名。
+// 報名表單：選了愿項目（額滿反灰）→ 選日期（多天勤務）→ 填名字（自動提示、可多人、選道親／壇辦；壇辦可選了愿／陪同）→ 確認報名。
 // 名額與重複的最終判斷在伺服器（LockService 鎖定），這裡只做提示。
 (function () {
   'use strict';
@@ -58,7 +58,7 @@
     const form = $('form');
     const input = $('[data-name-input]');
 
-    // ---------- 崗位 ----------
+    // ---------- 了愿項目 ----------
 
     function count(date, positionId) {
       const day = duty.days[date];
@@ -401,7 +401,7 @@
 
     renderPositions();
     renderDates();
-    renderPositions(); // 日期可能因額滿被移除，崗位狀態再算一次
+    renderPositions(); // 日期可能因額滿被移除，了愿項目狀態再算一次
     renderNames();
   }
 

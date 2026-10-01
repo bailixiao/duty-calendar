@@ -174,7 +174,7 @@ test('沒選身分的報名被擋', () => {
   assert.equal(env.sheets['報名'].data.length, 1);
 });
 
-test('同一勤務同一天報第二個崗位被擋，整批不寫入', () => {
+test('同一勤務同一天報第二個了愿項目被擋，整批不寫入', () => {
   const env = createEnv(OCT_1);
   const team = findDuty(env, '2026-11-08', '2026-11-08', d => d.name === '12人小組輪值');
   const [cook, clean] = team.positions;

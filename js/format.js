@@ -83,7 +83,7 @@
     return text;
   }
 
-  /** 是否為「只有一個崗位且不限人數」的勤務（打掃、割草等），只顯示已報人數 */
+  /** 是否為「只有一個了愿項目且不限人數」的勤務（打掃、割草等），只顯示已報人數 */
   function isOpenCount(duty) {
     return duty.positions.length === 1 && duty.positions[0].min === null && duty.positions[0].max === null;
   }

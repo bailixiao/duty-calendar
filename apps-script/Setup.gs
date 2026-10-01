@@ -67,3 +67,37 @@ function applyValidations_(ss) {
     sheet.getRange(2, col, sheet.getMaxRows() - 1, 1).setDataValidation(rule);
   });
 }
+
+/**
+ * 一次性改名：把試算表裡的「崗位」改為「了愿項目」（115/10 起）。
+ *   - 「崗位」分頁 → 「了愿項目」
+ *   - 欄位「崗位ID」「崗位名稱」 → 「了愿項目ID」「了愿項目名稱」（含「報名」分頁的「崗位ID」）
+ * 只改分頁名稱與第一列標題，資料不動。可重複執行，已改過的會略過。
+ * 在 Apps Script 編輯器選 renamePositionsToLiaoyuan 後按「執行」，執行完要馬上部署新版本。
+ */
+function renamePositionsToLiaoyuan() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var changes = [];
+
+  var oldSheet = ss.getSheetByName('崗位');
+  if (oldSheet && !ss.getSheetByName(SHEETS.POSITIONS.name)) {
+    oldSheet.setName(SHEETS.POSITIONS.name);
+    changes.push('分頁「崗位」→「' + SHEETS.POSITIONS.name + '」');
+  }
+
+  [SHEETS.POSITIONS, SHEETS.SIGNUPS].forEach(function (def) {
+    var sheet = ss.getSheetByName(def.name);
+    if (!sheet || sheet.getLastColumn() === 0) return;
+    var range = sheet.getRange(1, 1, 1, sheet.getLastColumn());
+    var headers = range.getValues()[0];
+    var renamed = headers.map(function (h) {
+      return String(h).replace(/^崗位(ID|名稱)$/, '了愿項目$1');
+    });
+    if (renamed.join('|') !== headers.join('|')) {
+      range.setValues([renamed]);
+      changes.push('「' + def.name + '」分頁的欄位標題');
+    }
+  });
+
+  Logger.log(changes.length ? '已更改：' + changes.join('、') : '不需要更改（已經改過了）');
+}
