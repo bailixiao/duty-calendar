@@ -1,0 +1,458 @@
+/* 教全區勤務行事曆：整潔安靜，米白底、深墨色字、赭紅色重點色；標題明體、內文黑體；按鈕至少 44px。 */
+
+:root {
+  --paper: #f6f1e7;
+  --paper-2: #ede6d7;
+  --card: #fffcf6;
+  --ink: #2a2724;
+  --ink-2: #57514a;
+  --muted: #847d72;
+  --line: #ddd4c3;
+  --accent: #9e3d22;
+  --accent-soft: #f4e2da;
+  --ok: #4d6b4f;
+  --ok-soft: #e4ebe1;
+  --full: #8a8479;
+  --full-soft: #e9e5dd;
+  --notice: #3f5b7d;
+  --notice-soft: #e2e8f0;
+
+  --serif: "Noto Serif TC", "Songti TC", "PMingLiU", serif;
+  --sans: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --radius: 10px;
+  --tap: 44px;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 17px;
+  line-height: 1.6;
+}
+
+[hidden] { display: none !important; }
+
+a { color: var(--accent); }
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- 頁首 ---------- */
+
+.app-header {
+  border-bottom: 1px solid var(--line);
+  padding: 14px 16px;
+}
+
+.app-title {
+  font-family: var(--serif);
+  font-weight: 700;
+  font-size: 1.25rem;
+  letter-spacing: .08em;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.app-main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 16px 16px 48px;
+}
+
+/* ---------- 按鈕 ---------- */
+
+.btn {
+  min-height: var(--tap);
+  min-width: var(--tap);
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.btn:hover { background: var(--paper-2); }
+
+.btn-icon {
+  padding: 0;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.btn-ghost {
+  background: transparent;
+}
+
+.btn-small {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: .95rem;
+}
+
+/* ---------- 工具列 ---------- */
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.view-switch {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--card);
+}
+
+.view-switch button {
+  min-height: var(--tap);
+  min-width: 64px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  cursor: pointer;
+}
+
+.view-switch button:last-child { border-right: 0; }
+
+.view-switch button.is-active {
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 500;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cal-title {
+  margin: 0;
+  min-width: 9.5em;
+  text-align: center;
+  font-family: var(--serif);
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+@media (max-width: 599px) {
+  .toolbar { flex-direction: column; align-items: stretch; }
+  .view-switch { display: flex; }
+  .view-switch button { flex: 1; }
+  .nav { justify-content: space-between; }
+  .cal-title { flex: 1; min-width: 0; font-size: 1.1rem; }
+}
+
+/* ---------- 狀態列 ---------- */
+
+.status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: .95rem;
+}
+
+.status-loading { background: var(--paper-2); color: var(--ink-2); }
+.status-error { background: var(--accent-soft); color: var(--accent); }
+
+/* ---------- 色點 ---------- */
+
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+  flex: none;
+}
+
+.dot-short { background: var(--accent); }
+.dot-full { background: var(--full); }
+.dot-ok { background: var(--ok); }
+.dot-notice { background: transparent; box-shadow: inset 0 0 0 2px var(--notice); }
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: .85rem;
+  color: var(--ink-2);
+}
+
+.legend li { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ---------- FullCalendar 外觀 ---------- */
+
+.calendar {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.fc {
+  --fc-border-color: var(--line);
+  --fc-page-bg-color: var(--card);
+  --fc-neutral-bg-color: var(--paper-2);
+  --fc-today-bg-color: transparent;
+  font-family: var(--sans);
+}
+
+.fc .fc-scrollgrid { border: 0; }
+
+.fc .fc-col-header-cell-cushion {
+  padding: 6px 0;
+  color: var(--ink-2);
+  font-weight: 500;
+  font-size: .9rem;
+  text-decoration: none;
+}
+
+.fc .fc-daygrid-day { cursor: pointer; }
+
+.fc .fc-daygrid-day-frame {
+  display: flex;
+  flex-direction: column;
+  min-height: 66px;
+}
+
+.fc .fc-daygrid-day-top {
+  flex-direction: column;
+  align-items: center;
+}
+
+.fc .fc-daygrid-day-number {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 3px 0 0;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.fc .fc-daygrid-day-events { display: none; }
+
+.cell-num {
+  display: grid;
+  place-items: center;
+  width: 1.9em;
+  height: 1.9em;
+  border-radius: 50%;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.fc .fc-day-today .cell-num {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.cell-lunar {
+  font-size: .68rem;
+  line-height: 1.3;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.cell-lunar.is-hl { color: var(--accent); font-weight: 700; }
+
+.cell-dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 3px;
+  margin-top: auto;
+  padding: 2px 2px 6px;
+}
+
+.cell-more { font-size: .65rem; line-height: 1; color: var(--muted); }
+
+.fc .fc-day-other .cell-num,
+.fc .fc-day-other .cell-lunar { opacity: .45; }
+
+.fc .is-past .dot { opacity: .45; }
+
+.fc .is-selected .fc-daygrid-day-frame {
+  box-shadow: inset 0 0 0 2px var(--accent);
+  background: var(--accent-soft);
+}
+
+/* 年檢視：格子小，只顯示日期與色點 */
+.fc .fc-multimonth { border: 0; }
+
+.fc .fc-multimonth-title {
+  padding: 12px 0 6px;
+  font-family: var(--serif);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.fc .fc-multimonth .fc-daygrid-day-frame { min-height: 40px; }
+.fc .fc-multimonth .cell-num { width: 1.7em; height: 1.7em; font-size: .85rem; }
+.fc .fc-multimonth .cell-dots { gap: 2px; padding-bottom: 3px; }
+.fc .fc-multimonth .dot { width: 5px; height: 5px; }
+.fc .fc-multimonth .dot-notice { box-shadow: inset 0 0 0 1.5px var(--notice); }
+.fc .fc-multimonth .fc-day-other .fc-daygrid-day-top { visibility: hidden; }
+.fc .fc-multimonth .fc-day-disabled { background: transparent; cursor: default; }
+.fc .fc-multimonth .fc-col-header-cell-cushion { font-size: .8rem; }
+
+/* ---------- 當天勤務 ---------- */
+
+.day-panel { margin-top: 20px; }
+
+.panel-date {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0 0 12px;
+  font-family: var(--serif);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.panel-lunar {
+  font-family: var(--sans);
+  font-size: .9rem;
+  font-weight: 400;
+  color: var(--ink-2);
+}
+
+.panel-empty { color: var(--muted); margin: 8px 0; }
+
+.card-list { display: grid; gap: 10px; }
+
+.duty-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--tap);
+  padding: 14px 16px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--ok);
+  border-radius: var(--radius);
+  color: inherit;
+  text-decoration: none;
+}
+
+.duty-card:hover { background: #fff; }
+
+.duty-card.kind-short { border-left-color: var(--accent); }
+.duty-card.kind-full { border-left-color: var(--full); }
+.duty-card.kind-notice { border-left-color: var(--notice); }
+
+.card-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.card-title { font-weight: 700; font-size: 1.05rem; line-height: 1.4; }
+.card-meta { font-size: .9rem; color: var(--ink-2); }
+
+.badge {
+  flex: none;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: .85rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.badge-short { background: var(--accent-soft); color: var(--accent); }
+.badge-full { background: var(--full-soft); color: var(--ink-2); }
+.badge-ok { background: var(--ok-soft); color: var(--ok); }
+.badge-notice { background: var(--notice-soft); color: var(--notice); }
+
+.duty-card.is-compact { padding: 10px 12px; }
+.duty-card.is-compact .card-title { font-size: 1rem; }
+
+/* ---------- 週檢視 ---------- */
+
+.week-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.week-day {
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  gap: 12px;
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.week-day:last-child { border-bottom: 0; }
+
+.week-day.is-today { background: var(--accent-soft); }
+
+.week-date {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+}
+
+.week-wd { font-size: .85rem; color: var(--ink-2); }
+.week-md { font-family: var(--serif); font-size: 1.3rem; font-weight: 700; }
+.week-lunar { font-size: .78rem; color: var(--muted); }
+.week-lunar.is-hl { color: var(--accent); font-weight: 700; }
+
+.week-day.is-today .week-md { color: var(--accent); }
+.week-day.is-past .week-items { opacity: .6; }
+
+.week-items { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.week-empty { margin: 6px 0; color: var(--muted); font-size: .95rem; }
+
+@media (max-width: 599px) {
+  .week-day { grid-template-columns: 56px 1fr; gap: 10px; padding: 12px 10px; }
+  .week-md { font-size: 1.15rem; }
+  .duty-card.is-compact {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+}
+
+/* ---------- 勤務詳情頁（第 4 段） ---------- */
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  font-size: 1rem;
+  text-decoration: none;
+}

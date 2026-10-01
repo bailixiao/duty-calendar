@@ -84,4 +84,16 @@ node --test
 
 ## 6. 發布前端（GitHub Pages）
 
-（第 3 段完成前端後補上。）
+1. 確認 `js/config.js` 的 `API_URL` 是第 5 步部署得到的網址（結尾 `/exec`）。
+2. 到 GitHub 儲存庫頁面 → **Settings → Pages**。
+3. 「Build and deployment」的 Source 選 **Deploy from a branch**，Branch 選 **main**、資料夾選 **/ (root)**，按 Save。
+4. 等一兩分鐘，頁面上方會出現網址（例如 `https://<帳號>.github.io/duty-calendar/`），開啟即可看到行事曆。
+5. 之後每次 push 到 main，GitHub Pages 會自動更新（約一兩分鐘）。
+
+## 開發者：本機預覽
+
+```bash
+node tools/dev-server.js
+```
+
+開啟 http://localhost:5173 。本機預覽也是連到 `js/config.js` 裡的正式 API，報名會寫入真的 Sheet，測試時請用假名並事後刪除。

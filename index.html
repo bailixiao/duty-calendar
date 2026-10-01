@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f1e7">
+  <title>教全區勤務行事曆</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header class="app-header">
+    <a class="app-title" href="#/">教全區勤務行事曆</a>
+  </header>
+
+  <main class="app-main">
+    <section id="view-calendar" aria-label="行事曆">
+      <div class="toolbar">
+        <div class="view-switch" role="group" aria-label="切換檢視">
+          <button type="button" data-view="year">年</button>
+          <button type="button" data-view="month">月</button>
+          <button type="button" data-view="week">週</button>
+        </div>
+        <div class="nav">
+          <button type="button" id="cal-prev" class="btn btn-icon" aria-label="上一段">‹</button>
+          <h1 id="cal-title" class="cal-title" aria-live="polite"></h1>
+          <button type="button" id="cal-next" class="btn btn-icon" aria-label="下一段">›</button>
+          <button type="button" id="cal-today" class="btn btn-ghost">今天</button>
+        </div>
+      </div>
+
+      <div id="cal-status" class="status" role="status" hidden></div>
+
+      <div id="fc" class="calendar"></div>
+      <div id="week" class="week" hidden></div>
+
+      <ul class="legend" aria-label="色點說明">
+        <li><i class="dot dot-short"></i>缺人</li>
+        <li><i class="dot dot-full"></i>額滿</li>
+        <li><i class="dot dot-ok"></i>人數足／不限人數</li>
+        <li><i class="dot dot-notice"></i>公告（不需報名）</li>
+      </ul>
+
+      <section id="day-panel" class="day-panel" aria-live="polite"></section>
+    </section>
+
+    <section id="view-duty" class="duty-view" hidden></section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/lunar-javascript@1.7.7/lunar.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.21/index.global.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.21/locales/zh-tw.global.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/format.js"></script>
+  <script src="js/lunar-util.js"></script>
+  <script src="js/calendar.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
