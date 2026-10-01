@@ -1,6 +1,7 @@
 // 進入點與頁面切換（#hash 路由）。
 //   #/                       行事曆
-//   #/duty/<勤務ID>?date=…   勤務詳情與報名（第 4 段完成）
+//   #/duty/<勤務ID>?date=…   勤務詳情與報名
+//   #/admin…                 管理後台（見 admin.js）
 (function () {
   'use strict';
 
@@ -24,6 +25,12 @@
   let current = 'calendar';
 
   function route() {
+    const admin = location.hash.match(/^#\/admin\/?(.*)$/);
+    if (admin) {
+      show('admin');
+      AdminPage.show(admin[1]);
+      return;
+    }
     const m = location.hash.match(/^#\/duty\/([^?]+)(?:\?date=(\d{4}-\d{2}-\d{2}))?/);
     if (m) {
       show('duty');
@@ -58,6 +65,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     views.calendar = document.getElementById('view-calendar');
     views.duty = document.getElementById('view-duty');
+    views.admin = document.getElementById('view-admin');
     CalendarPage.init();
     window.addEventListener('hashchange', route);
     route();

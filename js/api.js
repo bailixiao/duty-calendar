@@ -89,9 +89,64 @@
     }
   }
 
+  // ---------- 管理後台 ----------
+  // 通行碼存在這個瀏覽器（6 小時後過期）；讀寫失敗不影響使用，只是要重新登入。
+  const TOKEN_KEY = 'duty-calendar:admin';
+
+  function loadToken() {
+    try {
+      const t = JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null');
+      return t && t.expires > Date.now() ? t.token : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function saveToken(token, expiresInSec) {
+    try {
+      if (token) localStorage.setItem(TOKEN_KEY, JSON.stringify({ token, expires: Date.now() + expiresInSec * 1000 - 60000 }));
+      else localStorage.removeItem(TOKEN_KEY);
+    } catch (e) { /* 無痕模式等，忽略 */ }
+  }
+
+  let adminToken = loadToken();
+
+  /**
+   * 管理 API（一律 POST，通行碼放在內容）。read=true 的讀取在連線失敗時重送一次。
+   * 通行碼無效時清除並丟出 UNAUTHORIZED，由畫面導回登入。
+   */
+  async function admin(action, payload, read) {
+    const body = Object.assign({ action, token: adminToken }, payload || {});
+    try {
+      return read
+        ? await post(body).catch((err) => { if (err.code === 'NETWORK') return post(body); throw err; })
+        : await retryBusy(() => post(body));
+    } catch (err) {
+      if (err.code === 'UNAUTHORIZED') { adminToken = null; saveToken(null); }
+      throw err;
+    }
+  }
+
+  async function adminLogin(password) {
+    const data = await post({ action: 'adminLogin', password });
+    adminToken = data.token;
+    saveToken(data.token, data.expiresInSec);
+  }
+
+  function adminLogout() {
+    const token = adminToken;
+    adminToken = null;
+    saveToken(null);
+    if (token) post({ action: 'adminLogout', token }).catch(() => {});
+  }
+
   window.Api = {
     ApiError,
     retryBusy,
+    admin,
+    adminLogin,
+    adminLogout,
+    isAdmin: () => !!adminToken,
     getEvents: (from, to) => get('getEvents', { from, to }),
     getDuty: (id) => get('getDuty', { id }),
     searchMembers: (q, groupType, group) => get('searchMembers', { q, groupType: groupType || '', group: group || '' }),

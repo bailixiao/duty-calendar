@@ -8,8 +8,10 @@
   /**
    * signup: { id, date, positionId, name, accompany }；duty: 目前勤務（getDuty 的資料）
    * onDone(result)：result = { res, positionId, positionName, date } 或 { verified: freshDuty }（連線中斷但查證已改期）
+   * opts.submit：改用其他 API 送出（管理後台用管理者改期，不受當天限制）
    */
-  function open(signup, duty, onDone) {
+  function open(signup, duty, onDone, opts) {
+    const send = (opts && opts.submit) || Api.reschedule;
     const fromPosition = duty.positions.find((p) => p.id === signup.positionId);
     const state = { siblings: null, dutyId: null, date: null, positionId: null };
     const m = Modal.open(`
@@ -157,7 +159,7 @@
       Busy.show('改期中，請稍候⋯', '請不要關閉畫面');
       const payload = { signupId: signup.id, dutyId: target.id, date: state.date, positionId: position.id };
       try {
-        const res = await Api.retryBusy(() => Api.reschedule(payload),
+        const res = await Api.retryBusy(() => send(payload),
           () => Busy.show('使用的人較多，正在排隊⋯', '系統會自動重試，請不要關閉畫面'));
         Busy.hide();
         m.close();
