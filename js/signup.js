@@ -48,7 +48,7 @@
           </div>
           <div class="suggestions" data-suggestions aria-live="polite"></div>
           <ul class="name-list" data-names></ul>
-          <p class="hint">幫長輩或家人報名時，可以連續加入多個名字。每個名字都要選「道親」或「壇辦」。勾「陪同」的人不佔名額。</p>
+          <p class="hint">幫長輩或家人報名時，可以連續加入多個名字。每個名字都要選「道親」或「壇辦」。「陪同」的人不佔名額。</p>
         </fieldset>
         <div class="form-error" data-error role="alert" hidden></div>
         <button type="submit" class="btn btn-primary btn-block" data-submit>確認報名</button>
@@ -123,15 +123,24 @@
             <button type="button" class="btn-remove" data-remove="${i}" aria-label="移除 ${esc(e.name)}">×</button>
           </div>
           <div class="name-options">
-            <div class="identity" role="radiogroup" aria-label="${esc(e.name)} 的身分">
-              ${IDENTITIES.map((id) => `
-                <label class="identity-option${e.identity === id ? ' is-checked' : ''}">
-                  <input type="radio" name="identity-${i}" value="${id}" data-identity="${i}"${e.identity === id ? ' checked' : ''}>${id}
-                </label>`).join('')}
+            <div class="option-row">
+              <span class="option-label">身分</span>
+              <div class="segmented" role="radiogroup" aria-label="${esc(e.name)} 的身分">
+                ${IDENTITIES.map((id) => `
+                  <label class="segment${e.identity === id ? ' is-checked' : ''}">
+                    <input type="radio" name="identity-${i}" value="${id}" data-identity="${i}"${e.identity === id ? ' checked' : ''}>${id}
+                  </label>`).join('')}
+              </div>
             </div>
-            <label class="accompany">
-              <input type="checkbox" data-accompany="${i}"${e.accompany ? ' checked' : ''}> 陪同
-            </label>
+            <div class="option-row">
+              <span class="option-label">方式</span>
+              <div class="segmented" role="radiogroup" aria-label="${esc(e.name)} 的參加方式">
+                ${[['值勤', false], ['陪同', true]].map(([label, value]) => `
+                  <label class="segment${e.accompany === value ? ' is-checked' : ''}">
+                    <input type="radio" name="accompany-${i}" value="${value}" data-accompany="${i}"${e.accompany === value ? ' checked' : ''}>${label}
+                  </label>`).join('')}
+              </div>
+            </div>
           </div>
           ${missing ? '<p class="name-missing">請選擇道親或壇辦</p>' : ''}
         </li>`;
@@ -325,7 +334,10 @@
 
     $('[data-names]').addEventListener('change', (ev) => {
       const t = ev.target;
-      if (t.dataset.accompany !== undefined) state.entries[Number(t.dataset.accompany)].accompany = t.checked;
+      if (t.dataset.accompany !== undefined) {
+        state.entries[Number(t.dataset.accompany)].accompany = t.value === 'true';
+        renderNames();
+      }
       if (t.dataset.identity !== undefined) {
         state.entries[Number(t.dataset.identity)].identity = t.value;
         renderNames();
