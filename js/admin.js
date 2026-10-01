@@ -225,26 +225,33 @@
     const contact = d.groupContact;
     const isNotice = d.mode === '公告型';
 
+    // 勤務當天（含）之前：出席修正（未到、陪同、補登），規格第 8 節管理者後台第 4 項
+    const past = date <= d.today;
+    const canEdit = !!d.signups && !dutyPage.stale;
     const positions = d.positions.map((p) => {
       const people = d.signups ? d.signups.filter((s) => s.date === date && s.positionId === p.id) : [];
-      const count = d.signups ? people.filter((s) => !s.accompany).length : ((d.days[date] && d.days[date].counts[p.id]) || 0);
+      const count = d.signups ? people.filter((s) => !s.accompany && (!past || s.attend !== '未到')).length : ((d.days[date] && d.days[date].counts[p.id]) || 0);
       return `
         <li class="position">
           <div class="position-head">
             <span class="position-name">${esc(p.name)}</span>
-            <span class="badge badge-ok">${count}${p.max !== null ? '／' + p.max : ''} 人${count < Fmt.effectiveMin(p) ? `・缺 ${Fmt.effectiveMin(p) - count}` : ''}</span>
+            <span class="badge badge-ok">${past ? '出席 ' : ''}${count}${p.max !== null ? '／' + p.max : ''} 人${!past && count < Fmt.effectiveMin(p) ? `・缺 ${Fmt.effectiveMin(p) - count}` : ''}</span>
           </div>
           ${!d.signups ? '<p class="muted">載入名單中⋯</p>' : people.length ? `<ul class="people">${people.map((s) => `
-            <li class="person-row">
-              <span class="person">${esc(s.name)}
+            <li class="person-row${past && s.attend === '未到' ? ' is-absent' : ''}">
+              <span class="person"><span class="person-name">${esc(s.name)}</span>
                 ${s.identity ? `<span class="tag">${esc(s.identity)}</span>` : '<span class="tag tag-warn">未填身分</span>'}
                 ${s.accompany ? '<span class="tag">陪同</span>' : ''}
+                ${past && s.attend === '未到' ? '<span class="tag tag-warn">未到</span>' : ''}
               </span>
-              ${dutyPage.stale ? '' : `<span class="person-actions">
+              ${canEdit ? `<span class="person-actions">
+                ${past ? `<button type="button" class="btn btn-small" data-attend="${esc(s.id)}">${s.attend === '未到' ? '改出席' : '改未到'}</button>
+                  ${s.identity === '壇辦' ? `<button type="button" class="btn btn-small" data-acc="${esc(s.id)}">${s.accompany ? '改了愿' : '改陪同'}</button>` : ''}` : ''}
                 <button type="button" class="btn btn-small" data-reschedule="${esc(s.id)}">改期</button>
                 <button type="button" class="btn btn-small btn-quiet-danger" data-cancel="${esc(s.id)}">取消</button>
-              </span>`}
-            </li>`).join('')}</ul>` : '<p class="muted">還沒有人報名</p>'}
+              </span>` : ''}
+            </li>`).join('')}</ul>` : `<p class="muted">${past ? '沒有人報名' : '還沒有人報名'}</p>`}
+          ${past && canEdit ? `<button type="button" class="btn btn-small" data-walkin="${esc(p.id)}">＋ 補登沒報名但有來的人</button>` : ''}
         </li>`;
     }).join('');
 
@@ -265,7 +272,7 @@
           <h3 class="admin-sub">報名名單${dates.length > 1 ? `<span class="h2-sub">${Fmt.shortDate(date)}</span>` : ''}</h3>
           ${dates.length > 1 ? `<div class="date-tabs">${dates.map((x) => `<button type="button" class="date-tab${x === date ? ' is-active' : ''}" data-date="${x}"><span class="date-tab-day">${Fmt.shortDate(x)}</span></button>`).join('')}</div>` : ''}
           <ul class="position-list">${positions}</ul>
-          <p class="hint">管理者可以取消、改期任何日期（含當天與過去）的報名。</p>
+          <p class="hint">${past ? '出席修正：預設報名＝出席。沒來的人按「改未到」，沒報名但有來的人按「補登」。統計表只算出席、非陪同的人。' : '管理者可以取消、改期任何日期（含當天與過去）的報名。'}</p>
         </section>`}
       <p class="admin-links"><a href="#/admin/duties/edit/${encodeURIComponent(d.id)}">編輯勤務 ›</a><a href="#/duty/${encodeURIComponent(d.id)}?date=${date}">查看一般使用者看到的頁面 ›</a></p>`;
 
@@ -276,6 +283,15 @@
     }));
     const find = (id) => (d.signups || []).find((s) => s.id === id);
     body.querySelectorAll('[data-cancel]').forEach((b) => b.addEventListener('click', () => adminCancel(find(b.dataset.cancel))));
+    body.querySelectorAll('[data-attend]').forEach((b) => b.addEventListener('click', () => {
+      const s = find(b.dataset.attend);
+      setAttendance(s, { attend: s.attend === '未到' ? '出席' : '未到' }, `${s.name}：${s.attend === '未到' ? '改為出席' : '改為未到'}`);
+    }));
+    body.querySelectorAll('[data-acc]').forEach((b) => b.addEventListener('click', () => {
+      const s = find(b.dataset.acc);
+      setAttendance(s, { accompany: !s.accompany }, `${s.name}：${s.accompany ? '改為了愿' : '改為陪同'}`);
+    }));
+    body.querySelectorAll('[data-walkin]').forEach((b) => b.addEventListener('click', () => addAttendee(d.positions.find((p) => p.id === b.dataset.walkin), date)));
     body.querySelectorAll('[data-reschedule]').forEach((b) => b.addEventListener('click', () => {
       const s = find(b.dataset.reschedule);
       Reschedule.open(s, d, (result) => {
@@ -293,6 +309,76 @@
     clearMemo();
     if (window.CalendarPage) CalendarPage.refresh();
     loadDuty();
+  }
+
+  async function setAttendance(s, change, label) {
+    if (!s) return;
+    Busy.show('修正中⋯');
+    try {
+      await Api.admin('adminSetAttendance', Object.assign({ signupId: s.id }, change));
+      Busy.hide();
+      dutyPage.flash = notice('success', '已修正', label);
+    } catch (err) {
+      Busy.hide();
+      if (guard(err)) return;
+      dutyPage.flash = notice('error', err.message || '修正失敗', '');
+    }
+    afterChange();
+  }
+
+  /** 補登：沒報名但有來的人，直接記為出席 */
+  function addAttendee(p, date) {
+    const d = dutyPage.data;
+    const m = Modal.open(`
+      <form class="modal-form" novalidate>
+        <h2 class="modal-title">補登出席</h2>
+        <p class="modal-note">${esc(d.name)}・${esc(Fmt.rocDate(date))}・${esc(p.name)}</p>
+        <label class="form-row"><span>姓名</span><input class="input" name="name" autocomplete="off" required></label>
+        <div class="form-row"><span>身分</span><div class="seg">
+          <label class="seg-item"><input type="radio" name="identity" value="道親"><span>道親</span></label>
+          <label class="seg-item"><input type="radio" name="identity" value="壇辦"><span>壇辦</span></label>
+        </div></div>
+        <label class="check" data-acc-row hidden><input type="checkbox" name="accompany"> 陪同（不算人數）</label>
+        <div class="form-error" data-error hidden></div>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-block btn-primary">補登</button>
+          <button type="button" class="btn btn-block" data-close>返回</button>
+        </div>
+      </form>`);
+    const f = m.el.querySelector('form');
+    f.elements.name.focus();
+    f.addEventListener('change', () => {
+      const tan = f.querySelector('input[name=identity]:checked');
+      f.querySelector('[data-acc-row]').hidden = !(tan && tan.value === '壇辦');
+      if (!(tan && tan.value === '壇辦')) f.elements.accompany.checked = false;
+    });
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    f.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const box = f.querySelector('[data-error]');
+      const identity = f.querySelector('input[name=identity]:checked');
+      const name = f.elements.name.value.trim();
+      if (!name || !identity) {
+        box.textContent = !name ? '請填姓名' : '請選道親或壇辦';
+        box.hidden = false;
+        return;
+      }
+      m.el.setAttribute('data-locked', '');
+      Busy.show('補登中⋯');
+      try {
+        const res = await Api.admin('adminAddAttendee', { dutyId: d.id, positionId: p.id, date, name, identity: identity.value, accompany: f.elements.accompany.checked });
+        Busy.hide();
+        m.close();
+        dutyPage.flash = notice('success', '已補登', `${name}・${p.name}${res.warnings.length ? '（注意：' + res.warnings.join('；') + '）' : ''}`);
+        afterChange();
+      } catch (err) {
+        Busy.hide();
+        m.el.removeAttribute('data-locked');
+        if (err.code === 'UNAUTHORIZED') { m.close(); guard(err); return; }
+        box.innerHTML = `<strong>${esc(err.message)}</strong>${(err.details || []).map((x) => '<br>' + esc(x.message)).join('')}`;
+        box.hidden = false;
+      }
+    });
   }
 
   async function adminCancel(s) {

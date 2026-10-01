@@ -1255,3 +1255,8 @@ select.input { appearance: auto; }
 
 .action-新增勤務, .action-修改勤務 { background: var(--notice-soft); color: var(--notice); }
 .action-刪除勤務 { background: var(--accent-soft); color: var(--accent); }
+
+/* 出席修正 */
+.person-row.is-absent .person-name { text-decoration: line-through; color: var(--muted); }
+.position > [data-walkin] { margin-top: 8px; }
+.action-修正 { background: var(--notice-soft); color: var(--notice); }

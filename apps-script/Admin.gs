@@ -46,7 +46,7 @@ function adminRecent_(body) {
   return getEvents_({ from: today, to: datesInRange_(today, '9999-12-31').slice(0, days).pop() });
 }
 
-/** 勤務名單（管理用）：比一般詳情多了身分、報名時間、負責組組長電話 */
+/** 勤務名單（管理用）：比一般詳情多了身分、報名時間、出席、負責組組長電話 */
 function adminDuty_(body) {
   var data = getDuty_({ id: body.id });
   var byId = {};
@@ -55,6 +55,7 @@ function adminDuty_(body) {
     var row = byId[s.id] || {};
     s.identity = row['身分'] || '';
     s.createdAt = row['建立時間'] || '';
+    s.attend = row['出席'] || '出席';
   });
   data.groupContact = adminGroupContact_(data.groupType, data.group);
   return data;
@@ -226,6 +227,8 @@ function adminDispatch_(body) {
     case 'adminCreateDuties': return adminCreateDuties_(body);
     case 'adminUpdateDuty': return adminUpdateDuty_(body);
     case 'adminDeleteDuty': return adminDeleteDuty_(body);
+    case 'adminSetAttendance': return adminSetAttendance_(body);
+    case 'adminAddAttendee': return adminAddAttendee_(body);
     case 'adminMembers': return adminMembers_(body);
     case 'adminSaveMember': return adminSaveMember_(body);
     case 'adminGroups': return adminGroups_(body);
