@@ -1374,3 +1374,14 @@ select.input { appearance: auto; }
   .stat-card, .detail-item, .rank-list li { break-inside: avoid; }
   .stats-section { break-inside: avoid-page; }
 }
+
+/* 匯入歷史資料 */
+.file-input { padding: 10px; min-height: 52px; }
+.history-table td, .history-table th { text-align: center; }
+.history-table tbody th { text-align: left; }
+.history-table tr.is-diff td { color: var(--accent); }
+.history-table td.warn { color: var(--accent); text-align: left; font-size: .9rem; }
+.history-table input { width: 22px; height: 22px; accent-color: var(--accent); }
+.merge-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.merge-group { padding: 8px 14px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); }
+.stats-actions a.btn { display: grid; place-items: center; text-decoration: none; min-height: 52px; }

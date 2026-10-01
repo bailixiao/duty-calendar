@@ -151,6 +151,7 @@
           <button type="button" class="btn btn-primary" data-copy>複製文字報告（貼 LINE）</button>
           <button type="button" class="btn" data-print>列印</button>
           <button type="button" class="btn" data-sheet>更新試算表「統計」分頁</button>
+          <a class="btn" href="#/admin/history">匯入歷史資料（舊 Excel）</a>
         </div>
         <p class="hint no-print" data-sheet-note>${data.sheetUpdatedAt ? `試算表統計最後更新：${esc(data.sheetUpdatedAt)}` : '試算表「統計」分頁還沒產生過'}。只算出席、非陪同的人；人次＝每場每人算一次；只算今天以前。</p>
       </div>`;

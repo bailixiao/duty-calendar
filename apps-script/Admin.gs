@@ -230,6 +230,7 @@ function adminDispatch_(body) {
     case 'adminSetAttendance': return adminSetAttendance_(body);
     case 'adminAddAttendee': return adminAddAttendee_(body);
     case 'adminStats': return adminStats_(body);
+    case 'adminImportHistory': return adminImportHistory_(body);
     case 'adminUpdateStatsSheet': return adminUpdateStatsSheet_(body);
     case 'adminMembers': return adminMembers_(body);
     case 'adminSaveMember': return adminSaveMember_(body);

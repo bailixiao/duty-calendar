@@ -73,3 +73,37 @@ test('更新統計分頁：全年彙總、各季、每月明細；佔比用百�
   assert.ok(rows.flat().every((v) => !/#DIV\/0/.test(String(v))));
   assert.ok(call('adminStats').data.sheetUpdatedAt);
 });
+
+test('匯入歷史資料：建立過去的勤務與出席、陪同不算人數、統計算得到；重複匯入會略過', () => {
+  const { env, call } = setup();
+  const events = [
+    { date: '2026-03-05', name: '宏宗打掃', nature: '勤務', tan: ['測試甲', ' 測試乙'], dao: ['測試丙'], accompany: ['測試丁'] },
+    { date: '2025-08-24', end: '2025-08-31', name: '12人小組', nature: '勤務', tan: ['測試甲'], dao: [], accompany: [] }
+  ];
+  assert.equal(env.post({ action: 'adminImportHistory', events }).error.code, 'UNAUTHORIZED');
+  assert.equal(call('adminImportHistory', { events: [{ date: '2026/3/5', name: 'x' }] }).error.code, 'VALIDATION');
+
+  const r = call('adminImportHistory', { events, source: '測試檔' });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.deepEqual(r.data, { duties: 2, signups: 5, skipped: 0 });
+
+  const stats = call('adminStats').data.events;
+  const mar = stats.find((e) => e.date === '2026-03-05');
+  assert.deepEqual([mar.tan, mar.dao, mar.accompany, mar.short], [['測試甲', '測試乙'], ['測試丙'], ['測試丁'], 0]);
+  const multi = stats.find((e) => e.date === '2025-08-24');
+  assert.deepEqual(multi.tan, ['測試甲']);
+  assert.ok(!stats.some((e) => e.date === '2025-08-25'), '多天勤務每人只記第一天');
+
+  const again = call('adminImportHistory', { events });
+  assert.deepEqual(again.data, { duties: 0, signups: 0, skipped: 2 });
+  assert.match(env.sheets['操作紀錄'].data.slice(-2)[0][3], /測試檔｜匯入 2 場、5 筆出席/);
+});
+
+test('匯入歷史資料：同一批同名同日的兩場合併，不會漏人', () => {
+  const { call } = setup();
+  const r = call('adminImportHistory', { events: [
+    { date: '2026-03-05', name: '宏宗打掃', tan: ['測試甲'], dao: [], accompany: [] },
+    { date: '2026-03-05', name: '宏宗打掃', tan: ['測試甲', '測試乙'], dao: ['測試丙'], accompany: [] }
+  ] });
+  assert.deepEqual(r.data, { duties: 1, signups: 3, skipped: 0 });
+});
