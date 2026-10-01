@@ -109,7 +109,8 @@
 
   /** 卡片上顯示的負責組與組長或召集人（12人小組不顯示，規格第 4 節） */
   function groupText(duty) {
-    if (!duty.group || duty.mode === '公告型' || duty.name.indexOf('12人小組') !== -1) return '';
+    if (duty.mode === '公告型') return duty.groupLeader ? `組長：${duty.groupLeader}` : ''; // 輪值組已在標籤上
+    if (!duty.group || duty.name.indexOf('12人小組') !== -1) return '';
     return `負責：${duty.group}${duty.groupLeader ? `（${duty.groupLeader}）` : ''}`;
   }
 

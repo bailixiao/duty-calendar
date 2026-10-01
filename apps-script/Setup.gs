@@ -103,38 +103,50 @@ function renamePositionsToLiaoyuan() {
 }
 
 /**
- * 一次性改名：分組類型「佛堂組」改為「勤務了愿組」（115/10 起）。
- *   - 「分組」「勤務」分頁的「分組類型」欄：佛堂組 → 勤務了愿組
- *   - 「成員」分頁的欄位名稱：佛堂組 → 勤務了愿組
+ * 一次性改名（115/10 起）：
+ *   - 分組類型「佛堂組」→「勤務了愿組」、「班輪值組」→「拜香輪值組」（「分組」「勤務」分頁的分組類型欄）
+ *   - 勤務名稱「…班輪值」→「…拜香輪值」（例如「九月初一班輪值」→「九月初一拜香輪值」）
+ *   - 「成員」分頁的欄位名稱：佛堂組 → 勤務了愿組、班輪值組 → 拜香輪值組
  * 只改這些文字，其他資料不動。可重複執行，已改過的會略過。
  * 在 Apps Script 編輯器選 renameGroupTypeToLiaoyuan 後按「執行」，執行完要馬上部署新版本。
  */
 function renameGroupTypeToLiaoyuan() {
+  var TYPE_RENAMES = { '佛堂組': '勤務了愿組', '班輪值組': '拜香輪值組' };
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var changes = [];
 
-  [SHEETS.GROUPS, SHEETS.DUTIES].forEach(function (def) {
+  function renameColumn(def, header, fn) {
     var sheet = ss.getSheetByName(def.name);
-    if (!sheet || sheet.getLastRow() < 2) return;
-    var col = def.headers.indexOf('分組類型') + 1;
+    if (!sheet || sheet.getLastRow() < 2) return 0;
+    var col = def.headers.indexOf(header) + 1;
     var range = sheet.getRange(2, col, sheet.getLastRow() - 1, 1);
     var values = range.getValues();
     var n = 0;
-    values.forEach(function (r) { if (r[0] === '佛堂組') { r[0] = '勤務了愿組'; n++; } });
-    if (n) {
-      range.setValues(values);
-      changes.push('「' + def.name + '」分頁 ' + n + ' 列');
-    }
+    values.forEach(function (r) {
+      var v = fn(String(r[0]));
+      if (v !== r[0]) { r[0] = v; n++; }
+    });
+    if (n) range.setValues(values);
+    return n;
+  }
+
+  [SHEETS.GROUPS, SHEETS.DUTIES].forEach(function (def) {
+    var n = renameColumn(def, '分組類型', function (v) { return TYPE_RENAMES[v] || v; });
+    if (n) changes.push('「' + def.name + '」分頁分組類型 ' + n + ' 列');
   });
+
+  var nameCount = renameColumn(SHEETS.DUTIES, '名稱', function (v) {
+    return /班輪值/.test(v) ? v.split('班輪值').join('拜香輪值') : v;
+  });
+  if (nameCount) changes.push('勤務名稱 ' + nameCount + ' 筆');
 
   var members = ss.getSheetByName(SHEETS.MEMBERS.name);
   if (members && members.getLastColumn() > 0) {
     var header = members.getRange(1, 1, 1, members.getLastColumn());
     var h = header.getValues()[0];
-    var i = h.indexOf('佛堂組');
-    if (i !== -1) {
-      h[i] = '勤務了愿組';
-      header.setValues([h]);
+    var renamed = h.map(function (x) { return TYPE_RENAMES[x] || x; });
+    if (renamed.join('|') !== h.join('|')) {
+      header.setValues([renamed]);
       changes.push('「成員」分頁的欄位名稱');
     }
   }

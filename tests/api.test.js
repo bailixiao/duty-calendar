@@ -245,7 +245,7 @@ test('勤務前一天可以報名，當天不行（台北時間換日）', () =>
 test('公告型勤務：詳情回傳輪值組資訊，不能報名', () => {
   const env = createEnv(OCT_1);
   const groups = env.sheets['分組'].data;
-  const row = groups.find(r => r[0] === '班輪值組' && r[1] === '第五組（青年組）');
+  const row = groups.find(r => r[0] === '拜香輪值組' && r[1] === '第五組（青年組）');
   row[2] = '測試組長'; row[3] = '測試佐理'; row[4] = '測試甲、測試乙，測試丙';
 
   const a = findDuty(env, '2026-10-10', '2026-10-10', d => d.mode === '公告型');
@@ -271,7 +271,7 @@ test('searchMembers 只回相符者的姓名與組別，略過停用者', () => 
   m.push(['測試乙', '壇辦', '', '', '', '', '否']);
   m.push(['範例丙', '道親', '', '', '', '', '是']);
   const r = env.get({ action: 'searchMembers', q: '測試' });
-  assert.deepEqual(r.data.members, [{ name: '測試甲', identity: '道親', groups: { '勤務了愿組': '第1組', '打掃組': '第2組', '班輪值組': '第一組' } }]);
+  assert.deepEqual(r.data.members, [{ name: '測試甲', identity: '道親', groups: { '勤務了愿組': '第1組', '打掃組': '第2組', '拜香輪值組': '第一組' } }]);
   assert.ok(!JSON.stringify(r).includes('備註內容'));
 });
 

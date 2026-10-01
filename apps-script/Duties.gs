@@ -106,7 +106,7 @@ function searchMembers_(params) {
       return {
         name: normalizeName_(m['姓名']),
         identity: OPTIONS.identity.indexOf(m['身分']) !== -1 ? m['身分'] : '',
-        groups: { '勤務了愿組': m['勤務了愿組'], '打掃組': m['打掃組'], '班輪值組': m['班輪值組'] }
+        groups: { '勤務了愿組': m['勤務了愿組'], '打掃組': m['打掃組'], '拜香輪值組': m['拜香輪值組'] }
       };
     })
     .filter(function (m) { return m.name.indexOf(q) !== -1; });
