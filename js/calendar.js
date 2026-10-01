@@ -16,7 +16,8 @@
     today: Fmt.toDateStr(new Date()),
     range: null, // { from, to } 目前畫面上的資料區間
     loading: true, // 載入中不顯示舊區間的資料，避免誤判「沒有勤務」
-    pendingScroll: null // 年檢視載入完成後要捲到的月份
+    pendingScroll: null, // 年檢視載入完成後要捲到的月份
+    showPast: false // 年檢視是否顯示今年已過的月份（每次開啟預設收起）
   };
   const EVENTS_STORAGE_PREFIX = 'duty-calendar:events:';
   const windows = new Map(); // 年份 → { data, fresh, promise }
@@ -32,6 +33,7 @@
     el.status = document.getElementById('cal-status');
     el.panel = document.getElementById('day-panel');
     el.tabs = Array.from(document.querySelectorAll('[data-view]'));
+    el.pastToggle = document.getElementById('past-toggle');
 
     state.view = loadSavedView();
 
@@ -58,6 +60,10 @@
     document.getElementById('cal-prev').addEventListener('click', () => move(-1));
     document.getElementById('cal-next').addEventListener('click', () => move(1));
     document.getElementById('cal-today').addEventListener('click', goToday);
+    el.pastToggle.addEventListener('click', () => {
+      state.showPast = !state.showPast;
+      applyPastMonths();
+    });
 
     applyView();
   }
@@ -81,6 +87,7 @@
     });
     const isWeek = state.view === 'week';
     el.fc.hidden = isWeek;
+    if (isWeek) el.pastToggle.hidden = true;
     el.week.hidden = !isWeek;
     el.panel.hidden = state.view !== 'month';
 
@@ -92,6 +99,35 @@
       loadFcRange(); // datesSet 不一定會觸發（區間沒變時），這裡確保資料跟上
       if (state.view === 'year') state.pendingScroll = state.anchor;
     }
+  }
+
+  // ---------- 年檢視：今年已過的月份預設收起 ----------
+
+  function pastMonthCount() {
+    if (state.view !== 'year' || state.anchor.slice(0, 4) !== state.today.slice(0, 4)) return 0;
+    return Number(state.today.slice(5, 7)) - 1;
+  }
+
+  function markPastMonth(month) {
+    if (!month || !month.dataset.date) return;
+    // 用月份自己的年份判斷（翻頁時格子會比 state.anchor 先更新）
+    const key = month.dataset.date;
+    const hide = !state.showPast && key.slice(0, 4) === state.today.slice(0, 4) && key < state.today.slice(0, 7);
+    month.classList.toggle('is-past-month', hide);
+  }
+
+  function applyPastMonths() {
+    el.fc.querySelectorAll('.fc-multimonth-month').forEach(markPastMonth);
+    updatePastToggle();
+  }
+
+  function updatePastToggle() {
+    const n = pastMonthCount();
+    el.pastToggle.hidden = n === 0;
+    if (n === 0) return;
+    const range = n === 1 ? '1 月' : `1–${n} 月`;
+    el.pastToggle.textContent = state.showPast ? '隱藏已過的月份' : `顯示已過的月份（${range}）`;
+    el.pastToggle.setAttribute('aria-expanded', state.showPast ? 'true' : 'false');
   }
 
   /** 年檢視在手機上是 12 個月直向排列，切換過來時捲到目前月份（資料載入、高度穩定後才捲） */
@@ -146,6 +182,7 @@
       if (!inMonth(state.selected)) state.selected = inMonth(state.today) ? state.today : monthStart;
     }
     setTitle();
+    updatePastToggle();
     load(from, to);
   }
 
@@ -319,6 +356,7 @@
   }
 
   function onCellMount(arg) {
+    if (arg.view.type === FC_VIEWS.year) markPastMonth(arg.el.closest('.fc-multimonth-month'));
     if (arg.isOther && arg.view.type === FC_VIEWS.year) return;
     const date = Fmt.toDateStr(arg.date);
     if (!cells.has(date)) cells.set(date, new Set());
