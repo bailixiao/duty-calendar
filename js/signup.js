@@ -13,7 +13,7 @@
 
   function mount(el, duty, defaultDate, onSuccess) {
     const allDates = Fmt.datesBetween(duty.start, duty.end);
-    const openDates = allDates.filter((d) => d >= duty.today);
+    const openDates = allDates.filter((d) => d > duty.today); // 勤務當天（含）之後不能報名
     const multiDay = allDates.length > 1;
     const state = {
       positionId: duty.positions.length === 1 ? duty.positions[0].id : null,
@@ -96,12 +96,12 @@
       if (!multiDay) return;
       const position = duty.positions.find((p) => p.id === state.positionId);
       $('[data-dates]').innerHTML = allDates.map((d) => {
-        const past = d < duty.today;
+        const past = d <= duty.today;
         const full = position && isFull(position, d);
         const disabled = past || full;
         if (disabled) state.dates.delete(d);
         const checked = state.dates.has(d);
-        const sub = past ? '已過' : full ? '額滿' : position ? (position.max !== null ? `${count(d, position.id)}／${position.max}` : `已報 ${count(d, position.id)}`) : '';
+        const sub = past ? (d === duty.today ? '當天' : '已過') : full ? '額滿' : position ? (position.max !== null ? `${count(d, position.id)}／${position.max}` : `已報 ${count(d, position.id)}`) : '';
         return `
           <label class="choice choice-date${disabled ? ' is-disabled' : ''}${checked ? ' is-checked' : ''}">
             <input type="checkbox" value="${d}"${checked ? ' checked' : ''}${disabled ? ' disabled' : ''}>

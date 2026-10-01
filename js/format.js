@@ -83,30 +83,28 @@
     return text;
   }
 
-  /** 是否為「只有一個了愿項目且不限人數」的勤務（打掃、割草等），只顯示已報人數 */
-  function isOpenCount(duty) {
-    return duty.positions.length === 1 && duty.positions[0].min === null && duty.positions[0].max === null;
+  /** 「最少」留空時預設 2 人；「最多」小於 2 時以最多為準（與後端 Rules.gs effectiveMin_ 相同） */
+  const DEFAULT_MIN_PEOPLE = 2;
+  function effectiveMin(p) {
+    if (p.min !== null && p.min !== undefined) return p.min;
+    return p.max !== null && p.max !== undefined ? Math.min(DEFAULT_MIN_PEOPLE, p.max) : DEFAULT_MIN_PEOPLE;
   }
 
   /**
    * 某勤務某天的狀態。
-   * kind：notice（公告型）| full（額滿）| short（缺人）| ok（人數足或不限人數）
+   * kind：notice（公告型）| full（額滿）| short（缺人，含不到預設 2 人）| ok（人數足）
    */
   function dayState(duty, day) {
     if (duty.mode === '公告型') {
       return { kind: 'notice', label: duty.group ? `輪值：${duty.group}` : '公告' };
     }
-    const d = day || { total: 0, shortage: 0, full: false };
-    if (isOpenCount(duty)) return { kind: 'ok', label: `已報 ${d.total} 人` };
+    const d = day || { total: 0, shortage: 0, full: false, counts: {} };
+    const counts = d.counts || {};
+    const shortage = duty.positions.reduce((sum, p) => sum + Math.max(effectiveMin(p) - (counts[p.id] || 0), 0), 0);
     if (d.full) return { kind: 'full', label: '額滿' };
-    if (d.shortage > 0) return { kind: 'short', label: `缺 ${d.shortage} 人` };
-    // 沒有最少人數要求的勤務，不說「人數足」，只顯示已報人數（有上限時顯示 N／上限）
-    if (duty.positions.every((p) => p.min === null)) {
-      const capped = duty.positions.length > 0 && duty.positions.every((p) => p.max !== null);
-      const cap = capped ? duty.positions.reduce((sum, p) => sum + p.max, 0) : null;
-      return { kind: 'ok', label: cap === null ? `已報 ${d.total} 人` : `已報 ${d.total}／${cap} 人` };
-    }
-    return { kind: 'ok', label: `人數足・${d.total} 人` };
+    if (shortage > 0) return { kind: 'short', label: `缺 ${shortage} 人` };
+    const unlimited = duty.positions.every((p) => p.max === null);
+    return { kind: 'ok', label: unlimited ? `已報 ${d.total} 人` : `人數足・${d.total} 人` };
   }
 
   /** 卡片上顯示的負責組（12人小組不顯示，規格第 4 節） */
@@ -117,6 +115,6 @@
 
   window.Fmt = {
     esc, toDateStr, parseDate, addDays, datesBetween, rocYear, weekday, shortDate, rocDate,
-    timeRange, cardTime, isOpenCount, dayState, groupText
+    timeRange, cardTime, effectiveMin, dayState, groupText
   };
 })();

@@ -125,7 +125,7 @@ function dutyToJson_(d, positions) {
         id: p['了愿項目ID'],
         name: p['了愿項目名稱'],
         slot: p['時段'],
-        min: parseLimit_(p['最少']),
+        min: effectiveMin_(p), // 留空時預設 2 人
         max: parseLimit_(p['最多'])
       };
     })

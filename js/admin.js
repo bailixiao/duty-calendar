@@ -225,7 +225,7 @@
         <li class="position">
           <div class="position-head">
             <span class="position-name">${esc(p.name)}</span>
-            <span class="badge badge-ok">${count}${p.max !== null ? '／' + p.max : ''} 人${p.min !== null && count < p.min ? `・缺 ${p.min - count}` : ''}</span>
+            <span class="badge badge-ok">${count}${p.max !== null ? '／' + p.max : ''} 人${count < Fmt.effectiveMin(p) ? `・缺 ${Fmt.effectiveMin(p) - count}` : ''}</span>
           </div>
           ${!d.signups ? '<p class="muted">載入名單中⋯</p>' : people.length ? `<ul class="people">${people.map((s) => `
             <li class="person-row">

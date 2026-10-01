@@ -150,7 +150,7 @@
       d.positions.forEach((p) => {
         const names = p.people.map((x) => x.name + (x.accompany ? '（陪同）' : ''));
         const count = p.people.filter((x) => !x.accompany).length;
-        const short = p.min !== null && count < p.min ? `（缺 ${p.min - count} 人）` : '';
+        const short = count < Fmt.effectiveMin(p) ? `（缺 ${Fmt.effectiveMin(p) - count} 人）` : '';
         lines.push(`${p.name}：${names.length ? names.join('、') : '（尚無）'}${short}`);
       });
     });

@@ -229,17 +229,17 @@ test('彌勒山志工輪值最多 2 人，第 3 人被擋，陪同仍可加', ()
   assert.equal(findDuty(env, '2026-10-13', '2026-10-13', d => d.id === v.id).days['2026-10-13'].full, true);
 });
 
-test('今天的勤務可以報名，過去的不行（台北時間）', () => {
-  const env = createEnv(OCT_1);
-  const today = findDuty(env, '2026-10-01', '2026-10-01', d => d.name === '彌勒山志工輪值');
-  const base = { action: 'signup', dutyId: today.id, positionId: today.positions[0].id, dates: ['2026-10-01'], entries: [{ name: '測試甲' }] };
+test('勤務前一天可以報名，當天不行（台北時間換日）', () => {
+  const env = createEnv(Date.UTC(2026, 9, 12, 15, 30)); // 台北 10/12 23:30
+  const v = findDuty(env, '2026-10-13', '2026-10-13', d => d.name === '彌勒山志工輪值');
+  const base = { action: 'signup', dutyId: v.id, positionId: v.positions[0].id, dates: ['2026-10-13'], entries: [{ name: '測試甲' }] };
   assert.equal(env.post(base).ok, true);
 
-  // 台北 10/2 00:30（UTC 10/1 16:30）時，10/1 的勤務已過去
-  env.clock.now = Date.UTC(2026, 9, 1, 16, 30);
+  // 台北 10/13 00:30（UTC 10/12 16:30）起就是勤務當天
+  env.clock.now = Date.UTC(2026, 9, 12, 16, 30);
   const r = env.post({ ...base, entries: [{ name: '測試乙' }] });
   assert.equal(r.ok, false);
-  assert.match(r.error.details[0].message, /已經過去/);
+  assert.match(r.error.details[0].message, /勤務當天不能報名/);
 });
 
 test('公告型勤務：詳情回傳輪值組資訊，不能報名', () => {

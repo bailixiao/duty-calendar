@@ -38,6 +38,17 @@ function parseLimit_(v) {
   return isNaN(n) ? null : n;
 }
 
+/** 「最少」留空時的預設最少人數（規格第 6 節）；「最多」小於此數時以最多為準 */
+var DEFAULT_MIN_PEOPLE = 2;
+
+/** 某了愿項目實際採用的最少人數 */
+function effectiveMin_(p) {
+  var min = parseLimit_(p['最少']);
+  if (min !== null) return min;
+  var max = parseLimit_(p['最多']);
+  return max !== null ? Math.min(DEFAULT_MIN_PEOPLE, max) : DEFAULT_MIN_PEOPLE;
+}
+
 /** 有效、非陪同的報名才佔名額 */
 function countsTowardQuota_(signup) {
   return signup['狀態'] !== '已取消' && signup['陪同'] !== '是';
@@ -56,7 +67,7 @@ function dayStatus_(positions, signups, date) {
     var count = signups.filter(function (s) {
       return s['日期'] === date && s['了愿項目ID'] === id && countsTowardQuota_(s);
     }).length;
-    var min = parseLimit_(p['最少']);
+    var min = effectiveMin_(p);
     var max = parseLimit_(p['最多']);
     var full = max !== null && count >= max;
     var shortage = min !== null && count < min ? min - count : 0;
@@ -71,7 +82,7 @@ function dayStatus_(positions, signups, date) {
 /**
  * 檢查一次報名請求，回傳錯誤陣列（空陣列代表可以報名）。
  * 規則見規格第 7 節：
- *   - 已經過去的勤務不能報名，當天可以（today 為台北時間的 yyyy-MM-dd）。
+ *   - 勤務當天（含）之後不能報名（與取消、改期一致，today 為台北時間的 yyyy-MM-dd）。
  *   - 同一人同一天在同一個勤務內只能報一個了愿項目；陪同者不受此限制。
  *   - 陪同者不佔名額。
  *   - 每個名字都要選身分（壇辦／道親），統計道親佔比用。
@@ -124,8 +135,8 @@ function validateSignup_(req) {
       errors.push({ date: date, message: '這個日期不在勤務期間內' });
       return;
     }
-    if (date < req.today) {
-      errors.push({ date: date, message: '勤務已經過去，不能報名' });
+    if (date <= req.today) {
+      errors.push({ date: date, message: date === req.today ? '勤務當天不能報名，請聯絡管理者' : '勤務已經過去，不能報名' });
       return;
     }
 
@@ -178,7 +189,7 @@ function positionName_(positions, id) {
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    normalizeName_: normalizeName_, datesInRange_: datesInRange_, parseLimit_: parseLimit_,
+    normalizeName_: normalizeName_, datesInRange_: datesInRange_, parseLimit_: parseLimit_, effectiveMin_: effectiveMin_,
     dayStatus_: dayStatus_, validateSignup_: validateSignup_, canSelfChange_: canSelfChange_
   };
 }

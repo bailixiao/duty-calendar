@@ -125,7 +125,7 @@ function rescheduleSignup_(body, opts) {
 }
 
 /**
- * 改期可選的目標：與指定勤務同名、尚未結束的報名型勤務，含今天以後每天的人數狀態。
+ * 改期可選的目標：與指定勤務同名、尚未結束的報名型勤務，含明天以後每天的人數狀態（當天不能報名）。
  * params: id（勤務ID）
  */
 function getSiblings_(params) {
@@ -134,7 +134,7 @@ function getSiblings_(params) {
   if (!base) throw new ApiError_('NOT_FOUND', '找不到這個勤務');
   var today = todayString_();
   var siblings = duties.filter(function (d) {
-    return d['名稱'] === base['名稱'] && d['模式'] !== '公告型' && (d['結束日'] || d['開始日']) >= today;
+    return d['名稱'] === base['名稱'] && d['模式'] !== '公告型' && (d['結束日'] || d['開始日']) > today;
   }).sort(function (a, b) { return a['開始日'] < b['開始日'] ? -1 : 1; }).slice(0, 60);
 
   var positionsByDuty = groupBy_(readTableCached_(SHEETS.POSITIONS), '勤務ID');
@@ -144,7 +144,7 @@ function getSiblings_(params) {
     duties: siblings.map(function (d) {
       var positions = positionsByDuty[d['勤務ID']] || [];
       var json = dutyToJson_(d, positions);
-      var dates = datesInRange_(d['開始日'], d['結束日']).filter(function (x) { return x >= today; });
+      var dates = datesInRange_(d['開始日'], d['結束日']).filter(function (x) { return x > today; });
       json.days = daysStatus_(d, positions, signupsByDuty[d['勤務ID']] || [], dates);
       return json;
     })

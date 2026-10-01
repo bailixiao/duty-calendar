@@ -152,7 +152,8 @@
     const count = (day && day.counts[p.id]) || 0;
     const of = p.max !== null ? `${count}／${p.max}` : `${count}`;
     if (p.max !== null && count >= p.max) return { kind: 'full', text: `額滿 ${of}` };
-    if (p.min !== null && count < p.min) return { kind: 'short', text: `缺 ${p.min - count} 人・已報 ${of}` };
+    const min = Fmt.effectiveMin(p);
+    if (count < min) return { kind: 'short', text: `缺 ${min - count} 人・已報 ${of}` };
     return { kind: 'ok', text: `已報 ${of} 人` };
   }
 
@@ -306,9 +307,12 @@
   function mountSignup() {
     const d = page.data;
     const el = document.getElementById('duty-signup');
-    const open = Fmt.datesBetween(d.start, d.end).some((x) => x >= d.today);
+    const open = Fmt.datesBetween(d.start, d.end).some((x) => x > d.today); // 當天（含）之後不能報名
     if (!open) {
-      el.innerHTML = '<h2>我要報名</h2><p class="muted">這個勤務已經結束，不能報名。</p>';
+      const isToday = Fmt.datesBetween(d.start, d.end).indexOf(d.today) !== -1;
+      el.innerHTML = `<h2>我要報名</h2><p class="muted">${isToday
+        ? '勤務當天不能報名。如需報名、取消或改期，請聯絡管理者。'
+        : '這個勤務已經結束，不能報名。'}</p>`;
       return;
     }
     SignupForm.mount(el, d, page.viewDate, onSignedUp);

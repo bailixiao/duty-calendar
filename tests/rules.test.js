@@ -77,17 +77,18 @@ test('正常報名，可一次報多人', () => {
   assert.deepEqual(validateSignup_(req({ entries: [{ name: '測試甲' }, { name: '測試乙' }] })), []);
 });
 
-test('勤務當天可以報名，已過去不行（以傳入的台北日期判斷）', () => {
-  assert.deepEqual(validateSignup_(req({ today: '2026-11-08' })), []);
-  const errors = validateSignup_(req({ today: '2026-11-09' }));
-  assert.equal(errors.length, 1);
-  assert.match(errors[0].message, /已經過去/);
+test('勤務前一天可以報名；當天（含）之後不行（以傳入的台北日期判斷）', () => {
+  assert.deepEqual(validateSignup_(req({ today: '2026-11-07' })), []);
+  const sameDay = validateSignup_(req({ today: '2026-11-08' }));
+  assert.equal(sameDay.length, 1);
+  assert.match(sameDay[0].message, /勤務當天不能報名，請聯絡管理者/);
+  const past = validateSignup_(req({ today: '2026-11-09' }));
+  assert.match(past[0].message, /已經過去/);
 });
 
-test('多天勤務只擋已過去的那幾天', () => {
+test('多天勤務只擋當天和已過去的那幾天', () => {
   const errors = validateSignup_(req({ today: '2026-11-09', dates: ['2026-11-08', '2026-11-09', '2026-11-10'] }));
-  assert.equal(errors.length, 1);
-  assert.equal(errors[0].date, '2026-11-08');
+  assert.deepEqual(errors.map(e => e.date), ['2026-11-08', '2026-11-09']);
 });
 
 test('日期不在勤務期間內', () => {
@@ -194,4 +195,24 @@ test('空白名字、未選了愿項目、公告型勤務', () => {
   assert.match(validateSignup_(req({ positionId: 'PX' }))[0].message, /請選擇了愿項目/);
   assert.match(validateSignup_(req({ duty: Object.assign({}, duty, { '模式': '公告型' }) }))[0].message, /公告型/);
   assert.match(validateSignup_(req({ duty: undefined }))[0].message, /找不到/);
+});
+
+test('最少留空預設 2 人；最多小於 2 時以最多為準；有填照填', () => {
+  const { effectiveMin_ } = rulesModule.exports;
+  assert.equal(effectiveMin_({ '最少': '', '最多': '' }), 2);
+  assert.equal(effectiveMin_({ '最少': '', '最多': '1' }), 1);
+  assert.equal(effectiveMin_({ '最少': '', '最多': '4' }), 2);
+  assert.equal(effectiveMin_({ '最少': '3', '最多': '' }), 3);
+  assert.equal(effectiveMin_({ '最少': '0', '最多': '' }), 0);
+});
+
+test('dayStatus_：不限人數的了愿項目不到 2 人算缺人，2 人以上不缺', () => {
+  const open = [{ '了愿項目ID': 'P9', '了愿項目名稱': '打掃', '最少': '', '最多': '' }];
+  assert.equal(dayStatus_(open, [], '2026-10-10').shortage, 2);
+  assert.equal(dayStatus_(open, [signup('測試甲', 'P9', '2026-10-10')], '2026-10-10').shortage, 1);
+  const two = [signup('測試甲', 'P9', '2026-10-10'), signup('測試乙', 'P9', '2026-10-10')];
+  assert.equal(dayStatus_(open, two, '2026-10-10').shortage, 0);
+  // 陪同不算人數
+  const withAccompany = [signup('測試甲', 'P9', '2026-10-10'), signup('測試乙', 'P9', '2026-10-10', { '陪同': '是' })];
+  assert.equal(dayStatus_(open, withAccompany, '2026-10-10').shortage, 1);
 });
