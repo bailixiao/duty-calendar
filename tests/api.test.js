@@ -271,7 +271,7 @@ test('searchMembers 只回相符者的姓名與組別，略過停用者', () => 
   m.push(['測試乙', '壇辦', '', '', '', '', '否']);
   m.push(['範例丙', '道親', '', '', '', '', '是']);
   const r = env.get({ action: 'searchMembers', q: '測試' });
-  assert.deepEqual(r.data.members, [{ name: '測試甲', identity: '道親', groups: { '佛堂組': '第1組', '打掃組': '第2組', '班輪值組': '第一組' } }]);
+  assert.deepEqual(r.data.members, [{ name: '測試甲', identity: '道親', groups: { '勤務了愿組': '第1組', '打掃組': '第2組', '班輪值組': '第一組' } }]);
   assert.ok(!JSON.stringify(r).includes('備註內容'));
 });
 
@@ -280,7 +280,7 @@ test('searchMembers 負責組組員排最前面，最多 10 筆', () => {
   const m = env.sheets['成員'].data;
   for (let i = 0; i < 12; i++) m.push(['測試' + i, '道親', '第1組', '', '', '', '是']);
   m.push(['測試組員', '道親', '第3組', '', '', '', '是']);
-  const r = env.get({ action: 'searchMembers', q: '測試', groupType: '佛堂組', group: '第3組' });
+  const r = env.get({ action: 'searchMembers', q: '測試', groupType: '勤務了愿組', group: '第3組' });
   assert.equal(r.data.members.length, 10);
   assert.equal(r.data.members[0].name, '測試組員');
 });
@@ -441,7 +441,7 @@ test('管理登入：密碼錯誤、成功發通行碼、沒有通行碼不能�
 test('管理名單：含身分與組長電話；一般 API 不回傳電話', () => {
   const env = createEnv(OCT_1);
   const groups = env.sheets['分組'].data;
-  const g = groups.find(r => r[0] === '佛堂組' && r[1] === '第2組');
+  const g = groups.find(r => r[0] === '勤務了愿組' && r[1] === '第2組');
   g[2] = '測試組長'; g[5] = '0900-000-000';
   const v = findDuty(env, '2026-10-13', '2026-10-13', d => d.name === '彌勒山志工輪值');
   signupOne(env, v, v.positions[0].id, '2026-10-13', { name: '測試甲', identity: '壇辦' });
@@ -594,7 +594,7 @@ test('「請聯絡管理者」接上管理者聯絡人（指令碼屬性 ADMIN_C
 
 test('勤務資料含負責組的組長或召集人，不含電話', () => {
   const env = createEnv(OCT_1);
-  const g = env.sheets['分組'].data.find(r => r[0] === '佛堂組' && r[1] === '第1組');
+  const g = env.sheets['分組'].data.find(r => r[0] === '勤務了愿組' && r[1] === '第1組');
   g[2] = '測試組長'; g[5] = '0900-000-000';
   const ev = env.get({ action: 'getEvents', from: '2026-10-01', to: '2026-10-01' });
   const v = ev.data.duties.find(d => d.name === '彌勒山志工輪值');

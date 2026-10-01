@@ -12,7 +12,7 @@
 
 var SEED_GROUPS = [
   ['打掃組', ['第1組', '第2組', '第3組', '第4組', '第5組', '青年組']],
-  ['佛堂組', ['第1組', '第2組', '第3組', '第4組', '第5組']],
+  ['勤務了愿組', ['第1組', '第2組', '第3組', '第4組', '第5組']],
   ['班輪值組', ['第一組', '第二組', '第三組', '第四組', '第五組（青年組）']]
 ];
 
@@ -134,7 +134,7 @@ function seedInitialDuties() {
   SEED_VOLUNTEER.forEach(function (v) {
     duties.push({
       name: '彌勒山志工輪值', nature: '勤務', start: v[0], location: '彌勒山',
-      groupType: '佛堂組', group: v[1],
+      groupType: '勤務了愿組', group: v[1],
       positions: [{ name: '志工', max: 2 }]
     });
   });

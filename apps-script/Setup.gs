@@ -101,3 +101,45 @@ function renamePositionsToLiaoyuan() {
 
   Logger.log(changes.length ? '已更改：' + changes.join('、') : '不需要更改（已經改過了）');
 }
+
+/**
+ * 一次性改名：分組類型「佛堂組」改為「勤務了愿組」（115/10 起）。
+ *   - 「分組」「勤務」分頁的「分組類型」欄：佛堂組 → 勤務了愿組
+ *   - 「成員」分頁的欄位名稱：佛堂組 → 勤務了愿組
+ * 只改這些文字，其他資料不動。可重複執行，已改過的會略過。
+ * 在 Apps Script 編輯器選 renameGroupTypeToLiaoyuan 後按「執行」，執行完要馬上部署新版本。
+ */
+function renameGroupTypeToLiaoyuan() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var changes = [];
+
+  [SHEETS.GROUPS, SHEETS.DUTIES].forEach(function (def) {
+    var sheet = ss.getSheetByName(def.name);
+    if (!sheet || sheet.getLastRow() < 2) return;
+    var col = def.headers.indexOf('分組類型') + 1;
+    var range = sheet.getRange(2, col, sheet.getLastRow() - 1, 1);
+    var values = range.getValues();
+    var n = 0;
+    values.forEach(function (r) { if (r[0] === '佛堂組') { r[0] = '勤務了愿組'; n++; } });
+    if (n) {
+      range.setValues(values);
+      changes.push('「' + def.name + '」分頁 ' + n + ' 列');
+    }
+  });
+
+  var members = ss.getSheetByName(SHEETS.MEMBERS.name);
+  if (members && members.getLastColumn() > 0) {
+    var header = members.getRange(1, 1, 1, members.getLastColumn());
+    var h = header.getValues()[0];
+    var i = h.indexOf('佛堂組');
+    if (i !== -1) {
+      h[i] = '勤務了愿組';
+      header.setValues([h]);
+      changes.push('「成員」分頁的欄位名稱');
+    }
+  }
+
+  applyValidations_(ss);
+  invalidateAllTables_();
+  Logger.log(changes.length ? '已更改：' + changes.join('、') : '不需要更改（已經改過了）');
+}
