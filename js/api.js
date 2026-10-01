@@ -53,8 +53,27 @@
     }
   }
 
-  /** 寫入（報名）。不自動重送，避免重複寫入；超過 90 秒視為連線問題（之後由報名表單查證是否已寫入） */
+  /**
+   * Apps Script 偶爾會把 POST 的內容弄丟（例如剛部署新版本時），伺服器收到的是沒有內容的請求、
+   * 回「未知的 action：（空白）」。這代表確定沒有寫入，可以安全地重送（最多 2 次）。
+   */
+  function lostBody(err) {
+    return err.code === 'BAD_REQUEST' && /未知的 action：（空白）/.test(err.message);
+  }
+
   async function post(body) {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await postOnce(body);
+      } catch (err) {
+        if (!lostBody(err) || attempt >= 2) throw err;
+        await new Promise((r) => setTimeout(r, 800));
+      }
+    }
+  }
+
+  /** 寫入（報名）。連線失敗不自動重送，避免重複寫入；超過 90 秒視為連線問題（之後由報名表單查證是否已寫入） */
+  async function postOnce(body) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 90000);
     try {
