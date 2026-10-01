@@ -71,7 +71,7 @@
 | GET | `action=ping` | 檢查時區與連線 |
 | GET | `action=getEvents&from=yyyy-MM-dd&to=yyyy-MM-dd` | 區間內勤務與每日人數（不含名字） |
 | GET | `action=getDuty&id=勤務ID` | 勤務詳情、報名名單；公告型另含輪值組 |
-| GET | `action=getMembers` | 成員姓名與組別（自動提示用） |
+| GET | `action=searchMembers&q=輸入的字[&groupType=…&group=…]` | 名字自動提示：至少一個字才回傳，只回相符者的姓名與組別（最多 10 筆，負責組組員優先），不提供整份名單 |
 | POST | `{"action":"signup","dutyId":…,"positionId":…,"dates":[…],"entries":[{"name":…,"accompany":false}]}` | 報名；內容以 `text/plain` 送出 |
 
 ## 開發者：執行測試

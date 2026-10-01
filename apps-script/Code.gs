@@ -1,7 +1,8 @@
 /**
  * Web App 進入點。
  *
- * 讀取：GET  ?action=ping | getEvents&from=yyyy-MM-dd&to=yyyy-MM-dd | getDuty&id=勤務ID | getMembers
+ * 讀取：GET  ?action=ping | getEvents&from=yyyy-MM-dd&to=yyyy-MM-dd | getDuty&id=勤務ID
+ *           | searchMembers&q=輸入的字[&groupType=分組類型&group=負責組]
  * 寫入：POST，內容為 JSON 字串（前端以 Content-Type: text/plain 送出，避免 CORS 預檢），
  *       { "action": "signup", ... }
  *
@@ -17,7 +18,7 @@ function doGet(e) {
       case 'ping': return { now: nowString_(), today: todayString_(), timeZone: Session.getScriptTimeZone() };
       case 'getEvents': return getEvents_(p);
       case 'getDuty': return getDuty_(p);
-      case 'getMembers': return getMembers_();
+      case 'searchMembers': return searchMembers_(p);
       default: throw new ApiError_('BAD_REQUEST', '未知的 action：' + (p.action || '（空白）'));
     }
   });

@@ -66,18 +66,37 @@ function getDuty_(params) {
   return json;
 }
 
-/** 成員名單：只回姓名與所屬組別，供報名時自動提示 */
-function getMembers_() {
-  return {
-    members: readTable_(SHEETS.MEMBERS)
-      .filter(function (m) { return m['姓名'] && m['啟用中'] !== '否'; })
-      .map(function (m) {
-        return {
-          name: normalizeName_(m['姓名']),
-          groups: { '佛堂組': m['佛堂組'], '打掃組': m['打掃組'], '班輪值組': m['班輪值組'] }
-        };
-      })
-  };
+var MEMBER_SEARCH_LIMIT = 10;
+
+/**
+ * 報名時的名字自動提示。至少輸入一個字才回傳，只回名字含有該字串的成員（最多 10 筆），
+ * 不提供整份名單。只回姓名與所屬組別。
+ * params: q（輸入的字）、groupType + group（選填，該組組員排最前面）
+ */
+function searchMembers_(params) {
+  var q = normalizeName_(params.q);
+  if (!q) return { members: [] };
+
+  var matched = readTable_(SHEETS.MEMBERS)
+    .filter(function (m) { return m['姓名'] && m['啟用中'] !== '否'; })
+    .map(function (m) {
+      return {
+        name: normalizeName_(m['姓名']),
+        groups: { '佛堂組': m['佛堂組'], '打掃組': m['打掃組'], '班輪值組': m['班輪值組'] }
+      };
+    })
+    .filter(function (m) { return m.name.indexOf(q) !== -1; });
+
+  matched.sort(function (a, b) {
+    return memberRank_(a, q, params) - memberRank_(b, q, params) || a.name.localeCompare(b.name, 'zh-Hant');
+  });
+  return { members: matched.slice(0, MEMBER_SEARCH_LIMIT) };
+}
+
+/** 排序：負責組組員優先，其次名字開頭相符 */
+function memberRank_(m, q, params) {
+  var inGroup = params.groupType && params.group && m.groups[params.groupType] === params.group;
+  return (inGroup ? 0 : 2) + (m.name.indexOf(q) === 0 ? 0 : 1);
 }
 
 // ---- 以下為共用 ----

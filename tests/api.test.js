@@ -213,13 +213,33 @@ test('公告型勤務：詳情回傳輪值組資訊，不能報名', () => {
   assert.equal(r.ok, false);
 });
 
-test('getMembers 只回姓名與組別，略過停用者', () => {
+test('searchMembers 沒輸入字就不回傳任何名字', () => {
+  const env = createEnv(OCT_1);
+  env.sheets['成員'].data.push(['測試甲', '道親', '第1組', '', '', '', '是']);
+  assert.deepEqual(env.get({ action: 'searchMembers' }).data.members, []);
+  assert.deepEqual(env.get({ action: 'searchMembers', q: ' 　' }).data.members, []);
+});
+
+test('searchMembers 只回相符者的姓名與組別，略過停用者', () => {
   const env = createEnv(OCT_1);
   const m = env.sheets['成員'].data;
   m.push(['　測試甲 ', '道親', '第1組', '第2組', '第一組', '備註內容', '是']);
   m.push(['測試乙', '壇辦', '', '', '', '', '否']);
-  const r = env.get({ action: 'getMembers' });
+  m.push(['範例丙', '道親', '', '', '', '', '是']);
+  const r = env.get({ action: 'searchMembers', q: '測試' });
   assert.deepEqual(r.data.members, [{ name: '測試甲', groups: { '佛堂組': '第1組', '打掃組': '第2組', '班輪值組': '第一組' } }]);
+  assert.ok(!JSON.stringify(r).includes('備註內容'));
+  assert.ok(!JSON.stringify(r).includes('道親'));
+});
+
+test('searchMembers 負責組組員排最前面，最多 10 筆', () => {
+  const env = createEnv(OCT_1);
+  const m = env.sheets['成員'].data;
+  for (let i = 0; i < 12; i++) m.push(['測試' + i, '道親', '第1組', '', '', '', '是']);
+  m.push(['測試組員', '道親', '第3組', '', '', '', '是']);
+  const r = env.get({ action: 'searchMembers', q: '測試', groupType: '佛堂組', group: '第3組' });
+  assert.equal(r.data.members.length, 10);
+  assert.equal(r.data.members[0].name, '測試組員');
 });
 
 test('未知 action 與錯誤 JSON', () => {
