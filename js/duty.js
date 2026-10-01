@@ -106,7 +106,8 @@
         </dl>
         <div id="duty-extra"></div>
         ${isNotice ? '' : '<section id="duty-roster" class="detail-section"></section><section id="duty-signup" class="detail-section"></section>'}
-      </article>`;
+      </article>
+      <a class="btn btn-block back-bottom" href="#/">‹ 回行事曆</a>`;
 
     renderExtra();
     if (!isNotice) {

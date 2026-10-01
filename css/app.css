@@ -1070,3 +1070,15 @@ body.has-modal { overflow: hidden; }
 }
 
 .stale-note { min-height: 1.2em; margin: 0 0 6px; font-size: .85rem; color: var(--muted); }
+
+/* 勤務頁最下面的「回行事曆」大按鈕（斷線時不用捲回最上面） */
+.back-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 28px;
+  min-height: 56px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  text-decoration: none;
+}

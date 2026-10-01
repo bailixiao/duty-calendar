@@ -40,16 +40,19 @@
 
   /**
    * 讀取。Apps Script 偶爾會卡住幾十秒或無故失敗，但馬上重送通常 2–3 秒就回應，
-   * 所以第一次只等 8 秒，逾時或連線失敗就重送一次（第二次等久一點）。
+   * 所以第一次只等 8 秒，逾時或連線失敗就重送（最多 3 次，一次比一次等久一點）。
    * 只有讀取會自動重送；報名（寫入）不重送，避免重複寫入。
    */
   async function get(action, params) {
     const url = window.APP_CONFIG.API_URL + '?' + new URLSearchParams(Object.assign({ action }, params || {})).toString();
-    try {
-      return await getOnce(url, 8000);
-    } catch (err) {
-      if (err.code !== 'NETWORK') throw err;
-      return getOnce(url, 30000);
+    // Google 偶爾整個請求卡住幾十秒後回錯誤頁，所以短等待、多試幾次比久等一次有效
+    const waits = [8000, 12000, 30000];
+    for (let i = 0; ; i++) {
+      try {
+        return await getOnce(url, waits[i]);
+      } catch (err) {
+        if (err.code !== 'NETWORK' || i === waits.length - 1) throw err;
+      }
     }
   }
 

@@ -280,7 +280,9 @@
       const result = { dutyId: duty.id, entries: payload.entries, dates: payload.dates, positionId: position.id, positionName: position.name };
       const knownIds = new Set((duty.signups || []).map((s) => s.id)); // 送出前已有的報名，查證時用（名單還沒載入時為空）
       try {
-        const res = await signupWithRetry(payload, slowTimer);
+        // 名單已載入時，回應太久就邊等邊查名單：伺服器常常早就寫好了，只是回應卡在 Google 那邊
+        const request = signupWithRetry(payload, slowTimer);
+        const res = Array.isArray(duty.signups) ? await raceWithVerify(request, payload, knownIds) : await request;
         clearTimeout(slowTimer);
         Busy.hide();
         onSuccess(result, res);
@@ -313,6 +315,26 @@
       return Api.retryBusy(() => Api.signup(payload), () => {
         clearTimeout(slowTimer);
         Busy.show('報名的人較多，正在排隊⋯', '系統會自動重試，請不要關閉畫面');
+      });
+    }
+
+    /**
+     * 等報名回應的同時，12 秒後開始每隔幾秒重新讀名單；名單上已經有這次報名就直接當作成功，
+     * 不用等卡住的回應。名單上還沒有（可能還在排隊）就繼續等。回應本身失敗時照原本流程處理。
+     */
+    function raceWithVerify(request, payload, knownIds) {
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        const done = (fn, v) => { if (!settled) { settled = true; fn(v); } };
+        request.then((v) => done(resolve, v), (e) => done(reject, e));
+        (async () => {
+          await new Promise((r) => setTimeout(r, 12000));
+          while (!settled) {
+            const verified = await verify(payload, knownIds);
+            if (verified) { done(resolve, verified); return; }
+            await new Promise((r) => setTimeout(r, 5000));
+          }
+        })();
       });
     }
 
