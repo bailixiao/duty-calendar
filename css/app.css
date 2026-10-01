@@ -1252,3 +1252,6 @@ select.input { appearance: auto; }
 .modal-form { display: grid; gap: 12px; }
 .modal-form .modal-title { margin-bottom: 0; }
 .modal-form .modal-actions { margin-top: 4px; }
+
+.action-新增勤務, .action-修改勤務 { background: var(--notice-soft); color: var(--notice); }
+.action-刪除勤務 { background: var(--accent-soft); color: var(--accent); }

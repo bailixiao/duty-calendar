@@ -32,6 +32,9 @@
 | `Signup.gs` | 報名 API |
 | `Changes.gs` | 取消、改期 API |
 | `Admin.gs` | 管理後台 API（登入、近期勤務、名單管理、操作紀錄與還原、明日名單） |
+| `DutyRules.gs` | 勤務新增、修改的檢查規則（同名勤務比對、有報名時的限制） |
+| `DutyAdmin.gs` | 管理後台：勤務新增、修改、同名勤務一次改、刪除、批次建立 |
+| `People.gs` | 管理後台：成員名單管理、分組管理 |
 | `Code.gs` | Web App 進入點（doGet / doPost） |
 
 （預設的 `程式碼.gs` 可刪除。）
@@ -148,3 +151,11 @@ node tools/dev-server.js
 ```
 
 開啟 http://localhost:5173 。本機預覽也是連到 `js/config.js` 裡的正式 API，報名會寫入真的 Sheet，測試時請用假名並事後刪除。
+
+部署前想先試新功能、又不想動到真的 Sheet，可以用模擬模式：
+
+```bash
+node tools/dev-server.js --mock
+```
+
+開啟 http://localhost:5175 。API 改由記憶體模擬的 Apps Script（直接載入 `apps-script/*.gs` 與初始資料），管理密碼是 `test-pass`。資料只存在記憶體，重新啟動就回到初始狀態。
