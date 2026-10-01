@@ -1068,3 +1068,5 @@ body.has-modal { overflow: hidden; }
   line-height: 1.6;
   resize: vertical;
 }
+
+.stale-note { min-height: 1.2em; margin: 0 0 6px; font-size: .85rem; color: var(--muted); }

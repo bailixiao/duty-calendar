@@ -535,5 +535,20 @@
     return null;
   }
 
-  window.CalendarPage = { init, refresh, onShow, peekDuty };
+  /** 已載入的行事曆資料中，與 from～to 重疊的勤務（days 只留區間內），格式同 getEvents；沒有資料回傳 null */
+  function peekRange(from, to) {
+    const seen = new Map();
+    for (const entry of windows.values()) {
+      if (!entry.data) continue;
+      entry.data.duties.forEach((d) => {
+        if (d.start > to || d.end < from || seen.has(d.id)) return;
+        const copy = JSON.parse(JSON.stringify(d));
+        Object.keys(copy.days).forEach((x) => { if (x < from || x > to) delete copy.days[x]; });
+        seen.set(d.id, copy);
+      });
+    }
+    return seen.size ? { from, to, today: state.today, duties: [...seen.values()] } : null;
+  }
+
+  window.CalendarPage = { init, refresh, onShow, peekDuty, peekRange };
 })();

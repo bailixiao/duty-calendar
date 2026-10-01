@@ -11,6 +11,52 @@
   let root = null;
   let token = 0; // 換頁時丟棄舊的回應
 
+  // ---------- 先顯示、再更新 ----------
+  // 管理 API 每次約 1.5–2 秒（冷啟動更久）。看過的資料記在記憶體，再進來先立刻顯示，同時在背景更新；
+  // 有任何寫入（取消、改期、還原）就全部清掉。
+  const memo = new Map();
+
+  /**
+   * key：記憶的名稱；fetcher：向伺服器讀；render(data, stale)：畫面（stale=true 代表先顯示的舊資料）。
+   * preview：沒有記憶時可先顯示的資料（例如行事曆已載入的）。
+   */
+  async function swr(key, fetcher, render, box, preview) {
+    const t = token;
+    const early = memo.get(key) || preview;
+    if (early) render(early, true);
+    try {
+      const data = await fetcher();
+      if (t !== token) return;
+      memo.set(key, data);
+      render(data, false);
+    } catch (err) {
+      if (t !== token) return;
+      if (err.code === 'UNAUTHORIZED' || !early) guard(err, box);
+      else {
+        const s = root.querySelector('[data-stale]');
+        if (s) s.textContent = '無法更新，目前顯示的是剛才的資料';
+      }
+    }
+  }
+
+  function clearMemo() {
+    memo.clear();
+  }
+
+  /** 登入後在背景先抓操作紀錄與明日名單，切換分頁時就不用等 */
+  function prefetch() {
+    const tomorrow = Fmt.addDays(Fmt.toDateStr(new Date()), 1);
+    [['logs', () => Api.admin('adminLogs', { offset: 0, limit: 50 }, true)],
+      ['day:' + tomorrow, () => Api.admin('adminDay', { date: tomorrow }, true)]].forEach(([key, fetcher]) => {
+      if (!memo.has(key)) fetcher().then((data) => memo.set(key, data)).catch(() => {});
+    });
+  }
+
+  /** 畫面上「更新中」的小字 */
+  function staleNote(stale) {
+    return `<p class="stale-note" data-stale>${stale ? '更新中⋯' : ''}</p>`;
+  }
+
   function show(sub) {
     root = document.getElementById('view-admin');
     token += 1;
@@ -92,12 +138,17 @@
 
   // ---------- 近期勤務 ----------
 
-  async function showRecent() {
+  function showRecent() {
     const body = shell('');
-    const t = token;
-    try {
-      const data = await Api.admin('adminRecent', { days: 14 }, true);
-      if (t !== token) return;
+    // 行事曆已載入的資料可以先顯示（內容與 adminRecent 相同）
+    const today = Fmt.toDateStr(new Date());
+    const preview = window.CalendarPage && CalendarPage.peekRange(today, Fmt.addDays(today, 13));
+    swr('recent', () => Api.admin('adminRecent', { days: 14 }, true), (data, stale) => renderRecent(body, data, stale), body, preview);
+    prefetch();
+  }
+
+  function renderRecent(body, data, stale) {
+    {
       const rows = [];
       data.duties.forEach((d) => Object.keys(d.days).length
         ? Object.keys(d.days).forEach((date) => rows.push({ d, date, st: Fmt.dayState(d, d.days[date]) }))
@@ -112,6 +163,7 @@
       });
 
       body.innerHTML = `
+        ${staleNote(stale)}
         ${shortDates.size
           ? `<div class="notice notice-error" role="status"><p><strong>近 14 天有 ${shortDates.size} 天缺人</strong></p><p>${[...shortDates].map(Fmt.shortDate).join('、')}</p></div>`
           : '<div class="notice notice-success" role="status"><p><strong>近 14 天都不缺人</strong></p></div>'}
@@ -129,8 +181,6 @@
                 </a>`).join('')}
             </div>
           </section>`).join('') || '<p class="panel-empty">近 14 天沒有勤務</p>'}`;
-    } catch (err) {
-      if (t === token) guard(err, body);
     }
   }
 
@@ -146,19 +196,18 @@
     await loadDuty();
   }
 
-  async function loadDuty() {
+  function loadDuty() {
     const body = root.querySelector('[data-body]');
-    const t = token;
-    try {
-      const data = await Api.admin('adminDuty', { id: dutyPage.id }, true);
-      if (t !== token) return;
+    // 沒有記憶時，先用行事曆資料顯示勤務資訊（名單等讀到再補）
+    const preview = window.CalendarPage && CalendarPage.peekDuty(dutyPage.id);
+    if (preview) preview.signups = null;
+    return swr('duty:' + dutyPage.id, () => Api.admin('adminDuty', { id: dutyPage.id }, true), (data, stale) => {
       dutyPage.data = data;
+      dutyPage.stale = stale;
       const dates = Fmt.datesBetween(data.start, data.end);
       if (dates.indexOf(dutyPage.viewDate) === -1) dutyPage.viewDate = dates.find((x) => x >= data.today) || dates[0];
       renderDuty();
-    } catch (err) {
-      if (t === token) guard(err, body);
-    }
+    }, body, preview);
   }
 
   function renderDuty() {
@@ -170,30 +219,31 @@
     const isNotice = d.mode === '公告型';
 
     const positions = d.positions.map((p) => {
-      const people = d.signups.filter((s) => s.date === date && s.positionId === p.id);
-      const count = people.filter((s) => !s.accompany).length;
+      const people = d.signups ? d.signups.filter((s) => s.date === date && s.positionId === p.id) : [];
+      const count = d.signups ? people.filter((s) => !s.accompany).length : ((d.days[date] && d.days[date].counts[p.id]) || 0);
       return `
         <li class="position">
           <div class="position-head">
             <span class="position-name">${esc(p.name)}</span>
             <span class="badge badge-ok">${count}${p.max !== null ? '／' + p.max : ''} 人${p.min !== null && count < p.min ? `・缺 ${p.min - count}` : ''}</span>
           </div>
-          ${people.length ? `<ul class="people">${people.map((s) => `
+          ${!d.signups ? '<p class="muted">載入名單中⋯</p>' : people.length ? `<ul class="people">${people.map((s) => `
             <li class="person-row">
               <span class="person">${esc(s.name)}
                 ${s.identity ? `<span class="tag">${esc(s.identity)}</span>` : '<span class="tag tag-warn">未填身分</span>'}
                 ${s.accompany ? '<span class="tag">陪同</span>' : ''}
               </span>
-              <span class="person-actions">
+              ${dutyPage.stale ? '' : `<span class="person-actions">
                 <button type="button" class="btn btn-small" data-reschedule="${esc(s.id)}">改期</button>
                 <button type="button" class="btn btn-small btn-quiet-danger" data-cancel="${esc(s.id)}">取消</button>
-              </span>
+              </span>`}
             </li>`).join('')}</ul>` : '<p class="muted">還沒有人報名</p>'}
         </li>`;
     }).join('');
 
     body.innerHTML = `
       <a class="back-link" href="#/admin">‹ 近期勤務</a>
+      ${staleNote(dutyPage.stale)}
       <h2 class="detail-title">${esc(d.name)}</h2>
       ${dutyPage.flash}
       <dl class="detail-info">
@@ -217,7 +267,7 @@
       dutyPage.flash = '';
       renderDuty();
     }));
-    const find = (id) => d.signups.find((s) => s.id === id);
+    const find = (id) => (d.signups || []).find((s) => s.id === id);
     body.querySelectorAll('[data-cancel]').forEach((b) => b.addEventListener('click', () => adminCancel(find(b.dataset.cancel))));
     body.querySelectorAll('[data-reschedule]').forEach((b) => b.addEventListener('click', () => {
       const s = find(b.dataset.reschedule);
@@ -233,6 +283,7 @@
   }
 
   function afterChange() {
+    clearMemo();
     if (window.CalendarPage) CalendarPage.refresh();
     loadDuty();
   }
@@ -263,5 +314,5 @@
     afterChange();
   }
 
-  window.AdminPage = { show, notice, guard };
+  window.AdminPage = { show, notice, guard, swr, clearMemo, staleNote };
 })();

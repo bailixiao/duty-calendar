@@ -17,23 +17,29 @@
     let items = [];
     let flash = '';
 
-    async function load(reset) {
-      if (reset) {
-        offset = 0;
-        items = [];
-      }
+    /** 第一頁：先顯示記住的（或背景先抓好的），同時更新 */
+    function loadFirst() {
+      AdminPage.swr('logs', () => Api.admin('adminLogs', { offset: 0, limit: PAGE_SIZE }, true), (data, stale) => {
+        items = data.logs.slice();
+        offset = data.logs.length;
+        render(data.total, stale);
+      }, body);
+    }
+
+    async function loadMore() {
       try {
         const data = await Api.admin('adminLogs', { offset, limit: PAGE_SIZE }, true);
         items = items.concat(data.logs);
         offset += data.logs.length;
-        render(data.total);
+        render(data.total, false);
       } catch (err) {
         guard(err, body);
       }
     }
 
-    function render(total) {
+    function render(total, stale) {
       body.innerHTML = `
+        ${AdminPage.staleNote(stale)}
         ${flash}
         <p class="hint">最新的在最上面。共 ${total} 筆。</p>
         <ul class="log-list">
@@ -45,12 +51,12 @@
               </div>
               <p class="log-summary">${esc(l.summary)}</p>
               ${l.restoredAt ? `<p class="log-restored">已於 ${esc(l.restoredAt)} 還原</p>` : ''}
-              ${l.restorable ? `<button type="button" class="btn btn-small" data-restore="${l.row}">還原</button>` : ''}
+              ${l.restorable && !stale ? `<button type="button" class="btn btn-small" data-restore="${l.row}">還原</button>` : ''}
             </li>`).join('') || '<li class="panel-empty">還沒有任何紀錄</li>'}
         </ul>
         ${offset < total ? '<button type="button" class="btn btn-block" data-more>載入更多</button>' : ''}`;
       const more = body.querySelector('[data-more]');
-      if (more) more.addEventListener('click', () => { more.disabled = true; more.textContent = '載入中⋯'; load(false); });
+      if (more) more.addEventListener('click', () => { more.disabled = true; more.textContent = '載入中⋯'; loadMore(); });
       body.querySelectorAll('[data-restore]').forEach((b) => b.addEventListener('click', () => {
         restore(items.find((l) => String(l.row) === b.dataset.restore));
       }));
@@ -72,16 +78,17 @@
         flash = res.warnings.length
           ? `<div class="notice notice-error" role="status"><p><strong>已還原，但請注意：</strong></p><p>${res.warnings.map(esc).join('<br>')}</p></div>`
           : AdminPage.notice('success', '已還原', l.summary);
+        AdminPage.clearMemo();
         if (window.CalendarPage) CalendarPage.refresh();
       } catch (err) {
         Busy.hide();
         if (guard(err)) return;
         flash = AdminPage.notice('error', err.message || '還原失敗', '');
       }
-      load(true);
+      loadFirst();
     }
 
-    load(true);
+    loadFirst();
   }
 
   // ---------- 明日名單 ----------
@@ -100,21 +107,20 @@
     const input = body.querySelector('#day-date');
     const result = body.querySelector('[data-result]');
 
-    async function make() {
+    function make() {
       const date = input.value;
       if (!date) return;
       result.innerHTML = '<p class="panel-empty">載入中⋯</p>';
-      try {
-        const data = await Api.admin('adminDay', { date }, true);
+      AdminPage.swr('day:' + date, () => Api.admin('adminDay', { date }, true), (data, stale) => {
+        if (input.value !== date) return;
         const text = dayText(data);
         result.innerHTML = `
+          ${AdminPage.staleNote(stale)}
           <textarea class="day-text" rows="16" aria-label="名單文字（可修改）">${esc(text)}</textarea>
           <button type="button" class="btn btn-primary btn-block" data-copy>複製文字</button>
           <p class="hint">可以先在框內修改，再按「複製文字」，然後貼到 LINE 群組。名單不含電話。</p>`;
         result.querySelector('[data-copy]').addEventListener('click', () => copy(result.querySelector('textarea'), result.querySelector('[data-copy]')));
-      } catch (err) {
-        guard(err, result);
-      }
+      }, result);
     }
 
     body.querySelector('[data-make]').addEventListener('click', make);
