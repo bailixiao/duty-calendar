@@ -16,10 +16,10 @@ function getEvents_(params) {
     throw new ApiError_('BAD_REQUEST', '日期區間太長');
   }
 
-  var duties = readTable_(SHEETS.DUTIES).filter(function (d) {
+  var duties = readTableCached_(SHEETS.DUTIES).filter(function (d) {
     return d['勤務ID'] && d['開始日'] <= to && (d['結束日'] || d['開始日']) >= from;
   });
-  var positionsByDuty = groupBy_(readTable_(SHEETS.POSITIONS), '勤務ID');
+  var positionsByDuty = groupBy_(readTableCached_(SHEETS.POSITIONS), '勤務ID');
   var signupsByDuty = groupBy_(activeSignups_(), '勤務ID');
 
   return {
@@ -40,10 +40,10 @@ function getEvents_(params) {
 
 /** 勤務詳情：說明、了愿項目、每日人數，以及報名名單（名字只在這裡出現） */
 function getDuty_(params) {
-  var duty = readTable_(SHEETS.DUTIES).filter(function (d) { return d['勤務ID'] === params.id; })[0];
+  var duty = readTableCached_(SHEETS.DUTIES).filter(function (d) { return d['勤務ID'] === params.id; })[0];
   if (!duty) throw new ApiError_('NOT_FOUND', '找不到這個勤務');
 
-  var positions = readTable_(SHEETS.POSITIONS).filter(function (p) { return p['勤務ID'] === duty['勤務ID']; });
+  var positions = readTableCached_(SHEETS.POSITIONS).filter(function (p) { return p['勤務ID'] === duty['勤務ID']; });
   var signups = activeSignups_().filter(function (s) { return s['勤務ID'] === duty['勤務ID']; });
 
   var json = dutyToJson_(duty, positions);
@@ -77,7 +77,7 @@ function searchMembers_(params) {
   var q = normalizeName_(params.q);
   if (!q) return { members: [] };
 
-  var matched = readTable_(SHEETS.MEMBERS)
+  var matched = readTableCached_(SHEETS.MEMBERS)
     .filter(function (m) { return m['姓名'] && m['啟用中'] !== '否'; })
     .map(function (m) {
       return {
@@ -103,7 +103,7 @@ function memberRank_(m, q, params) {
 // ---- 以下為共用 ----
 
 function activeSignups_() {
-  return readTable_(SHEETS.SIGNUPS).filter(function (s) { return s['狀態'] !== '已取消'; });
+  return readTableCached_(SHEETS.SIGNUPS).filter(function (s) { return s['狀態'] !== '已取消'; });
 }
 
 function dutyToJson_(d, positions) {
@@ -147,7 +147,7 @@ function daysStatus_(duty, positions, signups, dates) {
 
 /** 公告型勤務的輪值組資訊（不含電話） */
 function findGroup_(groupType, groupName) {
-  var g = readTable_(SHEETS.GROUPS).filter(function (x) {
+  var g = readTableCached_(SHEETS.GROUPS).filter(function (x) {
     return x['分組類型'] === groupType && x['組名'] === groupName;
   })[0];
   if (!g) return { name: groupName, leader: '', assistant: '', members: [] };

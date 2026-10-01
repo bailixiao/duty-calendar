@@ -21,8 +21,8 @@ function signup_(body) {
   }
 
   // 勤務與了愿項目在報名過程中不會變動，在排隊前先讀，縮短每筆佔用鎖的時間（壓力測試：每筆約 0.9 秒）
-  var duty = readTable_(SHEETS.DUTIES).filter(function (d) { return d['勤務ID'] === body.dutyId; })[0];
-  var positions = duty ? readTable_(SHEETS.POSITIONS).filter(function (p) { return p['勤務ID'] === duty['勤務ID']; }) : [];
+  var duty = readTableCached_(SHEETS.DUTIES).filter(function (d) { return d['勤務ID'] === body.dutyId; })[0];
+  var positions = duty ? readTableCached_(SHEETS.POSITIONS).filter(function (p) { return p['勤務ID'] === duty['勤務ID']; }) : [];
 
   // 同時報名的人多時要排隊；最多等 30 秒，等不到就回 BUSY（確定沒寫入，前端會自動重試）
   var lock = LockService.getScriptLock();
@@ -84,6 +84,7 @@ function signup_(body) {
     appendRows_(SHEETS.SIGNUPS, signupRows);
     appendRows_(SHEETS.LOGS, logRows);
     SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.SIGNUPS);
 
     var all = signups.concat(signupRows);
     return {

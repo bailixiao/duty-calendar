@@ -60,7 +60,15 @@ function createEnv(fixedNow) {
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (k === 'ADMIN_PASSWORD' ? 'test-pass' : null) }) },
     CacheService: (() => {
       const store = new Map();
-      return { getScriptCache: () => ({ get: (k) => (store.has(k) ? store.get(k) : null), put: (k, v) => store.set(k, v), remove: (k) => store.delete(k) }) };
+      return {
+        getScriptCache: () => ({
+          get: (k) => (store.has(k) ? store.get(k) : null),
+          put: (k, v) => store.set(k, v),
+          remove: (k) => store.delete(k),
+          getAll: (keys) => Object.fromEntries(keys.filter((k) => store.has(k)).map((k) => [k, store.get(k)])),
+          putAll: (obj) => Object.entries(obj).forEach(([k, v]) => store.set(k, v))
+        })
+      };
     })(),
     Logger: { log() {} },
     console: { error() {}, log() {} }
@@ -71,7 +79,7 @@ function createEnv(fixedNow) {
   const source = files.map(f => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n;\n');
   const names = Object.keys(env);
   const api = new Function(...names,
-    source + '\nreturn { SHEETS, seedInitialDuties, doGet, doPost };')(...names.map(n => env[n]));
+    source + '\nreturn { SHEETS, seedInitialDuties, doGet, doPost, onEdit, keepWarm };')(...names.map(n => env[n]));
 
   Object.values(api.SHEETS).forEach(def => {
     const s = makeSheet(def.name);
@@ -88,7 +96,9 @@ function createEnv(fixedNow) {
       if (Array.isArray(body.entries)) body = { ...body, entries: body.entries.map(e => ({ identity: '道親', ...e })) };
       return this.postRaw(JSON.stringify(body));
     },
-    postRaw(text) { return JSON.parse(api.doPost({ postData: { contents: text } }).text); }
+    postRaw(text) { return JSON.parse(api.doPost({ postData: { contents: text } }).text); },
+    onEdit: () => api.onEdit(),
+    keepWarm: () => api.keepWarm()
   };
 }
 
@@ -538,4 +548,35 @@ test('指定日期名單：各了愿項目的名字與陪同；公告型附輪�
   const notice = r.duties.find(d => d.mode === '公告型');
   assert.equal(notice.groupInfo.name, '第三組');
   assert.ok(!('phone' in notice.groupInfo));
+});
+
+// ---------- 讀取快取 ----------
+
+test('快取：直接改試算表後，onEdit 清快取才讀到新資料；報名後自動更新', () => {
+  const env = createEnv(OCT_1);
+  const before = findDuty(env, '2026-10-18', '2026-10-18', d => d.name === '捐血低碳蔬食推廣活動');
+  const row = env.sheets['勤務'].data.find(r => r[0] === before.id);
+  row[1] = '捐血活動（改名）';
+  assert.equal(findDuty(env, '2026-10-18', '2026-10-18', d => d.id === before.id).name, '捐血低碳蔬食推廣活動'); // 仍是快取
+  env.onEdit();
+  assert.equal(findDuty(env, '2026-10-18', '2026-10-18', d => d.id === before.id).name, '捐血活動（改名）');
+
+  signupOne(env, before, before.positions[0].id, '2026-10-18');
+  assert.equal(findDuty(env, '2026-10-18', '2026-10-18', d => d.id === before.id).days['2026-10-18'].total, 1);
+});
+
+test('快取：keepWarm 重新讀取；大表切塊存取正確', () => {
+  const env = createEnv(OCT_1);
+  const v = findDuty(env, '2026-10-13', '2026-10-13', d => d.name === '彌勒山志工輪值');
+  const h = env.sheets['報名'].data[0];
+  for (let i = 0; i < 800; i++) {
+    const r = Object.fromEntries(h.map(k => [k, '']));
+    Object.assign(r, { '報名ID': 'S-big-' + i, '勤務ID': v.id, '日期': '2026-10-13', '了愿項目ID': v.positions[0].id,
+      '姓名': '測試' + i, '陪同': '是', '出席': '出席', '狀態': '有效', '身分': '壇辦', '建立時間': '2026-10-01 10:00:00', '更新時間': '2026-10-01 10:00:00' });
+    env.sheets['報名'].data.push(h.map(k => r[k]));
+  }
+  env.keepWarm();
+  const d = env.get({ action: 'getDuty', id: v.id }).data;
+  assert.equal(d.signups.length, 800);
+  assert.equal(d.signups[799].name, '測試799');
 });

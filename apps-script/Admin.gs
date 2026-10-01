@@ -50,7 +50,7 @@ function adminRecent_(body) {
 function adminDuty_(body) {
   var data = getDuty_({ id: body.id });
   var byId = {};
-  readTable_(SHEETS.SIGNUPS).forEach(function (s) { byId[s['報名ID']] = s; });
+  readTableCached_(SHEETS.SIGNUPS).forEach(function (s) { byId[s['報名ID']] = s; });
   data.signups.forEach(function (s) {
     var row = byId[s.id] || {};
     s.identity = row['身分'] || '';
@@ -62,7 +62,7 @@ function adminDuty_(body) {
 
 function adminGroupContact_(groupType, groupName) {
   if (!groupType || !groupName) return null;
-  var g = readTable_(SHEETS.GROUPS).filter(function (x) {
+  var g = readTableCached_(SHEETS.GROUPS).filter(function (x) {
     return x['分組類型'] === groupType && x['組名'] === groupName;
   })[0];
   if (!g) return null;
@@ -96,8 +96,8 @@ function adminLogs_(body) {
  *   恢復時若超過名額或同日重複，照樣恢復，回傳 warnings。
  */
 function adminRestore_(body) {
-  var duties = readTable_(SHEETS.DUTIES);
-  var positions = readTable_(SHEETS.POSITIONS);
+  var duties = readTableCached_(SHEETS.DUTIES);
+  var positions = readTableCached_(SHEETS.POSITIONS);
 
   return withSignupLock_(function () {
     var log = readTable_(SHEETS.LOGS).filter(function (l) { return l._row === Number(body.row); })[0];
@@ -147,6 +147,7 @@ function adminRestore_(body) {
       '還原用的前一版資料': JSON.stringify({ logRow: log._row, action: log['動作'] })
     }]);
     SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.SIGNUPS);
 
     return {
       warnings: warnings,

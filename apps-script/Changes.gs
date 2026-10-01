@@ -9,8 +9,8 @@
 /** body = { signupId } */
 function cancelSignup_(body, opts) {
   opts = opts || {};
-  var duties = readTable_(SHEETS.DUTIES);
-  var positions = readTable_(SHEETS.POSITIONS);
+  var duties = readTableCached_(SHEETS.DUTIES);
+  var positions = readTableCached_(SHEETS.POSITIONS);
 
   return withSignupLock_(function () {
     var signups = readTable_(SHEETS.SIGNUPS);
@@ -32,6 +32,7 @@ function cancelSignup_(body, opts) {
       '還原用的前一版資料': JSON.stringify(before)
     }]);
     SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.SIGNUPS);
 
     return {
       signupId: row['報名ID'],
@@ -45,8 +46,8 @@ function cancelSignup_(body, opts) {
 /** body = { signupId, dutyId, date, positionId }：目標勤務（須與原勤務同名）、日期、了愿項目 */
 function rescheduleSignup_(body, opts) {
   opts = opts || {};
-  var duties = readTable_(SHEETS.DUTIES);
-  var positions = readTable_(SHEETS.POSITIONS);
+  var duties = readTableCached_(SHEETS.DUTIES);
+  var positions = readTableCached_(SHEETS.POSITIONS);
 
   return withSignupLock_(function () {
     var signups = readTable_(SHEETS.SIGNUPS);
@@ -112,6 +113,7 @@ function rescheduleSignup_(body, opts) {
       '還原用的前一版資料': JSON.stringify({ from: before, toSignupId: newRow['報名ID'] })
     }]);
     SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.SIGNUPS);
 
     var all = signups.concat([newRow]);
     return {
@@ -127,7 +129,7 @@ function rescheduleSignup_(body, opts) {
  * params: id（勤務ID）
  */
 function getSiblings_(params) {
-  var duties = readTable_(SHEETS.DUTIES);
+  var duties = readTableCached_(SHEETS.DUTIES);
   var base = findById_(duties, '勤務ID', params.id);
   if (!base) throw new ApiError_('NOT_FOUND', '找不到這個勤務');
   var today = todayString_();
@@ -135,7 +137,7 @@ function getSiblings_(params) {
     return d['名稱'] === base['名稱'] && d['模式'] !== '公告型' && (d['結束日'] || d['開始日']) >= today;
   }).sort(function (a, b) { return a['開始日'] < b['開始日'] ? -1 : 1; }).slice(0, 60);
 
-  var positionsByDuty = groupBy_(readTable_(SHEETS.POSITIONS), '勤務ID');
+  var positionsByDuty = groupBy_(readTableCached_(SHEETS.POSITIONS), '勤務ID');
   var signupsByDuty = groupBy_(activeSignups_(), '勤務ID');
   return {
     today: today,

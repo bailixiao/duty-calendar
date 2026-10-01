@@ -44,6 +44,23 @@ function doPost(e) {
   });
 }
 
+/**
+ * 直接在試算表修改資料時（簡單觸發，不用設定）清掉讀取快取，網站馬上讀到新資料。
+ */
+function onEdit() {
+  invalidateAllTables_();
+}
+
+/**
+ * 定時執行（建議每 5 分鐘，設定方式見部署說明）：預先把常用的表讀進快取，
+ * 讓使用者打開網站時直接讀快取；也讓伺服器保持活動，降低「冷啟動」變慢的機會。
+ */
+function keepWarm() {
+  [SHEETS.DUTIES, SHEETS.POSITIONS, SHEETS.SIGNUPS, SHEETS.GROUPS, SHEETS.MEMBERS].forEach(function (def) {
+    readTableCached_(def, { refresh: true });
+  });
+}
+
 function ApiError_(code, message, details) {
   this.code = code;
   this.message = message;
