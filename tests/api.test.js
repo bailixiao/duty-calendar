@@ -278,3 +278,120 @@ test('未知 action 與錯誤 JSON', () => {
   assert.equal(bad.error.code, 'BAD_REQUEST');
   assert.match(bad.error.message, /JSON/);
 });
+
+// ---------- 取消、改期 ----------
+
+function signupOne(env, duty, positionId, date, entry) {
+  const r = env.post({ action: 'signup', dutyId: duty.id, positionId, dates: [date], entries: [entry || { name: '測試甲' }] });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  return r.data.created[0].id;
+}
+
+function signupRow(env, id) {
+  const rows = env.sheets['報名'].data;
+  const h = rows[0];
+  const row = rows.find(r => r[0] === id);
+  return Object.fromEntries(h.map((k, i) => [k, row[i]]));
+}
+
+test('取消：狀態改為已取消、人數更新、寫入操作紀錄（含前一版資料）', () => {
+  const env = createEnv(OCT_1);
+  const team = findDuty(env, '2026-11-08', '2026-11-08', d => d.name === '12人小組輪值');
+  const id = signupOne(env, team, team.positions[0].id, '2026-11-08');
+
+  const r = env.post({ action: 'cancel', signupId: id });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.equal(r.data.days['2026-11-08'].total, 0);
+  assert.equal(signupRow(env, id)['狀態'], '已取消');
+  const log = env.sheets['操作紀錄'].data.at(-1);
+  assert.equal(log[1], '取消');
+  assert.equal(log[2], id);
+  assert.match(log[3], /^測試甲（道親）｜2026-11-08｜12人小組輪值｜烹飪$/);
+  assert.equal(JSON.parse(log[4])['狀態'], '有效');
+  assert.equal(env.get({ action: 'getDuty', id: team.id }).data.signups.length, 0);
+});
+
+test('取消：已取消的不能再取消；找不到的報名', () => {
+  const env = createEnv(OCT_1);
+  const team = findDuty(env, '2026-11-08', '2026-11-08', d => d.name === '12人小組輪值');
+  const id = signupOne(env, team, team.positions[0].id, '2026-11-08');
+  env.post({ action: 'cancel', signupId: id });
+  assert.equal(env.post({ action: 'cancel', signupId: id }).error.code, 'ALREADY');
+  assert.equal(env.post({ action: 'cancel', signupId: 'S-nope' }).error.code, 'NOT_FOUND');
+});
+
+test('取消、改期：勤務當天（含）之後不能自己做', () => {
+  const env = createEnv(OCT_1);
+  const v = findDuty(env, '2026-10-13', '2026-10-13', d => d.name === '彌勒山志工輪值');
+  const id = signupOne(env, v, v.positions[0].id, '2026-10-13');
+  env.clock.now = Date.UTC(2026, 9, 12, 16, 30); // 台北 10/13 00:30（當天）
+  const c = env.post({ action: 'cancel', signupId: id });
+  assert.equal(c.error.code, 'FORBIDDEN');
+  assert.match(c.error.message, /請聯絡管理者/);
+  const later = findDuty(env, '2026-10-24', '2026-10-24', d => d.name === '彌勒山志工輪值');
+  const m = env.post({ action: 'reschedule', signupId: id, dutyId: later.id, date: '2026-10-24', positionId: later.positions[0].id });
+  assert.equal(m.error.code, 'FORBIDDEN');
+  assert.equal(signupRow(env, id)['狀態'], '有效');
+});
+
+test('改期到同名勤務的其他日期：原報名取消、新報名保留姓名身分陪同、寫入操作紀錄', () => {
+  const env = createEnv(OCT_1);
+  const v1 = findDuty(env, '2026-10-13', '2026-10-13', d => d.name === '彌勒山志工輪值');
+  const v2 = findDuty(env, '2026-10-24', '2026-10-24', d => d.name === '彌勒山志工輪值');
+  const id = signupOne(env, v1, v1.positions[0].id, '2026-10-13', { name: '測試甲', identity: '壇辦', accompany: true });
+
+  const r = env.post({ action: 'reschedule', signupId: id, dutyId: v2.id, date: '2026-10-24', positionId: v2.positions[0].id });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.equal(signupRow(env, id)['狀態'], '已取消');
+  const n = signupRow(env, r.data.signupId);
+  assert.deepEqual([n['勤務ID'], n['日期'], n['姓名'], n['身分'], n['陪同'], n['狀態']], [v2.id, '2026-10-24', '測試甲', '壇辦', '是', '有效']);
+  const log = env.sheets['操作紀錄'].data.at(-1);
+  assert.equal(log[1], '改期');
+  assert.equal(log[2], r.data.signupId);
+  assert.match(log[3], /2026-10-13｜彌勒山志工輪值｜志工 → 2026-10-24｜志工$/);
+  const prev = JSON.parse(log[4]);
+  assert.equal(prev.from['報名ID'], id);
+  assert.equal(prev.toSignupId, r.data.signupId);
+});
+
+test('改期：多天勤務換天、同一天換了愿項目都可以', () => {
+  const env = createEnv(OCT_1);
+  const team = findDuty(env, '2026-11-08', '2026-11-08', d => d.name === '12人小組輪值');
+  const [cook, clean] = team.positions;
+  const id = signupOne(env, team, cook.id, '2026-11-08');
+  const sameDay = env.post({ action: 'reschedule', signupId: id, dutyId: team.id, date: '2026-11-08', positionId: clean.id });
+  assert.equal(sameDay.ok, true, JSON.stringify(sameDay.error));
+  const otherDay = env.post({ action: 'reschedule', signupId: sameDay.data.signupId, dutyId: team.id, date: '2026-11-10', positionId: clean.id });
+  assert.equal(otherDay.ok, true, JSON.stringify(otherDay.error));
+  assert.equal(otherDay.data.from.days['2026-11-08'].total, 0);
+  assert.equal(otherDay.data.to.days['2026-11-10'].counts[clean.id], 1);
+});
+
+test('改期：不同名勤務、沒有變更、新日期額滿或重複時整筆不動', () => {
+  const env = createEnv(OCT_1);
+  const v1 = findDuty(env, '2026-10-13', '2026-10-13', d => d.name === '彌勒山志工輪值');
+  const v2 = findDuty(env, '2026-10-24', '2026-10-24', d => d.name === '彌勒山志工輪值');
+  const other = findDuty(env, '2026-10-24', '2026-10-24', d => d.name === '志工團輪值：統班');
+  const id = signupOne(env, v1, v1.positions[0].id, '2026-10-13');
+
+  assert.match(env.post({ action: 'reschedule', signupId: id, dutyId: other.id, date: '2026-10-24', positionId: other.positions[0].id }).error.message, /同一個勤務/);
+  assert.match(env.post({ action: 'reschedule', signupId: id, dutyId: v1.id, date: '2026-10-13', positionId: v1.positions[0].id }).error.message, /沒有變更/);
+
+  signupOne(env, v2, v2.positions[0].id, '2026-10-24', { name: '測試乙' });
+  signupOne(env, v2, v2.positions[0].id, '2026-10-24', { name: '測試丙' });
+  const full = env.post({ action: 'reschedule', signupId: id, dutyId: v2.id, date: '2026-10-24', positionId: v2.positions[0].id });
+  assert.equal(full.error.code, 'VALIDATION');
+  assert.match(full.error.details[0].message, /額滿/);
+  assert.equal(signupRow(env, id)['狀態'], '有效');
+  assert.equal(env.sheets['報名'].data.length, 1 + 3);
+});
+
+test('getSiblings：只列同名、未結束的勤務，日期從今天起', () => {
+  const env = createEnv(Date.UTC(2026, 9, 20, 2)); // 台北 10/20
+  const v = findDuty(env, '2026-10-24', '2026-10-24', d => d.name === '彌勒山志工輪值');
+  const r = env.get({ action: 'getSiblings', id: v.id });
+  assert.equal(r.ok, true);
+  assert.ok(r.data.duties.every(d => d.name === '彌勒山志工輪值' && d.end >= '2026-10-20'));
+  assert.equal(r.data.duties[0].start, '2026-10-24');
+  assert.equal(r.data.duties.length, 14); // 共 16 次，扣掉 10/1、10/13
+});

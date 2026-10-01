@@ -166,6 +166,11 @@ function validateSignup_(req) {
   return errors;
 }
 
+/** 一般使用者能不能自己取消、改期：勤務當天（含）之後不行（today 為台北時間 yyyy-MM-dd） */
+function canSelfChange_(date, today) {
+  return isDateString_(date) && date > today;
+}
+
 function positionName_(positions, id) {
   var p = (positions || []).filter(function (x) { return x['了愿項目ID'] === id; })[0];
   return p ? p['了愿項目名稱'] : '其他了愿項目';
@@ -174,6 +179,6 @@ function positionName_(positions, id) {
 if (typeof module !== 'undefined') {
   module.exports = {
     normalizeName_: normalizeName_, datesInRange_: datesInRange_, parseLimit_: parseLimit_,
-    dayStatus_: dayStatus_, validateSignup_: validateSignup_
+    dayStatus_: dayStatus_, validateSignup_: validateSignup_, canSelfChange_: canSelfChange_
   };
 }

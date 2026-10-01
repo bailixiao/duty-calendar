@@ -49,6 +49,26 @@ function readTable_(def) {
 }
 
 /**
+ * 更新一列中的部分欄位。row 為 readTable_ 回傳的物件（帶 _row），changes 的 key 為欄位名稱。
+ * 只在鎖定（LockService）內呼叫，確保列號在讀取後沒有變動。
+ */
+function updateRow_(def, row, changes) {
+  var values = def.headers.map(function (h) {
+    var v = Object.prototype.hasOwnProperty.call(changes, h) ? changes[h] : row[h];
+    return v === undefined || v === null ? '' : String(v);
+  });
+  getSheet_(def).getRange(row._row, 1, 1, def.headers.length).setValues([values]);
+  Object.keys(changes).forEach(function (h) { row[h] = String(changes[h]); });
+}
+
+/** 去掉 _row 等內部欄位，供寫入操作紀錄的「還原用的前一版資料」 */
+function rowSnapshot_(def, row) {
+  var obj = {};
+  def.headers.forEach(function (h) { obj[h] = row[h] === undefined ? '' : row[h]; });
+  return obj;
+}
+
+/**
  * 一次寫入多列。rows 為物件陣列，key 為欄位名稱；缺少的欄位寫空字串。
  * 所有值轉成字串寫入，配合整張表的純文字格式。
  */

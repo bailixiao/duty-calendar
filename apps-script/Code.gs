@@ -2,9 +2,9 @@
  * Web App 進入點。
  *
  * 讀取：GET  ?action=ping | getEvents&from=yyyy-MM-dd&to=yyyy-MM-dd | getDuty&id=勤務ID
- *           | searchMembers&q=輸入的字[&groupType=分組類型&group=負責組]
+ *           | searchMembers&q=輸入的字[&groupType=分組類型&group=負責組] | getSiblings&id=勤務ID（改期可選的同名勤務）
  * 寫入：POST，內容為 JSON 字串（前端以 Content-Type: text/plain 送出，避免 CORS 預檢），
- *       { "action": "signup", ... }
+ *       { "action": "signup" | "cancel" | "reschedule", ... }
  *
  * 回應格式：
  *   成功 { ok: true, data: ... }
@@ -19,6 +19,7 @@ function doGet(e) {
       case 'getEvents': return getEvents_(p);
       case 'getDuty': return getDuty_(p);
       case 'searchMembers': return searchMembers_(p);
+      case 'getSiblings': return getSiblings_(p);
       default: throw new ApiError_('BAD_REQUEST', '未知的 action：' + (p.action || '（空白）'));
     }
   });
@@ -34,6 +35,8 @@ function doPost(e) {
     }
     switch (body.action) {
       case 'signup': return signup_(body);
+      case 'cancel': return cancelSignup_(body);
+      case 'reschedule': return rescheduleSignup_(body);
       default: throw new ApiError_('BAD_REQUEST', '未知的 action：' + (body.action || '（空白）'));
     }
   });
