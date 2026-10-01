@@ -175,7 +175,8 @@
     SignupForm.mount(el, d, page.viewDate, onSignedUp);
   }
 
-  function onSignedUp(result) {
+  /** 報名成功：用伺服器回傳的新報名與人數直接更新畫面（不用再等一次讀取），行事曆在背景更新 */
+  function onSignedUp(result, res) {
     const names = result.entries.map((e) => `${e.name}（${e.identity}${e.accompany ? '・陪同' : ''}）`).join('、');
     const dates = result.dates.map(Fmt.shortDate).join('、');
     const flash = `
@@ -184,10 +185,14 @@
         <p>${esc(names)}<br>${esc(dates)}・${esc(result.positionName)}</p>
       </div>`;
     if (window.CalendarPage) CalendarPage.refresh();
-    load(token, flash).then(() => {
-      const box = document.getElementById('duty-flash');
-      if (box) box.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    });
+    if (!page.data || page.data.id !== result.dutyId) return; // 報名期間已離開這頁（例如按了瀏覽器返回）
+    res.created.forEach((c) => page.data.signups.push({
+      id: c.id, date: c.date, positionId: result.positionId, name: c.name, accompany: c.accompany
+    }));
+    Object.assign(page.data.days, res.days);
+    render(flash);
+    const box = document.getElementById('duty-flash');
+    if (box) box.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   window.DutyPage = { show };

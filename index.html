@@ -50,6 +50,14 @@
     <section id="view-duty" class="duty-view" hidden></section>
   </main>
 
+  <div id="busy" class="busy" role="alertdialog" aria-modal="true" aria-live="assertive" hidden>
+    <div class="busy-box">
+      <span class="spinner" aria-hidden="true"></span>
+      <p class="busy-text"></p>
+      <p class="busy-sub"></p>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/lunar-javascript@1.7.7/lunar.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.21/index.global.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.21/locales/zh-tw.global.min.js"></script>

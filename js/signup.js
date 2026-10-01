@@ -1,4 +1,4 @@
-// 報名表單：選崗位（額滿反灰）→ 選日期（多天勤務）→ 填名字（自動提示、可多人、選道親／壇辦；壇辦可選了愿／陪同）→ 確認報名。
+// 報名表單：選了愿項目（程式內稱崗位，額滿反灰）→ 選日期（多天勤務）→ 填名字（自動提示、可多人、選道親／壇辦；壇辦可選了愿／陪同）→ 確認報名。
 // 名額與重複的最終判斷在伺服器（LockService 鎖定），這裡只做提示。
 (function () {
   'use strict';
@@ -32,7 +32,7 @@
       <h2>我要報名</h2>
       <form class="signup-form" novalidate>
         <fieldset class="field">
-          <legend><span class="step">${step++}</span>選崗位</legend>
+          <legend><span class="step">${step++}</span>選了愿項目</legend>
           <div class="choices" data-positions></div>
         </fieldset>
         ${multiDay ? `
@@ -249,7 +249,7 @@
       if (normalize(input.value)) addFromInput(); // 打了名字但忘了按「加入」
 
       const problems = [];
-      if (!state.positionId) problems.push('請選擇崗位');
+      if (!state.positionId) problems.push('請選擇了愿項目');
       if (!state.dates.size) problems.push('請選擇日期');
       if (!state.entries.length) problems.push('請填寫名字，並按「加入」');
       if (state.entries.some((e) => !e.identity)) {
@@ -265,7 +265,9 @@
       hideError();
       state.submitting = true;
       $('[data-submit]').disabled = true;
+      form.inert = true;
       renderNames();
+      Busy.show('報名中，請稍候⋯', '約需 3–5 秒，請不要關閉畫面');
       const position = duty.positions.find((p) => p.id === state.positionId);
       const payload = {
         dutyId: duty.id,
@@ -274,11 +276,14 @@
         entries: state.entries.map((e) => ({ name: e.name, identity: e.identity, accompany: e.accompany }))
       };
       try {
-        await Api.signup(payload);
-        onSuccess({ entries: payload.entries, dates: payload.dates, positionName: position.name });
+        const res = await Api.signup(payload);
+        Busy.hide();
+        onSuccess({ dutyId: duty.id, entries: payload.entries, dates: payload.dates, positionId: position.id, positionName: position.name }, res);
       } catch (err) {
+        Busy.hide();
         state.submitting = false;
         $('[data-submit]').disabled = false;
+        form.inert = false;
         renderNames();
         if (err.code === 'VALIDATION' && err.details.length) {
           showError(`<strong>${esc(err.message)}</strong><br>${err.details.map(detailText).join('<br>')}`);

@@ -191,7 +191,7 @@ test('只有壇辦可以選陪同', () => {
 test('空白名字、未選崗位、公告型勤務', () => {
   assert.match(validateSignup_(req({ entries: [{ name: '　' }] }))[0].message, /不可空白/);
   assert.match(validateSignup_(req({ entries: [] }))[0].message, /請填寫名字/);
-  assert.match(validateSignup_(req({ positionId: 'PX' }))[0].message, /請選擇崗位/);
+  assert.match(validateSignup_(req({ positionId: 'PX' }))[0].message, /請選擇了愿項目/);
   assert.match(validateSignup_(req({ duty: Object.assign({}, duty, { '模式': '公告型' }) }))[0].message, /公告型/);
   assert.match(validateSignup_(req({ duty: undefined }))[0].message, /找不到/);
 });

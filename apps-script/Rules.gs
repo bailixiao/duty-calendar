@@ -2,6 +2,7 @@
  * 報名規則的純邏輯判斷。
  * 本檔不呼叫任何 Apps Script 服務（SpreadsheetApp、Utilities 等），可在 Node 直接測試（tests/rules.test.js）。
  * 資料一律以字串處理：日期 yyyy-MM-dd、陪同「是／否」、狀態「有效／已取消」。
+ * 畫面上「崗位」一律稱「了愿項目」，錯誤訊息也用這個說法（資料欄位名稱仍為「崗位」）。
  */
 
 var IDENTITIES_ = ['壇辦', '道親'];
@@ -92,7 +93,7 @@ function validateSignup_(req) {
   if (duty['模式'] === '公告型') return [{ message: '公告型勤務不需要報名' }];
 
   var position = (req.positions || []).filter(function (p) { return p['崗位ID'] === req.positionId; })[0];
-  if (!position) return [{ message: '請選擇崗位' }];
+  if (!position) return [{ message: '請選擇了愿項目' }];
 
   var dates = req.dates || [];
   if (!dates.length) return [{ message: '請選擇日期' }];
@@ -141,7 +142,7 @@ function validateSignup_(req) {
       })[0];
       if (dup) {
         var posName = positionName_(req.positions, dup['崗位ID']);
-        errors.push({ name: e.name, date: date, message: '這天已報名「' + posName + '」，同一勤務同一天只能報一個崗位' });
+        errors.push({ name: e.name, date: date, message: '這天已報名「' + posName + '」，同一勤務同一天只能報一個了愿項目' });
       }
     });
 
@@ -168,7 +169,7 @@ function validateSignup_(req) {
 
 function positionName_(positions, id) {
   var p = (positions || []).filter(function (x) { return x['崗位ID'] === id; })[0];
-  return p ? p['崗位名稱'] : '其他崗位';
+  return p ? p['崗位名稱'] : '其他了愿項目';
 }
 
 if (typeof module !== 'undefined') {

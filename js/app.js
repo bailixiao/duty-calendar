@@ -5,6 +5,21 @@
   'use strict';
 
   const views = {};
+
+  /** 全畫面「處理中」遮罩：處理期間畫面上什麼都不能按 */
+  window.Busy = {
+    show(text, sub) {
+      const el = document.getElementById('busy');
+      el.querySelector('.busy-text').textContent = text;
+      el.querySelector('.busy-sub').textContent = sub || '';
+      el.hidden = false;
+      document.querySelector('.app-main').inert = true;
+    },
+    hide() {
+      document.getElementById('busy').hidden = true;
+      document.querySelector('.app-main').inert = false;
+    }
+  };
   let calendarScrollY = 0;
   let current = 'calendar';
 

@@ -53,18 +53,24 @@
     }
   }
 
+  /** 寫入（報名）。不自動重送，避免重複寫入；超過 45 秒視為連線問題 */
   async function post(body) {
-    let res;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 45000);
     try {
-      res = await fetch(window.APP_CONFIG.API_URL, {
+      const res = await fetch(window.APP_CONFIG.API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        signal: ctrl.signal
       });
+      return await parse(res);
     } catch (e) {
+      if (e instanceof ApiError) throw e;
       throw new ApiError('NETWORK', '無法連線，請檢查網路後再試');
+    } finally {
+      clearTimeout(timer);
     }
-    return parse(res);
   }
 
   window.Api = {
