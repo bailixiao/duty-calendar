@@ -1,0 +1,75 @@
+// 自動統計表。執行：在專案根目錄執行 node --test
+// 測試用的名字一律用假名，本儲存庫不放真實人名。
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { createEnv } = require('./env');
+
+const OCT_1 = Date.UTC(2026, 9, 1, 2, 0, 0);
+
+function setup() {
+  const env = createEnv(OCT_1);
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const call = (action, body) => env.post(Object.assign({ action, token }, body));
+  const ev = env.get({ action: 'getEvents', from: '2026-10-13', to: '2026-10-24' }).data.duties;
+  return { env, call, ev };
+}
+
+test('adminStats：只算今天以前、出席、非陪同；陪同、未填身分、未到分開記', () => {
+  const { env, call, ev } = setup();
+  const vol = ev.find((d) => d.name === '彌勒山志工輪值' && d.start === '2026-10-13');
+  const clean = ev.find((d) => d.name === '宏宗大掃除');
+  const pid = vol.positions[0].id;
+  env.post({ action: 'signup', dutyId: vol.id, positionId: pid, dates: ['2026-10-13'], entries: [{ name: '測試甲', identity: '壇辦' }, { name: '測試乙', identity: '道親' }, { name: '測試丙', identity: '壇辦', accompany: true }] });
+  const later = env.post({ action: 'signup', dutyId: clean.id, positionId: clean.positions[0].id, dates: ['2026-10-24'], entries: [{ name: '測試丁', identity: '道親' }, { name: '測試戊', identity: '道親' }] });
+  assert.equal(later.ok, true, JSON.stringify(later.error));
+
+  env.clock.now = Date.UTC(2026, 9, 20, 2); // 10/20：10/24 還沒到
+  let stats = call('adminStats').data;
+  assert.equal(stats.events.length, 1);
+  assert.deepEqual(stats.events[0].tan, ['測試甲']);
+  assert.deepEqual(stats.events[0].dao, ['測試乙']);
+  assert.deepEqual(stats.events[0].accompany, ['測試丙']);
+  assert.equal(stats.events[0].series, '彌勒山志工輪值');
+
+  env.clock.now = Date.UTC(2026, 9, 25, 2);
+  const absent = later.data.created[1].id;
+  call('adminSetAttendance', { signupId: absent, attend: '未到' });
+  // 試算表直接改：身分清空 → 未填身分
+  const sheet = env.sheets['報名'].data;
+  const idCol = sheet[0].indexOf('身分');
+  sheet.find((r) => r[4] === '測試丁')[idCol] = '';
+  env.onEdit();
+  stats = call('adminStats').data;
+  const e2 = stats.events.find((e) => e.dutyId === clean.id);
+  assert.deepEqual(e2.unknown, ['測試丁']);
+  assert.deepEqual(e2.dao, []);
+  assert.equal(e2.absent, 1);
+});
+
+test('更新統計分頁：全年彙總、各季、每月明細；佔比用百分比格式；沒資料不會除以零', () => {
+  const { env, call, ev } = setup();
+  const vol = ev.find((d) => d.name === '彌勒山志工輪值' && d.start === '2026-10-13');
+  env.post({ action: 'signup', dutyId: vol.id, positionId: vol.positions[0].id, dates: ['2026-10-13'], entries: [{ name: '測試甲', identity: '壇辦' }, { name: '測試乙', identity: '道親' }] });
+  env.clock.now = Date.UTC(2026, 9, 20, 2);
+
+  const r = call('adminUpdateStatsSheet', { year: 2026 });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  const s = env.sheets['統計'];
+  const rows = s.data;
+  assert.equal(rows[0][0], '115 年勤務統計（2026）');
+  const oct = rows.find((x) => x[0] === '115 年 10 月');
+  assert.deepEqual(oct.slice(1, 9), [1, 1, 1, 0, 2, 0.5, 0, 2]);
+  const jan = rows.find((x) => x[0] === '115 年 1 月');
+  assert.equal(jan[6], 0, '沒資料的月份佔比是 0');
+  const total = rows.find((x) => x[0] === '全年合計');
+  assert.equal(total[5], 2);
+  assert.ok(rows.some((x) => /^第 4 季/.test(x[0]) && x[5] === 2));
+  const detail = rows.find((x) => x[0] === '2026-10-13');
+  assert.deepEqual([detail[1], detail[3], detail[4], detail[5], detail[6], detail[7]], ['彌勒山志工輪值', '測試甲', 1, '測試乙', 1, 0.5]);
+  // 佔比欄是百分比格式，日期是純文字
+  const octIndex = rows.indexOf(oct);
+  assert.equal(s.formats[octIndex][6], '0%');
+  assert.equal(s.formats[rows.indexOf(detail)][0], '@');
+  assert.ok(rows.flat().every((v) => !/#DIV\/0/.test(String(v))));
+  assert.ok(call('adminStats').data.sheetUpdatedAt);
+});

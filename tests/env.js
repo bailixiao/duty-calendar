@@ -13,8 +13,10 @@ function createEnv(fixedNow) {
       data,
       getLastRow: () => data.length,
       deleteRow: (n) => { data.splice(n - 1, 1); },
+      formats: [],
+      clear: () => { data.length = 0; },
       getRange(row, col, numRows = 1, numCols = 1) {
-        return {
+        const range = {
           getDisplayValues: () => Array.from({ length: numRows }, (_, i) =>
             Array.from({ length: numCols }, (_, j) => String((data[row - 1 + i] || [])[col - 1 + j] ?? ''))),
           setValues(values) {
@@ -22,10 +24,17 @@ function createEnv(fixedNow) {
               data[row - 1 + i] = data[row - 1 + i] || [];
               r.forEach((v, j) => { data[row - 1 + i][col - 1 + j] = v; });
             });
-          }
+            return proxy;
+          },
+          setNumberFormats(f) { sheet.formats = f; return proxy; }
         };
+        // 字型、顏色等格式設定：測試不檢查，一律回傳自己方便串接
+        const proxy = new Proxy(range, { get: (t, k) => (k in t ? t[k] : () => proxy) });
+        return proxy;
       }
     };
+    // 欄寬、凍結列等：測試不檢查
+    ['setColumnWidth', 'setColumnWidths', 'setFrozenRows', 'clearConditionalFormatRules'].forEach((k) => { sheet[k] = () => sheet; });
     sheets[name] = sheet;
     return sheet;
   }
@@ -54,7 +63,10 @@ function createEnv(fixedNow) {
       createTextOutput: (text) => ({ text, setMimeType() { return this; } })
     },
     Session: { getScriptTimeZone: () => 'Asia/Taipei' },
-    PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => ({ ADMIN_PASSWORD: 'test-pass', ADMIN_CONTACT: '測試管理者' })[k] || null }) },
+    PropertiesService: (() => {
+      const props = { ADMIN_PASSWORD: 'test-pass', ADMIN_CONTACT: '測試管理者' };
+      return { getScriptProperties: () => ({ getProperty: (k) => props[k] || null, setProperty: (k, v) => { props[k] = v; } }) };
+    })(),
     CacheService: (() => {
       const store = new Map();
       return {
@@ -68,7 +80,8 @@ function createEnv(fixedNow) {
       };
     })(),
     Logger: { log() {} },
-    console: { error() {}, log() {} }
+    // 設環境變數 DEBUG_GS=1 可以看到 Apps Script 內部錯誤
+    console: { error: (...a) => { if (process.env.DEBUG_GS) process.stderr.write(a.join(' ') + '\n'); }, log() {} }
   };
 
   const dir = path.join(__dirname, '..', 'apps-script');

@@ -229,6 +229,8 @@ function adminDispatch_(body) {
     case 'adminDeleteDuty': return adminDeleteDuty_(body);
     case 'adminSetAttendance': return adminSetAttendance_(body);
     case 'adminAddAttendee': return adminAddAttendee_(body);
+    case 'adminStats': return adminStats_(body);
+    case 'adminUpdateStatsSheet': return adminUpdateStatsSheet_(body);
     case 'adminMembers': return adminMembers_(body);
     case 'adminSaveMember': return adminSaveMember_(body);
     case 'adminGroups': return adminGroups_(body);
