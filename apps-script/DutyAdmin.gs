@@ -59,22 +59,54 @@ function adminCreateDuties_(body) {
   var errors = [];
   normalized.forEach(function (n, i) {
     n.errors.forEach(function (msg) { errors.push({ index: i, message: msg }); });
+    // 已分配好的人員：assign = { 了愿項目名稱: [姓名] }（草稿匯入用）
+    var assign = inputs[i].assign || {};
+    Object.keys(assign).forEach(function (pname) {
+      if (!n.positions.some(function (p) { return p['了愿項目名稱'] === cleanText_(pname); })) {
+        errors.push({ index: i, message: '分配人員的「' + pname + '」不是這個勤務的了愿項目' });
+      }
+    });
   });
   if (errors.length) throw new ApiError_('VALIDATION', '勤務資料有錯，沒有新增任何一筆', errors);
 
   return withSignupLock_(function () {
+    // 已經有同名同日的勤務：先回報，確認後（allowDuplicate）才新增，避免按兩次或回應卡住時重複建立
+    if (!body.allowDuplicate) {
+      var have = {};
+      readTable_(SHEETS.DUTIES).forEach(function (d) { have[d['名稱'] + '|' + d['開始日']] = true; });
+      var dups = normalized.filter(function (n) { return have[n.duty['名稱'] + '|' + n.duty['開始日']]; })
+        .map(function (n) { return n.duty['名稱'] + '（' + n.duty['開始日'] + '）'; });
+      if (dups.length) throw new ApiError_('DUPLICATE', '已經有同名、同一天的勤務', dups.map(function (m) { return { message: m }; }));
+    }
     var dutyRows = [];
     var positionRows = [];
+    var signupRows = [];
     var ids = [];
-    normalized.forEach(function (n) {
+    var identity = memberIdentityMap_();
+    var now = nowString_();
+    normalized.forEach(function (n, i) {
       var id = newId_('D');
       ids.push(id);
       dutyRows.push(Object.assign({ '勤務ID': id }, n.duty));
-      n.positions.forEach(function (p) { positionRows.push(positionRow_(p, id)); });
+      var assign = inputs[i].assign || {};
+      n.positions.forEach(function (p) {
+        var row = positionRow_(p, id);
+        positionRows.push(row);
+        // 分配好的人記在第一天，身分照成員名單（沒有就空白）
+        var people = assign[p['了愿項目名稱']] || [];
+        people.map(normalizeName_).filter(function (x) { return x; }).forEach(function (name) {
+          signupRows.push({
+            '報名ID': newId_('S'), '勤務ID': id, '日期': n.duty['開始日'], '了愿項目ID': row['了愿項目ID'], '姓名': name,
+            '身分': identity[name] || '', '陪同': '否', '出席': '出席', '狀態': '有效', '建立時間': now, '更新時間': now
+          });
+        });
+      });
     });
     appendRows_(SHEETS.DUTIES, dutyRows);
     appendRows_(SHEETS.POSITIONS, positionRows);
-    writeDutyLog_('新增勤務', createSummary_(dutyRows));
+    appendRows_(SHEETS.SIGNUPS, signupRows);
+    if (signupRows.length) invalidateTable_(SHEETS.SIGNUPS);
+    writeDutyLog_('新增勤務', createSummary_(dutyRows) + (signupRows.length ? '｜含分配人員 ' + signupRows.length + ' 人' : ''));
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.DUTIES);
     invalidateTable_(SHEETS.POSITIONS);
@@ -223,6 +255,15 @@ function groupList_() {
   return readTableCached_(SHEETS.GROUPS)
     .filter(function (g) { return g['分組類型'] && g['組名']; })
     .map(function (g) { return { type: g['分組類型'], name: g['組名'] }; });
+}
+
+/** 成員名單上登記的身分（姓名 → 身分） */
+function memberIdentityMap_() {
+  var map = {};
+  readTableCached_(SHEETS.MEMBERS).forEach(function (m) {
+    if (OPTIONS.identity.indexOf(m['身分']) !== -1) map[normalizeName_(m['姓名'])] = m['身分'];
+  });
+  return map;
 }
 
 function groupKeys_() {

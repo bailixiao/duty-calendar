@@ -136,6 +136,7 @@ function dutyToJson_(d, positions) {
     nature: d['性質'],
     mode: d['模式'] || '報名型',
     deadline: d['報名截止日'] || '',
+    multi: d['可兼任'] === '是',
     start: d['開始日'],
     end: d['結束日'] || d['開始日'],
     startTime: d['開始時間'],

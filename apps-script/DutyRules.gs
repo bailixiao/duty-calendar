@@ -15,7 +15,7 @@ var MAX_LIMIT = 999;
 var DUTY_FIELD_MAP_ = {
   name: '名稱', nature: '性質', mode: '模式', start: '開始日', end: '結束日',
   startTime: '開始時間', endTime: '結束時間', location: '地點',
-  groupType: '分組類型', group: '負責組', attire: '服裝', description: '說明', deadline: '報名截止日'
+  groupType: '分組類型', group: '負責組', attire: '服裝', description: '說明', deadline: '報名截止日', multi: '可兼任'
 };
 
 /**
@@ -61,6 +61,8 @@ function normalizeDutyInput_(input, ctx) {
   Object.keys(DUTY_FIELD_MAP_).forEach(function (k) { duty[DUTY_FIELD_MAP_[k]] = cleanText_(input[k]); });
   duty['開始時間'] = cleanTime_(duty['開始時間']);
   duty['結束時間'] = cleanTime_(duty['結束時間']);
+  // 可兼任：同一人同一天可報多個了愿項目（是／空白）
+  duty['可兼任'] = input.multi === true || input.multi === '是' || input.multi === 'true' ? '是' : '';
   if (!duty['性質']) duty['性質'] = '勤務';
   if (!duty['模式']) duty['模式'] = '報名型';
   if (!duty['結束日']) duty['結束日'] = duty['開始日'];
@@ -183,7 +185,8 @@ function mergeBulkInput_(target, targetPositions, sourceOldName, sourceOldPositi
     group: pick('group', '負責組'),
     attire: pick('attire', '服裝'),
     description: pick('description', '說明'),
-    deadline: target['報名截止日'] || '' // 報名截止日每筆各自設定，一起改時不動
+    deadline: target['報名截止日'] || '', // 報名截止日每筆各自設定，一起改時不動
+    multi: has('positions') ? src['可兼任'] : target['可兼任'] // 可兼任跟著了愿項目一起改
   };
 
   var current = targetPositions.map(function (p) {

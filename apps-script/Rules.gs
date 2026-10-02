@@ -174,6 +174,8 @@ function validateSignup_(req) {
     entries.forEach(function (e) {
       if (e.accompany) return;
       var dup = active.filter(function (s) {
+        // 可兼任的勤務：同一人可報不同了愿項目，只擋同一個項目重複
+        if (duty['可兼任'] === '是' && s['了愿項目ID'] !== req.positionId) return false;
         return s['陪同'] !== '是' && sameName_(s['姓名'], e.name);
       })[0];
       if (dup) {

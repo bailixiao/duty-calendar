@@ -34,6 +34,7 @@
         <fieldset class="field">
           <legend><span class="step">${step++}</span>選了愿項目</legend>
           <div class="choices" data-positions></div>
+          ${duty.multi ? '<p class="hint">這個勤務可以一人兼任多個項目：報完一項後，再選另一項報名即可。</p>' : ''}
         </fieldset>
         ${multiDay ? `
         <fieldset class="field">

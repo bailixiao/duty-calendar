@@ -29,6 +29,9 @@ function statsEvents_() {
       order.push(key);
     }
     var name = normalizeName_(s['姓名']);
+    // 可兼任的勤務：同一人在同一場兼好幾個了愿項目，只算一次
+    var counted = ev.tan.indexOf(name) !== -1 || ev.dao.indexOf(name) !== -1 || ev.unknown.indexOf(name) !== -1;
+    if (counted && s['出席'] !== '未到') return;
     if (s['出席'] === '未到') ev.absent++;
     else if (s['陪同'] === '是') ev.accompany.push(name);
     else if (s['身分'] === '壇辦') ev.tan.push(name);

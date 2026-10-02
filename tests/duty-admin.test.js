@@ -316,3 +316,52 @@ test('活動：參加者不能個別改期（管理者也一樣）；活動本�
   const e2 = admin(env, token, 'adminDutyForEdit', { id: id2 }).data.duty;
   assert.equal(admin(env, token, 'adminUpdateDuty', { id: id2, duty: Object.assign({}, e2, { start: '2026-12-06', end: '2026-12-06' }) }).error.code, 'VALIDATION');
 });
+
+test('可兼任：同一人可報同一天的不同了愿項目（同一項目仍不能重複）；統計同一場只算一次', () => {
+  const env = createEnv(OCT_1);
+  const token = login(env);
+  const id = admin(env, token, 'adminCreateDuties', { duties: [base({ start: '2026-10-24', multi: true, positions: [{ name: '淨手', max: '1' }, { name: '茶水', max: '2' }] })] }).data.ids[0];
+  const d = env.get({ action: 'getDuty', id }).data;
+  assert.equal(d.multi, true);
+  const [p1, p2] = d.positions;
+  assert.equal(env.post({ action: 'signup', dutyId: id, positionId: p1.id, dates: ['2026-10-24'], entries: [{ name: '測試甲' }] }).ok, true);
+  const second = env.post({ action: 'signup', dutyId: id, positionId: p2.id, dates: ['2026-10-24'], entries: [{ name: '測試甲' }] });
+  assert.equal(second.ok, true, JSON.stringify(second.error));
+  assert.equal(env.post({ action: 'signup', dutyId: id, positionId: p2.id, dates: ['2026-10-24'], entries: [{ name: '測試甲' }] }).error.code, 'VALIDATION', '同一項目不能重複');
+  env.clock.now = Date.UTC(2026, 9, 25, 2);
+  const ev = admin(env, token, 'adminStats').data.events.find((e) => e.dutyId === id);
+  assert.deepEqual(ev.dao, ['測試甲'], '兼任只算一次');
+
+  // 沒勾可兼任：維持一天只能報一個項目
+  const id2 = admin(env, token, 'adminCreateDuties', { duties: [base({ start: '2026-12-05', positions: [{ name: '甲項' }, { name: '乙項' }] })] }).data.ids[0];
+  const d2 = env.get({ action: 'getDuty', id: id2 }).data;
+  assert.equal(d2.multi, false);
+  env.clock.now = OCT_1;
+  env.post({ action: 'signup', dutyId: id2, positionId: d2.positions[0].id, dates: ['2026-12-05'], entries: [{ name: '測試乙' }] });
+  assert.equal(env.post({ action: 'signup', dutyId: id2, positionId: d2.positions[1].id, dates: ['2026-12-05'], entries: [{ name: '測試乙' }] }).error.code, 'VALIDATION');
+  // 編輯資料帶出可兼任
+  assert.equal(admin(env, token, 'adminDutyForEdit', { id }).data.duty.multi, '是');
+});
+
+test('草稿新增：可以一起帶入已分配的人員（身分照成員名單）；項目名稱對不上要擋', () => {
+  const env = createEnv(OCT_1);
+  const token = login(env);
+  admin(env, token, 'adminSaveMember', { member: { name: '測試甲', identity: '壇辦' } });
+  const bad = admin(env, token, 'adminCreateDuties', { duties: [base({ positions: [{ name: '交通' }], assign: { '茶水': ['測試甲'] } })] });
+  assert.match(bad.error.details[0].message, /「茶水」不是這個勤務的了愿項目/);
+  const r = admin(env, token, 'adminCreateDuties', { duties: [base({ start: '2026-12-10', positions: [{ name: '交通', max: '2' }, { name: '茶水' }], assign: { '交通': ['測試甲', '測試乙'] } })] });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  const d = admin(env, token, 'adminDuty', { id: r.data.ids[0] }).data;
+  assert.deepEqual(d.signups.map((s) => [s.name, s.identity, s.date]), [['測試甲', '壇辦', '2026-12-10'], ['測試乙', '', '2026-12-10']]);
+  assert.match(env.sheets['操作紀錄'].data.slice(-1)[0][3], /含分配人員 2 人/);
+});
+
+test('新增勤務：已有同名同日的會先回報 DUPLICATE，確認後才新增', () => {
+  const env = createEnv(OCT_1);
+  const token = login(env);
+  assert.equal(admin(env, token, 'adminCreateDuties', { duties: [base({ start: '2026-12-12' })] }).ok, true);
+  const again = admin(env, token, 'adminCreateDuties', { duties: [base({ start: '2026-12-12' })] });
+  assert.equal(again.error.code, 'DUPLICATE');
+  assert.match(again.error.details[0].message, /測試勤務（2026-12-12）/);
+  assert.equal(admin(env, token, 'adminCreateDuties', { duties: [base({ start: '2026-12-12' })], allowDuplicate: true }).ok, true);
+});

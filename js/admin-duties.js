@@ -41,6 +41,121 @@
     return d.start === d.end ? Fmt.rocDate(d.start) : `${Fmt.rocDate(d.start)} – ${Fmt.shortDate(d.end)}`;
   }
 
+  /**
+   * 新增勤務（表單、農曆規則、批次匯入、草稿共用）。
+   *   - 已有同名同日的勤務：伺服器回 DUPLICATE，跳確認視窗，確定才加 allowDuplicate 重送。
+   *   - 回應卡住（網路錯誤）：重新讀勤務列表，若這幾筆都已經建好，就當作成功（避免再按一次變成重複）。
+   * 回傳 { ids } 或 null（使用者取消）；其他錯誤照樣丟出。
+   */
+  async function createDuties(duties) {
+    const send = (allowDuplicate) => Api.admin('adminCreateDuties', allowDuplicate ? { duties, allowDuplicate: true } : { duties });
+    try {
+      return await send(false);
+    } catch (err) {
+      if (err.code === 'DUPLICATE') {
+        Busy.hide();
+        const ok = await Confirm.open({
+          title: '已經有一樣的勤務了，還要新增嗎？',
+          rows: (err.details || []).slice(0, 8).map((d, i) => [i ? '' : '同名同日', d.message]),
+          note: '如果剛才按過一次，很可能已經建好了，請先回勤務管理看看。',
+          confirmText: '還是要新增', cancelText: '不要新增'
+        });
+        if (!ok) return null;
+        Busy.show('新增中⋯');
+        return send(true);
+      }
+      if (err.code === 'NETWORK') {
+        try {
+          const list = await Api.admin('adminDutyList', {}, true);
+          const found = duties.map((d) => list.duties.filter((x) => x.name === String(d.name).trim() && x.start === d.start).pop());
+          if (found.every(Boolean)) return { ids: found.map((x) => x.id) };
+        } catch (e) { /* 查不到就照原本的錯誤處理 */ }
+      }
+      throw err;
+    }
+  }
+
+  // ---------- 貼上草稿 ----------
+  // 草稿是一段 JSON（由 Claude 依照片整理）：一筆勤務物件、勤務陣列，或 { duties: [...] }。
+  // 欄位與新增勤務相同，另可帶 assign: { 了愿項目名稱: [姓名] }（已分配好的人員）。
+  function openDraft() {
+    const m = Modal.open(`
+      <h2 class="modal-title">貼上勤務草稿</h2>
+      <p class="modal-note">把整理好的草稿文字整段貼進來，按「預覽」確認內容後再新增。</p>
+      <textarea class="day-text draft-text" rows="10" data-draft placeholder='{"name": "…", "start": "2026-10-24", …}'></textarea>
+      <div class="form-error" data-error hidden></div>
+      <div data-preview></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-block btn-primary" data-check>預覽</button>
+        <button type="button" class="btn btn-block" data-close>返回</button>
+      </div>`);
+    const el = m.el;
+    el.classList.add('modal-wide');
+    el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    const err = (msg) => { const b = el.querySelector('[data-error]'); b.textContent = msg; b.hidden = !msg; };
+    let duties = null;
+
+    el.querySelector('[data-draft]').addEventListener('input', () => { duties = null; el.querySelector('[data-preview]').innerHTML = ''; resetButton(); });
+    function resetButton() { const b = el.querySelector('[data-check]'); b.textContent = '預覽'; b.dataset.mode = ''; }
+
+    el.querySelector('[data-check]').addEventListener('click', async () => {
+      const btn = el.querySelector('[data-check]');
+      if (btn.dataset.mode === 'create' && duties) return create();
+      err('');
+      let data;
+      try {
+        data = JSON.parse(el.querySelector('[data-draft]').value.trim());
+      } catch (e) {
+        return err('草稿格式不對，請確認整段都有貼到（從第一個 { 或 [ 到最後一個 } 或 ]）');
+      }
+      duties = Array.isArray(data) ? data : Array.isArray(data.duties) ? data.duties : [data];
+      if (!duties.length || duties.some((d) => !d || !d.name || !d.start)) { duties = null; return err('每一筆都要有 name（名稱）和 start（日期）'); }
+      el.querySelector('[data-preview]').innerHTML = duties.map(previewCard).join('');
+      btn.textContent = `確認新增 ${duties.length} 筆`;
+      btn.dataset.mode = 'create';
+    });
+
+    async function create() {
+      Busy.show('新增中⋯');
+      try {
+        const res = await createDuties(duties);
+        if (!res) { Busy.hide(); return; }
+        Busy.hide();
+        m.close();
+        afterWrite();
+        flash = AdminPage.notice('success', `已新增 ${res.ids.length} 筆勤務`, duties.map((d) => d.name).join('、'));
+        location.hash = res.ids.length === 1 ? '#/admin/duties/edit/' + encodeURIComponent(res.ids[0]) : '#/admin/duties';
+      } catch (e) {
+        Busy.hide();
+        if (e.code === 'UNAUTHORIZED') { m.close(); AdminPage.guard(e); return; }
+        err((e.message || '新增失敗') + ((e.details || []).length ? '：' + e.details.map((x) => x.message).join('；') : ''));
+      }
+    }
+  }
+
+  function previewCard(d) {
+    const pos = (d.positions || []).map((p) => {
+      const lim = p.min || p.max ? `（${p.min && p.max && p.min === p.max ? p.max + ' 人' : [p.min ? '最少 ' + p.min : '', p.max ? '最多 ' + p.max : ''].filter(Boolean).join('、')}）` : '';
+      const who = d.assign && d.assign[p.name] && d.assign[p.name].length ? `：${d.assign[p.name].map(esc).join('、')}` : '';
+      return `<li>${esc(p.name)}${lim}${who}</li>`;
+    }).join('');
+    const date = d.end && d.end !== d.start ? `${Fmt.rocDate(d.start)} – ${Fmt.shortDate(d.end)}` : Fmt.rocDate(d.start);
+    return `
+      <div class="draft-card">
+        <h3>${esc(d.name)}</h3>
+        <dl class="detail-info">
+          <div><dt>日期</dt><dd>${esc(date)}</dd></div>
+          ${d.startTime ? `<div><dt>時間</dt><dd>${esc(d.startTime)}${d.endTime ? ' – ' + esc(d.endTime) : ''}</dd></div>` : ''}
+          ${d.location ? `<div><dt>地點</dt><dd>${esc(d.location)}</dd></div>` : ''}
+          ${d.attire ? `<div><dt>服裝</dt><dd>${esc(d.attire)}</dd></div>` : ''}
+          <div><dt>性質</dt><dd>${esc(d.nature || '勤務')}・${esc(d.mode || '報名型')}${d.multi ? '・可兼任' : ''}</dd></div>
+          ${d.deadline ? `<div><dt>報名截止</dt><dd>${esc(Fmt.rocDate(d.deadline))}</dd></div>` : ''}
+        </dl>
+        ${pos ? `<p class="draft-sub">了愿項目</p><ul class="draft-pos">${pos}</ul>` : ''}
+        ${d.description ? `<p class="draft-sub">說明</p><p class="draft-desc">${esc(d.description).replace(/\n/g, '<br>')}</p>` : ''}
+      </div>`;
+  }
+
   // ---------- 列表 ----------
 
   const listState = { filter: 'future', q: '' };
@@ -58,6 +173,7 @@
       <div class="admin-actions">
         <a class="btn btn-primary" href="#/admin/duties/new">＋ 新增勤務</a>
         <a class="btn" href="#/admin/import">批次匯入</a>
+        <button type="button" class="btn" data-draft-open>貼上草稿</button>
       </div>
       <div class="list-filter">
         <select class="input" data-filter aria-label="月份">
@@ -91,6 +207,7 @@
     }
     draw();
     body.querySelector('[data-filter]').addEventListener('change', (ev) => { listState.filter = ev.target.value; draw(); });
+    body.querySelector('[data-draft-open]').addEventListener('click', openDraft);
     body.querySelector('[data-q]').addEventListener('input', (ev) => { listState.q = ev.target.value; draw(); });
   }
 
@@ -218,6 +335,7 @@
           <fieldset class="form-block">
             <legend>了愿項目與名額</legend>
             <p class="hint">「最少」留空預設 2 人；「最多」留空代表不限。</p>
+            <label class="check"><input type="checkbox" name="multi"${s.multi === true || s.multi === '是' ? ' checked' : ''}> 同一人可以兼任多個了愿項目（同一天可報好幾項）</label>
             <ul class="pos-edit">
               ${s.positions.map((p, i) => `
                 <li class="pos-row">
@@ -305,6 +423,7 @@
       if (radio('mode')) s.mode = radio('mode');
       if (radio('dateType')) st.dateType = radio('dateType');
       if (radio('groupMode')) st.lunar.groupMode = radio('groupMode');
+      if (f.elements.multi) s.multi = f.elements.multi.checked;
       if (f.elements.lunarFrom) {
         st.lunar.from = val('lunarFrom');
         st.lunar.to = val('lunarTo');
@@ -368,6 +487,7 @@
         start: s.start, end: st.dateType === 'range' ? s.end : s.start,
         startTime: s.startTime, endTime: s.endTime, location: s.location,
         groupType: s.groupType, group: s.groupType ? s.group : '', attire: s.attire, description: s.description, deadline: s.deadline || '',
+        multi: s.mode === '公告型' ? false : !!(s.multi === true || s.multi === '是'),
         positions: s.mode === '公告型' ? [] : s.positions.filter((p) => p.id || p.name.trim() || p.min || p.max)
           .map((p) => ({ id: p.id, name: p.name, slot: p.slot, min: p.min, max: p.max }))
       };
@@ -386,7 +506,8 @@
       if (!editing) {
         Busy.show('新增中⋯');
         try {
-          const res = await Api.admin('adminCreateDuties', { duties: [payload()] });
+          const res = await createDuties([payload()]);
+          if (!res) { Busy.hide(); return; }
           Busy.hide();
           afterWrite();
           flash = AdminPage.notice('success', '已新增勤務', `${s.name}・${Fmt.rocDate(s.start)}`);
@@ -547,7 +668,8 @@
       Busy.show(`建立 ${items.length} 筆勤務中⋯`, '請不要關閉畫面');
       try {
         const duties = items.map((it) => payload({ name: it.name, start: it.date, end: it.date, group: it.group }));
-        const res = await Api.admin('adminCreateDuties', { duties });
+        const res = await createDuties(duties);
+        if (!res) { Busy.hide(); return; }
         Busy.hide();
         afterWrite();
         flash = AdminPage.notice('success', `已新增 ${res.ids.length} 筆勤務`, `${items[0].name} 等，${Fmt.rocDate(items[0].date)} – ${Fmt.rocDate(items[items.length - 1].date)}`);
@@ -591,5 +713,5 @@
     if (current) show(current.body, current.guard, current.sub);
   }
 
-  window.DutyAdminPage = { show, reload, setFlash: (html) => { flash = html; } };
+  window.DutyAdminPage = { show, reload, createDuties, setFlash: (html) => { flash = html; } };
 })();

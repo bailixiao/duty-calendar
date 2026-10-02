@@ -98,7 +98,8 @@
       if (!ok) return;
       Busy.show(`匯入 ${rows.length} 筆勤務中⋯`, '請不要關閉畫面');
       try {
-        const res = await Api.admin('adminCreateDuties', { duties: rows.map((r) => r.duty) });
+        const res = await DutyAdminPage.createDuties(rows.map((r) => r.duty));
+        if (!res) { Busy.hide(); return; }
         Busy.hide();
         AdminPage.clearMemo();
         if (window.CalendarPage) CalendarPage.refresh();
