@@ -101,7 +101,7 @@
         if (memberState.filter === 'inactive' && m.active) return false;
         return !q || m.name.indexOf(q) !== -1 || GROUP_TYPES.some((t) => (m.groups[t] || '').indexOf(q) !== -1);
       });
-      base.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+      base.sort((a, b) => Fmt.byStroke(a.name, b.name)); // 姓的筆劃少到多
       // 身分分類：按鈕附人數；選「全部」時分段列出
       const of = (id) => base.filter((m) => (m.identity || '') === id);
       const seg = body.querySelector('[data-identity-filter]');
@@ -137,7 +137,8 @@
     const v = m || { name: '', identity: '', groups: {}, note: '', active: true };
     const seg = (name, options, value) => `<div class="seg">${options.map(([val, label]) =>
       `<label class="seg-item"><input type="radio" name="${name}" value="${val}"${val === value ? ' checked' : ''}><span>${label}</span></label>`).join('')}</div>`;
-    formModal(`
+    const canDelete = m && !m.active; // 已停用的才能刪除
+    const { m: modal } = formModal(`
       <h2 class="modal-title">${m ? '編輯成員' : '新增成員'}</h2>
       <label class="form-row"><span>姓名</span><input class="input" name="name" value="${esc(v.name)}" required></label>
       <div class="form-row"><span>身分</span>${seg('identity', [['道親', '道親'], ['壇辦', '壇辦'], ['未求道', '未求道'], ['', '未填']], v.identity || '')}</div>
@@ -158,7 +159,30 @@
       });
       notice(AdminPage.notice('success', m ? '已存檔' : '已新增成員', f.elements.name.value.trim()));
       afterWrite(reload);
-    }, guard);
+    }, guard, canDelete ? '<button type="button" class="btn btn-block btn-quiet-danger" data-delete-member>刪除這位成員</button>'
+      : (m ? '<p class="hint">要刪除成員，請先取消勾選「啟用中」存檔（停用），再回來刪除。</p>' : ''));
+
+    const del = modal.el.querySelector('[data-delete-member]');
+    if (del) del.addEventListener('click', async () => {
+      modal.close();
+      const ok = await Confirm.open({
+        title: '確定要刪除這位成員嗎？',
+        rows: [['姓名', m.name], ['身分', m.identity || '未填']],
+        note: '只會從成員名單移除，過去的出勤紀錄與統計不受影響。',
+        confirmText: '確定刪除', cancelText: '不要刪除', danger: true
+      });
+      if (!ok) return;
+      Busy.show('刪除中⋯');
+      try {
+        await Api.admin('adminDeleteMember', { row: m.row, original: m.name });
+        Busy.hide();
+        notice(AdminPage.notice('success', '已刪除成員', m.name));
+        afterWrite(reload);
+      } catch (err) {
+        Busy.hide();
+        if (!guard(err)) { notice(`<div class="notice notice-error" role="alert"><p>${errorHtml(err)}</p></div>`); reload(); }
+      }
+    });
   }
 
   /**
@@ -211,7 +235,7 @@
         out.set(name, v);
       });
       near.forEach((c, i) => { if (nearChoice[i] === 'new') out.set(c.name, { name: c.name, count: c.count, identity: c.identity }); });
-      return [...out.values()].sort((a, b) => b.count - a.count);
+      return [...out.values()].sort((a, b) => Fmt.byStroke(a.name, b.name));
     }
 
     const m = Modal.open(`

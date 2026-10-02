@@ -4,6 +4,9 @@
 (function () {
   'use strict';
 
+  // 同次數依姓的筆劃排（與 Fmt.byStroke 相同）
+  const strokeCompare = new Intl.Collator('zh-Hant-TW-u-co-stroke').compare;
+
   const UNIT_NAME = { month: '月', quarter: '季', year: '年' };
 
   /** 期間：{ unit: 'month'|'quarter'|'year', year, n }（月 n＝1–12、季 n＝1–4、年 n＝0） */
@@ -98,7 +101,7 @@
       if (kind !== 'tan') add(e.dao, '道親');
       if (kind === 'all') add(e.unknown, '');
     });
-    return [...map.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh-Hant'));
+    return [...map.values()].sort((a, b) => b.count - a.count || strokeCompare(a.name, b.name));
   }
 
   /** 依勤務分類（同名勤務合併，例如各月的拜香輪值） */

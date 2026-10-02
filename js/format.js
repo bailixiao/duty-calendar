@@ -134,6 +134,12 @@
     return keys(a).some((k) => kb.indexOf(k) !== -1);
   }
 
+  /** 名字排序：依筆劃（姓的筆劃少到多），各裝置一致（不依賴瀏覽器預設的中文排序） */
+  const strokeCollator = new Intl.Collator('zh-Hant-TW-u-co-stroke');
+  function byStroke(a, b) {
+    return strokeCollator.compare(a, b);
+  }
+
   // 管理者聯絡人：伺服器從指令碼屬性 ADMIN_CONTACT 讀出、隨資料傳來（程式碼裡不放人名）
   let contact = '';
   function setContact(name) {
@@ -146,6 +152,6 @@
 
   window.Fmt = {
     esc, toDateStr, parseDate, addDays, datesBetween, rocYear, weekday, shortDate, rocDate,
-    timeRange, cardTime, effectiveMin, dayState, groupText, sameName, setContact, askAdmin
+    timeRange, cardTime, effectiveMin, dayState, groupText, sameName, byStroke, setContact, askAdmin
   };
 })();

@@ -1,6 +1,6 @@
 /**
  * 管理後台：成員名單管理、分組管理（規格第 8 節管理者後台第 7 項）。
- *   - 成員不刪除，改用「啟用中＝否」停用（停用後不會出現在報名的名字提示）。
+ *   - 成員先「停用」（啟用中＝否，不會出現在報名的名字提示）；已停用的才能刪除。
  *   - 這兩張表沒有 ID 欄，以列號找資料，並核對原本的姓名（組名）避免對錯列。
  *   - 分組改名時，一併更新「勤務」的負責組與「成員」的組別；有勤務指定負責的組不能刪除。
  *   - 全部寫入都排進同一把鎖，並寫入操作紀錄（不提供還原）。
@@ -324,5 +324,18 @@ function adminClearCandidates_(body) {
     writeDutyLog_('修正', '清掉出勤紀錄裡的名字：' + names.join('、') + (body.cancelSignups ? '（取消 ' + cancelled + ' 筆出勤紀錄）' : '（只是不再列出）'));
     SpreadsheetApp.flush();
     return { ignored: names.length, cancelled: cancelled };
+  });
+}
+
+/** body = { row, original }：刪除成員（只能刪已停用的；過去的報名紀錄不受影響） */
+function adminDeleteMember_(body) {
+  return withSignupLock_(function () {
+    var row = findRowChecked_(readTable_(SHEETS.MEMBERS), body.row, '姓名', body.original, '成員');
+    if (row['啟用中'] !== '否') throw new ApiError_('FORBIDDEN', '只能刪除已停用的成員，請先停用');
+    deleteRows_(SHEETS.MEMBERS, [row._row]);
+    writeDutyLog_('成員', '刪除｜' + row['姓名'], rowSnapshot_(SHEETS.MEMBERS, row));
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.MEMBERS);
+    return {};
   });
 }

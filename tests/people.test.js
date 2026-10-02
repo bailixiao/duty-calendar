@@ -152,3 +152,15 @@ test('清掉剩下的名字：只是不再列出（統計照算）或連出勤�
   ev = call('adminStats').data.events[0];
   assert.deepEqual(ev.dao, [], '取消後統計不再算');
 });
+
+test('刪除成員：只能刪已停用的；報名紀錄不受影響', () => {
+  const { call } = setup();
+  call('adminSaveMember', { member: { name: '測試甲', identity: '道親' } });
+  call('adminImportHistory', { events: [{ date: '2026-03-05', name: '打掃', tan: [], dao: ['測試甲'], accompany: [] }] });
+  assert.equal(call('adminDeleteMember', { row: 2, original: '測試甲' }).error.code, 'FORBIDDEN');
+  call('adminSaveMember', { row: 2, original: '測試甲', member: { name: '測試甲', identity: '道親', active: false } });
+  assert.equal(call('adminDeleteMember', { row: 2, original: '別人' }).error.code, 'CONFLICT');
+  assert.equal(call('adminDeleteMember', { row: 2, original: '測試甲' }).ok, true);
+  assert.deepEqual(call('adminMembers').data.members, []);
+  assert.deepEqual(call('adminStats').data.events[0].dao, ['測試甲']);
+});
