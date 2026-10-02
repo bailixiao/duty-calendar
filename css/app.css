@@ -1435,3 +1435,7 @@ select.input { appearance: auto; }
   .stat-card { grid-template-columns: 1fr; }
   .stat-card > .cmp-list { grid-column: 1; grid-row: auto; margin-top: 8px; }
 }
+.identity-filter { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin-bottom: 12px; }
+.identity-filter .seg-item { min-width: 0; }
+.identity-filter .seg-item span { padding: 0 2px; font-size: .9rem; }
+@media (max-width: 359px) { .identity-filter { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

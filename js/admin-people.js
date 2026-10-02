@@ -58,7 +58,9 @@
 
   // ---------- 成員 ----------
 
-  const memberState = { q: '', filter: 'active' };
+  const memberState = { q: '', filter: 'active', identity: 'all' };
+  const IDENTITY_ORDER = [['壇辦', '壇辦'], ['道親', '道親'], ['未求道', '未求道'], ['', '未填身分']];
+  const SHORT = { '未填身分': '未填' }; // 篩選按鈕用短一點的字，手機上才排得下一列
 
   function members(body, guard) {
     const reload = () => members(body, guard);
@@ -80,27 +82,45 @@
         </select>
         <input class="input" type="search" data-q placeholder="搜尋姓名或組別" value="${esc(memberState.q)}">
       </div>
+      <div class="seg identity-filter" data-identity-filter></div>
       <div data-rows></div>
       <p class="hint">停用的成員不會出現在報名的名字提示裡；過去的報名紀錄不受影響。改名也不會改到過去的報名紀錄。</p>`;
     flash = '';
     const rows = body.querySelector('[data-rows]');
-    function draw() {
-      const q = memberState.q.trim();
-      const items = data.members.filter((m) => {
-        if (memberState.filter === 'active' && !m.active) return false;
-        if (memberState.filter === 'inactive' && m.active) return false;
-        return !q || m.name.indexOf(q) !== -1 || GROUP_TYPES.some((t) => (m.groups[t] || '').indexOf(q) !== -1);
-      });
-      items.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
-      rows.innerHTML = items.length ? `
-        <p class="muted">共 ${items.length} 人</p>
-        <ul class="people-list">${items.map((m) => `
+    const card = (m) => `
           <li><button type="button" class="person-card${m.active ? '' : ' is-inactive'}" data-row="${m.row}">
             <span class="person-card-name">${esc(m.name)}
               ${m.identity ? `<span class="tag">${esc(m.identity)}</span>` : '<span class="tag tag-warn">未填身分</span>'}
               ${m.active ? '' : '<span class="tag">已停用</span>'}</span>
             <span class="person-card-meta">${esc(GROUP_TYPES.filter((t) => m.groups[t]).map((t) => `${t.replace('組', '')}：${m.groups[t]}`).join('・') || '未分組')}${m.note ? '・' + esc(m.note) : ''}</span>
-          </button></li>`).join('')}</ul>` : '<p class="panel-empty">沒有符合的成員</p>';
+          </button></li>`;
+    function draw() {
+      const q = memberState.q.trim();
+      const base = data.members.filter((m) => {
+        if (memberState.filter === 'active' && !m.active) return false;
+        if (memberState.filter === 'inactive' && m.active) return false;
+        return !q || m.name.indexOf(q) !== -1 || GROUP_TYPES.some((t) => (m.groups[t] || '').indexOf(q) !== -1);
+      });
+      base.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+      // 身分分類：按鈕附人數；選「全部」時分段列出
+      const of = (id) => base.filter((m) => (m.identity || '') === id);
+      const seg = body.querySelector('[data-identity-filter]');
+      seg.innerHTML = [['all', '全部', base.length]].concat(IDENTITY_ORDER.map(([id, label]) => [id || 'none', label, of(id).length]))
+        .map(([v, label, n]) => `<label class="seg-item"><input type="radio" name="idf" value="${v}"${memberState.identity === v ? ' checked' : ''}><span>${SHORT[label] || label} ${n}</span></label>`).join('');
+      seg.querySelectorAll('input').forEach((r) => r.addEventListener('change', () => { memberState.identity = r.value; draw(); }));
+      if (memberState.identity === 'all') {
+        const sections = IDENTITY_ORDER.map(([id, label]) => [label, of(id)]).filter(([, list]) => list.length);
+        rows.innerHTML = base.length ? sections.map(([label, list]) => `
+          <section class="admin-day">
+            <h2 class="admin-day-title">${esc(label)}<span class="h2-sub">${list.length} 人</span></h2>
+            <ul class="people-list">${list.map(card).join('')}</ul>
+          </section>`).join('') : '<p class="panel-empty">沒有符合的成員</p>';
+        return;
+      }
+      const items = of(memberState.identity === 'none' ? '' : memberState.identity);
+      rows.innerHTML = items.length ? `
+        <p class="muted">共 ${items.length} 人</p>
+        <ul class="people-list">${items.map(card).join('')}</ul>` : '<p class="panel-empty">沒有符合的成員</p>';
     }
     draw();
     body.querySelector('[data-filter]').addEventListener('change', (ev) => { memberState.filter = ev.target.value; draw(); });
