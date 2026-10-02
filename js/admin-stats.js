@@ -76,11 +76,13 @@
             <span class="stat-label">勤務場次</span>
             <span class="stat-num">${s.events}</span>
             ${deltaHtml('比' + prevName, C.delta(s.hasData ? s.events : null, cmpVal(prev, 'events')))}
+            ${lyName ? deltaHtml('比' + lyName, C.delta(s.hasData ? s.events : null, cmpVal(ly, 'events'))) : ''}
           </div>
           <div class="stat-card">
             <span class="stat-label">參與人數（不重複）</span>
             <span class="stat-num">${s.people}</span>
             ${deltaHtml('比' + prevName, C.delta(s.hasData ? s.people : null, cmpVal(prev, 'people')))}
+            ${lyName ? deltaHtml('比' + lyName, C.delta(s.hasData ? s.people : null, cmpVal(ly, 'people'))) : ''}
           </div>
         </div>
         ${s.shortEvents || s.accompany || s.absent ? `<p class="stats-note">${[s.shortEvents ? `缺人的場次 ${s.shortEvents} 場` : '', s.accompany ? `陪同 ${s.accompany} 人次（不算人數）` : '', s.absent ? `報名但未到 ${s.absent} 人次` : ''].filter(Boolean).join('・')}</p>` : ''}
