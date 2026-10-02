@@ -9,7 +9,7 @@
   const esc = Fmt.esc;
 
   // 與 apps-script/Config.gs 的 OPTIONS 相同（只是輸入提示，也可以自己打字）
-  const NATURES = ['勤務', '支援', '烹飪'];
+  const NATURES = ['勤務', '支援', '烹飪', '活動'];
   const GROUP_TYPES = ['勤務了愿組', '打掃組', '拜香輪值組'];
   const LOCATIONS = ['宏宗', '區中心', '彌勒山', '厚德樓', '樹林頭活動地'];
   const ATTIRES = [
@@ -125,7 +125,7 @@
   function emptyDuty() {
     return {
       name: '', nature: '勤務', mode: '報名型', start: '', end: '', startTime: '', endTime: '',
-      location: '', groupType: '', group: '', attire: '', description: '',
+      location: '', groupType: '', group: '', attire: '', description: '', deadline: '',
       positions: [{ name: '', slot: '', min: '', max: '' }]
     };
   }
@@ -179,6 +179,9 @@
                 <input class="input" type="date" name="start" value="${esc(s.start)}"></label>
               ${st.dateType === 'range' ? `<label class="form-row"><span>結束日</span>
                 <input class="input" type="date" name="end" value="${esc(s.end)}"></label>` : ''}`}
+            <label class="form-row"><span>報名截止日（可空白）</span>
+              <input class="input" type="date" name="deadline" value="${esc(s.deadline || '')}"></label>
+            <p class="hint">空白＝勤務前一天都能報名。填了日期，過了那天網頁就不能再報名（管理者仍可補登）。</p>
           </fieldset>
 
           <fieldset class="form-block">
@@ -294,7 +297,7 @@
       const f = body.querySelector('form');
       if (!f) return;
       const val = (n) => (f.elements[n] ? f.elements[n].value : undefined);
-      ['name', 'startTime', 'endTime', 'location', 'attire', 'description', 'start', 'end', 'groupType', 'group'].forEach((k) => {
+      ['name', 'startTime', 'endTime', 'location', 'attire', 'description', 'start', 'end', 'groupType', 'group', 'deadline'].forEach((k) => {
         if (val(k) !== undefined) s[k] = val(k);
       });
       const radio = (n) => { const el = f.querySelector(`input[name="${n}"]:checked`); return el ? el.value : undefined; };
@@ -364,7 +367,7 @@
         name: s.name, nature: s.nature, mode: s.mode,
         start: s.start, end: st.dateType === 'range' ? s.end : s.start,
         startTime: s.startTime, endTime: s.endTime, location: s.location,
-        groupType: s.groupType, group: s.groupType ? s.group : '', attire: s.attire, description: s.description,
+        groupType: s.groupType, group: s.groupType ? s.group : '', attire: s.attire, description: s.description, deadline: s.deadline || '',
         positions: s.mode === '公告型' ? [] : s.positions.filter((p) => p.id || p.name.trim() || p.min || p.max)
           .map((p) => ({ id: p.id, name: p.name, slot: p.slot, min: p.min, max: p.max }))
       };

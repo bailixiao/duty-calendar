@@ -133,7 +133,7 @@
       const mode = cells[6] || '報名型';
       if (['報名型', '公告型'].indexOf(mode) === -1) errors.push('模式只能是報名型或公告型');
       const nature = cells[7] || '勤務';
-      if (['勤務', '支援', '烹飪'].indexOf(nature) === -1) errors.push('性質只能是勤務、支援或烹飪');
+      if (['勤務', '支援', '烹飪', '活動'].indexOf(nature) === -1) errors.push('性質只能是勤務、支援、烹飪或活動');
       if (mode === '報名型' && !errors.length && !pos.positions.length) errors.push('報名型要寫了愿項目，例如「志工 2」');
       if (mode === '公告型' && !group.group && !errors.length) errors.push('公告型要寫負責組');
       if (cells.length > COLUMNS.length) errors.push(`欄位太多（最多 ${COLUMNS.length} 欄），說明裡不能有 Tab`);

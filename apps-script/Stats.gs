@@ -18,7 +18,7 @@ function statsEvents_() {
   readTableCached_(SHEETS.SIGNUPS).forEach(function (s) {
     if (s['狀態'] === '已取消' || !s['日期'] || s['日期'] > today) return;
     var duty = duties[s['勤務ID']];
-    if (!duty) return;
+    if (!duty || duty['性質'] === '活動') return; // 活動只記錄參加者，不算勤務統計
     var key = s['勤務ID'] + '|' + s['日期'];
     var ev = byKey[key];
     if (!ev) {

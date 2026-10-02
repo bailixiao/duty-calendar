@@ -15,7 +15,7 @@ var MAX_LIMIT = 999;
 var DUTY_FIELD_MAP_ = {
   name: '名稱', nature: '性質', mode: '模式', start: '開始日', end: '結束日',
   startTime: '開始時間', endTime: '結束時間', location: '地點',
-  groupType: '分組類型', group: '負責組', attire: '服裝', description: '說明'
+  groupType: '分組類型', group: '負責組', attire: '服裝', description: '說明', deadline: '報名截止日'
 };
 
 /**
@@ -66,7 +66,8 @@ function normalizeDutyInput_(input, ctx) {
   if (!duty['結束日']) duty['結束日'] = duty['開始日'];
 
   if (!duty['名稱']) errors.push('請填勤務名稱');
-  if (['勤務', '支援', '烹飪'].indexOf(duty['性質']) === -1) errors.push('性質只能是勤務、支援或烹飪');
+  if (['勤務', '支援', '烹飪', '活動'].indexOf(duty['性質']) === -1) errors.push('性質只能是勤務、支援、烹飪或活動');
+  if (duty['報名截止日'] && !isDateString_(duty['報名截止日'])) errors.push('報名截止日格式錯誤');
   if (['報名型', '公告型'].indexOf(duty['模式']) === -1) errors.push('模式只能是報名型或公告型');
 
   if (!isDateString_(duty['開始日'])) errors.push('開始日格式錯誤');
@@ -181,7 +182,8 @@ function mergeBulkInput_(target, targetPositions, sourceOldName, sourceOldPositi
     groupType: pick('group', '分組類型'),
     group: pick('group', '負責組'),
     attire: pick('attire', '服裝'),
-    description: pick('description', '說明')
+    description: pick('description', '說明'),
+    deadline: target['報名截止日'] || '' // 報名截止日每筆各自設定，一起改時不動
   };
 
   var current = targetPositions.map(function (p) {

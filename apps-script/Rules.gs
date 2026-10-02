@@ -157,6 +157,10 @@ function validateSignup_(req) {
       errors.push({ date: date, message: '這個日期不在勤務期間內' });
       return;
     }
+    if (duty['報名截止日'] && req.today > duty['報名截止日'] && req.today !== '0000-00-00') {
+      errors.push({ date: date, message: '報名已截止，請聯絡管理者' });
+      return;
+    }
     if (date <= req.today) {
       errors.push({ date: date, message: date === req.today ? '勤務當天不能報名，請聯絡管理者' : '勤務已經過去，不能報名' });
       return;

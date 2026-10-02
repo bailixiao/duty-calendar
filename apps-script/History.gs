@@ -20,7 +20,7 @@ function adminImportHistory_(body) {
     var names = function (list) { return (Array.isArray(list) ? list : []).map(normalizeName_).filter(function (n) { return n; }); };
     var x = {
       date: cleanText_(e.date), end: cleanText_(e.end) || cleanText_(e.date), name: cleanText_(e.name),
-      nature: ['勤務', '支援', '烹飪'].indexOf(e.nature) !== -1 ? e.nature : '勤務',
+      nature: ['勤務', '支援', '烹飪', '活動'].indexOf(e.nature) !== -1 ? e.nature : '勤務',
       tan: names(e.tan), dao: names(e.dao), unknown: names(e.unknown), accompany: names(e.accompany)
     };
     if (!isDateString_(x.date) || !isDateString_(x.end) || x.end < x.date) errors.push({ index: i, message: '第 ' + (i + 1) + ' 場日期格式錯誤' });

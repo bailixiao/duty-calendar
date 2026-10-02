@@ -89,6 +89,7 @@
       ['時段', Fmt.timeRange(d)],
       ['地點', d.location],
       ['服裝', d.attire],
+      ['報名截止', d.deadline ? Fmt.rocDate(d.deadline) : ''],
       ['負責組', isNotice ? '' : (Fmt.groupText(d) ? d.group : '')],
       ['組長／<span class="nw">召集人</span>', isNotice || !Fmt.groupText(d) ? '' : d.groupLeader]
     ].filter((row) => row[1]);
@@ -340,6 +341,11 @@
     const d = page.data;
     const el = document.getElementById('duty-signup');
     const open = Fmt.datesBetween(d.start, d.end).some((x) => x > d.today); // 當天（含）之後不能報名
+    // 過了報名截止日：不能再報名，只看名單（管理者仍可補登）
+    if (open && d.deadline && d.today && d.today > d.deadline) {
+      el.innerHTML = `<h2>我要報名</h2><p class="notice notice-error">報名已在 ${Fmt.esc(Fmt.rocDate(d.deadline))} 截止。如需報名或更改，${Fmt.esc(Fmt.askAdmin())}。</p>`;
+      return;
+    }
     if (!open) {
       const isToday = Fmt.datesBetween(d.start, d.end).indexOf(d.today) !== -1;
       el.innerHTML = `<h2>我要報名</h2><p class="muted">${isToday

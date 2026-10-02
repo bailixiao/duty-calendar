@@ -272,3 +272,20 @@ test('刪除勤務：有有效報名不能刪；沒有就連同了愿項目刪�
   // 刪除後其他勤務照常
   assert.equal(admin(env, token, 'adminDutyList').ok, true);
 });
+
+test('報名截止日：過了截止日不能報名（管理者補登不受限）；活動不算勤務統計；一起改時不動截止日', () => {
+  const env = createEnv(OCT_1);
+  const token = login(env);
+  const id = admin(env, token, 'adminCreateDuties', { duties: [base({ name: '測試活動', nature: '活動', start: '2026-10-11', deadline: '2026-08-31', positions: [{ name: '長者' }] })] }).data.ids[0];
+  const d = env.get({ action: 'getDuty', id }).data;
+  assert.equal(d.deadline, '2026-08-31');
+  assert.equal(d.nature, '活動');
+  const s = env.post({ action: 'signup', dutyId: id, positionId: d.positions[0].id, dates: ['2026-10-11'], entries: [{ name: '測試甲' }] });
+  assert.equal(s.error.code, 'VALIDATION');
+  assert.match(s.error.details[0].message, /報名已截止/);
+  const add = admin(env, token, 'adminAddAttendee', { dutyId: id, positionId: d.positions[0].id, date: '2026-10-11', name: '測試甲', identity: '道親' });
+  assert.equal(add.ok, true, JSON.stringify(add.error));
+  env.clock.now = Date.UTC(2026, 9, 12, 2);
+  assert.ok(!admin(env, token, 'adminStats').data.events.some((e) => e.dutyId === id), '活動不算勤務統計');
+  assert.match(admin(env, token, 'adminCreateDuties', { duties: [base({ deadline: '2026/8/31' })] }).error.details[0].message, /報名截止日格式錯誤/);
+});
