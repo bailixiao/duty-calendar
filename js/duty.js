@@ -369,7 +369,7 @@
     if (!page.data || page.data.id !== result.dutyId) return; // 報名期間已離開這頁（例如按了瀏覽器返回）
     if (!page.data.signups) { load(token, flash); return; } // 名單還沒載入：直接重新讀取
     res.created.forEach((c) => page.data.signups.push({
-      id: c.id, date: c.date, positionId: result.positionId, name: c.name, accompany: c.accompany
+      id: c.id, date: c.date, positionId: c.positionId || result.positionId, name: c.name, accompany: c.accompany
     }));
     Object.assign(page.data.days, res.days);
     render(flash);

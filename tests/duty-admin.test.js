@@ -365,3 +365,23 @@ test('新增勤務：已有同名同日的會先回報 DUPLICATE，確認後才�
   assert.match(again.error.details[0].message, /測試勤務（2026-12-12）/);
   assert.equal(admin(env, token, 'adminCreateDuties', { duties: [base({ start: '2026-12-12' })], allowDuplicate: true }).ok, true);
 });
+
+test('可兼任：一次報多個了愿項目（positionIds）；整批檢查、任一項額滿就都不寫入；不可兼任的勤務不能一次報多項', () => {
+  const env = createEnv(OCT_1);
+  const token = login(env);
+  const id = admin(env, token, 'adminCreateDuties', { duties: [base({ start: '2026-10-24', multi: true, positions: [{ name: '淨手', max: '1' }, { name: '茶水', max: '2' }] })] }).data.ids[0];
+  const [p1, p2] = env.get({ action: 'getDuty', id }).data.positions;
+  const r = env.post({ action: 'signup', dutyId: id, positionIds: [p1.id, p2.id], dates: ['2026-10-24'], entries: [{ name: '測試甲' }] });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.deepEqual(r.data.created.map((c) => c.positionId), [p1.id, p2.id]);
+  // 淨手已滿：兩項一起報 → 整批不寫入
+  const before = env.sheets['報名'].data.length;
+  const full = env.post({ action: 'signup', dutyId: id, positionIds: [p1.id, p2.id], dates: ['2026-10-24'], entries: [{ name: '測試乙' }] });
+  assert.equal(full.error.code, 'VALIDATION');
+  assert.match(full.error.details[0].message, /「淨手」.*額滿/);
+  assert.equal(env.sheets['報名'].data.length, before);
+
+  const id2 = admin(env, token, 'adminCreateDuties', { duties: [base({ start: '2026-12-05', positions: [{ name: '甲項' }, { name: '乙項' }] })] }).data.ids[0];
+  const d2 = env.get({ action: 'getDuty', id: id2 }).data.positions;
+  assert.equal(env.post({ action: 'signup', dutyId: id2, positionIds: [d2[0].id, d2[1].id], dates: ['2026-12-05'], entries: [{ name: '測試丙' }] }).error.code, 'BAD_REQUEST');
+});

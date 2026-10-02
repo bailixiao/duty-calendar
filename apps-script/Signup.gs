@@ -8,7 +8,7 @@ var MAX_ENTRIES_PER_SIGNUP = 20;
 var MAX_DATES_PER_SIGNUP = 31;
 
 /**
- * body = { dutyId, positionId, dates: ['yyyy-MM-dd'], entries: [{ name, identity, accompany }] }
+ * body = { dutyId, positionId | positionIds: [..]（可兼任的勤務可多個）, dates: ['yyyy-MM-dd'], entries: [{ name, identity, accompany }] }
  */
 function signup_(body) {
   var dates = uniqueList_(body.dates);
@@ -35,54 +35,67 @@ function signup_(body) {
   try {
     var signups = duty ? readTable_(SHEETS.SIGNUPS).filter(function (s) { return s['勤務ID'] === duty['勤務ID']; }) : [];
 
-    var errors = validateSignup_({
-      duty: duty,
-      positions: positions,
-      signups: signups,
-      positionId: body.positionId,
-      dates: dates,
-      entries: entries,
-      today: todayString_()
-    });
-    if (errors.length) {
-      throw new ApiError_('VALIDATION', '報名沒有完成，請看下面的說明', errors);
+    // 可兼任的勤務可以一次報好幾個了愿項目（positionIds）；其他勤務一次只能報一個
+    var positionIds = uniqueList_(Array.isArray(body.positionIds) && body.positionIds.length ? body.positionIds : [body.positionId]);
+    if (positionIds.length > 1 && !(duty && duty['可兼任'] === '是')) {
+      throw new ApiError_('BAD_REQUEST', '這個勤務一次只能報一個了愿項目');
     }
-
-    var position = positions.filter(function (p) { return p['了愿項目ID'] === body.positionId; })[0];
     var now = nowString_();
     var signupRows = [];
     var logRows = [];
     var created = [];
+    var errors = [];
+    positionIds.forEach(function (pid) {
+      // 前面幾個項目這次要新增的也算進去（名額、重複檢查才正確）
+      var errs = validateSignup_({
+        duty: duty,
+        positions: positions,
+        signups: signups.concat(signupRows),
+        positionId: pid,
+        dates: dates,
+        entries: entries,
+        today: todayString_()
+      });
+      var position = positions.filter(function (p) { return p['了愿項目ID'] === pid; })[0];
+      if (positionIds.length > 1 && position) {
+        errs.forEach(function (e) { e.message = '「' + position['了愿項目名稱'] + '」' + e.message; });
+      }
+      errors = errors.concat(errs);
+      if (errs.length || !position) return;
 
-    dates.forEach(function (date) {
-      entries.forEach(function (e) {
-        var name = normalizeName_(e.name);
-        var accompany = !!e.accompany;
-        var id = newId_('S');
-        var row = {
-          '報名ID': id,
-          '勤務ID': duty['勤務ID'],
-          '日期': date,
-          '了愿項目ID': position['了愿項目ID'],
-          '姓名': name,
-          '身分': e.identity,
-          '陪同': accompany ? '是' : '否',
-          '出席': '出席',
-          '狀態': '有效',
-          '建立時間': now,
-          '更新時間': now
-        };
-        signupRows.push(row);
-        logRows.push({
-          '時間': now,
-          '動作': '報名',
-          '報名ID': id,
-          '內容摘要': [name + '（' + e.identity + (accompany ? '・陪同' : '') + '）', date, duty['名稱'], position['了愿項目名稱']].join('｜'),
-          '還原用的前一版資料': ''
+      dates.forEach(function (date) {
+        entries.forEach(function (e) {
+          var name = normalizeName_(e.name);
+          var accompany = !!e.accompany;
+          var id = newId_('S');
+          var row = {
+            '報名ID': id,
+            '勤務ID': duty['勤務ID'],
+            '日期': date,
+            '了愿項目ID': position['了愿項目ID'],
+            '姓名': name,
+            '身分': e.identity,
+            '陪同': accompany ? '是' : '否',
+            '出席': '出席',
+            '狀態': '有效',
+            '建立時間': now,
+            '更新時間': now
+          };
+          signupRows.push(row);
+          logRows.push({
+            '時間': now,
+            '動作': '報名',
+            '報名ID': id,
+            '內容摘要': [name + '（' + e.identity + (accompany ? '・陪同' : '') + '）', date, duty['名稱'], position['了愿項目名稱']].join('｜'),
+            '還原用的前一版資料': ''
+          });
+          created.push({ id: id, date: date, name: name, identity: e.identity, accompany: accompany, positionId: position['了愿項目ID'] });
         });
-        created.push({ id: id, date: date, name: name, identity: e.identity, accompany: accompany });
       });
     });
+    if (errors.length) {
+      throw new ApiError_('VALIDATION', '報名沒有完成，請看下面的說明', errors);
+    }
 
     appendRows_(SHEETS.SIGNUPS, signupRows);
     appendRows_(SHEETS.LOGS, logRows);

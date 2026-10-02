@@ -16,7 +16,8 @@
     const openDates = allDates.filter((d) => d > duty.today); // 勤務當天（含）之後不能報名
     const multiDay = allDates.length > 1;
     const state = {
-      positionId: duty.positions.length === 1 ? duty.positions[0].id : null,
+      // 選到的了愿項目；可兼任的勤務可以複選，其他勤務最多一個
+      positionIds: new Set(duty.positions.length === 1 ? [duty.positions[0].id] : []),
       dates: new Set([openDates.indexOf(defaultDate) !== -1 ? defaultDate : openDates[0]]),
       entries: [], // { name, identity: '道親'|'壇辦'|'未求道'|'', accompany }
       showMissing: false, // 送出時有人沒選身分，標示出來
@@ -32,9 +33,9 @@
       <h2>我要報名</h2>
       <form class="signup-form" novalidate>
         <fieldset class="field">
-          <legend><span class="step">${step++}</span>選了愿項目</legend>
+          <legend><span class="step">${step++}</span>選了愿項目${duty.multi ? '<small>可複選</small>' : ''}</legend>
           <div class="choices" data-positions></div>
-          ${duty.multi ? '<p class="hint">這個勤務可以一人兼任多個項目：報完一項後，再選另一項報名即可。</p>' : ''}
+          ${duty.multi ? '<p class="hint">這個勤務可以一人兼任多個項目，可以一次勾好幾項。</p>' : ''}
         </fieldset>
         ${multiDay ? `
         <fieldset class="field">
@@ -74,7 +75,7 @@
       const dates = Array.from(state.dates);
       $('[data-positions]').innerHTML = duty.positions.map((p) => {
         const fullAll = dates.length > 0 && dates.every((d) => isFull(p, d));
-        const checked = state.positionId === p.id && !fullAll;
+        const checked = state.positionIds.has(p.id) && !fullAll;
         let sub;
         if (fullAll) sub = '額滿';
         else if (dates.length === 1) {
@@ -83,22 +84,24 @@
         } else sub = p.max !== null ? `每天 ${p.max} 人` : '不限人數';
         return `
           <label class="choice${fullAll ? ' is-disabled' : ''}${checked ? ' is-checked' : ''}">
-            <input type="radio" name="position" value="${esc(p.id)}"${checked ? ' checked' : ''}${fullAll ? ' disabled' : ''}>
+            <input type="${duty.multi ? 'checkbox' : 'radio'}" name="position" value="${esc(p.id)}"${checked ? ' checked' : ''}${fullAll ? ' disabled' : ''}>
             <span class="choice-main">${esc(p.name)}${p.slot && p.name.indexOf(p.slot) === -1 ? `<small>${esc(p.slot)}</small>` : ''}</span>
             <span class="choice-sub">${esc(sub)}</span>
           </label>`;
       }).join('');
-      if (state.positionId && !$('[data-positions] input:checked')) state.positionId = null;
+      // 額滿（不能勾）的項目從選擇中拿掉
+      state.positionIds.forEach((id) => { const el = $(`[data-positions] input[value="${id}"]`); if (!el || !el.checked) state.positionIds.delete(id); });
     }
 
     // ---------- 日期（多天勤務） ----------
 
     function renderDates() {
       if (!multiDay) return;
-      const position = duty.positions.find((p) => p.id === state.positionId);
+      const chosen = duty.positions.filter((p) => state.positionIds.has(p.id));
+      const position = chosen.length === 1 ? chosen[0] : null; // 只選一項時才顯示該項人數
       $('[data-dates]').innerHTML = allDates.map((d) => {
         const past = d <= duty.today;
-        const full = position && isFull(position, d);
+        const full = chosen.some((p) => isFull(p, d)); // 複選時，任一項額滿那天就不能選（整批報名）
         const disabled = past || full;
         if (disabled) state.dates.delete(d);
         const checked = state.dates.has(d);
@@ -284,7 +287,7 @@
       if (normalize(input.value)) addFromInput(); // 打了名字但忘了按「加入」
 
       const problems = [];
-      if (!state.positionId) problems.push('請選擇了愿項目');
+      if (!state.positionIds.size) problems.push('請選擇了愿項目');
       if (!state.dates.size) problems.push('請選擇日期');
       if (!state.entries.length) problems.push('請填寫名字，並按「加入」');
       if (state.entries.some((e) => !e.identity)) {
@@ -304,14 +307,15 @@
       renderNames();
       Busy.show('報名中，請稍候⋯', '約需 3–5 秒，請不要關閉畫面');
       const slowTimer = setTimeout(() => Busy.show('報名中，請稍候⋯', '伺服器較慢，仍在處理中，請不要關閉畫面'), 10000);
-      const position = duty.positions.find((p) => p.id === state.positionId);
+      const chosen = duty.positions.filter((p) => state.positionIds.has(p.id));
       const payload = {
         dutyId: duty.id,
-        positionId: state.positionId,
+        positionId: chosen[0].id,
+        positionIds: chosen.map((p) => p.id),
         dates: Array.from(state.dates).sort(),
         entries: state.entries.map((e) => ({ name: e.name, identity: e.identity, accompany: e.accompany }))
       };
-      const result = { dutyId: duty.id, entries: payload.entries, dates: payload.dates, positionId: position.id, positionName: position.name };
+      const result = { dutyId: duty.id, entries: payload.entries, dates: payload.dates, positionId: chosen[0].id, positionName: chosen.map((p) => p.name).join('、') };
       const knownIds = new Set((duty.signups || []).map((s) => s.id)); // 送出前已有的報名，查證時用（名單還沒載入時為空）
       try {
         // 名單已載入時，回應太久就邊等邊查名單：伺服器常常早就寫好了，只是回應卡在 Google 那邊
@@ -393,13 +397,15 @@
       } catch (e) {
         return null;
       }
-      const added = fresh.signups.filter((s) => !knownIds.has(s.id) && s.positionId === payload.positionId);
+      const added = fresh.signups.filter((s) => !knownIds.has(s.id) && payload.positionIds.indexOf(s.positionId) !== -1);
       const found = [];
-      for (const date of payload.dates) {
-        for (const e of payload.entries) {
-          const s = added.find((x) => x.date === date && x.name === e.name);
-          if (!s) return found.length ? null : false;
-          found.push({ id: s.id, date, name: s.name, identity: e.identity, accompany: s.accompany });
+      for (const pid of payload.positionIds) {
+        for (const date of payload.dates) {
+          for (const e of payload.entries) {
+            const s = added.find((x) => x.positionId === pid && x.date === date && x.name === e.name);
+            if (!s) return found.length ? null : false;
+            found.push({ id: s.id, date, name: s.name, identity: e.identity, accompany: s.accompany, positionId: pid });
+          }
         }
       }
       return { created: found, days: fresh.days };
@@ -408,7 +414,12 @@
     // ---------- 事件 ----------
 
     $('[data-positions]').addEventListener('change', (ev) => {
-      state.positionId = ev.target.value;
+      if (duty.multi) {
+        if (ev.target.checked) state.positionIds.add(ev.target.value);
+        else state.positionIds.delete(ev.target.value);
+      } else {
+        state.positionIds = new Set([ev.target.value]);
+      }
       renderPositions();
       renderDates();
     });
