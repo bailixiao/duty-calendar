@@ -250,7 +250,7 @@
               ${canEdit ? `<span class="person-actions">
                 ${past ? `<button type="button" class="btn btn-small" data-attend="${esc(s.id)}">${s.attend === '未到' ? '改出席' : '改未到'}</button>
                   ${s.identity === '壇辦' ? `<button type="button" class="btn btn-small" data-acc="${esc(s.id)}">${s.accompany ? '改了愿' : '改陪同'}</button>` : ''}` : ''}
-                <button type="button" class="btn btn-small" data-reschedule="${esc(s.id)}">改期</button>
+                ${d.nature === '活動' ? '' : `<button type="button" class="btn btn-small" data-reschedule="${esc(s.id)}">改期</button>`}
                 <button type="button" class="btn btn-small btn-quiet-danger" data-cancel="${esc(s.id)}">取消</button>
               </span>` : ''}
             </li>`).join('')}</ul>` : `<p class="muted">${past ? '沒有人報名' : '還沒有人報名'}</p>`}

@@ -217,7 +217,7 @@
             <li class="person-row">
               <span class="person">${esc(s.name)}${s.accompany ? '<span class="tag">陪同</span>' : ''}</span>
               ${canChange ? `<span class="person-actions">
-                <button type="button" class="btn btn-small" data-reschedule="${esc(s.id)}">改期</button>
+                ${d.nature === '活動' ? '' : `<button type="button" class="btn btn-small" data-reschedule="${esc(s.id)}">改期</button>`}
                 <button type="button" class="btn btn-small btn-quiet-danger" data-cancel="${esc(s.id)}">取消</button>
               </span>` : ''}
             </li>`).join('')}</ul>`

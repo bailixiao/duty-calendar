@@ -59,6 +59,9 @@ function rescheduleSignup_(body, opts) {
 
     var fromDuty = findById_(duties, '勤務ID', row['勤務ID']);
     var toDuty = findById_(duties, '勤務ID', body.dutyId);
+    if (fromDuty && fromDuty['性質'] === '活動') {
+      throw new ApiError_('FORBIDDEN', '活動不能個別改期；活動本身改日期時，名單會一起移過去');
+    }
     if (!toDuty || !fromDuty || toDuty['名稱'] !== fromDuty['名稱']) {
       throw new ApiError_('BAD_REQUEST', '只能改到同一個勤務的其他日期');
     }

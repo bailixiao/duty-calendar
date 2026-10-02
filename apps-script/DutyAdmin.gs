@@ -116,11 +116,24 @@ function adminUpdateDuty_(body) {
       plans.push({ row: d, oldPositions: oldPs, next: normalizeDutyInput_(merged, ctx) });
     });
 
+    // 單日活動本身改日期：名單一起移到新日期（活動的參加者不能個別改期）
+    var moveTo = null;
+    var oldStart = source['開始日']; // 存檔後 source 會被更新，先記住原本的日期
+    var wasSingle = (source['結束日'] || source['開始日']) === source['開始日'];
+    if (source['性質'] === '活動' && next.duty['性質'] === '活動' && wasSingle &&
+        next.duty['開始日'] === next.duty['結束日'] && next.duty['開始日'] !== source['開始日']) {
+      moveTo = next.duty['開始日'];
+    }
+
     var errors = [];
     var warnings = [];
     plans.forEach(function (plan) {
       var label = plans.length > 1 ? shortDate_(plan.row['開始日']) + '：' : '';
-      var change = checkDutyChange_(plan.oldPositions, plan.next, signupsOf_(signups, plan.row['勤務ID']));
+      var rows = signupsOf_(signups, plan.row['勤務ID']);
+      if (moveTo && plan.row === source) {
+        rows = rows.map(function (s) { return Object.assign({}, s, { '日期': moveTo }); }); // 檢查時視為已移到新日期
+      }
+      var change = checkDutyChange_(plan.oldPositions, plan.next, rows);
       plan.next.errors.concat(change.errors).forEach(function (m) { errors.push({ message: label + m }); });
       change.warnings.forEach(function (m) { warnings.push(label + m); });
     });
@@ -147,13 +160,22 @@ function adminUpdateDuty_(body) {
     });
     appendRows_(SHEETS.POSITIONS, appends);
     deleteRows_(SHEETS.POSITIONS, deletions);
+    var moved = 0;
+    if (moveTo) {
+      var now = nowString_();
+      signupsOf_(signups, source['勤務ID']).forEach(function (s) {
+        updateRow_(SHEETS.SIGNUPS, s, { '日期': moveTo, '更新時間': now });
+        moved++;
+      });
+      invalidateTable_(SHEETS.SIGNUPS);
+    }
 
-    var summary = source['名稱'] + '｜' + source['開始日'] + (plans.length > 1 ? '（連同其他 ' + (plans.length - 1) + ' 筆同名勤務：' + fields.map(bulkFieldLabel_).join('、') + '）' : '');
+    var summary = source['名稱'] + '｜' + oldStart + (moveTo ? ' → ' + moveTo + '（名單 ' + moved + ' 筆一起移過去）' : '') + (plans.length > 1 ? '（連同其他 ' + (plans.length - 1) + ' 筆同名勤務：' + fields.map(bulkFieldLabel_).join('、') + '）' : '');
     writeDutyLog_('修改勤務', summary);
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.DUTIES);
     invalidateTable_(SHEETS.POSITIONS);
-    return { id: source['勤務ID'], updated: plans.length, warnings: warnings };
+    return { id: source['勤務ID'], updated: plans.length, warnings: warnings, moved: moved };
   });
 }
 

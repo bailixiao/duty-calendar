@@ -289,3 +289,30 @@ test('報名截止日：過了截止日不能報名（管理者補登不受限�
   assert.ok(!admin(env, token, 'adminStats').data.events.some((e) => e.dutyId === id), '活動不算勤務統計');
   assert.match(admin(env, token, 'adminCreateDuties', { duties: [base({ deadline: '2026/8/31' })] }).error.details[0].message, /報名截止日格式錯誤/);
 });
+
+test('活動：參加者不能個別改期（管理者也一樣）；活動本身改日期時名單一起移過去；一般勤務照舊不能移', () => {
+  const env = createEnv(OCT_1);
+  const token = login(env);
+  const id = admin(env, token, 'adminCreateDuties', { duties: [base({ name: '測試活動', nature: '活動', start: '2026-10-11', positions: [{ name: '長者' }] })] }).data.ids[0];
+  const pid = env.get({ action: 'getDuty', id }).data.positions[0].id;
+  const s = env.post({ action: 'signup', dutyId: id, positionId: pid, dates: ['2026-10-11'], entries: [{ name: '測試甲' }, { name: '測試乙' }] });
+  const sid = s.data.created[0].id;
+  assert.equal(env.post({ action: 'reschedule', signupId: sid, dutyId: id, date: '2026-10-11', positionId: pid }).error.code, 'FORBIDDEN');
+  assert.equal(admin(env, token, 'adminReschedule', { signupId: sid, dutyId: id, date: '2026-10-11', positionId: pid }).error.code, 'FORBIDDEN');
+
+  const edit = admin(env, token, 'adminDutyForEdit', { id }).data.duty;
+  const r = admin(env, token, 'adminUpdateDuty', { id, duty: Object.assign({}, edit, { start: '2026-10-18', end: '2026-10-18' }) });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.equal(r.data.moved, 2);
+  const after = env.get({ action: 'getDuty', id }).data;
+  assert.equal(after.start, '2026-10-18');
+  assert.deepEqual(after.signups.map((x) => x.date), ['2026-10-18', '2026-10-18']);
+  assert.match(env.sheets['操作紀錄'].data.slice(-1)[0][3], /2026-10-11 → 2026-10-18（名單 2 筆一起移過去）/);
+
+  // 一般勤務：有人報名的日期仍不能移走
+  const id2 = admin(env, token, 'adminCreateDuties', { duties: [base({ start: '2026-12-05' })] }).data.ids[0];
+  const p2 = env.get({ action: 'getDuty', id: id2 }).data.positions[0].id;
+  env.post({ action: 'signup', dutyId: id2, positionId: p2, dates: ['2026-12-05'], entries: [{ name: '測試丙' }] });
+  const e2 = admin(env, token, 'adminDutyForEdit', { id: id2 }).data.duty;
+  assert.equal(admin(env, token, 'adminUpdateDuty', { id: id2, duty: Object.assign({}, e2, { start: '2026-12-06', end: '2026-12-06' }) }).error.code, 'VALIDATION');
+});
