@@ -358,12 +358,16 @@
 
   /** 報名成功：用伺服器回傳的新報名與人數直接更新畫面（不用再等一次讀取），行事曆在背景更新 */
   function onSignedUp(result, res) {
-    const names = result.entries.map((e) => `${e.name}（${e.identity}${e.accompany ? '・陪同' : ''}）`).join('、');
+    const who = (e) => `${e.name}（${e.identity}${e.accompany ? '・陪同' : ''}）`;
     const dates = result.dates.map(Fmt.shortDate).join('、');
+    // 大家報同樣的項目：一行名字＋項目；各報各的：逐人列出
+    const body = result.positionName
+      ? `<p>${esc(result.entries.map(who).join('、'))}<br>${esc(dates)}・${esc(result.positionName)}</p>`
+      : `<p>${esc(dates)}</p>${result.entries.map((e) => `<p>${esc(who(e))}：${esc(e.positionLabel)}</p>`).join('')}`;
     const flash = `
       <div class="notice notice-success" role="status">
         <p><strong>報名成功！</strong></p>
-        <p>${esc(names)}<br>${esc(dates)}・${esc(result.positionName)}</p>
+        ${body}
       </div>`;
     if (window.CalendarPage) CalendarPage.refresh();
     if (!page.data || page.data.id !== result.dutyId) return; // 報名期間已離開這頁（例如按了瀏覽器返回）

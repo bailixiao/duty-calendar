@@ -1467,3 +1467,21 @@ select.input { appearance: auto; }
 .draft-sub { margin: 10px 0 4px; font-weight: 700; font-size: .95rem; }
 .draft-pos { margin: 0; padding-left: 1.3em; display: grid; gap: 2px; }
 .draft-desc { margin: 0; font-size: .95rem; color: var(--ink-2); }
+
+/* 報名：每個名字各自的了愿項目 */
+.pos-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pos-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  font-size: .95rem;
+  cursor: pointer;
+}
+.pos-chip input { position: absolute; opacity: 0; pointer-events: none; }
+.pos-chip.is-checked { background: var(--ink); border-color: var(--ink); color: var(--paper); font-weight: 700; }
+.pos-chip:focus-within { outline: 3px solid var(--accent); outline-offset: 1px; }

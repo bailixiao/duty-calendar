@@ -50,7 +50,7 @@
           </div>
           <div class="suggestions" data-suggestions aria-live="polite"></div>
           <ul class="name-list" data-names></ul>
-          <p class="hint">幫長輩或家人報名時，可以連續加入多個名字。每個名字都要選<span class="nw">「道親」</span><span class="nw">「壇辦」</span>或<span class="nw">「未求道」</span>（成員名單上已登記的會自動帶入，不能改）。壇辦可選<span class="nw">「陪同」</span>，陪同不佔名額。</p>
+          <p class="hint">幫長輩或家人報名時，可以連續加入多個名字${duty.positions.length > 1 ? '；每個人可以在<span class="nw">「項目」</span>選不同的了愿項目' : ''}。每個名字都要選<span class="nw">「道親」</span><span class="nw">「壇辦」</span>或<span class="nw">「未求道」</span>（成員名單上已登記的會自動帶入，不能改）。壇辦可選<span class="nw">「陪同」</span>，陪同不佔名額。</p>
         </fieldset>
         <div class="form-error" data-error role="alert" hidden></div>
         <button type="submit" class="btn btn-primary btn-block" data-submit>確認報名</button>
@@ -97,7 +97,7 @@
 
     function renderDates() {
       if (!multiDay) return;
-      const chosen = duty.positions.filter((p) => state.positionIds.has(p.id));
+      const chosen = duty.positions.filter((p) => state.positionIds.has(p.id) || state.entries.some((e) => e.positionIds.has(p.id)));
       const position = chosen.length === 1 ? chosen[0] : null; // 只選一項時才顯示該項人數
       $('[data-dates]').innerHTML = allDates.map((d) => {
         const past = d <= duty.today;
@@ -120,8 +120,9 @@
     function renderNames() {
       $('[data-names]').innerHTML = state.entries.map((e, i) => {
         const missing = state.showMissing && !e.identity;
+        const posMissing = state.showMissing && !e.positionIds.size;
         return `
-        <li class="name-item${missing ? ' is-missing' : ''}">
+        <li class="name-item${missing || posMissing ? ' is-missing' : ''}">
           <div class="name-top">
             <span class="name-text">${esc(e.name)}</span>
             <button type="button" class="btn-remove" data-remove="${i}" aria-label="移除 ${esc(e.name)}">×</button>
@@ -137,6 +138,13 @@
                   </label>`).join('')}
               </div>`}
             </div>
+            ${duty.positions.length > 1 ? `<div class="option-row">
+              <span class="option-label">項目</span>
+              <div class="pos-chips" role="group" aria-label="${esc(e.name)} 的了愿項目">
+                ${duty.positions.map((p) => `<label class="pos-chip${e.positionIds.has(p.id) ? ' is-checked' : ''}">
+                  <input type="${duty.multi ? 'checkbox' : 'radio'}" name="epos-${i}" value="${esc(p.id)}" data-entry-pos="${i}"${e.positionIds.has(p.id) ? ' checked' : ''}>${esc(p.name)}</label>`).join('')}
+              </div>
+            </div>` : ''}
             ${e.identity === '壇辦' ? `<div class="option-row">
               <span class="option-label">方式</span>
               <div class="segmented" role="radiogroup" aria-label="${esc(e.name)} 的參加方式">
@@ -148,6 +156,7 @@
             </div>` : ''}
           </div>
           ${missing ? '<p class="name-missing">請選擇道親、壇辦或未求道</p>' : ''}
+          ${state.showMissing && !e.positionIds.size ? '<p class="name-missing">請選這個人的了愿項目</p>' : ''}
         </li>`;
       }).join('');
       const n = state.entries.length;
@@ -168,7 +177,8 @@
       }
       const known = identity !== undefined ? identity : knownIdentity.get(name);
       const fixed = IDENTITIES.indexOf(known) !== -1 ? known : '';
-      const entry = { name, identity: fixed, accompany: false, locked: !!fixed };
+      // 項目先用上面選的；之後可以在名字卡各自改（custom＝改過，上面再改就不跟著變）
+      const entry = { name, identity: fixed, accompany: false, locked: !!fixed, positionIds: new Set(state.positionIds), custom: false };
       state.entries.push(entry);
       hideError();
       renderNames();
@@ -287,7 +297,12 @@
       if (normalize(input.value)) addFromInput(); // 打了名字但忘了按「加入」
 
       const problems = [];
-      if (!state.positionIds.size) problems.push('請選擇了愿項目');
+      if (!state.entries.length && !state.positionIds.size) problems.push('請選擇了愿項目');
+      if (state.entries.some((e) => !e.positionIds.size)) {
+        problems.push('請為每個名字選了愿項目');
+        state.showMissing = true;
+        renderNames();
+      }
       if (!state.dates.size) problems.push('請選擇日期');
       if (!state.entries.length) problems.push('請填寫名字，並按「加入」');
       if (state.entries.some((e) => !e.identity)) {
@@ -307,15 +322,22 @@
       renderNames();
       Busy.show('報名中，請稍候⋯', '約需 3–5 秒，請不要關閉畫面');
       const slowTimer = setTimeout(() => Busy.show('報名中，請稍候⋯', '伺服器較慢，仍在處理中，請不要關閉畫面'), 10000);
-      const chosen = duty.positions.filter((p) => state.positionIds.has(p.id));
+      const nameOf = (id) => (duty.positions.find((p) => p.id === id) || {}).name || '';
+      const chosen = duty.positions.filter((p) => state.entries.some((e) => e.positionIds.has(p.id)));
       const payload = {
         dutyId: duty.id,
         positionId: chosen[0].id,
         positionIds: chosen.map((p) => p.id),
         dates: Array.from(state.dates).sort(),
-        entries: state.entries.map((e) => ({ name: e.name, identity: e.identity, accompany: e.accompany }))
+        entries: state.entries.map((e) => ({ name: e.name, identity: e.identity, accompany: e.accompany, positionIds: duty.positions.filter((p) => e.positionIds.has(p.id)).map((p) => p.id) }))
       };
-      const result = { dutyId: duty.id, entries: payload.entries, dates: payload.dates, positionId: chosen[0].id, positionName: chosen.map((p) => p.name).join('、') };
+      // 每個人報的項目不一樣時，成功訊息逐人列出
+      const same = payload.entries.every((e) => e.positionIds.join() === payload.entries[0].positionIds.join());
+      const result = {
+        dutyId: duty.id, dates: payload.dates, positionId: chosen[0].id,
+        positionName: same ? payload.entries[0].positionIds.map(nameOf).join('、') : '',
+        entries: payload.entries.map((e) => Object.assign({}, e, { positionLabel: e.positionIds.map(nameOf).join('、') }))
+      };
       const knownIds = new Set((duty.signups || []).map((s) => s.id)); // 送出前已有的報名，查證時用（名單還沒載入時為空）
       try {
         // 名單已載入時，回應太久就邊等邊查名單：伺服器常常早就寫好了，只是回應卡在 Google 那邊
@@ -399,9 +421,9 @@
       }
       const added = fresh.signups.filter((s) => !knownIds.has(s.id) && payload.positionIds.indexOf(s.positionId) !== -1);
       const found = [];
-      for (const pid of payload.positionIds) {
-        for (const date of payload.dates) {
-          for (const e of payload.entries) {
+      for (const e of payload.entries) {
+        for (const pid of e.positionIds) {
+          for (const date of payload.dates) {
             const s = added.find((x) => x.positionId === pid && x.date === date && x.name === e.name);
             if (!s) return found.length ? null : false;
             found.push({ id: s.id, date, name: s.name, identity: e.identity, accompany: s.accompany, positionId: pid });
@@ -420,6 +442,8 @@
       } else {
         state.positionIds = new Set([ev.target.value]);
       }
+      state.entries.forEach((e) => { if (!e.custom) e.positionIds = new Set(state.positionIds); });
+      renderNames();
       renderPositions();
       renderDates();
     });
@@ -460,6 +484,15 @@
 
     $('[data-names]').addEventListener('change', (ev) => {
       const t = ev.target;
+      if (t.dataset.entryPos !== undefined) {
+        const entry = state.entries[Number(t.dataset.entryPos)];
+        if (duty.multi) { if (t.checked) entry.positionIds.add(t.value); else entry.positionIds.delete(t.value); }
+        else entry.positionIds = new Set([t.value]);
+        entry.custom = true;
+        renderNames();
+        renderDates();
+        return;
+      }
       if (t.dataset.accompany !== undefined) {
         state.entries[Number(t.dataset.accompany)].accompany = t.value === 'true';
         renderNames();

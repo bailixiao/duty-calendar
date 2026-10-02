@@ -385,3 +385,19 @@ test('可兼任：一次報多個了愿項目（positionIds）；整批檢查、
   const d2 = env.get({ action: 'getDuty', id: id2 }).data.positions;
   assert.equal(env.post({ action: 'signup', dutyId: id2, positionIds: [d2[0].id, d2[1].id], dates: ['2026-12-05'], entries: [{ name: '測試丙' }] }).error.code, 'BAD_REQUEST');
 });
+
+test('一次幫多人報不同的了愿項目（每個名字各自 positionIds）；一般勤務每人一項、同一人不能分兩項', () => {
+  const env = createEnv(OCT_1);
+  const token = login(env);
+  const id = admin(env, token, 'adminCreateDuties', { duties: [base({ start: '2026-12-05', positions: [{ name: '甲項' }, { name: '乙項' }] })] }).data.ids[0];
+  const [a, b] = env.get({ action: 'getDuty', id }).data.positions;
+  const r = env.post({ action: 'signup', dutyId: id, positionId: a.id, dates: ['2026-12-05'],
+    entries: [{ name: '測試甲' }, { name: '測試乙', positionIds: [b.id] }] });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.deepEqual(r.data.created.map((c) => [c.name, c.positionId]), [['測試甲', a.id], ['測試乙', b.id]]);
+  // 一般勤務：同一人分到兩項 → 擋
+  const dup = env.post({ action: 'signup', dutyId: id, positionId: a.id, dates: ['2026-12-05'],
+    entries: [{ name: '測試丙', positionIds: [a.id] }, { name: '測試丙', positionIds: [b.id] }] });
+  assert.equal(dup.error.code, 'VALIDATION');
+  assert.equal(env.post({ action: 'signup', dutyId: id, positionId: a.id, dates: ['2026-12-05'], entries: [{ name: '測試丁', positionIds: [a.id, b.id] }] }).error.code, 'BAD_REQUEST');
+});

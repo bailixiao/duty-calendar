@@ -35,17 +35,27 @@ function signup_(body) {
   try {
     var signups = duty ? readTable_(SHEETS.SIGNUPS).filter(function (s) { return s['勤務ID'] === duty['勤務ID']; }) : [];
 
-    // 可兼任的勤務可以一次報好幾個了愿項目（positionIds）；其他勤務一次只能報一個
-    var positionIds = uniqueList_(Array.isArray(body.positionIds) && body.positionIds.length ? body.positionIds : [body.positionId]);
-    if (positionIds.length > 1 && !(duty && duty['可兼任'] === '是')) {
+    // 每個名字可以各自選了愿項目（entry.positionIds），沒選的用整批的 positionIds／positionId。
+    // 可兼任的勤務每人可以報好幾項；其他勤務每人只能一項（不同人可以不同項）。
+    var defaults = uniqueList_(Array.isArray(body.positionIds) && body.positionIds.length ? body.positionIds : [body.positionId]);
+    var multi = !!(duty && duty['可兼任'] === '是');
+    var entryPids = entries.map(function (e) {
+      return uniqueList_(e && Array.isArray(e.positionIds) && e.positionIds.length ? e.positionIds : defaults);
+    });
+    if (entryPids.some(function (p) { return p.length > 1; }) && !multi) {
       throw new ApiError_('BAD_REQUEST', '這個勤務一次只能報一個了愿項目');
     }
+    // 依勤務裡的項目順序處理；每個項目只檢查報這一項的人
+    var positionIds = positions.map(function (p) { return p['了愿項目ID']; })
+      .filter(function (id) { return entryPids.some(function (p) { return p.indexOf(id) !== -1; }); });
+    entryPids.forEach(function (p) { p.forEach(function (id) { if (positionIds.indexOf(id) === -1) positionIds.push(id); }); });
     var now = nowString_();
     var signupRows = [];
     var logRows = [];
     var created = [];
     var errors = [];
     positionIds.forEach(function (pid) {
+      var group = entries.filter(function (e, i) { return entryPids[i].indexOf(pid) !== -1; });
       // 前面幾個項目這次要新增的也算進去（名額、重複檢查才正確）
       var errs = validateSignup_({
         duty: duty,
@@ -53,7 +63,7 @@ function signup_(body) {
         signups: signups.concat(signupRows),
         positionId: pid,
         dates: dates,
-        entries: entries,
+        entries: group,
         today: todayString_()
       });
       var position = positions.filter(function (p) { return p['了愿項目ID'] === pid; })[0];
@@ -64,7 +74,7 @@ function signup_(body) {
       if (errs.length || !position) return;
 
       dates.forEach(function (date) {
-        entries.forEach(function (e) {
+        group.forEach(function (e) {
           var name = normalizeName_(e.name);
           var accompany = !!e.accompany;
           var id = newId_('S');
