@@ -1,6 +1,8 @@
 /**
  * 管理後台 API（規格第 8 節管理者後台、第 7 節第 7 條還原）。
  *   - 登入：密碼存在 Script Properties 的 ADMIN_PASSWORD（不寫進程式碼）。成功後發一組通行碼（存在 CacheService，6 小時）。
+ *   - 一次只能一台裝置登入：最新一次登入的通行碼記在 Script Properties 的 ADMIN_CURRENT_TOKEN，
+ *     其他裝置舊的通行碼就失效（畫面會自動登出並說明原因）。
  *   - 密碼連續錯 10 次鎖 10 分鐘（Apps Script 取不到來源 IP，以全域次數計算）。
  *   - 所有管理 API 都用 POST，通行碼放在內容（不放網址）。
  *   - 組長電話只在這裡回傳。
@@ -24,11 +26,16 @@ function adminLogin_(body) {
   cache.remove('admin-fails');
   var token = Utilities.getUuid() + Utilities.getUuid();
   cache.put('admin-token:' + token, '1', ADMIN_TOKEN_TTL_SEC);
+  PropertiesService.getScriptProperties().setProperty('ADMIN_CURRENT_TOKEN', token);
   return { token: token, expiresInSec: ADMIN_TOKEN_TTL_SEC };
 }
 
 function adminLogout_(body) {
-  if (body.token) CacheService.getScriptCache().remove('admin-token:' + body.token);
+  if (body.token) {
+    CacheService.getScriptCache().remove('admin-token:' + body.token);
+    var props = PropertiesService.getScriptProperties();
+    if (props.getProperty('ADMIN_CURRENT_TOKEN') === body.token) props.deleteProperty('ADMIN_CURRENT_TOKEN');
+  }
   return {};
 }
 
@@ -36,6 +43,10 @@ function requireAdmin_(body) {
   var token = String(body.token || '');
   if (!token || !CacheService.getScriptCache().get('admin-token:' + token)) {
     throw new ApiError_('UNAUTHORIZED', '登入已過期，請重新登入');
+  }
+  var current = PropertiesService.getScriptProperties().getProperty('ADMIN_CURRENT_TOKEN');
+  if (current && current !== token) {
+    throw new ApiError_('UNAUTHORIZED', '管理後台已在其他裝置登入，這台已自動登出');
   }
 }
 
@@ -215,6 +226,7 @@ function adminDispatch_(body) {
   requireAdmin_(body);
   switch (body.action) {
     case 'adminLogout': return adminLogout_(body);
+    case 'adminPing': return {};
     case 'adminRecent': return adminRecent_(body);
     case 'adminDuty': return adminDuty_(body);
     case 'adminCancel': return cancelSignup_(body, { admin: true });

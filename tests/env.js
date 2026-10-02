@@ -65,7 +65,7 @@ function createEnv(fixedNow) {
     Session: { getScriptTimeZone: () => 'Asia/Taipei' },
     PropertiesService: (() => {
       const props = { ADMIN_PASSWORD: 'test-pass', ADMIN_CONTACT: '測試管理者' };
-      return { getScriptProperties: () => ({ getProperty: (k) => props[k] || null, setProperty: (k, v) => { props[k] = v; } }) };
+      return { getScriptProperties: () => ({ getProperty: (k) => props[k] || null, setProperty: (k, v) => { props[k] = v; }, deleteProperty: (k) => { delete props[k]; } }) };
     })(),
     CacheService: (() => {
       const store = new Map();

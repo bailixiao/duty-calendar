@@ -61,9 +61,31 @@
     return `<p class="stale-note" data-stale>${stale ? '更新中⋯' : ''}</p>`;
   }
 
+  // ---------- 一次只能一台裝置登入 ----------
+  // 別的裝置登入後，這台的通行碼就失效。停在管理後台時每分鐘、以及切回這個分頁時問一次伺服器，
+  // 失效就自動回登入畫面並說明原因（不用等到按下一個按鈕才發現）。
+  let watching = false;
+  function watchSession() {
+    if (watching) return;
+    watching = true;
+    const onAdmin = () => location.hash.indexOf('#/admin') === 0;
+    const check = () => {
+      if (document.hidden || !Api.isAdmin() || !onAdmin()) return;
+      Api.admin('adminPing', {}, true).catch((err) => {
+        if (err.code !== 'UNAUTHORIZED' || !onAdmin()) return;
+        token += 1;
+        clearMemo();
+        renderLogin(err.message);
+      });
+    };
+    document.addEventListener('visibilitychange', check);
+    setInterval(check, 60000);
+  }
+
   function show(sub) {
     root = document.getElementById('view-admin');
     token += 1;
+    watchSession();
     if (!Api.isAdmin()) return renderLogin();
     const m = sub.match(/^duty\/([^?]+)(?:\?date=(\d{4}-\d{2}-\d{2}))?/);
     if (m) return showDuty(decodeURIComponent(m[1]), m[2] || '');
@@ -101,7 +123,7 @@
   /** 管理 API 錯誤處理：登入過期就回登入畫面，其他顯示訊息；回傳 true 代表已處理 */
   function guard(err, box) {
     if (err.code === 'UNAUTHORIZED') {
-      renderLogin('登入已過期，請重新登入');
+      renderLogin(err.message || '登入已過期，請重新登入');
       return true;
     }
     if (box) box.innerHTML = `<div class="notice notice-error" role="alert"><p>${esc(err.message || '發生錯誤')}</p></div>`;

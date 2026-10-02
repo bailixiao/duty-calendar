@@ -342,6 +342,20 @@ test('管理登入：密碼錯誤、成功發通行碼、沒有通行碼不能�
   assert.equal(locked.error.code, 'LOCKED');
 });
 
+test('管理登入：一次只能一台裝置，新登入讓舊的自動登出', () => {
+  const env = createEnv(OCT_1);
+  const first = adminLogin(env);
+  assert.equal(env.post({ action: 'adminPing', token: first }).ok, true);
+  const second = adminLogin(env);
+  const kicked = env.post({ action: 'adminPing', token: first });
+  assert.equal(kicked.error.code, 'UNAUTHORIZED');
+  assert.match(kicked.error.message, /其他裝置/);
+  assert.equal(env.post({ action: 'adminRecent', token: second }).ok, true);
+  // 被擠掉的裝置按登出，不影響目前登入的那台
+  env.post({ action: 'adminLogout', token: first });
+  assert.equal(env.post({ action: 'adminPing', token: second }).ok, true);
+});
+
 test('管理名單：含身分與組長電話；一般 API 不回傳電話', () => {
   const env = createEnv(OCT_1);
   const groups = env.sheets['分組'].data;
