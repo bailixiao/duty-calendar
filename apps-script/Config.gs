@@ -41,7 +41,7 @@ var SHEETS = {
 };
 
 var OPTIONS = {
-  identity: ['壇辦', '道親'],
+  identity: ['壇辦', '道親', '未求道'],
   nature: ['勤務', '支援', '烹飪'],
   mode: ['報名型', '公告型'],
   groupType: ['勤務了愿組', '打掃組', '拜香輪值組'],

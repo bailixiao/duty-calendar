@@ -237,3 +237,9 @@ test('名字相近視為同一人：同一勤務同一天被擋，同一批也�
   const batch = validateSignup_(req({ positionId: 'P2', entries: [{ name: '測試甲' }, { name: '試甲' }] }));
   assert.match(batch[0].message, /視為同一人，名字重複填寫/);
 });
+
+test('身分可選未求道；未求道不能陪同', () => {
+  assert.deepEqual(validateSignup_(req({ entries: [{ name: '測試甲', identity: '未求道' }] })), []);
+  const errors = validateSignup_(req({ entries: [{ name: '測試甲', identity: '未求道', accompany: true }] }));
+  assert.match(errors[0].message, /只有壇辦可以選「陪同」/);
+});

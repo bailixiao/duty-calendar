@@ -1,11 +1,11 @@
-// 報名表單：選了愿項目（額滿反灰）→ 選日期（多天勤務）→ 填名字（自動提示、可多人、選道親／壇辦；壇辦可選了愿／陪同）→ 確認報名。
+// 報名表單：選了愿項目（額滿反灰）→ 選日期（多天勤務）→ 填名字（自動提示、可多人、選道親／壇辦／未求道；壇辦可選了愿／陪同）→ 確認報名。
 // 名額與重複的最終判斷在伺服器（LockService 鎖定），這裡只做提示。
 (function () {
   'use strict';
 
   const esc = Fmt.esc;
   const SEARCH_LIMIT = 10; // 與後端 MEMBER_SEARCH_LIMIT 相同；結果少於此數代表已完整
-  const IDENTITIES = ['道親', '壇辦'];
+  const IDENTITIES = ['道親', '壇辦', '未求道'];
 
   function normalize(name) {
     return String(name || '').replace(/^[\s　]+|[\s　]+$/g, '');
@@ -18,7 +18,7 @@
     const state = {
       positionId: duty.positions.length === 1 ? duty.positions[0].id : null,
       dates: new Set([openDates.indexOf(defaultDate) !== -1 ? defaultDate : openDates[0]]),
-      entries: [], // { name, identity: '道親'|'壇辦'|'', accompany }
+      entries: [], // { name, identity: '道親'|'壇辦'|'未求道'|'', accompany }
       showMissing: false, // 送出時有人沒選身分，標示出來
       submitting: false
     };
@@ -48,7 +48,7 @@
           </div>
           <div class="suggestions" data-suggestions aria-live="polite"></div>
           <ul class="name-list" data-names></ul>
-          <p class="hint">幫長輩或家人報名時，可以連續加入多個名字。每個名字都要選「道親」或「壇辦」。壇辦可選「陪同」，陪同不佔名額。</p>
+          <p class="hint">幫長輩或家人報名時，可以連續加入多個名字。每個名字都要選<span class="nw">「道親」</span><span class="nw">「壇辦」</span>或<span class="nw">「未求道」</span>。壇辦可選<span class="nw">「陪同」</span>，陪同不佔名額。</p>
         </fieldset>
         <div class="form-error" data-error role="alert" hidden></div>
         <button type="submit" class="btn btn-primary btn-block" data-submit>確認報名</button>
@@ -125,7 +125,7 @@
           <div class="name-options">
             <div class="option-row">
               <span class="option-label">身分</span>
-              <div class="segmented" role="radiogroup" aria-label="${esc(e.name)} 的身分">
+              <div class="segmented segmented-3" role="radiogroup" aria-label="${esc(e.name)} 的身分">
                 ${IDENTITIES.map((id) => `
                   <label class="segment${e.identity === id ? ' is-checked' : ''}">
                     <input type="radio" name="identity-${i}" value="${id}" data-identity="${i}"${e.identity === id ? ' checked' : ''}>${id}
@@ -142,7 +142,7 @@
               </div>
             </div>` : ''}
           </div>
-          ${missing ? '<p class="name-missing">請選擇道親或壇辦</p>' : ''}
+          ${missing ? '<p class="name-missing">請選擇道親、壇辦或未求道</p>' : ''}
         </li>`;
       }).join('');
       const n = state.entries.length;
@@ -254,7 +254,7 @@
       if (!state.dates.size) problems.push('請選擇日期');
       if (!state.entries.length) problems.push('請填寫名字，並按「加入」');
       if (state.entries.some((e) => !e.identity)) {
-        problems.push('請為每個名字選擇「道親」或「壇辦」');
+        problems.push('請為每個名字選擇「道親」「壇辦」或「未求道」');
         state.showMissing = true;
         renderNames();
       }
@@ -422,7 +422,7 @@
       if (t.dataset.identity !== undefined) {
         const entry = state.entries[Number(t.dataset.identity)];
         entry.identity = t.value;
-        if (entry.identity !== '壇辦') entry.accompany = false; // 只有壇辦可以陪同，道親一律了愿
+        if (entry.identity !== '壇辦') entry.accompany = false; // 只有壇辦可以陪同，道親、未求道一律了愿
         renderNames();
         if (!state.entries.some((e) => !e.identity)) hideError();
       }

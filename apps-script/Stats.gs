@@ -32,7 +32,7 @@ function statsEvents_() {
     if (s['出席'] === '未到') ev.absent++;
     else if (s['陪同'] === '是') ev.accompany.push(name);
     else if (s['身分'] === '壇辦') ev.tan.push(name);
-    else if (s['身分'] === '道親') ev.dao.push(name);
+    else if (s['身分'] === '道親' || s['身分'] === '未求道') ev.dao.push(name); // 未求道算進道親
     else ev.unknown.push(name);
   });
   var signupsByDuty = groupBy_(readTableCached_(SHEETS.SIGNUPS).filter(function (s) { return s['狀態'] !== '已取消'; }), '勤務ID');

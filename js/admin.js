@@ -340,6 +340,7 @@
         <div class="form-row"><span>身分</span><div class="seg">
           <label class="seg-item"><input type="radio" name="identity" value="道親"><span>道親</span></label>
           <label class="seg-item"><input type="radio" name="identity" value="壇辦"><span>壇辦</span></label>
+          <label class="seg-item"><input type="radio" name="identity" value="未求道"><span>未求道</span></label>
         </div></div>
         <label class="check" data-acc-row hidden><input type="checkbox" name="accompany"> 陪同（不算人數）</label>
         <div class="form-error" data-error hidden></div>
@@ -362,7 +363,7 @@
       const identity = f.querySelector('input[name=identity]:checked');
       const name = f.elements.name.value.trim();
       if (!name || !identity) {
-        box.textContent = !name ? '請填姓名' : '請選道親或壇辦';
+        box.textContent = !name ? '請填姓名' : '請選道親、壇辦或未求道';
         box.hidden = false;
         return;
       }

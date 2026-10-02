@@ -120,7 +120,7 @@
     formModal(`
       <h2 class="modal-title">${m ? '編輯成員' : '新增成員'}</h2>
       <label class="form-row"><span>姓名</span><input class="input" name="name" value="${esc(v.name)}" required></label>
-      <div class="form-row"><span>身分</span>${seg('identity', [['道親', '道親'], ['壇辦', '壇辦'], ['', '未填']], v.identity || '')}</div>
+      <div class="form-row"><span>身分</span>${seg('identity', [['道親', '道親'], ['壇辦', '壇辦'], ['未求道', '未求道'], ['', '未填']], v.identity || '')}</div>
       ${GROUP_TYPES.map((t) => `
         <label class="form-row"><span>${t}</span>
           <select class="input" name="g-${t}">

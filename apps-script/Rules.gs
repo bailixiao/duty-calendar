@@ -4,7 +4,7 @@
  * 資料一律以字串處理：日期 yyyy-MM-dd、陪同「是／否」、狀態「有效／已取消」。
  */
 
-var IDENTITIES_ = ['壇辦', '道親'];
+var IDENTITIES_ = ['壇辦', '道親', '未求道'];
 
 /** 去掉名字前後的半形與全形空白 */
 function normalizeName_(name) {
@@ -135,7 +135,7 @@ function validateSignup_(req) {
   if (!entries.length) return [{ message: '請填寫名字' }];
   if (entries.some(function (e) { return e.name === ''; })) return [{ message: '名字不可空白' }];
   entries.forEach(function (e) {
-    if (IDENTITIES_.indexOf(e.identity) === -1) errors.push({ name: e.name, message: '請選擇身分（道親或壇辦）' });
+    if (IDENTITIES_.indexOf(e.identity) === -1) errors.push({ name: e.name, message: '請選擇身分（道親、壇辦或未求道）' });
     else if (e.accompany && e.identity !== '壇辦') errors.push({ name: e.name, message: '只有壇辦可以選「陪同」' });
   });
 

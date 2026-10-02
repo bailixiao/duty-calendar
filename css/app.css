@@ -1424,3 +1424,6 @@ select.input { appearance: auto; }
 .modal-sub { margin: 14px 0 4px; font-family: var(--serif); font-size: 1.05rem; }
 .bulk-list .merge-group { padding: 6px 0; border-bottom: 1px dashed var(--line); background: none; border-radius: 0; }
 .bulk-list .merge-group:last-child { border-bottom: 0; }
+
+.segmented-3 { grid-template-columns: repeat(3, 1fr); }
+.nw { white-space: nowrap; }
