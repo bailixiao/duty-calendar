@@ -13,7 +13,26 @@
     AdminPage.swr('stats', () => Api.admin('adminStats', {}, true), (data, stale) => {
       if (!state.period || state.period.unit !== state.unit) state.period = C.periodOf(state.unit, data.today);
       render(body, guard, data, stale);
+      if (!stale) autoUpdateSheet(body, data);
     }, body);
+  }
+
+  // 試算表「統計」分頁超過 6 小時沒更新（或從沒產生過）：打開統計頁時在背景更新今年的，不用等
+  const SHEET_STALE_MS = 6 * 3600 * 1000;
+  let autoUpdating = false;
+  function autoUpdateSheet(body, data) {
+    const last = data.sheetUpdatedAt ? new Date(data.sheetUpdatedAt.replace(' ', 'T') + '+08:00').getTime() : 0;
+    if (autoUpdating || Date.now() - last < SHEET_STALE_MS) return;
+    autoUpdating = true;
+    const note = () => body.querySelector('[data-sheet-note]');
+    if (note()) note().textContent = '正在背景更新試算表「統計」分頁⋯（不用等，可以繼續看）';
+    Api.admin('adminUpdateStatsSheet', { year: Number(data.today.slice(0, 4)) })
+      .then((res) => {
+        data.sheetUpdatedAt = res.updatedAt;
+        if (note()) note().textContent = `試算表「統計」分頁已自動更新（${res.updatedAt}）。`;
+      })
+      .catch(() => { if (note()) note().textContent = '試算表「統計」分頁自動更新失敗，可以按上面的按鈕再試一次。'; })
+      .finally(() => { autoUpdating = false; });
   }
 
   /** 一行比較：左邊「比上月」、右邊 ▲ 12（綠）／▼ 3（紅）／＝ 持平／—（沒有資料） */
