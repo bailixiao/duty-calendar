@@ -1280,7 +1280,8 @@ select.input { appearance: auto; }
 .stats-back { text-align: center; margin: 0 0 8px; }
 .stats-nav .btn:disabled { opacity: .3; cursor: default; }
 
-.stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 12px 0; }
+/* 大數字卡：電腦一列兩張、手機一列一張（每張最少 300px），比較區才不會擠出卡片 */
+.stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 10px; margin: 12px 0; }
 
 .stat-card {
   display: grid;
@@ -1309,13 +1310,11 @@ select.input { appearance: auto; }
 }
 .cmp-label { font-size: .95rem; color: var(--ink-2); white-space: nowrap; }
 
-/* 手機：大數字一張一列，數字在左、比較在右，比較的字才不會擠在一起 */
-@media (max-width: 520px) {
-  .stat-cards { grid-template-columns: 1fr; }
-  .stat-card { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); column-gap: 12px; align-items: center; }
-  .stat-card > :not(.cmp-list) { grid-column: 1; }
-  .stat-card > .cmp-list { grid-column: 2; grid-row: 1 / span 4; margin-top: 0; }
-}
+/* 卡片內：數字在左、比較在右 */
+.stat-card { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); column-gap: 12px; align-items: center; min-width: 0; }
+.stat-card > :not(.cmp-list) { grid-column: 1; }
+.stat-card > .cmp-list { grid-column: 2; grid-row: 1 / span 4; margin-top: 0; min-width: 0; }
+.cmp-row { min-width: 0; }
 .cmp-val { font-size: 1.25rem; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .cmp-val.is-up { color: var(--ok); }
 .cmp-val.is-down { color: var(--accent); }
