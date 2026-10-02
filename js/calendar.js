@@ -1,4 +1,5 @@
 // 行事曆首頁：年／月檢視用 FullCalendar，週檢視自製（七天直向列出，含沒有勤務的日子）。
+// 「近期」檢視：今天起 14 天有勤務的日子依序列出，最上面提醒哪幾天缺人（與管理後台的近期勤務同樣內容）。
 // 格子顯示國曆、農曆與勤務色點；點日期在下方列出當天勤務卡片。格子上不顯示名字。
 (function () {
   'use strict';
@@ -6,6 +7,7 @@
   const FC_VIEWS = { year: 'multiMonthYear', month: 'dayGridMonth' };
   const STORAGE_KEY = 'duty-calendar:view';
   const DOTS_MAX = { year: 3, month: 4 };
+  const RECENT_DAYS = 14;
   const KIND_ORDER = { short: 0, full: 1, ok: 2, notice: 3 };
 
   const el = {};
@@ -34,6 +36,7 @@
     el.panel = document.getElementById('day-panel');
     el.tabs = Array.from(document.querySelectorAll('[data-view]'));
     el.pastToggle = document.getElementById('past-toggle');
+    el.nav = ['cal-prev', 'cal-next', 'cal-today'].map((id) => document.getElementById(id));
 
     state.view = loadSavedView();
 
@@ -85,13 +88,17 @@
       btn.classList.toggle('is-active', on);
       btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
-    const isWeek = state.view === 'week';
-    el.fc.hidden = isWeek;
-    if (isWeek) el.pastToggle.hidden = true;
-    el.week.hidden = !isWeek;
+    const isList = isListView();
+    el.fc.hidden = isList;
+    if (isList) el.pastToggle.hidden = true;
+    el.week.hidden = !isList;
     el.panel.hidden = state.view !== 'month';
+    // 近期檢視固定是今天起 14 天，不需要翻頁
+    el.nav.forEach((b) => { b.hidden = state.view === 'recent'; });
 
-    if (isWeek) {
+    if (state.view === 'recent') {
+      loadRecent();
+    } else if (isList) {
       loadWeek();
     } else {
       calendar.changeView(FC_VIEWS[state.view], state.anchor);
@@ -142,6 +149,7 @@
   }
 
   function move(step) {
+    if (state.view === 'recent') return;
     if (state.view === 'week') {
       state.anchor = Fmt.addDays(state.anchor, step * 7);
       loadWeek();
@@ -155,7 +163,9 @@
   function goToday() {
     state.anchor = state.today;
     state.selected = state.today;
-    if (state.view === 'week') {
+    if (state.view === 'recent') {
+      loadRecent();
+    } else if (state.view === 'week') {
       loadWeek();
     } else {
       calendar.gotoDate(state.today);
@@ -164,8 +174,13 @@
     }
   }
 
+  /** 週、近期是自製的直向列表，不用 FullCalendar */
+  function isListView() {
+    return state.view === 'week' || state.view === 'recent';
+  }
+
   function onDatesSet() {
-    if (state.view === 'week') return;
+    if (isListView()) return;
     loadFcRange();
   }
 
@@ -196,6 +211,11 @@
     load(from, Fmt.addDays(from, 6));
   }
 
+  function loadRecent() {
+    setTitle();
+    load(state.today, Fmt.addDays(state.today, RECENT_DAYS - 1));
+  }
+
   function setTitle() {
     const a = state.anchor;
     let text;
@@ -203,6 +223,8 @@
       text = `${Fmt.rocYear(a)} 年`;
     } else if (state.view === 'month') {
       text = `${Fmt.rocYear(a)} 年 ${Number(a.slice(5, 7))} 月`;
+    } else if (state.view === 'recent') {
+      text = `近 ${RECENT_DAYS} 天的勤務`;
     } else {
       const from = weekStart(a);
       const to = Fmt.addDays(from, 6);
@@ -265,8 +287,7 @@
       state.loading = true;
       showStatus('loading');
       paintAllCells();
-      if (state.view === 'week') renderWeek();
-      else renderPanel();
+      renderList();
     }
 
     if (!entry.fresh) {
@@ -289,8 +310,7 @@
     indexEvents(data, from, to);
     state.loading = false;
     paintAllCells();
-    if (state.view === 'week') renderWeek();
-    else renderPanel();
+    renderList();
     scrollToPendingMonth();
   }
 
@@ -456,6 +476,43 @@
     el.panel.innerHTML = head + body;
   }
 
+  function renderList() {
+    if (state.view === 'week') renderWeek();
+    else if (state.view === 'recent') renderRecent();
+    else renderPanel();
+  }
+
+  // ---------- 近期檢視 ----------
+
+  function renderRecent() {
+    if (state.loading) {
+      el.week.innerHTML = '<p class="panel-empty">載入中⋯</p>';
+      return;
+    }
+    const dates = Fmt.datesBetween(state.range.from, state.range.to).filter((d) => (dayMap.get(d) || []).length);
+    const shortDates = dates.filter((d) => dayMap.get(d).some((it) => it.state.kind === 'short'));
+    const alert = shortDates.length
+      ? `<div class="notice notice-error recent-alert" role="status"><p><strong>近 ${RECENT_DAYS} 天有 ${shortDates.length} 天缺人</strong></p><p>${shortDates.map(Fmt.shortDate).join('、')}</p><p class="muted">點勤務就可以報名幫忙</p></div>`
+      : `<div class="notice recent-alert" role="status"><p>近 ${RECENT_DAYS} 天的勤務都不缺人</p></div>`;
+    if (!dates.length) {
+      el.week.innerHTML = `<p class="panel-empty">近 ${RECENT_DAYS} 天沒有勤務</p>`;
+      return;
+    }
+    const rows = dates.map((date) => {
+      const lunar = LunarUtil.lunarOf(date);
+      return `
+        <li class="week-day${date === state.today ? ' is-today' : ''}">
+          <div class="week-date">
+            <span class="week-wd">${date === state.today ? '今天' : '週' + Fmt.weekday(date)}</span>
+            <span class="week-md">${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}</span>
+            <span class="week-lunar${lunar.isFirst || lunar.isFifteenth ? ' is-hl' : ''}">${lunar.full}</span>
+          </div>
+          <div class="week-items">${dayMap.get(date).map((it) => cardHtml(it, date, true)).join('')}</div>
+        </li>`;
+    });
+    el.week.innerHTML = alert + `<ol class="week-list">${rows.join('')}</ol>`;
+  }
+
   // ---------- 週檢視 ----------
 
   function renderWeek() {
@@ -507,7 +564,7 @@
   function loadSavedView() {
     try {
       const v = localStorage.getItem(STORAGE_KEY);
-      return v === 'year' || v === 'month' || v === 'week' ? v : 'month';
+      return v === 'year' || v === 'month' || v === 'week' || v === 'recent' ? v : 'month';
     } catch (e) {
       return 'month';
     }
