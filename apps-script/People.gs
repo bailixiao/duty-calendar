@@ -183,6 +183,7 @@ function adminMemberCandidates_() {
   var existing = readTable_(SHEETS.MEMBERS).map(function (m) { return normalizeName_(m['姓名']); }).filter(function (n) { return n; });
   var has = {};
   existing.forEach(function (n) { has[n] = true; });
+  ignoredCandidates_().forEach(function (n) { has[n] = true; }); // 清掉過的不再列出
   var map = {};
   readTableCached_(SHEETS.SIGNUPS).forEach(function (s) {
     if (s['狀態'] === '已取消') return;
@@ -283,5 +284,44 @@ function adminMergeNames_(body) {
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.SIGNUPS);
     return { changed: changed, dropped: dropped };
+  });
+}
+
+/** 不要再列在「從出勤紀錄加入成員」的名字（存在指令碼屬性 MEMBER_IGNORE，名字只存在 Google 端） */
+function ignoredCandidates_() {
+  try {
+    return JSON.parse(PropertiesService.getScriptProperties().getProperty('MEMBER_IGNORE') || '[]');
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
+ * 清掉「從出勤紀錄加入成員」剩下的名字。body = { names: [], cancelSignups: true|false }
+ *   cancelSignups=false：只是不要再列出（出勤紀錄保留，統計照算）
+ *   cancelSignups=true ：這些名字的有效出勤紀錄也改成已取消（統計不再算；紀錄還在，可在試算表改回）
+ */
+function adminClearCandidates_(body) {
+  var names = (Array.isArray(body.names) ? body.names : []).map(normalizeName_).filter(function (n) { return n; });
+  if (!names.length) throw new ApiError_('BAD_REQUEST', '沒有要清掉的名字');
+  return withSignupLock_(function () {
+    var list = ignoredCandidates_();
+    names.forEach(function (n) { if (list.indexOf(n) === -1) list.push(n); });
+    PropertiesService.getScriptProperties().setProperty('MEMBER_IGNORE', JSON.stringify(list));
+    var cancelled = 0;
+    if (body.cancelSignups) {
+      var set = {};
+      names.forEach(function (n) { set[n] = true; });
+      var now = nowString_();
+      readTable_(SHEETS.SIGNUPS).forEach(function (s) {
+        if (s['狀態'] === '已取消' || !set[normalizeName_(s['姓名'])]) return;
+        updateRow_(SHEETS.SIGNUPS, s, { '狀態': '已取消', '更新時間': now });
+        cancelled++;
+      });
+      invalidateTable_(SHEETS.SIGNUPS);
+    }
+    writeDutyLog_('修正', '清掉出勤紀錄裡的名字：' + names.join('、') + (body.cancelSignups ? '（取消 ' + cancelled + ' 筆出勤紀錄）' : '（只是不再列出）'));
+    SpreadsheetApp.flush();
+    return { ignored: names.length, cancelled: cancelled };
   });
 }

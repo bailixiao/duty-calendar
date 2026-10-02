@@ -216,6 +216,7 @@
       <div class="bulk-list" data-new></div>
       <div class="modal-actions">
         <button type="button" class="btn btn-block btn-primary" data-go>加入</button>
+        <button type="button" class="btn btn-block btn-quiet-danger" data-clear>清掉沒勾的名字⋯</button>
         <button type="button" class="btn btn-block" data-close>返回</button>
       </div>`);
     const el = m.el;
@@ -256,6 +257,15 @@
     groups.forEach((g, gi) => el.querySelectorAll(`input[name="sg${gi}"]`).forEach((r) => r.addEventListener('change', () => { groupChoice[gi] = r.value; drawNew(); })));
     near.forEach((c, i) => el.querySelectorAll(`input[name="nr${i}"]`).forEach((r) => r.addEventListener('change', () => { nearChoice[i] = r.value; drawNew(); })));
     el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    el.querySelector('[data-clear]').addEventListener('click', () => {
+      // 沒勾、也沒有要合併的名字
+      const keep = new Set(chosenMembers().map((c) => c.name));
+      merges().forEach((g) => g.from.forEach((n) => keep.add(n)));
+      const rest = list.map((c) => c.name).filter((n) => !keep.has(n));
+      if (!rest.length) return;
+      m.close();
+      clearNames(rest, guard, reload);
+    });
     drawNew();
 
     el.querySelector('[data-go]').addEventListener('click', async () => {
@@ -282,6 +292,39 @@
       } catch (err) {
         Busy.hide();
         el.removeAttribute('data-locked');
+        m.close();
+        if (!guard(err)) { notice(`<div class="notice notice-error" role="alert"><p>${errorHtml(err)}</p></div>`); reload(); }
+      }
+    });
+  }
+
+  /** 清掉出勤紀錄裡的怪名字：只是不再列出，或連出勤紀錄一起取消 */
+  function clearNames(names, guard, reload) {
+    const m = Modal.open(`
+      <h2 class="modal-title">清掉這 ${names.length} 個名字</h2>
+      <div class="bulk-list"><p>${names.map(esc).join('、')}</p></div>
+      <div class="checks checks-col">
+        <label class="check"><input type="radio" name="how" value="hide" checked> 只是不要再列出（出勤紀錄保留，統計照算）</label>
+        <label class="check"><input type="radio" name="how" value="cancel"> 連出勤紀錄一起取消（統計不再算這些名字）</label>
+      </div>
+      <p class="modal-note">取消的出勤紀錄不會刪除，會標成「已取消」，需要時可在試算表「報名」分頁改回「有效」。</p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-block btn-danger" data-ok>確定清掉</button>
+        <button type="button" class="btn btn-block" data-close>返回</button>
+      </div>`);
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    m.el.querySelector('[data-ok]').addEventListener('click', async () => {
+      const cancelSignups = m.el.querySelector('input[name=how]:checked').value === 'cancel';
+      m.el.setAttribute('data-locked', '');
+      Busy.show('清除中⋯');
+      try {
+        const res = await Api.admin('adminClearCandidates', { names, cancelSignups });
+        Busy.hide();
+        m.close();
+        notice(AdminPage.notice('success', `已清掉 ${res.ignored} 個名字`, cancelSignups ? `取消了 ${res.cancelled} 筆出勤紀錄` : '出勤紀錄保留，之後不會再列出'));
+        afterWrite(reload);
+      } catch (err) {
+        Busy.hide();
         m.close();
         if (!guard(err)) { notice(`<div class="notice notice-error" role="alert"><p>${errorHtml(err)}</p></div>`); reload(); }
       }

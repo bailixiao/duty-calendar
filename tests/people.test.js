@@ -135,3 +135,20 @@ test('合併同一人寫法：報名紀錄的名字改成統一寫法，統計�
   assert.ok(env.sheets['報名'].data.some((row) => row.includes('測試甲')), '其他人不受影響');
   assert.match(env.sheets['操作紀錄'].data.slice(-1)[0][3], /小明 → 王小明（3 筆報名，其中 1 筆同一場重複、改為已取消）/);
 });
+
+test('清掉剩下的名字：只是不再列出（統計照算）或連出勤紀錄一起取消', () => {
+  const { call } = setup();
+  call('adminImportHistory', { events: [{ date: '2026-03-05', name: '打掃', tan: ['測試甲', '怪字一'], dao: ['怪字二'], accompany: [] }] });
+  assert.equal(call('adminClearCandidates', { names: [] }).error.code, 'BAD_REQUEST');
+
+  assert.deepEqual(call('adminClearCandidates', { names: ['怪字一'], cancelSignups: false }).data, { ignored: 1, cancelled: 0 });
+  let names = call('adminMemberCandidates').data.candidates.map((c) => c.name);
+  assert.deepEqual(names.sort(), ['怪字二', '測試甲'].sort());
+  let ev = call('adminStats').data.events[0];
+  assert.ok(ev.tan.includes('怪字一'), '只是不列出，統計照算');
+
+  assert.deepEqual(call('adminClearCandidates', { names: ['怪字二'], cancelSignups: true }).data, { ignored: 1, cancelled: 1 });
+  assert.deepEqual(call('adminMemberCandidates').data.candidates.map((c) => c.name), ['測試甲']);
+  ev = call('adminStats').data.events[0];
+  assert.deepEqual(ev.dao, [], '取消後統計不再算');
+});
