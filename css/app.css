@@ -1439,3 +1439,23 @@ select.input { appearance: auto; }
 .identity-filter .seg-item { min-width: 0; }
 .identity-filter .seg-item span { padding: 0 2px; font-size: .9rem; }
 @media (max-width: 359px) { .identity-filter { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* 勤務頁：重點圖片 */
+.duty-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.duty-image {
+  display: grid;
+  gap: 6px;
+  padding: 6px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.duty-image img { width: 100%; aspect-ratio: 3 / 4; object-fit: contain; object-position: center top; border-radius: 6px; background: #fff; }
+.duty-image span { font-size: .9rem; line-height: 1.4; color: var(--ink-2); }
+.modal-box.modal-wide { width: min(760px, 100%); }
+.image-full { display: block; width: 100%; height: auto; margin: 10px 0; border-radius: 8px; border: 1px solid var(--line); }
+.image-open { display: grid; place-items: center; text-decoration: none; }

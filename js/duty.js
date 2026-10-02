@@ -121,13 +121,42 @@
     const d = page.data;
     const el = document.getElementById('duty-extra');
     if (!el) return;
+    const images = imagesFor(d.name);
     el.innerHTML = `
       ${d.mode === '公告型' ? groupSection(d) : ''}
       ${d.description ? `
         <section class="detail-section">
           <h2>說明</h2>
           <p class="detail-desc">${esc(d.description).replace(/\n/g, '<br>')}</p>
+        </section>` : ''}
+      ${images.length ? `
+        <section class="detail-section">
+          <h2>重點圖片<span class="h2-sub">點圖片可以放大</span></h2>
+          <div class="duty-images">${images.map((img, i) => `
+            <button type="button" class="duty-image" data-img="${i}">
+              <img src="${esc(img.src)}" alt="${esc(img.caption)}" loading="lazy">
+              <span>${esc(img.caption)}</span>
+            </button>`).join('')}</div>
         </section>` : ''}`;
+    el.querySelectorAll('[data-img]').forEach((b) => b.addEventListener('click', () => openImage(images[Number(b.dataset.img)])));
+  }
+
+  /** 這個勤務的重點圖片（設定在 duty-images.js） */
+  function imagesFor(name) {
+    return (window.DUTY_IMAGES || []).filter((x) => name && name.indexOf(x.match) !== -1).flatMap((x) => x.images);
+  }
+
+  /** 放大看圖片：整張寬度顯示，可上下捲動 */
+  function openImage(img) {
+    const m = Modal.open(`
+      <h2 class="modal-title">${esc(img.caption)}</h2>
+      <img class="image-full" src="${esc(img.src)}" alt="${esc(img.caption)}">
+      <div class="modal-actions">
+        <a class="btn btn-block image-open" href="${esc(img.src)}" target="_blank" rel="noopener">開新頁看原圖（可以用手指放大）</a>
+        <button type="button" class="btn btn-block" data-close>關閉</button>
+      </div>`);
+    m.el.classList.add('modal-wide');
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
   }
 
   // ---------- 公告型：本次輪值組 ----------
