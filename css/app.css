@@ -1485,3 +1485,6 @@ select.input { appearance: auto; }
 .pos-chip input { position: absolute; opacity: 0; pointer-events: none; }
 .pos-chip.is-checked { background: var(--ink); border-color: var(--ink); color: var(--paper); font-weight: 700; }
 .pos-chip:focus-within { outline: 3px solid var(--accent); outline-offset: 1px; }
+.pos-same { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 40px; }
+.link-btn { padding: 4px 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: .92rem; text-decoration: underline; cursor: pointer; }
+.pos-chips + .link-btn { margin-top: 6px; }

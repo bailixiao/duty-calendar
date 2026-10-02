@@ -50,7 +50,7 @@
           </div>
           <div class="suggestions" data-suggestions aria-live="polite"></div>
           <ul class="name-list" data-names></ul>
-          <p class="hint">幫長輩或家人報名時，可以連續加入多個名字${duty.positions.length > 1 ? '；每個人可以在<span class="nw">「項目」</span>選不同的了愿項目' : ''}。每個名字都要選<span class="nw">「道親」</span><span class="nw">「壇辦」</span>或<span class="nw">「未求道」</span>（成員名單上已登記的會自動帶入，不能改）。壇辦可選<span class="nw">「陪同」</span>，陪同不佔名額。</p>
+          <p class="hint">幫長輩或家人報名時，可以連續加入多個名字${duty.positions.length > 1 ? '；有人要報不同的了愿項目，按他名字下的<span class="nw">「這個人改報別的」</span>' : ''}。每個名字都要選<span class="nw">「道親」</span><span class="nw">「壇辦」</span>或<span class="nw">「未求道」</span>（成員名單上已登記的會自動帶入，不能改）。壇辦可選<span class="nw">「陪同」</span>，陪同不佔名額。</p>
         </fieldset>
         <div class="form-error" data-error role="alert" hidden></div>
         <button type="submit" class="btn btn-primary btn-block" data-submit>確認報名</button>
@@ -120,7 +120,7 @@
     function renderNames() {
       $('[data-names]').innerHTML = state.entries.map((e, i) => {
         const missing = state.showMissing && !e.identity;
-        const posMissing = state.showMissing && !e.positionIds.size;
+        const posMissing = state.showMissing && e.custom && !e.positionIds.size;
         return `
         <li class="name-item${missing || posMissing ? ' is-missing' : ''}">
           <div class="name-top">
@@ -138,13 +138,22 @@
                   </label>`).join('')}
               </div>`}
             </div>
-            ${duty.positions.length > 1 ? `<div class="option-row">
+            ${duty.positions.length > 1 ? (e.custom ? `<div class="option-row">
               <span class="option-label">項目</span>
-              <div class="pos-chips" role="group" aria-label="${esc(e.name)} 的了愿項目">
-                ${duty.positions.map((p) => `<label class="pos-chip${e.positionIds.has(p.id) ? ' is-checked' : ''}">
-                  <input type="${duty.multi ? 'checkbox' : 'radio'}" name="epos-${i}" value="${esc(p.id)}" data-entry-pos="${i}"${e.positionIds.has(p.id) ? ' checked' : ''}>${esc(p.name)}</label>`).join('')}
+              <div>
+                <div class="pos-chips" role="group" aria-label="${esc(e.name)} 的了愿項目">
+                  ${duty.positions.map((p) => `<label class="pos-chip${e.positionIds.has(p.id) ? ' is-checked' : ''}">
+                    <input type="${duty.multi ? 'checkbox' : 'radio'}" name="epos-${i}" value="${esc(p.id)}" data-entry-pos="${i}"${e.positionIds.has(p.id) ? ' checked' : ''}>${esc(p.name)}</label>`).join('')}
+                </div>
+                <button type="button" class="link-btn" data-pos-reset="${i}">改回跟上面一樣</button>
               </div>
-            </div>` : ''}
+            </div>` : `<div class="option-row">
+              <span class="option-label">項目</span>
+              <div class="pos-same">
+                <span>${state.positionIds.size ? esc(duty.positions.filter((p) => state.positionIds.has(p.id)).map((p) => p.name).join('、')) : '<span class="muted">請在上面選了愿項目</span>'}<span class="muted">（同上面）</span></span>
+                <button type="button" class="link-btn" data-pos-custom="${i}">這個人改報別的</button>
+              </div>
+            </div>`) : ''}
             ${e.identity === '壇辦' ? `<div class="option-row">
               <span class="option-label">方式</span>
               <div class="segmented" role="radiogroup" aria-label="${esc(e.name)} 的參加方式">
@@ -156,7 +165,7 @@
             </div>` : ''}
           </div>
           ${missing ? '<p class="name-missing">請選擇道親、壇辦或未求道</p>' : ''}
-          ${state.showMissing && !e.positionIds.size ? '<p class="name-missing">請選這個人的了愿項目</p>' : ''}
+          ${posMissing ? '<p class="name-missing">請選這個人的了愿項目</p>' : ''}
         </li>`;
       }).join('');
       const n = state.entries.length;
@@ -297,9 +306,10 @@
       if (normalize(input.value)) addFromInput(); // 打了名字但忘了按「加入」
 
       const problems = [];
-      if (!state.entries.length && !state.positionIds.size) problems.push('請選擇了愿項目');
-      if (state.entries.some((e) => !e.positionIds.size)) {
-        problems.push('請為每個名字選了愿項目');
+      // 共用的項目沒選（有人跟著上面）→ 請選上面；改報別的人沒選 → 請選他自己的
+      if (!state.positionIds.size && (!state.entries.length || state.entries.some((e) => !e.custom))) problems.push('請選擇了愿項目');
+      if (state.entries.some((e) => e.custom && !e.positionIds.size)) {
+        problems.push('改報別的人，請選他的了愿項目');
         state.showMissing = true;
         renderNames();
       }
@@ -476,6 +486,25 @@
     });
 
     $('[data-names]').addEventListener('click', (ev) => {
+      // 這個人改報別的項目：展開自己的選擇（先帶入上面選的）
+      const custom = ev.target.closest('[data-pos-custom]');
+      if (custom) {
+        const entry = state.entries[Number(custom.dataset.posCustom)];
+        entry.custom = true;
+        entry.positionIds = new Set(state.positionIds);
+        renderNames();
+        return;
+      }
+      // 改回跟上面一樣
+      const reset = ev.target.closest('[data-pos-reset]');
+      if (reset) {
+        const entry = state.entries[Number(reset.dataset.posReset)];
+        entry.custom = false;
+        entry.positionIds = new Set(state.positionIds);
+        renderNames();
+        renderDates();
+        return;
+      }
       const btn = ev.target.closest('[data-remove]');
       if (!btn) return;
       state.entries.splice(Number(btn.dataset.remove), 1);
