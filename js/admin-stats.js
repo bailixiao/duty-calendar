@@ -71,7 +71,7 @@
           <div class="stat-card">
             <span class="stat-label">出勤人次</span>
             <span class="stat-num">${s.total}</span>
-            <span class="stat-hint">每場勤務每人算 1 次（同一人來 3 場＝3 人次）</span>
+            <span class="stat-hint">每場每人算 1 次<br>（來 3 場＝3 人次）</span>
             ${cmpList([deltaHtml('比' + prevName, C.delta(s.total, cmpVal(prev, 'total'))), lyName ? deltaHtml('比' + lyName, C.delta(s.total, cmpVal(ly, 'total'))) : ''])}
           </div>
           <div class="stat-card">
@@ -88,11 +88,11 @@
           <div class="stat-card">
             <span class="stat-label">參與人數（不重複）</span>
             <span class="stat-num">${s.people}</span>
-            <span class="stat-hint">來過的人數，同一人只算 1 位</span>
+            <span class="stat-hint">同一人只算 1 位</span>
             ${cmpList([deltaHtml('比' + prevName, C.delta(s.people, cmpVal(prev, 'people'))), lyName ? deltaHtml('比' + lyName, C.delta(s.people, cmpVal(ly, 'people'))) : ''])}
           </div>
         </div>
-        ${partial ? `<p class="stats-note">本${C.UNIT_NAME[p.unit]}還沒結束：算到今天（${esc(Fmt.shortDate(data.today))}），比較的期間也只算到相同日期。</p>` : ""}
+        ${partial ? `<p class="stats-note">本${C.UNIT_NAME[p.unit]}還沒結束：算到今天 ${Number(data.today.slice(5, 7))}/${Number(data.today.slice(8, 10))}，比較的期間也只算到相同日期。</p>` : ""}
         ${s.shortEvents || s.accompany || s.absent ? `<p class="stats-note">${[s.shortEvents ? `缺人的場次 ${s.shortEvents} 場` : '', s.accompany ? `陪同 ${s.accompany} 人次（不算人數）` : '', s.absent ? `報名但未到 ${s.absent} 人次` : ''].filter(Boolean).join('・')}</p>` : ''}
         ${missing.length ? `<div class="notice notice-error no-print"><p><strong>${missing.length} 位沒有填身分</strong>（道親佔比可能不準）：${missing.map(esc).join('、')}</p><p>請到勤務名單或試算表「報名」分頁補上身分。</p></div>` : ''}
 

@@ -34,6 +34,15 @@ body {
   font-family: var(--sans);
   font-size: 17px;
   line-height: 1.6;
+  /* 換行時避免最後一行只剩一個字（不支援的瀏覽器照舊換行） */
+  text-wrap: pretty;
+}
+
+/* 標題、標籤、短說明：兩行平均分配，例如「比去年同」「季」改成「比去年」「同季」 */
+h1, h2, h3, legend, .stat-label, .stat-hint, .stat-sub, .cmp-label, .card-title, .card-meta, .hint, .badge,
+.position-name, .detail-title, .admin-sub, .person-card-name, .person-card-meta, .trend-label, .cat-name, .stats-note,
+.notice p, .modal-title, .modal-note, .form-row > span, .import-errors {
+  text-wrap: balance;
 }
 
 [hidden] { display: none !important; }
