@@ -34,7 +34,7 @@
     el.innerHTML = `
       <h2>我要報名</h2>
       <form class="signup-form" novalidate>
-        <fieldset class="field">
+        <fieldset class="field"${perPerson ? ' hidden' : ''}>
           <legend>${perPerson ? '了愿項目名額' : `<span class="step">${step++}</span>選了愿項目`}</legend>
           <div class="choices" data-positions></div>
           ${perPerson ? '<p class="hint">這個勤務可以一人兼任多個項目：加入名字後，在每個人的名字下面勾他要報的項目（可以勾好幾項）。</p>' : ''}
@@ -98,6 +98,12 @@
       if (!perPerson) state.positionIds.forEach((id) => { const el = $(`[data-positions] input[value="${id}"]`); if (!el || !el.checked) state.positionIds.delete(id); });
     }
 
+    /** 已選的日期（沒選日期時看所有還能報的日子）這個項目都額滿了 */
+    function positionFull(p) {
+      const dates = state.dates.size ? Array.from(state.dates) : allDates.filter((d) => d > duty.today);
+      return dates.length > 0 && dates.every((d) => isFull(p, d));
+    }
+
     // ---------- 日期（多天勤務） ----------
 
     function renderDates() {
@@ -147,8 +153,8 @@
               <span class="option-label">項目</span>
               <div>
                 <div class="pos-chips" role="group" aria-label="${esc(e.name)} 的了愿項目">
-                  ${duty.positions.map((p) => `<label class="pos-chip${e.positionIds.has(p.id) ? ' is-checked' : ''}">
-                    <input type="${duty.multi ? 'checkbox' : 'radio'}" name="epos-${i}" value="${esc(p.id)}" data-entry-pos="${i}"${e.positionIds.has(p.id) ? ' checked' : ''}>${esc(p.name)}</label>`).join('')}
+                  ${duty.positions.map((p) => { const full = !e.positionIds.has(p.id) && positionFull(p); return `<label class="pos-chip${e.positionIds.has(p.id) ? ' is-checked' : ''}${full ? ' is-disabled' : ''}">
+                    <input type="${duty.multi ? 'checkbox' : 'radio'}" name="epos-${i}" value="${esc(p.id)}" data-entry-pos="${i}"${e.positionIds.has(p.id) ? ' checked' : ''}${full ? ' disabled' : ''}>${esc(p.name)}${full ? '<small>額滿</small>' : ''}</label>`; }).join('')}
                 </div>
                 ${perPerson ? '' : `<button type="button" class="link-btn" data-pos-reset="${i}">改回跟上面一樣</button>`}
               </div>
@@ -469,6 +475,7 @@
         else state.dates.delete(ev.target.value);
         renderDates();
         renderPositions();
+        if (perPerson) renderNames();
       });
     }
 

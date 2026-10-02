@@ -1483,6 +1483,8 @@ select.input { appearance: auto; }
   font-size: .95rem;
   cursor: pointer;
 }
+.pos-chip.is-disabled { opacity: .45; cursor: not-allowed; }
+.pos-chip small { margin-left: 4px; font-size: .8em; }
 .pos-chip input { position: absolute; opacity: 0; pointer-events: none; }
 .pos-chip.is-checked { background: var(--ink); border-color: var(--ink); color: var(--paper); font-weight: 700; }
 .pos-chip:focus-within { outline: 3px solid var(--accent); outline-offset: 1px; }
