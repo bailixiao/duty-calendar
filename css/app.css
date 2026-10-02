@@ -681,6 +681,7 @@ a { color: var(--accent); }
 
 .choice input { position: absolute; opacity: 0; pointer-events: none; }
 .choice:focus-within { outline: 3px solid var(--accent); outline-offset: 2px; }
+.choice.is-static { cursor: default; }
 .choice.is-checked { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
 .choice.is-disabled { opacity: .45; cursor: not-allowed; background: var(--paper-2); }
 .choice-main { font-weight: 500; }

@@ -28,14 +28,16 @@
     let searchToken = 0;
     let searchTimer = null;
     let step = 1;
+    // 可兼任（可報多項）的勤務：上面只顯示名額，每個人在自己的名字卡勾項目，不會上下兩處都能選
+    const perPerson = !!duty.multi && duty.positions.length > 1;
 
     el.innerHTML = `
       <h2>我要報名</h2>
       <form class="signup-form" novalidate>
         <fieldset class="field">
-          <legend><span class="step">${step++}</span>選了愿項目${duty.multi ? '<small>可複選</small>' : ''}</legend>
+          <legend>${perPerson ? '了愿項目名額' : `<span class="step">${step++}</span>選了愿項目`}</legend>
           <div class="choices" data-positions></div>
-          ${duty.multi ? '<p class="hint">這個勤務可以一人兼任多個項目，可以一次勾好幾項。</p>' : ''}
+          ${perPerson ? '<p class="hint">這個勤務可以一人兼任多個項目：加入名字後，在每個人的名字下面勾他要報的項目（可以勾好幾項）。</p>' : ''}
         </fieldset>
         ${multiDay ? `
         <fieldset class="field">
@@ -50,7 +52,7 @@
           </div>
           <div class="suggestions" data-suggestions aria-live="polite"></div>
           <ul class="name-list" data-names></ul>
-          <p class="hint">幫長輩或家人報名時，可以連續加入多個名字${duty.positions.length > 1 ? '；有人要報不同的了愿項目，按他名字下的<span class="nw">「這個人改報別的」</span>' : ''}。每個名字都要選<span class="nw">「道親」</span><span class="nw">「壇辦」</span>或<span class="nw">「未求道」</span>（成員名單上已登記的會自動帶入，不能改）。壇辦可選<span class="nw">「陪同」</span>，陪同不佔名額。</p>
+          <p class="hint">幫長輩或家人報名時，可以連續加入多個名字${perPerson ? '，每個名字下面各自勾項目' : duty.positions.length > 1 ? '；有人要報不同的了愿項目，按他名字下的<span class="nw">「這個人改報別的」</span>' : ''}。每個名字都要選<span class="nw">「道親」</span><span class="nw">「壇辦」</span>或<span class="nw">「未求道」</span>（成員名單上已登記的會自動帶入，不能改）。壇辦可選<span class="nw">「陪同」</span>，陪同不佔名額。</p>
         </fieldset>
         <div class="form-error" data-error role="alert" hidden></div>
         <button type="submit" class="btn btn-primary btn-block" data-submit>確認報名</button>
@@ -82,15 +84,18 @@
           const c = count(dates[0], p.id);
           sub = p.max !== null ? `已報 ${c}／${p.max}` : `已報 ${c} 人`;
         } else sub = p.max !== null ? `每天 ${p.max} 人` : '不限人數';
+        if (perPerson) {
+          return `<div class="choice is-static${fullAll ? ' is-disabled' : ''}"><span class="choice-main">${esc(p.name)}</span><span class="choice-sub">${esc(sub)}</span></div>`;
+        }
         return `
           <label class="choice${fullAll ? ' is-disabled' : ''}${checked ? ' is-checked' : ''}">
-            <input type="${duty.multi ? 'checkbox' : 'radio'}" name="position" value="${esc(p.id)}"${checked ? ' checked' : ''}${fullAll ? ' disabled' : ''}>
+            <input type="radio" name="position" value="${esc(p.id)}"${checked ? ' checked' : ''}${fullAll ? ' disabled' : ''}>
             <span class="choice-main">${esc(p.name)}${p.slot && p.name.indexOf(p.slot) === -1 ? `<small>${esc(p.slot)}</small>` : ''}</span>
             <span class="choice-sub">${esc(sub)}</span>
           </label>`;
       }).join('');
       // 額滿（不能勾）的項目從選擇中拿掉
-      state.positionIds.forEach((id) => { const el = $(`[data-positions] input[value="${id}"]`); if (!el || !el.checked) state.positionIds.delete(id); });
+      if (!perPerson) state.positionIds.forEach((id) => { const el = $(`[data-positions] input[value="${id}"]`); if (!el || !el.checked) state.positionIds.delete(id); });
     }
 
     // ---------- 日期（多天勤務） ----------
@@ -145,7 +150,7 @@
                   ${duty.positions.map((p) => `<label class="pos-chip${e.positionIds.has(p.id) ? ' is-checked' : ''}">
                     <input type="${duty.multi ? 'checkbox' : 'radio'}" name="epos-${i}" value="${esc(p.id)}" data-entry-pos="${i}"${e.positionIds.has(p.id) ? ' checked' : ''}>${esc(p.name)}</label>`).join('')}
                 </div>
-                <button type="button" class="link-btn" data-pos-reset="${i}">改回跟上面一樣</button>
+                ${perPerson ? '' : `<button type="button" class="link-btn" data-pos-reset="${i}">改回跟上面一樣</button>`}
               </div>
             </div>` : `<div class="option-row">
               <span class="option-label">項目</span>
@@ -187,7 +192,7 @@
       const known = identity !== undefined ? identity : knownIdentity.get(name);
       const fixed = IDENTITIES.indexOf(known) !== -1 ? known : '';
       // 項目先用上面選的；之後可以在名字卡各自改（custom＝改過，上面再改就不跟著變）
-      const entry = { name, identity: fixed, accompany: false, locked: !!fixed, positionIds: new Set(state.positionIds), custom: false };
+      const entry = { name, identity: fixed, accompany: false, locked: !!fixed, positionIds: perPerson ? new Set() : new Set(state.positionIds), custom: perPerson };
       state.entries.push(entry);
       hideError();
       renderNames();
@@ -307,9 +312,9 @@
 
       const problems = [];
       // 共用的項目沒選（有人跟著上面）→ 請選上面；改報別的人沒選 → 請選他自己的
-      if (!state.positionIds.size && (!state.entries.length || state.entries.some((e) => !e.custom))) problems.push('請選擇了愿項目');
+      if (!perPerson && !state.positionIds.size && (!state.entries.length || state.entries.some((e) => !e.custom))) problems.push('請選擇了愿項目');
       if (state.entries.some((e) => e.custom && !e.positionIds.size)) {
-        problems.push('改報別的人，請選他的了愿項目');
+        problems.push(perPerson ? '請在每個名字下面勾他要報的了愿項目' : '改報別的人，請選他的了愿項目');
         state.showMissing = true;
         renderNames();
       }
