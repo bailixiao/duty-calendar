@@ -71,7 +71,7 @@
     body.innerHTML = `
       ${AdminPage.staleNote(stale)}
       ${flash}
-      <div class="admin-actions"><button type="button" class="btn btn-primary" data-add>＋ 新增成員</button></div>
+      <div class="admin-actions"><button type="button" class="btn btn-primary" data-add>＋ 新增成員</button><button type="button" class="btn" data-from-signups>從出勤紀錄加入成員</button></div>
       <div class="list-filter">
         <select class="input" data-filter aria-label="狀態">
           <option value="active"${memberState.filter === 'active' ? ' selected' : ''}>啟用中（${counts.active}）</option>
@@ -106,6 +106,7 @@
     body.querySelector('[data-filter]').addEventListener('change', (ev) => { memberState.filter = ev.target.value; draw(); });
     body.querySelector('[data-q]').addEventListener('input', (ev) => { memberState.q = ev.target.value; draw(); });
     body.querySelector('[data-add]').addEventListener('click', () => editMember(null, data.groups, guard, reload));
+    body.querySelector('[data-from-signups]').addEventListener('click', () => fromSignups(guard, reload));
     rows.addEventListener('click', (ev) => {
       const b = ev.target.closest('[data-row]');
       if (b) editMember(data.members.find((m) => m.row === Number(b.dataset.row)), data.groups, guard, reload);
@@ -138,6 +139,66 @@
       notice(AdminPage.notice('success', m ? '已存檔' : '已新增成員', f.elements.name.value.trim()));
       afterWrite(reload);
     }, guard);
+  }
+
+  /**
+   * 從出勤紀錄加入成員：列出報名紀錄裡有、成員名單還沒有的人，勾選後一次加入。
+   * 和現有成員名字相近的（可能是同一人）預設不勾。
+   */
+  async function fromSignups(guard, reload) {
+    Busy.show('讀取出勤紀錄中⋯');
+    let list;
+    try {
+      list = (await Api.admin('adminMemberCandidates', {}, true)).candidates;
+      Busy.hide();
+    } catch (err) {
+      Busy.hide();
+      if (!guard(err)) { notice(`<div class="notice notice-error" role="alert"><p>${errorHtml(err)}</p></div>`); reload(); }
+      return;
+    }
+    if (!list.length) {
+      const m0 = Modal.open('<h2 class="modal-title">出勤紀錄裡的人都已經在成員名單了</h2><div class="modal-actions"><button type="button" class="btn btn-block" data-close>關閉</button></div>');
+      m0.el.querySelector('[data-close]').addEventListener('click', () => m0.close());
+      return;
+    }
+    const m = Modal.open(`
+      <h2 class="modal-title">從出勤紀錄加入成員</h2>
+      <p class="modal-note">有 ${list.length} 位出現在出勤紀錄、但還不是成員。身分照紀錄裡最常出現的；標「可能是」的和現有成員名字相近，預設不勾。</p>
+      <div class="bulk-list">
+        <label class="check"><input type="checkbox" data-all> <strong>全選</strong></label>
+        ${list.map((c, i) => `<label class="check cand"><input type="checkbox" data-i="${i}"${c.similar.length ? '' : ' checked'}>
+          <span><strong>${esc(c.name)}</strong> <span class="muted">${esc(c.identity || '未填身分')}・出勤 ${c.count} 次</span>
+          ${c.similar.length ? `<br><span class="warn">可能是成員「${c.similar.map(esc).join('」「')}」</span>` : ''}</span></label>`).join('')}
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-block btn-primary" data-go>加入</button>
+        <button type="button" class="btn btn-block" data-close>返回</button>
+      </div>`);
+    const el = m.el;
+    const boxes = () => [...el.querySelectorAll('[data-i]')];
+    const label = () => { el.querySelector('[data-go]').textContent = `加入 ${boxes().filter((b) => b.checked).length} 位`; };
+    el.querySelector('[data-all]').addEventListener('change', (ev) => { boxes().forEach((b) => { b.checked = ev.target.checked; }); label(); });
+    boxes().forEach((b) => b.addEventListener('change', label));
+    label();
+    el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    el.querySelector('[data-go]').addEventListener('click', async () => {
+      const members = boxes().filter((b) => b.checked).map((b) => list[Number(b.dataset.i)]).map((c) => ({ name: c.name, identity: c.identity }));
+      if (!members.length) return;
+      el.setAttribute('data-locked', '');
+      Busy.show(`加入 ${members.length} 位成員中⋯`);
+      try {
+        const res = await Api.admin('adminAddMembers', { members });
+        Busy.hide();
+        m.close();
+        notice(AdminPage.notice('success', `已加入 ${res.added} 位成員`, '可以點名字補上分組、備註。'));
+        afterWrite(reload);
+      } catch (err) {
+        Busy.hide();
+        el.removeAttribute('data-locked');
+        m.close();
+        if (!guard(err)) { notice(`<div class="notice notice-error" role="alert"><p>${errorHtml(err)}</p></div>`); reload(); }
+      }
+    });
   }
 
   // ---------- 分組 ----------

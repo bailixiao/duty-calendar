@@ -98,3 +98,22 @@ test('刪除分組：有勤務負責不能刪；沒有就刪除並清空成員�
   assert.equal(call('adminGroups').data.groups.some((x) => x.name === '第6組'), false);
   assert.equal(call('adminMembers').data.members[0].groups['打掃組'], '');
 });
+
+test('從出勤紀錄加入成員：列出還不是成員的人、推斷身分、標出名字相近；加入時略過已存在', () => {
+  const { call } = setup();
+  call('adminSaveMember', { member: { name: '王小明', identity: '壇辦' } });
+  call('adminImportHistory', { events: [
+    { date: '2026-03-05', name: '打掃', tan: ['測試甲', '王小明'], dao: ['測試乙'], accompany: [] },
+    { date: '2026-03-12', name: '打掃', tan: [], dao: ['測試甲', '測試乙'], unknown: ['小明'], accompany: [] }
+  ] });
+  const c = call('adminMemberCandidates').data.candidates;
+  assert.deepEqual(c.map((x) => [x.name, x.count, x.identity]), [['測試乙', 2, '道親'], ['測試甲', 2, '壇辦'], ['小明', 1, '']]);
+  assert.deepEqual(c.find((x) => x.name === '小明').similar, ['王小明']);
+  assert.equal(c.find((x) => x.name === '測試甲').last, '2026-03-12');
+
+  const r = call('adminAddMembers', { members: [{ name: '測試甲', identity: '壇辦' }, { name: '測試乙', identity: '道親' }, { name: '王小明' }] });
+  assert.deepEqual(r.data, { added: 2, skipped: 1 });
+  const names = call('adminMembers').data.members.map((m) => m.name + '/' + m.identity + '/' + m.active);
+  assert.deepEqual(names.sort(), ['測試乙/道親/true', '測試甲/壇辦/true', '王小明/壇辦/true'].sort());
+  assert.deepEqual(call('adminMemberCandidates').data.candidates.map((x) => x.name), ['小明']);
+});

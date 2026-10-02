@@ -174,3 +174,58 @@ function renameGroupRefs_(type, oldName, newName) {
   }
   return count;
 }
+
+/**
+ * 從出勤紀錄加入成員：列出報名紀錄（有效）裡出現、但成員名單還沒有的名字。
+ * 身分取報名紀錄裡出現最多次的（壇辦／道親，都沒有就空白）；和現有成員名字相近的附上 similar，讓管理者確認。
+ */
+function adminMemberCandidates_() {
+  var existing = readTable_(SHEETS.MEMBERS).map(function (m) { return normalizeName_(m['姓名']); }).filter(function (n) { return n; });
+  var has = {};
+  existing.forEach(function (n) { has[n] = true; });
+  var map = {};
+  readTableCached_(SHEETS.SIGNUPS).forEach(function (s) {
+    if (s['狀態'] === '已取消') return;
+    var name = normalizeName_(s['姓名']);
+    if (!name || has[name]) return;
+    var c = map[name] || (map[name] = { name: name, count: 0, tan: 0, dao: 0, last: '' });
+    c.count++;
+    if (s['身分'] === '壇辦') c.tan++;
+    if (s['身分'] === '道親') c.dao++;
+    if (s['日期'] > c.last) c.last = s['日期'];
+  });
+  var list = Object.keys(map).map(function (k) {
+    var c = map[k];
+    return {
+      name: c.name, count: c.count, last: c.last,
+      identity: c.tan || c.dao ? (c.dao > c.tan ? '道親' : '壇辦') : '',
+      similar: existing.filter(function (n) { return sameName_(n, c.name); }).slice(0, 3)
+    };
+  });
+  list.sort(function (a, b) { return b.count - a.count || a.name.localeCompare(b.name); });
+  return { candidates: list };
+}
+
+/** body = { members: [{ name, identity }] }：一次加入多位成員（已存在的略過） */
+function adminAddMembers_(body) {
+  var input = Array.isArray(body.members) ? body.members : [];
+  if (!input.length) throw new ApiError_('BAD_REQUEST', '沒有要加入的成員');
+  if (input.length > 1000) throw new ApiError_('BAD_REQUEST', '一次最多加入 1000 位');
+  return withSignupLock_(function () {
+    var has = {};
+    readTable_(SHEETS.MEMBERS).forEach(function (m) { has[normalizeName_(m['姓名'])] = true; });
+    var rows = [];
+    var skipped = 0;
+    input.forEach(function (m) {
+      var name = normalizeName_(m && m.name);
+      if (!name || has[name]) { skipped++; return; }
+      has[name] = true;
+      rows.push({ '姓名': name, '身分': OPTIONS.identity.indexOf(m.identity) !== -1 ? m.identity : '', '啟用中': '是' });
+    });
+    appendRows_(SHEETS.MEMBERS, rows);
+    if (rows.length) writeDutyLog_('成員', '從出勤紀錄加入 ' + rows.length + ' 位');
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.MEMBERS);
+    return { added: rows.length, skipped: skipped };
+  });
+}

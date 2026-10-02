@@ -1418,3 +1418,6 @@ select.input { appearance: auto; }
 .merge-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
 .merge-group { padding: 8px 14px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); }
 .stats-actions a.btn { display: grid; place-items: center; text-decoration: none; min-height: 52px; }
+.bulk-list .cand { align-items: flex-start; padding: 4px 0; }
+.bulk-list .cand input { margin-top: 4px; flex: none; }
+.bulk-list .warn { color: var(--accent); font-size: .9rem; }
