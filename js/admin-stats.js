@@ -25,11 +25,8 @@
   function render(body, guard, data, stale) {
     const ev = data.events;
     const p = state.period;
-    const s = C.summarize(ev, p);
-    const prevP = C.shift(p, -1);
-    const prev = C.summarize(ev, prevP);
-    const lyP = p.unit === 'year' ? null : C.lastYear(p);
-    const ly = lyP ? C.summarize(ev, lyP) : null;
+    // 本期還沒過完時，比較期間只算到相同天數（見 StatsCalc.compare）
+    const { now: s, prev, prevP, ly, lyP, partial } = C.compare(ev, p, data.today);
     const prevName = C.prevName(p.unit);
     const lyName = C.lastYearName(p.unit);
     const cmpVal = (o, key) => (o && o.hasData ? o[key] : null);
@@ -62,8 +59,9 @@
           <div class="stat-card">
             <span class="stat-label">出勤人次</span>
             <span class="stat-num">${s.total}</span>
-            ${deltaHtml('比' + prevName, C.delta(s.hasData ? s.total : null, cmpVal(prev, 'total')))}
-            ${lyName ? deltaHtml('比' + lyName, C.delta(s.hasData ? s.total : null, cmpVal(ly, 'total'))) : ''}
+            <span class="stat-hint">每場勤務每人算 1 次（同一人來 3 場＝3 人次）</span>
+            ${deltaHtml('比' + prevName, C.delta(s.total, cmpVal(prev, 'total')))}
+            ${lyName ? deltaHtml('比' + lyName, C.delta(s.total, cmpVal(ly, 'total'))) : ''}
           </div>
           <div class="stat-card">
             <span class="stat-label">道親佔比</span>
@@ -75,16 +73,18 @@
           <div class="stat-card">
             <span class="stat-label">勤務場次</span>
             <span class="stat-num">${s.events}</span>
-            ${deltaHtml('比' + prevName, C.delta(s.hasData ? s.events : null, cmpVal(prev, 'events')))}
-            ${lyName ? deltaHtml('比' + lyName, C.delta(s.hasData ? s.events : null, cmpVal(ly, 'events'))) : ''}
+            ${deltaHtml('比' + prevName, C.delta(s.events, cmpVal(prev, 'events')))}
+            ${lyName ? deltaHtml('比' + lyName, C.delta(s.events, cmpVal(ly, 'events'))) : ''}
           </div>
           <div class="stat-card">
             <span class="stat-label">參與人數（不重複）</span>
             <span class="stat-num">${s.people}</span>
-            ${deltaHtml('比' + prevName, C.delta(s.hasData ? s.people : null, cmpVal(prev, 'people')))}
-            ${lyName ? deltaHtml('比' + lyName, C.delta(s.hasData ? s.people : null, cmpVal(ly, 'people'))) : ''}
+            <span class="stat-hint">來過的人數，同一人只算 1 位</span>
+            ${deltaHtml('比' + prevName, C.delta(s.people, cmpVal(prev, 'people')))}
+            ${lyName ? deltaHtml('比' + lyName, C.delta(s.people, cmpVal(ly, 'people'))) : ''}
           </div>
         </div>
+        ${partial ? `<p class="stats-note">本${C.UNIT_NAME[p.unit]}還沒結束：算到今天（${esc(Fmt.shortDate(data.today))}），比較的期間也只算到相同日期。</p>` : ""}
         ${s.shortEvents || s.accompany || s.absent ? `<p class="stats-note">${[s.shortEvents ? `缺人的場次 ${s.shortEvents} 場` : '', s.accompany ? `陪同 ${s.accompany} 人次（不算人數）` : '', s.absent ? `報名但未到 ${s.absent} 人次` : ''].filter(Boolean).join('・')}</p>` : ''}
         ${missing.length ? `<div class="notice notice-error no-print"><p><strong>${missing.length} 位沒有填身分</strong>（道親佔比可能不準）：${missing.map(esc).join('、')}</p><p>請到勤務名單或試算表「報名」分頁補上身分。</p></div>` : ''}
 

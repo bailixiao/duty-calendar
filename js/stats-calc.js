@@ -53,9 +53,9 @@
     return events.filter((e) => contains(p, e.date));
   }
 
-  /** 一段期間的彙總 */
-  function summarize(events, p) {
-    const list = eventsIn(events, p);
+  /** 一段期間的彙總；until（選填）：只算到這一天（比較還沒過完的期間時用） */
+  function summarize(events, p, until) {
+    const list = eventsIn(events, p).filter((e) => !until || e.date <= until);
     const r = { events: list.length, tan: 0, dao: 0, unknown: 0, accompany: 0, absent: 0, shortEvents: 0 };
     const people = new Set();
     list.forEach((e) => {
@@ -160,7 +160,47 @@
     return lines.join('\n');
   }
 
-  const api = { UNIT_NAME, periodOf, shift, lastYear, contains, label, prevName, lastYearName, summarize, trend, ranking, byCategory, missingIdentity, delta, pct, textReport, eventsIn };
+  function pad2(n) {
+    return String(n).padStart(2, '0');
+  }
+
+  /** 期間的第一天 'yyyy-MM-dd' */
+  function startOf(p) {
+    const m = p.unit === 'month' ? p.n : p.unit === 'quarter' ? p.n * 3 - 2 : 1;
+    return `${p.year}-${pad2(m)}-01`;
+  }
+
+  function addDays(dateStr, n) {
+    const d = new Date(Date.UTC(+dateStr.slice(0, 4), +dateStr.slice(5, 7) - 1, +dateStr.slice(8, 10)) + n * 86400000);
+    return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+  }
+
+  function daysBetween(a, b) {
+    const t = (s) => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
+    return Math.round((t(b) - t(a)) / 86400000);
+  }
+
+  /**
+   * 本期與比較期間（上一期、去年同期）。本期還沒過完（含今天）時，比較期間也只算到相同的天數，
+   * 例如本季到 10/2 → 去年同季算到去年 10/2、上一季算到 7/2，比較才公平。
+   * 回傳 { now, prev, prevP, ly, lyP, partial }
+   */
+  function compare(events, p, today) {
+    const prevP = shift(p, -1);
+    const lyP = p.unit === 'year' ? null : lastYear(p);
+    const partial = contains(p, today);
+    const elapsed = partial ? daysBetween(startOf(p), today) : null;
+    // 比較期間：只算到相同天數，但「有沒有資料」看整段（前幾天剛好沒勤務算 0，不算沒有資料）
+    const cut = (q) => {
+      if (!q) return null;
+      const r = summarize(events, q, partial ? addDays(startOf(q), elapsed) : undefined);
+      r.hasData = summarize(events, q).hasData;
+      return r;
+    };
+    return { now: summarize(events, p), prevP, prev: cut(prevP), lyP, ly: cut(lyP), partial };
+  }
+
+  const api = { compare, startOf, addDays, UNIT_NAME, periodOf, shift, lastYear, contains, label, prevName, lastYearName, summarize, trend, ranking, byCategory, missingIdentity, delta, pct, textReport, eventsIn };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.StatsCalc = api;
 })();

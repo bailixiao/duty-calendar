@@ -1286,6 +1286,7 @@ select.input { appearance: auto; }
 .stat-label { font-size: 1rem; color: var(--ink-2); }
 .stat-num { font-size: 2.6rem; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; }
 .stat-sub { font-size: 1.05rem; color: var(--ink-2); }
+.stat-hint { font-size: .85rem; color: var(--muted); line-height: 1.4; margin-bottom: 2px; }
 .stat-delta { font-size: 1.15rem; font-weight: 700; line-height: 1.4; color: var(--ink-2); }
 .stat-delta.is-up { color: var(--ok); }
 .stat-delta.is-down { color: var(--accent); }

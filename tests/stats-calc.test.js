@@ -66,3 +66,28 @@ test('排行、分類、未填身分、文字報告', () => {
   assert.match(text, /比去年同月：人次 \+5/);
   assert.match(S.textReport(events, { unit: 'month', year: 2026, n: 1 }), /沒有出勤紀錄/);
 });
+
+test('還沒過完的期間：比較只算到相同天數；前幾天沒勤務算 0 不算沒有資料', () => {
+  const evs = [
+    ev('2025-10-01', ['測試甲'], []),
+    ev('2025-10-20', ['測試甲'], ['測試乙']),
+    ev('2026-07-01', ['測試甲'], ['測試乙']),
+    ev('2026-07-15', ['測試甲'], []),
+    ev('2026-10-02', ['測試甲'], ['測試乙', '測試丙'])
+  ];
+  const q = { unit: 'quarter', year: 2026, n: 4 };
+  const c = S.compare(evs, q, '2026-10-02');
+  assert.equal(c.partial, true);
+  assert.equal(c.now.total, 3);
+  assert.equal(c.ly.total, 1, '去年同季只算到 10/2');
+  assert.equal(c.prev.total, 2, '上一季只算到 7/2');
+  const m = S.compare(evs.slice(0, 4), { unit: 'month', year: 2026, n: 10 }, '2026-10-01');
+  assert.equal(m.now.total, 0);
+  assert.equal(m.ly.total, 1);
+  assert.equal(m.prev.total, 0);
+  assert.equal(m.prev.hasData, false, '9 月整個月沒資料');
+  const full = S.compare(evs, { unit: 'quarter', year: 2026, n: 3 }, '2026-10-02');
+  assert.equal(full.partial, false);
+  assert.equal(full.now.total, 3);
+  assert.equal(S.startOf({ unit: 'quarter', year: 2026, n: 4 }), '2026-10-01');
+});
