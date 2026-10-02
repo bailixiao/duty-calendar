@@ -469,6 +469,7 @@
 
     $('[data-add]').addEventListener('click', addFromInput);
     input.addEventListener('input', onInput);
+    input.addEventListener('focus', () => { if (!searchCache.size) Api.warmUp(); }, { once: true });
     input.addEventListener('keydown', (ev) => {
       if (ev.key === 'Enter' && !ev.isComposing) {
         ev.preventDefault();

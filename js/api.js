@@ -43,10 +43,10 @@
    * 所以第一次只等 8 秒，逾時或連線失敗就重送（最多 3 次，一次比一次等久一點）。
    * 只有讀取會自動重送；報名（寫入）不重送，避免重複寫入。
    */
-  async function get(action, params) {
+  async function get(action, params, waitList) {
     const url = window.APP_CONFIG.API_URL + '?' + new URLSearchParams(Object.assign({ action }, params || {})).toString();
     // Google 偶爾整個請求卡住幾十秒後回錯誤頁，所以短等待、多試幾次比久等一次有效
-    const waits = [8000, 12000, 30000];
+    const waits = waitList || [8000, 12000, 30000];
     for (let i = 0; ; i++) {
       try {
         return await getOnce(url, waits[i]);
@@ -170,8 +170,11 @@
     adminLogout,
     isAdmin: () => !!adminToken,
     getEvents: (from, to) => get('getEvents', { from, to }),
+    // 先叫醒伺服器（點名字欄時呼叫），之後的名字搜尋比較不會遇到冷啟動
+    warmUp: () => get('ping', {}, [5000]).catch(() => {}),
     getDuty: (id) => get('getDuty', { id }),
-    searchMembers: (q, groupType, group) => get('searchMembers', { q, groupType: groupType || '', group: group || '' }),
+    // 名字提示要快：平常 2 秒內回來，卡住就早點重送（3、5、8、15 秒）
+    searchMembers: (q, groupType, group) => get('searchMembers', { q, groupType: groupType || '', group: group || '' }, [3000, 5000, 8000, 15000]),
     getSiblings: (dutyId) => get('getSiblings', { id: dutyId }),
     signup: (payload) => post(Object.assign({ action: 'signup' }, payload)),
     cancel: (signupId) => post({ action: 'cancel', signupId }),
