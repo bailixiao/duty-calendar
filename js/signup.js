@@ -209,7 +209,8 @@
       return null;
     }
 
-    function renderSuggestions(list) {
+    /** pending：伺服器還沒回來，先顯示查過的結果，後面加「搜尋中」 */
+    function renderSuggestions(list, pending) {
       const taken = new Set(state.entries.map((e) => e.name));
       const items = list.filter((m) => !taken.has(m.name));
       items.forEach((m) => knownIdentity.set(m.name, m.identity || ''));
@@ -217,6 +218,7 @@
       $('[data-suggestions]').innerHTML = items.length
         ? items.map((m) => `<button type="button" class="suggestion" data-suggest="${esc(m.name)}">${esc(m.name)}${inGroup(m) ? '<small>本組</small>' : ''}</button>`).join('')
         : '';
+      if (pending) $('[data-suggestions]').insertAdjacentHTML('beforeend', '<span class="muted small">搜尋更多中⋯</span>');
     }
 
     function onInput() {
@@ -231,17 +233,27 @@
         renderSuggestions(cached);
         return;
       }
+      // 伺服器每次約 1.5–2 秒：先用查過的結果（不完整也沒關係）在本機篩選先顯示，等伺服器回來再補齊
+      const early = partialFromCache(q);
+      if (early.length) renderSuggestions(early, true);
       searchTimer = setTimeout(async () => {
         const t = ++searchToken;
-        $('[data-suggestions]').innerHTML = '<span class="muted small">搜尋中⋯</span>';
+        if (!early.length) $('[data-suggestions]').innerHTML = '<span class="muted small">搜尋中⋯ 也可以直接打完整名字按「加入」</span>';
         try {
           const res = await Api.searchMembers(q, duty.groupType, duty.group);
           searchCache.set(q, res.members);
           if (t === searchToken) renderSuggestions(res.members);
         } catch (e) {
-          if (t === searchToken) $('[data-suggestions]').innerHTML = '';
+          if (t === searchToken && !early.length) $('[data-suggestions]').innerHTML = '';
         }
       }, 250);
+    }
+
+    /** 查過的結果中，名字含有這次輸入的（可能不完整，只是先顯示） */
+    function partialFromCache(q) {
+      const seen = new Map();
+      for (const list of searchCache.values()) list.forEach((m) => { if (m.name.indexOf(q) !== -1) seen.set(m.name, m); });
+      return [...seen.values()];
     }
 
     // ---------- 錯誤訊息 ----------
