@@ -16,10 +16,22 @@
     }, body);
   }
 
+  /** 一行比較：左邊「比上月」、右邊 ▲ 12（綠）／▼ 3（紅）／＝ 持平／—（沒有資料） */
   function deltaHtml(name, d) {
     if (!name) return '';
-    if (d.text === null) return `<span class="stat-delta is-none">${esc(name)}：沒有資料</span>`;
-    return `<span class="stat-delta ${d.sign > 0 ? 'is-up' : d.sign < 0 ? 'is-down' : ''}">${esc(name)} ${esc(d.text)}</span>`;
+    let cls = '';
+    let val = '—';
+    if (d.text === '持平') val = '＝ 持平';
+    else if (d.text !== null) {
+      cls = d.sign > 0 ? 'is-up' : 'is-down';
+      val = (d.sign > 0 ? '▲ ' : '▼ ') + d.text.replace(/^[+−]/, '');
+    } else cls = 'is-none';
+    return `<div class="cmp-row"><span class="cmp-label">${esc(name)}</span><span class="cmp-val ${cls}">${esc(val)}</span></div>`;
+  }
+
+  /** 卡片下方的比較區（上一期、去年同期各一行） */
+  function cmpList(rows) {
+    return `<div class="cmp-list">${rows.join('')}</div>`;
   }
 
   function render(body, guard, data, stale) {
@@ -60,28 +72,24 @@
             <span class="stat-label">出勤人次</span>
             <span class="stat-num">${s.total}</span>
             <span class="stat-hint">每場勤務每人算 1 次（同一人來 3 場＝3 人次）</span>
-            ${deltaHtml('比' + prevName, C.delta(s.total, cmpVal(prev, 'total')))}
-            ${lyName ? deltaHtml('比' + lyName, C.delta(s.total, cmpVal(ly, 'total'))) : ''}
+            ${cmpList([deltaHtml('比' + prevName, C.delta(s.total, cmpVal(prev, 'total'))), lyName ? deltaHtml('比' + lyName, C.delta(s.total, cmpVal(ly, 'total'))) : ''])}
           </div>
           <div class="stat-card">
             <span class="stat-label">道親佔比</span>
             <span class="stat-num">${C.pct(s.ratio)}</span>
             <span class="stat-sub">道親 ${s.dao}・壇辦 ${s.tan}${s.unknown ? `・未填 ${s.unknown}` : ''}</span>
-            ${deltaHtml('比' + prevName, C.delta(s.ratio, cmpVal(prev, 'ratio'), true))}
-            ${lyName ? deltaHtml('比' + lyName, C.delta(s.ratio, cmpVal(ly, 'ratio'), true)) : ''}
+            ${cmpList([deltaHtml('比' + prevName, C.delta(s.ratio, cmpVal(prev, 'ratio'), true)), lyName ? deltaHtml('比' + lyName, C.delta(s.ratio, cmpVal(ly, 'ratio'), true)) : ''])}
           </div>
           <div class="stat-card">
             <span class="stat-label">勤務場次</span>
             <span class="stat-num">${s.events}</span>
-            ${deltaHtml('比' + prevName, C.delta(s.events, cmpVal(prev, 'events')))}
-            ${lyName ? deltaHtml('比' + lyName, C.delta(s.events, cmpVal(ly, 'events'))) : ''}
+            ${cmpList([deltaHtml('比' + prevName, C.delta(s.events, cmpVal(prev, 'events'))), lyName ? deltaHtml('比' + lyName, C.delta(s.events, cmpVal(ly, 'events'))) : ''])}
           </div>
           <div class="stat-card">
             <span class="stat-label">參與人數（不重複）</span>
             <span class="stat-num">${s.people}</span>
             <span class="stat-hint">來過的人數，同一人只算 1 位</span>
-            ${deltaHtml('比' + prevName, C.delta(s.people, cmpVal(prev, 'people')))}
-            ${lyName ? deltaHtml('比' + lyName, C.delta(s.people, cmpVal(ly, 'people'))) : ''}
+            ${cmpList([deltaHtml('比' + prevName, C.delta(s.people, cmpVal(prev, 'people'))), lyName ? deltaHtml('比' + lyName, C.delta(s.people, cmpVal(ly, 'people'))) : ''])}
           </div>
         </div>
         ${partial ? `<p class="stats-note">本${C.UNIT_NAME[p.unit]}還沒結束：算到今天（${esc(Fmt.shortDate(data.today))}），比較的期間也只算到相同日期。</p>` : ""}

@@ -1288,6 +1288,29 @@ select.input { appearance: auto; }
 .stat-sub { font-size: 1.05rem; color: var(--ink-2); }
 .stat-hint { font-size: .85rem; color: var(--muted); line-height: 1.4; margin-bottom: 2px; }
 .stat-delta { font-size: 1.15rem; font-weight: 700; line-height: 1.4; color: var(--ink-2); }
+.cmp-list { display: grid; gap: 6px; margin-top: 10px; }
+.cmp-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--paper);
+  border-radius: 8px;
+}
+.cmp-label { font-size: .95rem; color: var(--ink-2); white-space: nowrap; }
+
+/* 手機：大數字一張一列，數字在左、比較在右，比較的字才不會擠在一起 */
+@media (max-width: 520px) {
+  .stat-cards { grid-template-columns: 1fr; }
+  .stat-card { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); column-gap: 12px; align-items: center; }
+  .stat-card > :not(.cmp-list) { grid-column: 1; }
+  .stat-card > .cmp-list { grid-column: 2; grid-row: 1 / span 4; margin-top: 0; }
+}
+.cmp-val { font-size: 1.25rem; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cmp-val.is-up { color: var(--ok); }
+.cmp-val.is-down { color: var(--accent); }
+.cmp-val.is-none { color: var(--muted); font-weight: 500; }
 .stat-delta.is-up { color: var(--ok); }
 .stat-delta.is-down { color: var(--accent); }
 .stat-delta.is-none { color: var(--muted); font-weight: 500; font-size: 1rem; }
