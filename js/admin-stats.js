@@ -148,7 +148,7 @@
           ${details.length ? `<ul class="detail-list">${details.map((e) => {
             const total = e.tan.length + e.dao.length + e.unknown.length;
             return `<li class="detail-item">
-              <div class="detail-head"><span>${esc(Fmt.shortDate(e.date))} ${esc(e.name)}</span><strong>${total} 人</strong></div>
+              <div class="stat-detail-head"><span>${esc(Fmt.shortDate(e.date))} ${esc(e.name)}</span><strong>${total} 人</strong></div>
               ${e.tan.length ? `<p>壇辦 ${e.tan.length}：${e.tan.map(esc).join('、')}</p>` : ''}
               ${e.dao.length ? `<p>道親 ${e.dao.length}：${e.dao.map(esc).join('、')}</p>` : ''}
               ${e.unknown.length ? `<p class="warn">未填身分：${e.unknown.map(esc).join('、')}</p>` : ''}

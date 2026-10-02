@@ -21,6 +21,9 @@ function signup_(body) {
   }
 
   // 勤務與了愿項目在報名過程中不會變動，在排隊前先讀，縮短每筆佔用鎖的時間（壓力測試：每筆約 0.9 秒）
+  // 成員名單上已登記身分的人，一律以名單為準（報名者不能改，統計才一致）
+  entries = withMemberIdentity_(entries);
+
   var duty = readTableCached_(SHEETS.DUTIES).filter(function (d) { return d['勤務ID'] === body.dutyId; })[0];
   var positions = duty ? readTableCached_(SHEETS.POSITIONS).filter(function (p) { return p['勤務ID'] === duty['勤務ID']; }) : [];
 
@@ -102,5 +105,17 @@ function uniqueList_(list) {
     if (seen[x]) return false;
     seen[x] = true;
     return true;
+  });
+}
+
+/** 報名的每個名字：成員名單（啟用中）上完全同名且有登記身分的，身分改用名單上的 */
+function withMemberIdentity_(entries) {
+  var map = {};
+  readTableCached_(SHEETS.MEMBERS).forEach(function (m) {
+    if (m['啟用中'] !== '否' && OPTIONS.identity.indexOf(m['身分']) !== -1) map[normalizeName_(m['姓名'])] = m['身分'];
+  });
+  return entries.map(function (e) {
+    var fixed = map[normalizeName_(e && e.name)];
+    return fixed ? Object.assign({}, e, { identity: fixed }) : e;
   });
 }

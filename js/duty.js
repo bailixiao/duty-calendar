@@ -90,7 +90,7 @@
       ['地點', d.location],
       ['服裝', d.attire],
       ['負責組', isNotice ? '' : (Fmt.groupText(d) ? d.group : '')],
-      ['組長／召集人', isNotice || !Fmt.groupText(d) ? '' : d.groupLeader]
+      ['組長／<span class="nw">召集人</span>', isNotice || !Fmt.groupText(d) ? '' : d.groupLeader]
     ].filter((row) => row[1]);
 
     root.innerHTML = `

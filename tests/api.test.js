@@ -508,3 +508,15 @@ test('勤務資料含負責組的組長或召集人，不含電話', () => {
   const noGroup = ev.data.duties.find(d => !d.group);
   if (noGroup) assert.equal(noGroup.groupLeader, '');
 });
+
+test('成員名單上已登記身分的人，報名時身分以名單為準', () => {
+  const env = createEnv(OCT_1);
+  const sheet = env.sheets['成員'].data;
+  sheet.push(['測試甲', '壇辦', '', '', '', '', '是'], ['測試乙', '', '', '', '', '', '是']);
+  env.onEdit();
+  const duty = findDuty(env, '2026-10-13', '2026-10-13', (d) => d.name === '彌勒山志工輪值');
+  const r = env.post({ action: 'signup', dutyId: duty.id, positionId: duty.positions[0].id, dates: ['2026-10-13'],
+    entries: [{ name: '測試甲', identity: '道親' }, { name: '測試乙', identity: '未求道' }] });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.deepEqual(r.data.created.map((c) => [c.name, c.identity]), [['測試甲', '壇辦'], ['測試乙', '未求道']]);
+});

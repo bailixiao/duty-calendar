@@ -48,7 +48,7 @@
           </div>
           <div class="suggestions" data-suggestions aria-live="polite"></div>
           <ul class="name-list" data-names></ul>
-          <p class="hint">幫長輩或家人報名時，可以連續加入多個名字。每個名字都要選<span class="nw">「道親」</span><span class="nw">「壇辦」</span>或<span class="nw">「未求道」</span>。壇辦可選<span class="nw">「陪同」</span>，陪同不佔名額。</p>
+          <p class="hint">幫長輩或家人報名時，可以連續加入多個名字。每個名字都要選<span class="nw">「道親」</span><span class="nw">「壇辦」</span>或<span class="nw">「未求道」</span>（成員名單上已登記的會自動帶入，不能改）。壇辦可選<span class="nw">「陪同」</span>，陪同不佔名額。</p>
         </fieldset>
         <div class="form-error" data-error role="alert" hidden></div>
         <button type="submit" class="btn btn-primary btn-block" data-submit>確認報名</button>
@@ -125,12 +125,13 @@
           <div class="name-options">
             <div class="option-row">
               <span class="option-label">身分</span>
+              ${e.locked ? `<span class="identity-fixed"><strong>${esc(e.identity)}</strong><span class="muted">（成員名單登記的，不能改）</span></span>` : `
               <div class="segmented segmented-3" role="radiogroup" aria-label="${esc(e.name)} 的身分">
                 ${IDENTITIES.map((id) => `
                   <label class="segment${e.identity === id ? ' is-checked' : ''}">
                     <input type="radio" name="identity-${i}" value="${id}" data-identity="${i}"${e.identity === id ? ' checked' : ''}>${id}
                   </label>`).join('')}
-              </div>
+              </div>`}
             </div>
             ${e.identity === '壇辦' ? `<div class="option-row">
               <span class="option-label">方式</span>
@@ -149,7 +150,10 @@
       $('[data-submit]').textContent = state.submitting ? '報名中⋯' : n ? `確認報名（${n} 人）` : '確認報名';
     }
 
-    /** identity：從提示點選時帶入成員名單上的身分；手動輸入的名字留空，由報名者選 */
+    /**
+     * 成員名單上已登記身分的人：身分固定（locked），報名者不能改（統計以成員名單為準）。
+     * 從提示點選時直接帶入；手動輸入的名字到成員名單查一次，完全同名且有身分就帶入並固定。
+     */
     function addName(raw, identity) {
       const name = normalize(raw);
       if (!name) return false;
@@ -158,10 +162,27 @@
         showError(same.name === name ? `「${name}」已經在名單裡了` : `「${name}」與「${same.name}」視為同一人，已經在名單裡了`);
         return false;
       }
-      state.entries.push({ name, identity: IDENTITIES.indexOf(identity) !== -1 ? identity : '', accompany: false });
+      const known = identity !== undefined ? identity : knownIdentity.get(name);
+      const fixed = IDENTITIES.indexOf(known) !== -1 ? known : '';
+      const entry = { name, identity: fixed, accompany: false, locked: !!fixed };
+      state.entries.push(entry);
       hideError();
       renderNames();
+      if (!fixed && known === undefined) lookupIdentity(entry);
       return true;
+    }
+
+    /** 手動輸入的名字：查成員名單，完全同名且有身分就帶入並固定 */
+    async function lookupIdentity(entry) {
+      try {
+        const res = await Api.searchMembers(entry.name, duty.groupType, duty.group);
+        const m = res.members.find((x) => x.name === entry.name);
+        if (!m || IDENTITIES.indexOf(m.identity) === -1 || state.entries.indexOf(entry) === -1) return;
+        entry.identity = m.identity;
+        entry.locked = true;
+        if (entry.identity !== '壇辦') entry.accompany = false;
+        renderNames();
+      } catch (e) { /* 查不到就讓報名者自己選，伺服器存檔時仍會以成員名單為準 */ }
     }
 
     function addFromInput() {
