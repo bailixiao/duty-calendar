@@ -236,6 +236,7 @@ function adminDispatch_(body) {
     case 'adminSaveMember': return adminSaveMember_(body);
     case 'adminMemberCandidates': return adminMemberCandidates_(body);
     case 'adminAddMembers': return adminAddMembers_(body);
+    case 'adminMergeNames': return adminMergeNames_(body);
     case 'adminGroups': return adminGroups_(body);
     case 'adminSaveGroup': return adminSaveGroup_(body);
     case 'adminDeleteGroup': return adminDeleteGroup_(body);

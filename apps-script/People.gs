@@ -229,3 +229,59 @@ function adminAddMembers_(body) {
     return { added: rows.length, skipped: skipped };
   });
 }
+
+/**
+ * 合併同一人的不同寫法：把「報名」分頁裡 from 這些名字改成 to（含已取消的紀錄），統計才不會算成兩個人。
+ * body = { merges: [{ from: ['小明'], to: '王小明' }] }
+ */
+function adminMergeNames_(body) {
+  var merges = (Array.isArray(body.merges) ? body.merges : []).map(function (m) {
+    return {
+      to: normalizeName_(m && m.to),
+      from: (Array.isArray(m && m.from) ? m.from : []).map(normalizeName_).filter(function (n) { return n; })
+    };
+  }).filter(function (m) { return m.to && m.from.length; });
+  if (!merges.length) throw new ApiError_('BAD_REQUEST', '沒有要合併的名字');
+  var map = {};
+  merges.forEach(function (m) { m.from.forEach(function (n) { if (n !== m.to) map[n] = m.to; }); });
+
+  return withSignupLock_(function () {
+    var rows = readTable_(SHEETS.SIGNUPS);
+    var headers = SHEETS.SIGNUPS.headers;
+    var nameCol = headers.indexOf('姓名') + 1;
+    var statusCol = headers.indexOf('狀態') + 1;
+    var changed = 0;
+    var dropped = 0;
+    if (rows.length) {
+      // 同一場同一天已經有統一後的名字（例如「小明」「王小明」都記在同一場）→ 改名的那筆改成已取消，避免算兩次
+      var key = function (r, name) { return r['勤務ID'] + '|' + r['日期'] + '|' + name; };
+      var present = {};
+      rows.forEach(function (r) { if (r['狀態'] !== '已取消') present[key(r, normalizeName_(r['姓名']))] = true; });
+      var first = rows[0]._row;
+      var count = rows[rows.length - 1]._row - first + 1;
+      var sheet = getSheet_(SHEETS.SIGNUPS);
+      // 整欄讀出來改完一次寫回（逐列寫太慢）；空白列保留原值
+      var nameRange = sheet.getRange(first, nameCol, count, 1);
+      var statusRange = sheet.getRange(first, statusCol, count, 1);
+      var names = nameRange.getDisplayValues();
+      var statuses = statusRange.getDisplayValues();
+      rows.forEach(function (r) {
+        var to = map[normalizeName_(r['姓名'])];
+        if (!to) return;
+        var i = r._row - first;
+        names[i][0] = to;
+        changed++;
+        if (r['狀態'] !== '已取消') {
+          if (present[key(r, to)]) { statuses[i][0] = '已取消'; dropped++; } else present[key(r, to)] = true;
+        }
+      });
+      if (changed) nameRange.setValues(names);
+      if (dropped) statusRange.setValues(statuses);
+    }
+    writeDutyLog_('修正', '合併同一人寫法：' + merges.map(function (m) { return m.from.join('／') + ' → ' + m.to; }).join('；') +
+      '（' + changed + ' 筆報名' + (dropped ? '，其中 ' + dropped + ' 筆同一場重複、改為已取消' : '') + '）');
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.SIGNUPS);
+    return { changed: changed, dropped: dropped };
+  });
+}

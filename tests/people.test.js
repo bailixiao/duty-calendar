@@ -117,3 +117,21 @@ test('從出勤紀錄加入成員：列出還不是成員的人、推斷身分�
   assert.deepEqual(names.sort(), ['測試乙/道親/true', '測試甲/壇辦/true', '王小明/壇辦/true'].sort());
   assert.deepEqual(call('adminMemberCandidates').data.candidates.map((x) => x.name), ['小明']);
 });
+
+test('合併同一人寫法：報名紀錄的名字改成統一寫法，統計不再算成兩個人', () => {
+  const { env, call } = setup();
+  call('adminImportHistory', { events: [
+    { date: '2026-03-05', name: '打掃', tan: ['王小明'], dao: [], accompany: [] },
+    { date: '2026-03-12', name: '打掃', tan: ['小明'], dao: [], accompany: [] },
+    { date: '2026-03-19', name: '打掃', tan: [' 小明 '], dao: ['測試甲'], accompany: [] },
+    { date: '2026-03-26', name: '打掃', tan: ['小明', '王小明'], dao: [], accompany: [] }
+  ] });
+  assert.equal(call('adminMergeNames', { merges: [] }).error.code, 'BAD_REQUEST');
+  const r = call('adminMergeNames', { merges: [{ from: ['小明'], to: '王小明' }] });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.deepEqual(r.data, { changed: 3, dropped: 1 });
+  const names = call('adminStats').data.events.flatMap((e) => e.tan);
+  assert.deepEqual(names, ['王小明', '王小明', '王小明', '王小明'], '同一場重複的只算一次');
+  assert.ok(env.sheets['報名'].data.some((row) => row.includes('測試甲')), '其他人不受影響');
+  assert.match(env.sheets['操作紀錄'].data.slice(-1)[0][3], /小明 → 王小明（3 筆報名，其中 1 筆同一場重複、改為已取消）/);
+});

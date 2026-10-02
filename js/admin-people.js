@@ -143,7 +143,10 @@
 
   /**
    * 從出勤紀錄加入成員：列出報名紀錄裡有、成員名單還沒有的人，勾選後一次加入。
-   * 和現有成員名字相近的（可能是同一人）預設不勾。
+   *   1. 疑似同一人（出勤紀錄裡的不同寫法，例如「小明」「王小明」）：選統一成哪個寫法或各自保留
+   *   2. 和現有成員名字相近的：選併入那位成員、加為新成員，或先不加
+   *   3. 新成員清單：依上面的選擇即時更新，勾選後加入
+   * 送出時先把報名紀錄裡的舊寫法改成統一的名字（統計才不會算成兩個人），再加入成員。
    */
   async function fromSignups(guard, reload) {
     Busy.show('讀取出勤紀錄中⋯');
@@ -161,36 +164,120 @@
       m0.el.querySelector('[data-close]').addEventListener('click', () => m0.close());
       return;
     }
+
+    const byName = new Map(list.map((c) => [c.name, c]));
+    // 1. 出勤紀錄裡的疑似同一人（只看和現有成員不像的人）
+    const free = list.filter((c) => !c.similar.length);
+    const groups = HistoryParse.similarGroups(free.flatMap((c) => Array(c.count).fill(c.name)));
+    const groupChoice = groups.map((g) => g.suggest); // 統一成的寫法；'' 各自保留
+    // 2. 和現有成員相近的：'' 先不加、'new' 加為新成員、其他＝併入的成員姓名
+    const near = list.filter((c) => c.similar.length);
+    const nearChoice = near.map(() => '');
+    const unchecked = new Set(); // 新成員清單中取消勾選的
+
+    /** 依目前的選擇算出要加入的新成員 */
+    function newMembers() {
+      const merged = new Map(); // 被併掉的寫法 → 統一的寫法
+      groups.forEach((g, gi) => {
+        const to = groupChoice[gi];
+        if (to) g.names.forEach((n) => { if (n.name !== to) merged.set(n.name, to); });
+      });
+      const out = new Map();
+      free.forEach((c) => {
+        const name = merged.get(c.name) || c.name;
+        const v = out.get(name) || { name, count: 0, identity: '' };
+        v.count += c.count;
+        v.identity = v.identity || (byName.get(name) || c).identity || c.identity;
+        out.set(name, v);
+      });
+      near.forEach((c, i) => { if (nearChoice[i] === 'new') out.set(c.name, { name: c.name, count: c.count, identity: c.identity }); });
+      return [...out.values()].sort((a, b) => b.count - a.count);
+    }
+
     const m = Modal.open(`
       <h2 class="modal-title">從出勤紀錄加入成員</h2>
-      <p class="modal-note">有 ${list.length} 位出現在出勤紀錄、但還不是成員。身分照紀錄裡最常出現的；標「可能是」的和現有成員名字相近，預設不勾。</p>
-      <div class="bulk-list">
-        <label class="check"><input type="checkbox" data-all> <strong>全選</strong></label>
-        ${list.map((c, i) => `<label class="check cand"><input type="checkbox" data-i="${i}"${c.similar.length ? '' : ' checked'}>
-          <span><strong>${esc(c.name)}</strong> <span class="muted">${esc(c.identity || '未填身分')}・出勤 ${c.count} 次</span>
-          ${c.similar.length ? `<br><span class="warn">可能是成員「${c.similar.map(esc).join('」「')}」</span>` : ''}</span></label>`).join('')}
-      </div>
+      <p class="modal-note">有 ${list.length} 個名字出現在出勤紀錄、但還不是成員。身分照紀錄裡最常出現的。</p>
+      ${groups.length ? `
+        <h3 class="modal-sub">疑似同一人（${groups.length} 組）</h3>
+        <p class="modal-note">同一個人有不同寫法時，選要統一成哪個；出勤紀錄裡的舊寫法也會一起改掉。</p>
+        <div class="bulk-list">${groups.map((g, gi) => `<div class="merge-group">
+          ${g.names.map((n) => `<label class="check"><input type="radio" name="sg${gi}" value="${esc(n.name)}"${groupChoice[gi] === n.name ? ' checked' : ''}> 統一成「${esc(n.name)}」（${n.count} 次）</label>`).join('')}
+          <label class="check"><input type="radio" name="sg${gi}" value=""${!groupChoice[gi] ? ' checked' : ''}> 各自保留</label>
+        </div>`).join('')}</div>` : ''}
+      ${near.length ? `
+        <h3 class="modal-sub">可能已經是成員（${near.length} 位）</h3>
+        <div class="bulk-list">${near.map((c, i) => `<div class="merge-group">
+          <strong>${esc(c.name)}</strong> <span class="muted">出勤 ${c.count} 次</span>
+          ${c.similar.map((s) => `<label class="check"><input type="radio" name="nr${i}" value="${esc(s)}"> 就是成員「${esc(s)}」（出勤紀錄改成這個名字）</label>`).join('')}
+          <label class="check"><input type="radio" name="nr${i}" value="new"> 不同人，加為新成員</label>
+          <label class="check"><input type="radio" name="nr${i}" value="" checked> 先不處理</label>
+        </div>`).join('')}</div>` : ''}
+      <h3 class="modal-sub" data-new-title>要加入的新成員</h3>
+      <div class="bulk-list" data-new></div>
       <div class="modal-actions">
         <button type="button" class="btn btn-block btn-primary" data-go>加入</button>
         <button type="button" class="btn btn-block" data-close>返回</button>
       </div>`);
     const el = m.el;
-    const boxes = () => [...el.querySelectorAll('[data-i]')];
-    const label = () => { el.querySelector('[data-go]').textContent = `加入 ${boxes().filter((b) => b.checked).length} 位`; };
-    el.querySelector('[data-all]').addEventListener('change', (ev) => { boxes().forEach((b) => { b.checked = ev.target.checked; }); label(); });
-    boxes().forEach((b) => b.addEventListener('change', label));
-    label();
+
+    function drawNew() {
+      const items = newMembers();
+      el.querySelector('[data-new-title]').textContent = `要加入的新成員（${items.length} 位）`;
+      el.querySelector('[data-new]').innerHTML = items.length ? items.map((c) => `<label class="check cand"><input type="checkbox" data-new-name="${esc(c.name)}"${unchecked.has(c.name) ? '' : ' checked'}>
+        <span><strong>${esc(c.name)}</strong> <span class="muted">${esc(c.identity || '未填身分')}・出勤 ${c.count} 次</span></span></label>`).join('') : '<p class="muted">沒有要加入的人</p>';
+      el.querySelectorAll('[data-new-name]').forEach((b) => b.addEventListener('change', () => {
+        if (b.checked) unchecked.delete(b.dataset.newName); else unchecked.add(b.dataset.newName);
+        updateButton();
+      }));
+      updateButton();
+    }
+
+    function merges() {
+      const out = [];
+      groups.forEach((g, gi) => {
+        const to = groupChoice[gi];
+        const from = to ? g.names.map((n) => n.name).filter((n) => n !== to) : [];
+        if (from.length) out.push({ from, to });
+      });
+      near.forEach((c, i) => { if (nearChoice[i] && nearChoice[i] !== 'new') out.push({ from: [c.name], to: nearChoice[i] }); });
+      return out;
+    }
+
+    function chosenMembers() {
+      return newMembers().filter((c) => !unchecked.has(c.name)).map((c) => ({ name: c.name, identity: c.identity }));
+    }
+
+    function updateButton() {
+      const n = chosenMembers().length;
+      const k = merges().length;
+      el.querySelector('[data-go]').textContent = [n ? `加入 ${n} 位` : '', k ? `合併 ${k} 組寫法` : ''].filter(Boolean).join('、') || '沒有要處理的';
+    }
+
+    groups.forEach((g, gi) => el.querySelectorAll(`input[name="sg${gi}"]`).forEach((r) => r.addEventListener('change', () => { groupChoice[gi] = r.value; drawNew(); })));
+    near.forEach((c, i) => el.querySelectorAll(`input[name="nr${i}"]`).forEach((r) => r.addEventListener('change', () => { nearChoice[i] = r.value; drawNew(); })));
     el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    drawNew();
+
     el.querySelector('[data-go]').addEventListener('click', async () => {
-      const members = boxes().filter((b) => b.checked).map((b) => list[Number(b.dataset.i)]).map((c) => ({ name: c.name, identity: c.identity }));
-      if (!members.length) return;
+      const members = chosenMembers();
+      const mg = merges();
+      if (!members.length && !mg.length) return;
       el.setAttribute('data-locked', '');
-      Busy.show(`加入 ${members.length} 位成員中⋯`);
       try {
-        const res = await Api.admin('adminAddMembers', { members });
+        let changed = 0;
+        if (mg.length) {
+          Busy.show('合併同一人的寫法中⋯');
+          changed = (await Api.admin('adminMergeNames', { merges: mg })).changed;
+        }
+        // 同一場重複的（例如兩種寫法記在同一場）伺服器已自動只留一筆
+        let added = 0;
+        if (members.length) {
+          Busy.show(`加入 ${members.length} 位成員中⋯`);
+          added = (await Api.admin('adminAddMembers', { members })).added;
+        }
         Busy.hide();
         m.close();
-        notice(AdminPage.notice('success', `已加入 ${res.added} 位成員`, '可以點名字補上分組、備註。'));
+        notice(AdminPage.notice('success', [added ? `已加入 ${added} 位成員` : '', mg.length ? `已合併 ${mg.length} 組寫法（改了 ${changed} 筆出勤紀錄）` : ''].filter(Boolean).join('，'), added ? '可以點名字補上分組、備註。' : ''));
         afterWrite(reload);
       } catch (err) {
         Busy.hide();

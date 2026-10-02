@@ -1421,3 +1421,6 @@ select.input { appearance: auto; }
 .bulk-list .cand { align-items: flex-start; padding: 4px 0; }
 .bulk-list .cand input { margin-top: 4px; flex: none; }
 .bulk-list .warn { color: var(--accent); font-size: .9rem; }
+.modal-sub { margin: 14px 0 4px; font-family: var(--serif); font-size: 1.05rem; }
+.bulk-list .merge-group { padding: 6px 0; border-bottom: 1px dashed var(--line); background: none; border-radius: 0; }
+.bulk-list .merge-group:last-child { border-bottom: 0; }
