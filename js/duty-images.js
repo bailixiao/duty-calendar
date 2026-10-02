@@ -9,5 +9,11 @@ window.DUTY_IMAGES = [
       { src: 'img/duty/twelve-cleaning-sop.jpg', caption: '清潔 SOP（母殿區及一、二樓廁所）' },
       { src: 'img/duty/twelve-meal-portion.jpg', caption: '前人吃飯量（餐點份量參考）' }
     ]
+  },
+  {
+    match: '重陽節',
+    images: [
+      { src: 'img/duty/double-ninth-dm.jpg', caption: '重陽活動 DM（活動流程表）' }
+    ]
   }
 ];
