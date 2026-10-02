@@ -44,7 +44,7 @@ test('比較與趨勢：上一期、去年同期、最近幾期', () => {
   assert.deepEqual(S.delta(now.total, prev.total), { text: '+4', sign: 1 });
   assert.deepEqual(S.delta(now.total, ly.total), { text: '+5', sign: 1 });
   assert.deepEqual(S.delta(3, 3), { text: '持平', sign: 0 });
-  assert.deepEqual(S.delta(0.5, 0.75, true), { text: '−25 個百分點', sign: -1 });
+  assert.deepEqual(S.delta(0.5, 0.75, true), { text: '−25%', sign: -1 });
   assert.deepEqual(S.delta(0.5, null, true), { text: null, sign: 0 });
   const t = S.trend(events, p, 3);
   assert.deepEqual(t.map((x) => [x.period.n, x.total]), [[8, 1], [9, 3], [10, 7]]);

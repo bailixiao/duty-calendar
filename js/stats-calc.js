@@ -126,7 +126,7 @@
     if (before === null || before === undefined || now === null || now === undefined) return { text: null, sign: 0 };
     const d = isRatio ? Math.round((now - before) * 100) : now - before;
     if (d === 0) return { text: '持平', sign: 0 };
-    return { text: (d > 0 ? '+' : '−') + Math.abs(d) + (isRatio ? ' 個百分點' : ''), sign: d > 0 ? 1 : -1 };
+    return { text: (d > 0 ? '+' : '−') + Math.abs(d) + (isRatio ? '%' : ''), sign: d > 0 ? 1 : -1 };
   }
 
   function pct(ratio) {
