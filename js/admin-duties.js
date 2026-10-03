@@ -104,7 +104,7 @@
       <div class="draft-photo">
         <label class="btn btn-block btn-photo">📷 從照片產生草稿<input type="file" accept="image/*" multiple hidden data-photo></label>
         <input class="input" type="text" data-hint placeholder="補充說明（選填）例：這是 11 月的">
-        <p class="modal-note">可拍照或選圖，一次最多 3 張。照片會交給 Google Gemini 讀取、整理成下面的草稿，看過沒問題再新增。</p>
+        <p class="modal-note">可拍照或從相簿選圖，一次最多 3 張；電腦也可以把照片拖進來，或截圖後按 Ctrl+V 貼上。只會整理教全區的部分。照片會交給 Google Gemini 讀取、整理成下面的草稿，看過沒問題再新增。</p>
         <div data-ai-note></div>
       </div>
       <p class="modal-note">或把整理好的草稿文字整段貼進來，按「預覽」確認內容後再新增。</p>
@@ -121,9 +121,28 @@
     const err = (msg) => { const b = el.querySelector('[data-error]'); b.textContent = msg; b.hidden = !msg; };
     let duties = null;
 
-    el.querySelector('[data-photo]').addEventListener('change', async (ev) => {
-      const files = [...ev.target.files].slice(0, 3);
+    el.querySelector('[data-photo]').addEventListener('change', (ev) => {
+      const files = [...ev.target.files];
       ev.target.value = '';
+      fromPhotos(files);
+    });
+    // 電腦：截圖後 Ctrl+V 貼上，或把照片拖進視窗
+    el.addEventListener('paste', (ev) => {
+      const files = [...(ev.clipboardData ? ev.clipboardData.files : [])].filter((f) => /^image\//.test(f.type));
+      if (!files.length) return;
+      ev.preventDefault();
+      fromPhotos(files);
+    });
+    el.addEventListener('dragover', (ev) => { ev.preventDefault(); el.classList.add('is-dragover'); });
+    el.addEventListener('dragleave', (ev) => { if (ev.target === el) el.classList.remove('is-dragover'); });
+    el.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      el.classList.remove('is-dragover');
+      fromPhotos([...ev.dataTransfer.files].filter((f) => /^image\//.test(f.type)));
+    });
+
+    async function fromPhotos(all) {
+      const files = all.slice(0, 3);
       if (!files.length) return;
       err('');
       Busy.show('AI 正在讀照片⋯', '大約 10～30 秒，請不要關閉畫面');
@@ -148,7 +167,7 @@
         if (e.code === 'UNAUTHORIZED') { m.close(); AdminPage.guard(e); return; }
         err(e.message || 'AI 讀取失敗，請稍後再試');
       }
-    });
+    }
 
     el.querySelector('[data-draft]').addEventListener('input', () => { duties = null; el.querySelector('[data-preview]').innerHTML = ''; resetButton(); });
     function resetButton() { const b = el.querySelector('[data-check]'); b.textContent = '預覽'; b.dataset.mode = ''; }

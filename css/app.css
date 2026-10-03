@@ -1540,3 +1540,4 @@ body.splash-on .app-main { opacity: 0; animation: splash-main-failsafe .5s 9s fo
 .btn-photo { display: flex; align-items: center; justify-content: center; min-height: 52px; font-size: 1.1rem; font-weight: 700; cursor: pointer; }
 .draft-photo .modal-note { margin: 0; }
 .draft-photo ul { margin: 4px 0 0 1.2em; padding: 0; }
+.modal-box.is-dragover { outline: 3px dashed var(--accent); outline-offset: -8px; }

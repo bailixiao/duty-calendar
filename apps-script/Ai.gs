@@ -7,6 +7,8 @@
  */
 
 var AI_MAX_IMAGES = 3;
+var AI_REGION = '教全區'; // 只整理本區的勤務與人員
+var AI_REGION_SHORT = '教全';
 var AI_MAX_IMAGE_CHARS = 6000000; // 每張 base64 約 4.5MB 以內（前端縮小後通常 300KB 左右）
 // 預設先用新版，不能用（例如 Google 改了名稱）就改用下一個
 var AI_DEFAULT_MODELS = ['gemini-3.6-flash', 'gemini-2.5-flash'];
@@ -59,6 +61,7 @@ function aiDraftPrompt_(hint) {
     '  "uncertain": [看不清楚、或你不確定的地方，用中文簡短說明]',
     '}',
     '規則：看不清楚或照片沒寫的欄位一律填空字串，不要猜；同一個活動有好幾天就一筆、用 start 和 end；不同活動分開成多筆。',
+    '【只整理「' + AI_REGION + '」】我們是「' + AI_REGION + '」（照片上可能寫成「' + AI_REGION_SHORT + '」）。照片如果列了好幾個區（例如教真、教德、教善⋯），只整理' + AI_REGION + '負責的部分：positions 只放' + AI_REGION + '要做的工作項目，assign 只放' + AI_REGION + '的人；其他區的工作和人一律不要。區名不是工作項目：照片只用區名分欄、沒寫工作內容時，項目叫「了愿」。整筆勤務都跟' + AI_REGION + '無關就不要輸出。照片完全沒分區，就全部整理。',
     hint ? '管理者補充說明：' + hint : ''
   ].join('\n');
 }
