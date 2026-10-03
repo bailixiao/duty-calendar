@@ -492,7 +492,7 @@
     const dates = Fmt.datesBetween(state.range.from, state.range.to).filter((d) => (dayMap.get(d) || []).length);
     const shortDates = dates.filter((d) => dayMap.get(d).some((it) => it.state.kind === 'short'));
     const alert = shortDates.length
-      ? `<div class="notice notice-error recent-alert" role="status"><p><strong>近 ${RECENT_DAYS} 天有 ${shortDates.length} 天缺人</strong></p><p>${shortDates.map(Fmt.shortDate).join('、')}</p><p class="muted">點勤務就可以報名幫忙</p></div>`
+      ? `<div class="notice notice-error recent-alert" role="status"><p><strong>近 ${RECENT_DAYS} 天有 ${shortDates.length} 天缺人</strong></p><p>${shortDates.map(Fmt.shortDate).join('、')}</p><p class="muted">點勤務就可以報名幫忙</p>${Share.buttonsHtml()}</div>`
       : `<div class="notice recent-alert" role="status"><p>近 ${RECENT_DAYS} 天的勤務都不缺人</p></div>`;
     if (!dates.length) {
       el.week.innerHTML = `<p class="panel-empty">近 ${RECENT_DAYS} 天沒有勤務</p>`;
@@ -511,6 +511,9 @@
         </li>`;
     });
     el.week.innerHTML = alert + `<ol class="week-list">${rows.join('')}</ol>`;
+    const all = [];
+    dates.forEach((date) => dayMap.get(date).forEach((it) => all.push({ duty: it.duty, date, state: it.state })));
+    Share.bind(el.week, () => Share.shortageText(all));
   }
 
   // ---------- 週檢視 ----------

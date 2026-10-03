@@ -198,7 +198,7 @@
       body.innerHTML = `
         ${staleNote(stale)}
         ${shortDates.size
-          ? `<div class="notice notice-error" role="status"><p><strong>近 14 天有 ${shortDates.size} 天缺人</strong></p><p>${[...shortDates].map(Fmt.shortDate).join('、')}</p></div>`
+          ? `<div class="notice notice-error" role="status"><p><strong>近 14 天有 ${shortDates.size} 天缺人</strong></p><p>${[...shortDates].map(Fmt.shortDate).join('、')}</p>${Share.buttonsHtml()}</div>`
           : '<div class="notice notice-success" role="status"><p><strong>近 14 天都不缺人</strong></p></div>'}
         ${[...byDate.entries()].map(([date, items]) => `
           <section class="admin-day">
@@ -214,6 +214,7 @@
                 </a>`).join('')}
             </div>
           </section>`).join('') || '<p class="panel-empty">近 14 天沒有勤務</p>'}`;
+      Share.bind(body, () => Share.shortageText(rows.map((r) => ({ duty: r.d, date: r.date, state: r.st }))));
     }
   }
 

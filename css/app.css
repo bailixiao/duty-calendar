@@ -1491,3 +1491,9 @@ select.input { appearance: auto; }
 .pos-same { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 40px; }
 .link-btn { padding: 4px 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: .92rem; text-decoration: underline; cursor: pointer; }
 .pos-chips + .link-btn { margin-top: 6px; }
+
+/* 缺人通知：複製／傳到 LINE */
+.share-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.share-actions .btn { flex: 1 1 140px; min-height: 48px; font-size: 1.05rem; }
+.btn-line { background: #06c755; border-color: #06c755; color: #fff; font-weight: 700; }
+.btn-line:hover { background: #05b34c; }
