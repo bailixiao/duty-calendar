@@ -3,8 +3,9 @@
 (function () {
   'use strict';
 
+  /** 網站網址；加上 openExternalBrowser=1，從 LINE 點連結會直接用手機的瀏覽器開啟（LINE 內建瀏覽器收不到提醒） */
   function siteUrl() {
-    return location.origin + location.pathname;
+    return location.origin + location.pathname + '?openExternalBrowser=1';
   }
 
   /** 依勤務名稱配一個小圖示，讓通知比較生動 */

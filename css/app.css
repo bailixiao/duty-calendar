@@ -1549,5 +1549,6 @@ body.splash-on .app-main { opacity: 0; animation: splash-main-failsafe .5s 9s fo
 .push-card { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 12px; padding: 12px 14px; margin: 0 0 12px; }
 .push-card p { margin: 0 0 6px; }
 .push-card-actions { display: flex; gap: 8px; margin-top: 10px; }
-.push-card-actions .btn { flex: 1; min-height: 48px; font-size: 1.05rem; }
+.push-card-actions .btn { flex: 1; min-height: 48px; font-size: 1.05rem; display: flex; align-items: center; justify-content: center; text-decoration: none; }
+.modal-actions a.btn { display: flex; align-items: center; justify-content: center; text-decoration: none; }
 .push-steps { margin: 8px 0 12px 1.4em; padding: 0; line-height: 1.9; }
