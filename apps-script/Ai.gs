@@ -1,0 +1,104 @@
+/**
+ * 從照片產生勤務草稿（管理後台「貼上草稿」→「從照片產生草稿」）。
+ *   - 照片（前端已縮小成 JPEG）送到 Google Gemini API，請它照「貼上草稿」的格式整理成 JSON。
+ *   - API 金鑰存在 Script Properties 的 GEMINI_API_KEY（不寫進程式碼）；要換模型可設 GEMINI_MODEL。
+ *   - 只回傳草稿，不會寫入任何資料；管理者在畫面上預覽、確認後才新增。
+ *   - 第一次請在 Apps Script 編輯器執行 testGemini：授權「連線到外部服務」並確認金鑰可用。
+ */
+
+var AI_MAX_IMAGES = 3;
+var AI_MAX_IMAGE_CHARS = 6000000; // 每張 base64 約 4.5MB 以內（前端縮小後通常 300KB 左右）
+// 預設先用新版，不能用（例如 Google 改了名稱）就改用下一個
+var AI_DEFAULT_MODELS = ['gemini-3.6-flash', 'gemini-2.5-flash'];
+
+/** body = { images: [{ mime, data(base64) }], hint } */
+function adminDraftFromImages_(body) {
+  var images = Array.isArray(body.images) ? body.images : [];
+  if (!images.length) throw new ApiError_('BAD_REQUEST', '請選擇照片');
+  if (images.length > AI_MAX_IMAGES) throw new ApiError_('BAD_REQUEST', '一次最多 ' + AI_MAX_IMAGES + ' 張照片');
+  var parts = [{ text: aiDraftPrompt_(cleanText_(body.hint)) }];
+  images.forEach(function (img) {
+    var mime = String(img && img.mime || '');
+    var data = String(img && img.data || '');
+    if (!/^image\/(jpeg|png|webp)$/.test(mime) || !data) throw new ApiError_('BAD_REQUEST', '照片格式只能是 jpg、png');
+    if (data.length > AI_MAX_IMAGE_CHARS) throw new ApiError_('BAD_REQUEST', '照片太大，請換一張小一點的');
+    parts.push({ inline_data: { mime_type: mime, data: data } });
+  });
+  var res = geminiGenerate_(parts);
+  var duties;
+  try {
+    var parsed = JSON.parse(res.text);
+    duties = Array.isArray(parsed) ? parsed : Array.isArray(parsed.duties) ? parsed.duties : [parsed];
+  } catch (e) {
+    throw new ApiError_('AI', '照片看不太懂，請換一張清楚一點的照片再試');
+  }
+  duties = duties.filter(function (d) { return d && typeof d === 'object' && d.name; });
+  if (!duties.length) throw new ApiError_('AI', '照片裡找不到勤務資料，請確認照片內容');
+  return { duties: duties, model: res.model };
+}
+
+function aiDraftPrompt_(hint) {
+  var today = todayString_();
+  return [
+    '你是佛堂勤務行事曆的助理。請讀照片（勤務表、活動公告、分工表、LINE 截圖等），整理成勤務草稿 JSON。',
+    '今天是 ' + today + '（台灣時間）。照片上的民國年請換成西元（民國 115 年 = 2026 年）；沒寫年份就取今天之後最近的那個日期。',
+    '只輸出 JSON 陣列，每個元素是一個勤務：',
+    '{',
+    '  "name": 勤務名稱（照照片寫法，例如「宏宗大掃除」「重陽節敬老活動」）,',
+    '  "nature": "勤務" | "支援" | "烹飪" | "活動"（一般勤務填勤務；廚房烹飪填烹飪；外出支援填支援；節慶、慶典、聯誼等只記錄參加者的填活動）,',
+    '  "mode": "報名型"（有人要報名或分工）| "公告型"（只是公告輪值，不需報名）,',
+    '  "start": "yyyy-MM-dd", "end": "yyyy-MM-dd"（一天就和 start 相同）,',
+    '  "startTime": "HH:mm", "endTime": "HH:mm"（沒寫就空字串）,',
+    '  "location": 地點（常見：' + OPTIONS.location.join('、') + '；照片寫別的就照寫）,',
+    '  "attire": 服裝（常見：' + OPTIONS.attire.join('、') + '；照片寫別的就照寫，沒寫就空字串）,',
+    '  "description": 其他注意事項、工作內容（照照片整理成幾行，沒有就空字串）,',
+    '  "deadline": 報名截止日 "yyyy-MM-dd"（照片有寫才填，否則空字串）,',
+    '  "multi": true 或 false（同一人可以同時兼任好幾個工作項目才填 true）,',
+    '  "positions": [{ "name": 工作項目名稱, "min": 最少人數, "max": 最多人數 }]（照片沒分項目就一個項目叫「了愿」；人數沒寫就 min 填 2、max 填空字串）,',
+    '  "assign": { 工作項目名稱: [已經排好的人的全名] }（照片上已分配好的人；名字照寫，不要加稱呼；沒有就 {}）,',
+    '  "uncertain": [看不清楚、或你不確定的地方，用中文簡短說明]',
+    '}',
+    '規則：看不清楚或照片沒寫的欄位一律填空字串，不要猜；同一個活動有好幾天就一筆、用 start 和 end；不同活動分開成多筆。',
+    hint ? '管理者補充說明：' + hint : ''
+  ].join('\n');
+}
+
+/** 呼叫 Gemini；parts 為 [{ text } | { inline_data }]。回傳 { text, model } */
+function geminiGenerate_(parts) {
+  var props = PropertiesService.getScriptProperties();
+  var key = props.getProperty('GEMINI_API_KEY');
+  if (!key) throw new ApiError_('CONFIG', '尚未設定 Gemini 金鑰，請依部署說明在「指令碼屬性」設定 GEMINI_API_KEY');
+  var custom = props.getProperty('GEMINI_MODEL');
+  var models = custom ? [custom] : AI_DEFAULT_MODELS;
+  var payload = JSON.stringify({
+    contents: [{ role: 'user', parts: parts }],
+    generationConfig: { responseMimeType: 'application/json', temperature: 0.2 }
+  });
+  for (var i = 0; i < models.length; i++) {
+    var resp = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(models[i]) + ':generateContent', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { 'x-goog-api-key': key },
+      payload: payload,
+      muteHttpExceptions: true
+    });
+    var code = resp.getResponseCode();
+    if (code === 404 && i < models.length - 1) continue; // 這個模型不存在：換下一個
+    if (code === 400 && /API key/i.test(resp.getContentText())) throw new ApiError_('CONFIG', 'Gemini 金鑰不正確，請重新設定 GEMINI_API_KEY');
+    if (code === 403) throw new ApiError_('CONFIG', 'Gemini 金鑰沒有權限，請確認金鑰是在 Google AI Studio 建立的');
+    if (code === 429) throw new ApiError_('AI_LIMIT', 'AI 使用次數太多，請等一分鐘再試');
+    if (code !== 200) throw new ApiError_('AI', 'AI 暫時無法使用（' + code + '），請稍後再試');
+    var json = JSON.parse(resp.getContentText());
+    var cand = json.candidates && json.candidates[0];
+    var text = cand && cand.content && cand.content.parts ? cand.content.parts.map(function (p) { return p.text || ''; }).join('') : '';
+    if (!text) throw new ApiError_('AI', 'AI 沒有回覆內容，請換一張照片再試');
+    return { text: text, model: models[i] };
+  }
+  throw new ApiError_('AI', '找不到可用的 Gemini 模型，請在指令碼屬性設定 GEMINI_MODEL');
+}
+
+/** 在 Apps Script 編輯器執行：授權外部連線並測試金鑰（不會寫入任何資料） */
+function testGemini() {
+  var res = geminiGenerate_([{ text: '請只回傳 JSON：{"ok": true, "message": "Gemini 連線成功"}' }]);
+  Logger.log('使用模型：' + res.model + '，回覆：' + res.text);
+}

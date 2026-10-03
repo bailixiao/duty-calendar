@@ -227,6 +227,7 @@ function adminDispatch_(body) {
   switch (body.action) {
     case 'adminLogout': return adminLogout_(body);
     case 'adminPing': return {};
+    case 'adminDraftFromImages': return adminDraftFromImages_(body);
     case 'adminRecent': return adminRecent_(body);
     case 'adminDuty': return adminDuty_(body);
     case 'adminCancel': return cancelSignup_(body, { admin: true });

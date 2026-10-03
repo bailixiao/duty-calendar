@@ -76,12 +76,38 @@
   }
 
   // ---------- 貼上草稿 ----------
+
+  /** 照片縮小成長邊 1600px 的 JPEG（上傳快、AI 也看得清楚），回傳 { mime, data(base64) } */
+  function shrinkImage(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const MAX = 1600;
+        const k = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.naturalWidth * k);
+        canvas.height = Math.round(img.naturalHeight * k);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        resolve({ mime: 'image/jpeg', data: canvas.toDataURL('image/jpeg', 0.85).split(',')[1] });
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('這張照片讀不出來，請換 jpg 或 png')); };
+      img.src = url;
+    });
+  }
   // 草稿是一段 JSON（由 Claude 依照片整理）：一筆勤務物件、勤務陣列，或 { duties: [...] }。
   // 欄位與新增勤務相同，另可帶 assign: { 了愿項目名稱: [姓名] }（已分配好的人員）。
   function openDraft() {
     const m = Modal.open(`
       <h2 class="modal-title">貼上勤務草稿</h2>
-      <p class="modal-note">把整理好的草稿文字整段貼進來，按「預覽」確認內容後再新增。</p>
+      <div class="draft-photo">
+        <label class="btn btn-block btn-photo">📷 從照片產生草稿<input type="file" accept="image/*" multiple hidden data-photo></label>
+        <input class="input" type="text" data-hint placeholder="補充說明（選填）例：這是 11 月的">
+        <p class="modal-note">可拍照或選圖，一次最多 3 張。照片會交給 Google Gemini 讀取、整理成下面的草稿，看過沒問題再新增。</p>
+        <div data-ai-note></div>
+      </div>
+      <p class="modal-note">或把整理好的草稿文字整段貼進來，按「預覽」確認內容後再新增。</p>
       <textarea class="day-text draft-text" rows="10" data-draft placeholder='{"name": "…", "start": "2026-10-24", …}'></textarea>
       <div class="form-error" data-error hidden></div>
       <div data-preview></div>
@@ -94,6 +120,35 @@
     el.querySelector('[data-close]').addEventListener('click', () => m.close());
     const err = (msg) => { const b = el.querySelector('[data-error]'); b.textContent = msg; b.hidden = !msg; };
     let duties = null;
+
+    el.querySelector('[data-photo]').addEventListener('change', async (ev) => {
+      const files = [...ev.target.files].slice(0, 3);
+      ev.target.value = '';
+      if (!files.length) return;
+      err('');
+      Busy.show('AI 正在讀照片⋯', '大約 10～30 秒，請不要關閉畫面');
+      try {
+        const images = await Promise.all(files.map(shrinkImage));
+        const res = await Api.admin('adminDraftFromImages', { images, hint: el.querySelector('[data-hint]').value });
+        Busy.hide();
+        const notes = [];
+        const draft = res.duties.map((d) => {
+          (Array.isArray(d.uncertain) ? d.uncertain : []).forEach((u) => notes.push(`${d.name}：${u}`));
+          const copy = Object.assign({}, d);
+          delete copy.uncertain;
+          return copy;
+        });
+        el.querySelector('[data-ai-note]').innerHTML = `<div class="notice notice-success" role="status"><p><strong>AI 整理好 ${draft.length} 筆，請看下面的預覽，有錯可以直接改框裡的文字再按「預覽」</strong></p>${notes.length ? `<p>⚠️ 請特別確認：</p><ul>${notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}</div>`;
+        const ta = el.querySelector('[data-draft]');
+        ta.value = JSON.stringify(draft, null, 2);
+        ta.dispatchEvent(new Event('input'));
+        el.querySelector('[data-check]').click(); // 直接顯示預覽
+      } catch (e) {
+        Busy.hide();
+        if (e.code === 'UNAUTHORIZED') { m.close(); AdminPage.guard(e); return; }
+        err(e.message || 'AI 讀取失敗，請稍後再試');
+      }
+    });
 
     el.querySelector('[data-draft]').addEventListener('input', () => { duties = null; el.querySelector('[data-preview]').innerHTML = ''; resetButton(); });
     function resetButton() { const b = el.querySelector('[data-check]'); b.textContent = '預覽'; b.dataset.mode = ''; }

@@ -40,6 +40,12 @@ function createEnv(fixedNow) {
   }
 
   const clock = { now: fixedNow };
+  // 假的外部連線（Gemini）：預設回一筆假勤務草稿，測試可用 setFetch 換掉
+  const fakeAi = { calls: [], handler: null };
+  const defaultAi = () => ({
+    code: 200,
+    body: { candidates: [{ content: { parts: [{ text: JSON.stringify([{ name: '測試活動', nature: '活動', mode: '報名型', start: '2026-10-25', end: '2026-10-25', startTime: '09:00', endTime: '12:00', location: '宏宗', attire: '', description: '', deadline: '', multi: false, positions: [{ name: '了愿', min: 2, max: '' }], assign: {}, uncertain: ['服裝沒寫'] }]) }] } }] }
+  });
   const env = {
     SpreadsheetApp: {
       getActiveSpreadsheet: () => ({ getSheetByName: (n) => sheets[n] || null }),
@@ -64,7 +70,7 @@ function createEnv(fixedNow) {
     },
     Session: { getScriptTimeZone: () => 'Asia/Taipei' },
     PropertiesService: (() => {
-      const props = { ADMIN_PASSWORD: 'test-pass', ADMIN_CONTACT: '測試管理者' };
+      const props = { ADMIN_PASSWORD: 'test-pass', ADMIN_CONTACT: '測試管理者', GEMINI_API_KEY: 'test-key' };
       return { getScriptProperties: () => ({ getProperty: (k) => props[k] || null, setProperty: (k, v) => { props[k] = v; }, deleteProperty: (k) => { delete props[k]; } }) };
     })(),
     CacheService: (() => {
@@ -79,6 +85,13 @@ function createEnv(fixedNow) {
         })
       };
     })(),
+    UrlFetchApp: {
+      fetch(url, opts) {
+        fakeAi.calls.push({ url, opts });
+        const r = (fakeAi.handler || defaultAi)(url, opts);
+        return { getResponseCode: () => r.code, getContentText: () => (typeof r.body === 'string' ? r.body : JSON.stringify(r.body)) };
+      }
+    },
     Logger: { log() {} },
     // 設環境變數 DEBUG_GS=1 可以看到 Apps Script 內部錯誤
     console: { error: (...a) => { if (process.env.DEBUG_GS) process.stderr.write(a.join(' ') + '\n'); }, log() {} }
@@ -100,6 +113,8 @@ function createEnv(fixedNow) {
   return {
     sheets,
     clock,
+    fakeAi,
+    setFetch(fn) { fakeAi.handler = fn; },
     get(params) { return JSON.parse(api.doGet({ parameter: params }).text); },
     // 報名的 entries 沒寫身分的，預設「道親」
     post(body) {

@@ -576,3 +576,34 @@ test('getBundle：行事曆資料＋今天起 30 天內勤務的詳情（與 get
   });
   assert.ok(Object.keys(r.data.details).length < events.duties.length);
 });
+
+// ---------- 從照片產生草稿（Gemini，測試用假的回應） ----------
+
+test('從照片產生草稿：要登入、檢查照片、回傳草稿；模型不存在換下一個；次數太多回 AI_LIMIT', () => {
+  const env = createEnv(OCT_1);
+  const img = { mime: 'image/jpeg', data: 'AAAA' };
+  assert.equal(env.post({ action: 'adminDraftFromImages', images: [img] }).error.code, 'UNAUTHORIZED');
+  const token = adminLogin(env);
+  assert.equal(env.post({ action: 'adminDraftFromImages', token, images: [] }).error.code, 'BAD_REQUEST');
+  assert.equal(env.post({ action: 'adminDraftFromImages', token, images: [{ mime: 'text/plain', data: 'x' }] }).error.code, 'BAD_REQUEST');
+
+  const ok = env.post({ action: 'adminDraftFromImages', token, images: [img], hint: '十月的' });
+  assert.equal(ok.ok, true, JSON.stringify(ok.error));
+  assert.equal(ok.data.duties[0].name, '測試活動');
+  const sent = JSON.parse(env.fakeAi.calls[0].opts.payload);
+  assert.equal(sent.contents[0].parts[1].inline_data.data, 'AAAA');
+  assert.match(sent.contents[0].parts[0].text, /十月的/);
+  assert.equal(env.fakeAi.calls[0].opts.headers['x-goog-api-key'], 'test-key');
+  // 沒有寫入任何勤務
+  assert.equal(env.sheets['勤務'].data.some(r => r[1] === '測試活動'), false);
+
+  let n = 0;
+  env.setFetch(() => (n++ === 0 ? { code: 404, body: {} } : { code: 200, body: { candidates: [{ content: { parts: [{ text: '[{"name":"第二個模型"}]' }] } }] } }));
+  const second = env.post({ action: 'adminDraftFromImages', token, images: [img] });
+  assert.equal(second.data.duties[0].name, '第二個模型');
+
+  env.setFetch(() => ({ code: 429, body: {} }));
+  assert.equal(env.post({ action: 'adminDraftFromImages', token, images: [img] }).error.code, 'AI_LIMIT');
+  env.setFetch(() => ({ code: 200, body: { candidates: [{ content: { parts: [{ text: '看不懂' }] } }] } }));
+  assert.equal(env.post({ action: 'adminDraftFromImages', token, images: [img] }).error.code, 'AI');
+});
