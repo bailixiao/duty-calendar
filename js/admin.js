@@ -17,8 +17,25 @@
 
   // ---------- 先顯示、再更新 ----------
   // 管理 API 每次約 1.5–2 秒（冷啟動更久）。看過的資料記在記憶體，再進來先立刻顯示，同時在背景更新；
-  // 有任何寫入（取消、改期、還原）就全部清掉。
-  const memo = new Map();
+  // 有任何寫入（取消、改期、還原）就全部清掉，並在背景重新抓。
+  // 只記在記憶體（有身分、電話的資料不存進手機），關掉網頁就沒了。
+  const memo = new Map(); // key → { data, at }
+  const pending = new Map(); // key → 讀取中的 Promise（預先讀取與畫面共用，不重複問伺服器）
+  const FRESH_MS = 20000; // 20 秒內抓到的直接用，不再問伺服器
+
+  function fetchShared(key, fetcher) {
+    if (pending.has(key)) return pending.get(key);
+    const p = fetcher().then((data) => {
+      pending.delete(key);
+      memo.set(key, { data, at: Date.now() });
+      return data;
+    }, (err) => {
+      pending.delete(key);
+      throw err;
+    });
+    pending.set(key, p);
+    return p;
+  }
 
   /**
    * key：記憶的名稱；fetcher：向伺服器讀；render(data, stale)：畫面（stale=true 代表先顯示的舊資料）。
@@ -26,12 +43,13 @@
    */
   async function swr(key, fetcher, render, box, preview) {
     const t = token;
-    const early = memo.get(key) || preview;
+    const m = memo.get(key);
+    if (m && Date.now() - m.at < FRESH_MS) { render(m.data, false); return; }
+    const early = (m && m.data) || preview;
     if (early) render(early, true);
     try {
-      const data = await fetcher();
+      const data = await fetchShared(key, fetcher);
       if (t !== token) return;
-      memo.set(key, data);
       render(data, false);
     } catch (err) {
       if (t !== token) return;
@@ -45,14 +63,22 @@
 
   function clearMemo() {
     memo.clear();
+    pending.clear();
+    setTimeout(prefetch, 300); // 寫入後在背景重新抓各分頁
   }
 
-  /** 登入後在背景先抓操作紀錄與明日名單，切換分頁時就不用等 */
+  /** 進管理後台就在背景先抓各分頁的資料（同時送出），切換分頁時就不用等 */
   function prefetch() {
+    if (!Api.isAdmin()) return;
     const tomorrow = Fmt.addDays(Fmt.toDateStr(new Date()), 1);
-    [['logs', () => Api.admin('adminLogs', { offset: 0, limit: 50 }, true)],
-      ['day:' + tomorrow, () => Api.admin('adminDay', { date: tomorrow }, true)]].forEach(([key, fetcher]) => {
-      if (!memo.has(key)) fetcher().then((data) => memo.set(key, data)).catch(() => {});
+    [['recent', () => Api.admin('adminRecent', { days: 14 }, true)],
+      ['dutyList', () => Api.admin('adminDutyList', {}, true)],
+      ['members', () => Api.admin('adminMembers', {}, true)],
+      ['groups', () => Api.admin('adminGroups', {}, true)],
+      ['logs', () => Api.admin('adminLogs', { offset: 0, limit: 50 }, true)],
+      ['day:' + tomorrow, () => Api.admin('adminDay', { date: tomorrow }, true)],
+      ['stats', () => Api.admin('adminStats', {}, true)]].forEach(([key, fetcher]) => {
+      if (!memo.has(key)) fetchShared(key, fetcher).catch(() => {});
     });
   }
 
@@ -88,6 +114,7 @@
     token += 1;
     watchSession();
     if (!Api.isAdmin()) return renderLogin();
+    prefetch();
     const m = sub.match(/^duty\/([^?]+)(?:\?date=(\d{4}-\d{2}-\d{2}))?/);
     if (m) return showDuty(decodeURIComponent(m[1]), m[2] || '');
     if (/^duties(\/|\?|$)/.test(sub)) return DutyAdminPage.show(shell('duties'), guard, sub);
@@ -177,7 +204,6 @@
     const today = Fmt.toDateStr(new Date());
     const preview = window.CalendarPage && CalendarPage.peekRange(today, Fmt.addDays(today, 13));
     swr('recent', () => Api.admin('adminRecent', { days: 14 }, true), (data, stale) => renderRecent(body, data, stale), body, preview);
-    prefetch();
   }
 
   function renderRecent(body, data, stale) {
