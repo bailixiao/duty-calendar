@@ -62,7 +62,7 @@
   }
 
   // ---------- 一次只能一台裝置登入 ----------
-  // 別的裝置登入後，這台的通行碼就失效。停在管理後台時每分鐘、以及切回這個分頁時問一次伺服器，
+  // 別的裝置登入後，這台的通行碼就失效。停在管理後台時每 30 秒、以及切回這個分頁或視窗時問一次伺服器，
   // 失效就自動回登入畫面並說明原因（不用等到按下一個按鈕才發現）。
   let watching = false;
   function watchSession() {
@@ -79,7 +79,8 @@
       });
     };
     document.addEventListener('visibilitychange', check);
-    setInterval(check, 60000);
+    window.addEventListener('focus', check); // 電腦上分頁一直開著、只是切到別的視窗再回來時
+    setInterval(check, 30000);
   }
 
   function show(sub) {
