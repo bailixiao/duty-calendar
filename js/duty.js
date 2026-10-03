@@ -88,7 +88,7 @@
   }
 
   function backLink() {
-    return '<a class="back-link" href="#/">‹ 回行事曆</a>';
+    return ''; // 回行事曆：標題列左上的「‹」與頁面最下方的大按鈕
   }
 
   function dateText(d) {

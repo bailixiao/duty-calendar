@@ -25,7 +25,6 @@
     root = document.getElementById('view-mine');
     token += 1;
     root.innerHTML = `
-      <a class="back-link" href="#/">‹ 回行事曆</a>
       <h1 class="page-title">我的報名</h1>
       <p class="hint">輸入名字，就能看到這個人之後報了哪些勤務，可以取消或改期。</p>
       <form class="mine-form" novalidate>

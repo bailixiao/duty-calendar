@@ -1568,3 +1568,9 @@ body.splash-on .app-main { opacity: 0; animation: splash-main-failsafe .5s 9s fo
 .name-item.is-new { animation: name-new 1.5s ease-out; }
 @keyframes name-new { 0%, 45% { background: #fff3b0; box-shadow: 0 0 0 3px #f0c419; } 100% { background: var(--card); box-shadow: none; } }
 @media (prefers-reduced-motion: reduce) { .name-item.is-new { animation: none; outline: 3px solid #f0c419; } }
+
+/* 標題列的返回：勤務頁等子頁面，標題左邊顯示大大的「‹」，整條標題都可以點回行事曆 */
+.header-back { display: none; font-size: 2rem; line-height: 1; margin-right: 8px; color: var(--accent); font-family: var(--sans); transform: translateY(-2px); }
+body.is-sub .header-back { display: inline-block; }
+body.is-sub .app-title { display: flex; align-items: center; min-height: 44px; }
+body.splash-on .header-back { display: none; }

@@ -52,7 +52,6 @@
         window.DutyPage.show(id, m[2] || '');
       } else {
         views.duty.innerHTML = `
-          <a class="back-link" href="#/">‹ 回行事曆</a>
           <p class="panel-empty">勤務詳情與報名將在下一段完成。</p>`;
       }
     } else {
@@ -70,6 +69,8 @@
       window.scrollTo(0, 0);
     }
     current = name;
+    // 勤務頁、我的報名、管理後台：標題列左邊顯示「‹」，點標題回行事曆（取代頁面上方的「‹ 回行事曆」）
+    document.body.classList.toggle('is-sub', name !== 'calendar');
   }
 
   // ---------- 開場動畫 ----------
