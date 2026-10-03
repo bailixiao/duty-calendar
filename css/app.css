@@ -1574,3 +1574,34 @@ body.splash-on .app-main { opacity: 0; animation: splash-main-failsafe .5s 9s fo
 body.is-sub .header-back { display: inline-block; }
 body.is-sub .app-title { display: flex; align-items: center; min-height: 44px; }
 body.splash-on .header-back { display: none; }
+
+/* 從照片新增：可直接修改的草稿卡片 */
+.draft-thumbs { display: flex; gap: 8px; flex-wrap: wrap; }
+.draft-thumbs img { width: 84px; height: 84px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+.de-card { display: flex; flex-direction: column; gap: 10px; }
+.de-head { display: flex; justify-content: space-between; align-items: center; }
+.de-head h3 { margin: 0; }
+.de-notes { background: #fff6d6; border: 1px solid #f0d77a; border-radius: 10px; padding: 8px 12px; font-size: .95rem; }
+.de-notes ul { margin: 4px 0 0 1.2em; padding: 0; }
+.de-field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.de-field > span { font-size: .9rem; color: var(--muted); }
+.de-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.de-row > * { flex: 1 1 140px; }
+.de-check { display: flex; align-items: center; gap: 6px; font-size: 1rem; }
+.de-pos { border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.de-pos-row { display: flex; gap: 6px; align-items: center; }
+.de-pos-row .input { flex: 1; min-width: 0; }
+.de-pos-row .de-num { flex: 0 0 64px; }
+.de-add-person { display: flex; gap: 6px; }
+.de-add-person .input { flex: 1; min-width: 0; }
+.nm-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.nm-chip { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); }
+.nm-chip .nm-name { font-weight: 700; font-size: 1.05rem; }
+.nm-chip small { font-size: .85rem; }
+.nm-ok { color: #2e7d4f; }
+.nm-matched { color: #1f5fa8; }
+.nm-warn { color: #a5521b; }
+.nm-chip.nm-unknown, .nm-chip.nm-ambiguous { background: #fff6d6; border-color: #f0d77a; }
+.nm-del { margin-left: auto; border: none; background: none; font-size: 1.3rem; line-height: 1; color: var(--muted); cursor: pointer; padding: 4px 8px; }
+.draft-advanced { margin: 10px 0; }
+.draft-advanced summary { cursor: pointer; color: var(--muted); padding: 6px 0; }

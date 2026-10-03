@@ -40,6 +40,21 @@ function adminDraftFromImages_(body) {
   return { duties: duties, model: res.model };
 }
 
+/** 現有勤務的名稱與工作項目（給 AI 參考，同一種勤務沿用一樣的寫法）；名稱前面的農曆日期去掉合併 */
+function aiKnownDuties_() {
+  var since = (Number(todayString_().slice(0, 4)) - 1) + todayString_().slice(4); // 一年內的勤務
+  var posByDuty = groupBy_(readTableCached_(SHEETS.POSITIONS), '勤務ID');
+  var seen = {};
+  readTableCached_(SHEETS.DUTIES).forEach(function (d) {
+    if (!d['名稱'] || d['開始日'] < since) return;
+    var name = String(d['名稱']).replace(/^(閏)?[正一二三四五六七八九十冬臘]+月(初[一二三四五六七八九十]|十[一二三四五六七八九]|二十[一二三四五六七八九]?|廿[一二三四五六七八九]|三十|十五|初十)/, '');
+    if (seen[name]) return;
+    seen[name] = (posByDuty[d['勤務ID']] || []).map(function (p) { return p['了愿項目名稱']; }).filter(String).join('／');
+  });
+  var list = Object.keys(seen).slice(0, 80).map(function (n) { return n + (seen[n] ? '（' + seen[n] + '）' : ''); });
+  return list.length ? '現有勤務的名稱（括號裡是工作項目）；照片上是同一種勤務時，請沿用一樣的名稱與項目寫法：' + list.join('、') : '';
+}
+
 function aiDraftPrompt_(hint) {
   var today = todayString_();
   return [
@@ -51,6 +66,7 @@ function aiDraftPrompt_(hint) {
     '  "nature": "勤務" | "支援" | "烹飪" | "活動"（一般勤務填勤務；廚房烹飪填烹飪；外出支援填支援；節慶、慶典、聯誼等只記錄參加者的填活動）,',
     '  "mode": "報名型"（有人要報名或分工）| "公告型"（只是公告輪值，不需報名）,',
     '  "start": "yyyy-MM-dd", "end": "yyyy-MM-dd"（一天就和 start 相同）,',
+    '  "lunarDate": 照片只寫農曆日期時才填（例如「九月十五」「十月初一」，不要自己換算），這時 start、end 留空字串；照片有國曆日期就不用填,',
     '  "startTime": "HH:mm", "endTime": "HH:mm"（沒寫就空字串）,',
     '  "location": 地點（常見：' + OPTIONS.location.join('、') + '；照片寫別的就照寫）,',
     '  "attire": 服裝（常見：' + OPTIONS.attire.join('、') + '；照片寫別的就照寫，沒寫就空字串）,',
@@ -63,6 +79,7 @@ function aiDraftPrompt_(hint) {
     '}',
     '規則：看不清楚或照片沒寫的欄位一律填空字串，不要猜；同一個活動有好幾天就一筆、用 start 和 end；不同活動分開成多筆。',
     '【只整理「' + AI_REGION + '」】我們是「' + AI_REGION + '」（照片上可能寫成「' + AI_REGION_SHORT + '」）。照片如果列了好幾個區（例如教真、教德、教善⋯），只整理' + AI_REGION + '負責的部分：positions 只放' + AI_REGION + '要做的工作項目，assign 只放' + AI_REGION + '的人；其他區的工作和人一律不要。區名不是工作項目：照片只用區名分欄、沒寫工作內容時，項目叫「了愿」。整筆勤務都跟' + AI_REGION + '無關就不要輸出。照片完全沒分區，就全部整理。',
+    aiKnownDuties_(),
     hint ? '管理者補充說明：' + hint : ''
   ].join('\n');
 }

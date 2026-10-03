@@ -96,30 +96,80 @@
       img.src = url;
     });
   }
-  // 草稿是一段 JSON（由 Claude 依照片整理）：一筆勤務物件、勤務陣列，或 { duties: [...] }。
-  // 欄位與新增勤務相同，另可帶 assign: { 了愿項目名稱: [姓名] }（已分配好的人員）。
+  // 草稿：AI 從照片整理的，或貼上的一段 JSON（一筆勤務、勤務陣列，或 { duties: [...] }，可帶 assign: { 項目: [姓名] }）。
+  // 每一筆都用 DraftEditor 的卡片直接修改，再一起新增。整理好的草稿暫存在這個分頁（sessionStorage），關掉視窗再開還在。
+  const DRAFT_KEY = 'duty-calendar:draft';
+
+  function savedDraft() {
+    try { return JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null'); } catch (e) { return null; }
+  }
+
+  function saveDraft(items) {
+    try {
+      if (items && items.length) sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ items, at: Date.now() }));
+      else sessionStorage.removeItem(DRAFT_KEY);
+    } catch (e) { /* 無痕模式等，忽略 */ }
+  }
+
   function openDraft() {
     const m = Modal.open(`
-      <h2 class="modal-title">貼上勤務草稿</h2>
+      <h2 class="modal-title">從照片新增勤務</h2>
       <div class="draft-photo">
-        <label class="btn btn-block btn-photo">📷 從照片產生草稿<input type="file" accept="image/*" multiple hidden data-photo></label>
+        <label class="btn btn-block btn-photo">📷 選照片或拍照<input type="file" accept="image/*" multiple hidden data-photo></label>
         <input class="input" type="text" data-hint placeholder="補充說明（選填）例：這是 11 月的">
-        <p class="modal-note">可拍照或從相簿選圖，一次最多 3 張；電腦也可以把照片拖進來，或截圖後按 Ctrl+V 貼上。只會整理教全區的部分。照片會交給 Google Gemini 讀取、整理成下面的草稿，看過沒問題再新增。</p>
-        <div data-ai-note></div>
+        <p class="modal-note">一次最多 3 張；電腦也可以把照片拖進來，或截圖後按 Ctrl+V 貼上。只整理教全區的部分。照片會交給 Google Gemini 讀取，整理好後可以在下面直接修改，確認後才新增。</p>
+        <div class="draft-thumbs" data-thumbs></div>
       </div>
-      <p class="modal-note">或把整理好的草稿文字整段貼進來，按「預覽」確認內容後再新增。</p>
-      <textarea class="day-text draft-text" rows="10" data-draft placeholder='{"name": "…", "start": "2026-10-24", …}'></textarea>
+      <div data-ai-note></div>
+      <div data-editor></div>
+      <details class="draft-advanced">
+        <summary>進階：貼上文字草稿</summary>
+        <textarea class="day-text draft-text" rows="6" data-draft placeholder='{"name": "…", "start": "2026-10-24", …}'></textarea>
+        <button type="button" class="btn btn-block" data-read>讀取文字草稿</button>
+      </details>
+      <datalist id="opt-location">${LOCATIONS.map((x) => `<option value="${esc(x)}">`).join('')}</datalist>
+      <datalist id="opt-attire">${ATTIRES.map((x) => `<option value="${esc(x)}">`).join('')}</datalist>
       <div class="form-error" data-error hidden></div>
-      <div data-preview></div>
       <div class="modal-actions">
-        <button type="button" class="btn btn-block btn-primary" data-check>預覽</button>
+        <button type="button" class="btn btn-block btn-primary" data-create hidden>確認新增</button>
         <button type="button" class="btn btn-block" data-close>返回</button>
       </div>`);
     const el = m.el;
     el.classList.add('modal-wide');
     el.querySelector('[data-close]').addEventListener('click', () => m.close());
     const err = (msg) => { const b = el.querySelector('[data-error]'); b.textContent = msg; b.hidden = !msg; };
-    let duties = null;
+    const note = (html) => { el.querySelector('[data-ai-note]').innerHTML = html; };
+    const createBtn = el.querySelector('[data-create]');
+    // 成員名單（名字對照用）：打開視窗就先在背景讀
+    const membersP = Api.admin('adminMembers', {}, true).then((r) => r.members || []).catch(() => []);
+    let editor = null;
+
+    async function showEditor(raw, msg) {
+      const members = await membersP;
+      const box = el.querySelector('[data-editor]');
+      const fresh = box.cloneNode(false); // 換一個新的容器，舊的事件不會重複
+      box.replaceWith(fresh);
+      editor = DraftEditor.mount(fresh, raw, {
+        members,
+        onChange: saveDraft,
+        onCount: (n) => {
+          createBtn.hidden = !n;
+          createBtn.textContent = `確認新增 ${n} 筆`;
+          if (!n) saveDraft(null);
+        }
+      });
+      if (msg) note(msg);
+    }
+
+    const last = savedDraft();
+    if (last && last.items && last.items.length) {
+      const t = new Date(last.at);
+      showEditor(last.items, `<div class="notice" role="status"><p>這是剛才整理到一半的草稿（${t.getHours()}:${String(t.getMinutes()).padStart(2, '0')}），可以繼續修改。<button type="button" class="link-btn" data-clear>清除，重新開始</button></p></div>`)
+        .then(() => {
+          const c = el.querySelector('[data-clear]');
+          if (c) c.addEventListener('click', () => { saveDraft(null); el.querySelector('[data-editor]').innerHTML = ''; note(''); createBtn.hidden = true; editor = null; });
+        });
+    }
 
     el.querySelector('[data-photo]').addEventListener('change', (ev) => {
       const files = [...ev.target.files];
@@ -145,36 +195,27 @@
       const files = all.slice(0, 3);
       if (!files.length) return;
       err('');
-      Busy.show('AI 正在讀照片⋯', '大約 10～30 秒，請不要關閉畫面');
+      // 先顯示縮圖，確認選對照片
+      el.querySelector('[data-thumbs]').innerHTML = files.map((f) => `<img src="${URL.createObjectURL(f)}" alt="">`).join('');
+      const started = Date.now();
+      const tick = () => Busy.show('AI 正在讀照片⋯', `已經等了 ${Math.round((Date.now() - started) / 1000)} 秒（通常 10～30 秒），請不要關閉畫面`);
+      tick();
+      const timer = setInterval(tick, 1000);
       try {
         const images = await Promise.all(files.map(shrinkImage));
         const res = await Api.admin('adminDraftFromImages', { images, hint: el.querySelector('[data-hint]').value });
+        clearInterval(timer);
         Busy.hide();
-        const notes = [];
-        const draft = res.duties.map((d) => {
-          (Array.isArray(d.uncertain) ? d.uncertain : []).forEach((u) => notes.push(`${d.name}：${u}`));
-          const copy = Object.assign({}, d);
-          delete copy.uncertain;
-          return copy;
-        });
-        el.querySelector('[data-ai-note]').innerHTML = `<div class="notice notice-success" role="status"><p><strong>AI 整理好 ${draft.length} 筆，請看下面的預覽，有錯可以直接改框裡的文字再按「預覽」</strong></p>${notes.length ? `<p>⚠️ 請特別確認：</p><ul>${notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}</div>`;
-        const ta = el.querySelector('[data-draft]');
-        ta.value = JSON.stringify(draft, null, 2);
-        ta.dispatchEvent(new Event('input'));
-        el.querySelector('[data-check]').click(); // 直接顯示預覽
+        await showEditor(res.duties, `<div class="notice notice-success" role="status"><p><strong>AI 整理好 ${res.duties.length} 筆（${Math.round((Date.now() - started) / 1000)} 秒）</strong></p><p>請看下面每一筆，有錯直接改；名字已自動對照成員名單。確認後按最下面的「確認新增」。</p></div>`);
       } catch (e) {
+        clearInterval(timer);
         Busy.hide();
         if (e.code === 'UNAUTHORIZED') { m.close(); AdminPage.guard(e); return; }
         err(e.message || 'AI 讀取失敗，請稍後再試');
       }
     }
 
-    el.querySelector('[data-draft]').addEventListener('input', () => { duties = null; el.querySelector('[data-preview]').innerHTML = ''; resetButton(); });
-    function resetButton() { const b = el.querySelector('[data-check]'); b.textContent = '預覽'; b.dataset.mode = ''; }
-
-    el.querySelector('[data-check]').addEventListener('click', async () => {
-      const btn = el.querySelector('[data-check]');
-      if (btn.dataset.mode === 'create' && duties) return create();
+    el.querySelector('[data-read]').addEventListener('click', () => {
       err('');
       let data;
       try {
@@ -182,19 +223,24 @@
       } catch (e) {
         return err('草稿格式不對，請確認整段都有貼到（從第一個 { 或 [ 到最後一個 } 或 ]）');
       }
-      duties = Array.isArray(data) ? data : Array.isArray(data.duties) ? data.duties : [data];
-      if (!duties.length || duties.some((d) => !d || !d.name || !d.start)) { duties = null; return err('每一筆都要有 name（名稱）和 start（日期）'); }
-      el.querySelector('[data-preview]').innerHTML = duties.map(previewCard).join('');
-      btn.textContent = `確認新增 ${duties.length} 筆`;
-      btn.dataset.mode = 'create';
+      const list = Array.isArray(data) ? data : Array.isArray(data.duties) ? data.duties : [data];
+      if (!list.length || list.some((d) => !d || !d.name)) return err('每一筆都要有 name（名稱）');
+      el.querySelector('.draft-advanced').open = false;
+      showEditor(list, `<div class="notice" role="status"><p>已讀取 ${list.length} 筆，請看下面每一筆，確認後按「確認新增」。</p></div>`);
     });
 
-    async function create() {
+    createBtn.addEventListener('click', async () => {
+      if (!editor || !editor.count) return;
+      const problems = editor.errors();
+      if (problems.length) return err(problems.join('；'));
+      err('');
+      const duties = editor.duties();
       Busy.show('新增中⋯');
       try {
         const res = await createDuties(duties);
         if (!res) { Busy.hide(); return; }
         Busy.hide();
+        saveDraft(null);
         m.close();
         afterWrite();
         flash = AdminPage.notice('success', `已新增 ${res.ids.length} 筆勤務`, duties.map((d) => d.name).join('、'));
@@ -204,30 +250,7 @@
         if (e.code === 'UNAUTHORIZED') { m.close(); AdminPage.guard(e); return; }
         err((e.message || '新增失敗') + ((e.details || []).length ? '：' + e.details.map((x) => x.message).join('；') : ''));
       }
-    }
-  }
-
-  function previewCard(d) {
-    const pos = (d.positions || []).map((p) => {
-      const lim = p.min || p.max ? `（${p.min && p.max && p.min === p.max ? p.max + ' 人' : [p.min ? '最少 ' + p.min : '', p.max ? '最多 ' + p.max : ''].filter(Boolean).join('、')}）` : '';
-      const who = d.assign && d.assign[p.name] && d.assign[p.name].length ? `：${d.assign[p.name].map(esc).join('、')}` : '';
-      return `<li>${esc(p.name)}${lim}${who}</li>`;
-    }).join('');
-    const date = d.end && d.end !== d.start ? `${Fmt.rocDate(d.start)} – ${Fmt.shortDate(d.end)}` : Fmt.rocDate(d.start);
-    return `
-      <div class="draft-card">
-        <h3>${esc(d.name)}</h3>
-        <dl class="detail-info">
-          <div><dt>日期</dt><dd>${esc(date)}</dd></div>
-          ${d.startTime ? `<div><dt>時間</dt><dd>${esc(d.startTime)}${d.endTime ? ' – ' + esc(d.endTime) : ''}</dd></div>` : ''}
-          ${d.location ? `<div><dt>地點</dt><dd>${esc(d.location)}</dd></div>` : ''}
-          ${d.attire ? `<div><dt>服裝</dt><dd>${esc(d.attire)}</dd></div>` : ''}
-          <div><dt>性質</dt><dd>${esc(d.nature || '勤務')}・${esc(d.mode || '報名型')}${d.multi ? '・可兼任' : ''}</dd></div>
-          ${d.deadline ? `<div><dt>報名截止</dt><dd>${esc(Fmt.rocDate(d.deadline))}</dd></div>` : ''}
-        </dl>
-        ${pos ? `<p class="draft-sub">了愿項目</p><ul class="draft-pos">${pos}</ul>` : ''}
-        ${d.description ? `<p class="draft-sub">說明</p><p class="draft-desc">${esc(d.description).replace(/\n/g, '<br>')}</p>` : ''}
-      </div>`;
+    });
   }
 
   // ---------- 列表 ----------
@@ -247,7 +270,7 @@
       <div class="admin-actions">
         <a class="btn btn-primary" href="#/admin/duties/new">＋ 新增勤務</a>
         <a class="btn" href="#/admin/import">批次匯入</a>
-        <button type="button" class="btn" data-draft-open>貼上草稿</button>
+        <button type="button" class="btn" data-draft-open>📷 從照片新增</button>
       </div>
       <div class="list-filter">
         <select class="input" data-filter aria-label="月份">
