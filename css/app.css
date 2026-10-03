@@ -1555,3 +1555,11 @@ body.splash-on .app-main { opacity: 0; animation: splash-main-failsafe .5s 9s fo
 
 /* 搬家測試版提示 */
 .test-badge { position: fixed; left: 10px; bottom: 10px; z-index: 50; background: #2b3a4e; color: #fff; font-size: 13px; padding: 6px 10px; border-radius: 16px; text-decoration: none; opacity: .9; }
+
+/* 報名成功：深綠底白色大字，跳出來的動畫，一眼就看到 */
+.notice-big { background: #2e7d4f; color: #fff; border: none; padding: 18px 18px 16px; box-shadow: 0 6px 18px rgba(46, 125, 79, .35); animation: notice-pop .45s cubic-bezier(.2, 1.4, .4, 1) both; }
+.notice-big p { color: #fff; font-size: 1.15rem; line-height: 1.6; }
+.notice-big strong { display: block; font-size: 1.7rem; letter-spacing: .06em; margin-bottom: 4px; }
+.notice-big .btn-addcal { color: #1f4d31; border-color: transparent; }
+@keyframes notice-pop { from { transform: scale(.9); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .notice-big { animation: none; } }

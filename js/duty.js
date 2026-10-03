@@ -105,7 +105,7 @@
       ['服裝', d.attire],
       ['報名截止', d.deadline ? Fmt.rocDate(d.deadline) : ''],
       ['負責組', isNotice ? '' : (Fmt.groupText(d) ? d.group : '')],
-      ['組長／<span class="nw">召集人</span>', isNotice || !Fmt.groupText(d) ? '' : d.groupLeader]
+      ['<span class="nw">組長／</span><span class="nw">召集人</span>', isNotice || !Fmt.groupText(d) ? '' : d.groupLeader]
     ].filter((row) => row[1]);
 
     root.innerHTML = `
@@ -390,8 +390,8 @@
       ? `<p>${esc(result.entries.map(who).join('、'))}<br>${esc(dates)}・${esc(result.positionName)}</p>`
       : `<p>${esc(dates)}</p>${result.entries.map((e) => `<p>${esc(who(e))}：${esc(e.positionLabel)}</p>`).join('')}`;
     const flash = `
-      <div class="notice notice-success" role="status">
-        <p><strong>報名成功！</strong></p>
+      <div class="notice notice-success notice-big" role="status">
+        <p><strong>✅ 報名成功！</strong></p>
         ${body}
         ${calButtons(result)}
       </div>`;
