@@ -3,7 +3,7 @@
 (function () {
   const GAS = 'https://script.google.com/macros/s/AKfycbwFKAn3b-IJnoFOsTTuAEX31dbt1aNXsAKSBaEtxvpqX4LTYPMyMXF-gXJ12LlCDKbWNg/exec';
   const CF = 'https://duty-calendar-api.duty-calendar-worker.workers.dev/';
-  const DEFAULT = 'gas'; // 正式切換時改成 'cf'
+  const DEFAULT = 'cf'; // 2026/10/3 正式切換到 Cloudflare；緊急退回 Google 時改成 'gas'
   let choice = DEFAULT;
   try {
     const m = location.search.match(/[?&]api=(cf|gas)\b/);
