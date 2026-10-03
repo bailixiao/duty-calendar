@@ -1518,24 +1518,19 @@ select.input { appearance: auto; }
 .addcal-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .btn-addcal { flex: 1 1 100%; min-height: 48px; font-size: 1.05rem; font-weight: 700; background: var(--card); }
 
-/* 開場動畫：logo 由小變大，讀好資料後放大淡出（JS 沒跑也會在 6 秒後自己消失） */
-.splash {
-  position: fixed; inset: 0; z-index: 9999;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
-  background: var(--paper);
-  animation: splash-failsafe .5s 6s forwards;
+/* 開場動畫（app.js 用 Web Animations 控制）。JS 沒跑也會在 9 秒後自己消失 */
+.splash { position: fixed; inset: 0; z-index: 9999; animation: splash-failsafe .5s 9s forwards; }
+.splash-bg { position: absolute; inset: 0; background: var(--paper); }
+.splash-logo {
+  position: absolute; left: 50%; top: 42%; width: 168px; height: 168px; margin: -84px 0 0 -84px;
+  border-radius: 34px; box-shadow: 0 10px 30px rgba(60, 40, 20, .15); opacity: 0;
 }
-.splash img { width: 132px; height: 132px; border-radius: 28px; animation: splash-grow 1.2s cubic-bezier(.2, .7, .2, 1) both; }
-.splash-text { margin: 0; color: var(--muted, #7a6f5f); font-size: 1.05rem; letter-spacing: .1em; animation: splash-fade-in .6s .5s both; }
-.splash.is-leaving { animation: splash-out-bg .55s ease forwards; }
-.splash.is-leaving img { animation: splash-out .55s ease forwards; }
-.splash.is-leaving .splash-text { animation: splash-out-bg .3s ease forwards; }
-@keyframes splash-grow { from { transform: scale(.25); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-@keyframes splash-fade-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes splash-out { from { transform: scale(1); opacity: 1; } to { transform: scale(1.6); opacity: 0; } }
-@keyframes splash-out-bg { to { opacity: 0; visibility: hidden; } }
+.splash-title {
+  position: absolute; left: 0; top: 0; margin: 0; white-space: nowrap; transform-origin: 0 0;
+  font-family: var(--serif); font-weight: 700; font-size: 1.25rem; letter-spacing: .08em; line-height: 1.5; color: var(--ink);
+}
+.splash-title span { opacity: 0; display: inline-block; }
+body.splash-on .app-title { visibility: hidden; }
+body.splash-on .app-main { opacity: 0; animation: splash-main-failsafe .5s 9s forwards; }
+@keyframes splash-main-failsafe { to { opacity: 1; } }
 @keyframes splash-failsafe { to { opacity: 0; visibility: hidden; pointer-events: none; } }
-@media (prefers-reduced-motion: reduce) {
-  .splash img, .splash-text { animation: none; }
-  .splash.is-leaving img { animation: splash-out-bg .3s forwards; }
-}

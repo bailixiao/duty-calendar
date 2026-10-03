@@ -66,25 +66,74 @@
   }
 
   // ---------- 開場動畫 ----------
-  // 行事曆一畫出資料就放大淡出。手機裡有上次的資料時很快就有東西可看，只播約 0.7 秒；
-  // 第一次打開要等伺服器，至少讓 logo 長大完（1.2 秒）；伺服器太慢最多等 3.5 秒，先進行事曆，資料到了再補。
-  function hideSplashWhenReady() {
+  // 1. logo 由小變大再放大淡出 → 2. 一個字一個字浮現「教全區勤務行事曆」→ 3. 名稱滑到左上角（變成頁首標題）
+  // → 4. 行事曆展開。各段重疊接續、中間不停頓，全程約 3.5 秒；期間在背景讀取資料，沒讀完也照常展開，資料到了再補。
+  const SITE_NAME = '教全區勤務行事曆';
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  async function hideSplashWhenReady() {
     const splash = document.getElementById('splash');
     if (!splash) return;
-    const started = performance.now();
-    let gone = false;
-    const hide = () => {
-      if (gone) return;
-      gone = true;
-      splash.classList.add('is-leaving');
-      setTimeout(() => splash.remove(), 600);
+    const main = document.querySelector('.app-main');
+    const finish = () => {
+      splash.remove();
+      document.body.classList.remove('splash-on');
     };
-    const later = (ms) => setTimeout(hide, Math.max(0, ms - performance.now()));
-    CalendarPage.ready().then(() => {
-      const cached = performance.now() - started < 200;
-      later(cached ? 700 : 1200);
-    });
-    later(3500);
+    const reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced || !splash.animate) {
+      await Promise.race([CalendarPage.ready(), wait(1500)]);
+      finish();
+      return;
+    }
+    try {
+      const bg = splash.querySelector('.splash-bg');
+      const logo = splash.querySelector('.splash-logo');
+      const title = splash.querySelector('[data-splash-title]');
+      const header = document.querySelector('.app-title');
+      const chars = [...SITE_NAME];
+      title.innerHTML = chars.map((c) => `<span>${c}</span>`).join('');
+      // 等字型載入再量寬度（最多 0.3 秒，這段時間畫面只是底色），名稱才會剛好置中、落點剛好對齊頁首
+      await Promise.race([document.fonts ? document.fonts.ready : Promise.resolve(), wait(300)]);
+      const scale = Math.min(1.8, (window.innerWidth - 40) / title.offsetWidth);
+      const from = `translate(${(window.innerWidth - title.offsetWidth * scale) / 2}px, ${window.innerHeight * 0.42 - title.offsetHeight * scale / 2}px) scale(${scale})`;
+      const r = header.getBoundingClientRect();
+      const to = `translate(${r.left}px, ${r.top + (r.height - title.offsetHeight) / 2}px) scale(1)`;
+      title.style.transform = from;
+
+      // 時間軸（毫秒）：每一段在上一段快結束時就開始，整段連續不停頓
+      const T = { logo: 1300, type: 1000, step: 80, charIn: 320, fly: 2050, flyDur: 850, reveal: 2750, revealDur: 750 };
+      const smooth = 'cubic-bezier(.65, 0, .35, 1)';
+
+      // 1. logo：由小變大（略微超過再回來）→ 停一下下 → 放大淡出，一個動畫連貫完成
+      logo.animate([
+        { transform: 'scale(.15)', opacity: 0, offset: 0 },
+        { transform: 'scale(1.08)', opacity: 1, offset: 0.45 },
+        { transform: 'scale(1)', opacity: 1, offset: 0.62 },
+        { transform: 'scale(1.7)', opacity: 0, offset: 1 }
+      ], { duration: T.logo, easing: 'ease-in-out', fill: 'forwards' });
+
+      // 2. 一個字一個字浮現（logo 還在淡出時就開始）
+      title.querySelectorAll('span').forEach((s, i) => s.animate([
+        { opacity: 0, transform: 'translateY(10px)' },
+        { opacity: 1, transform: 'none' }
+      ], { duration: T.charIn, delay: T.type + i * T.step, easing: 'ease-out', fill: 'both' }));
+
+      // 3. 名稱縮小、滑到左上角，落在頁首標題的位置
+      title.animate([{ transform: from }, { transform: to }], { duration: T.flyDur, delay: T.fly, easing: smooth, fill: 'both' });
+
+      // 4. 名稱快到定位時，底色淡出、行事曆從下方輕輕展開
+      bg.animate([{ opacity: 1 }, { opacity: 0 }], { duration: T.revealDur, delay: T.reveal, easing: 'ease-out', fill: 'both' });
+      const show = main.animate([
+        { opacity: 0, transform: 'translateY(28px) scale(.97)' },
+        { opacity: 1, transform: 'none' }
+      ], { duration: T.revealDur, delay: T.reveal, easing: 'cubic-bezier(.2, .7, .2, 1)', fill: 'both' });
+      document.body.classList.remove('splash-on'); // 主畫面的透明度改由上面的動畫控制
+      header.style.visibility = 'hidden';
+      await show.finished;
+      header.style.visibility = '';
+      show.cancel();
+    } catch (e) { /* 動畫出問題就直接進行事曆 */ }
+    finish();
   }
 
   // 網頁檔案存在手機裡（見 sw.js）。本機開發時預設不啟用（改程式後才不會看到舊檔），網址加 ?sw=1 可測試。
