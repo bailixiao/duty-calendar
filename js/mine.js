@@ -1,5 +1,6 @@
 // 「我的報名」（#/mine）：輸入名字，列出今天起還有效的報名，可直接取消，或到勤務頁改期。
 // 名字用 POST 送到伺服器（不放網址）；上次查的名字記在這台瀏覽器，下次自動帶入。
+// 打字時跟報名一樣從成員名單提示名字，點一下就查。
 (function () {
   'use strict';
 
@@ -8,6 +9,9 @@
   let root = null;
   let token = 0;
   let current = null; // { name, today, items }
+  const searchCache = new Map(); // 打的字 → 成員名單符合的名字
+  let searchTimer = null;
+  let searchToken = 0;
 
   function savedName() {
     try { return localStorage.getItem(NAME_KEY) || ''; } catch (e) { return ''; }
@@ -30,17 +34,66 @@
           <input id="mine-name" class="input" type="text" autocomplete="name" placeholder="例如：王小明" value="${esc(savedName())}">
           <button type="submit" class="btn btn-primary">查詢</button>
         </div>
-        <p class="hint">要和報名時寫的名字一樣（例如有沒有寫姓）。</p>
+        <div class="suggestions" data-suggestions aria-live="polite"></div>
+        <p class="hint">打一個字就會提示成員名單上的名字，點一下就查。要和報名時寫的名字一樣（例如有沒有寫姓）。</p>
       </form>
       <div data-result aria-live="polite"></div>
       <a class="btn btn-block back-bottom" href="#/">‹ 回行事曆</a>`;
     const form = root.querySelector('form');
+    const input = form.querySelector('input');
     form.addEventListener('submit', (ev) => {
       ev.preventDefault();
-      search(form.querySelector('input').value);
+      clearSuggestions();
+      search(input.value);
+    });
+    input.addEventListener('focus', () => Api.warmUp(), { once: true });
+    input.addEventListener('input', () => onInput(input.value));
+    root.querySelector('[data-suggestions]').addEventListener('click', (ev) => {
+      const btn = ev.target.closest('[data-suggest]');
+      if (!btn) return;
+      input.value = btn.dataset.suggest;
+      clearSuggestions();
+      search(btn.dataset.suggest);
     });
     current = null;
     if (savedName()) search(savedName());
+  }
+
+  // ---------- 名字提示（成員名單） ----------
+
+  function clearSuggestions() {
+    clearTimeout(searchTimer);
+    searchToken += 1;
+    const box = root.querySelector('[data-suggestions]');
+    if (box) box.innerHTML = '';
+  }
+
+  function renderSuggestions(members, pending) {
+    const box = root.querySelector('[data-suggestions]');
+    box.innerHTML = members.slice(0, 12).map((m) => `<button type="button" class="suggestion" data-suggest="${esc(m.name)}">${esc(m.name)}</button>`).join('') +
+      (pending ? '<span class="muted small">搜尋更多中⋯</span>' : '');
+  }
+
+  function onInput(raw) {
+    clearTimeout(searchTimer);
+    const q = String(raw || '').replace(/[\s　]+/g, '');
+    if (!q) { clearSuggestions(); return; }
+    if (searchCache.has(q)) { renderSuggestions(searchCache.get(q)); return; }
+    // 先用查過的結果在本機篩選先顯示，等伺服器回來再補齊
+    const early = new Map();
+    searchCache.forEach((list) => list.forEach((m) => { if (m.name.indexOf(q) !== -1) early.set(m.name, m); }));
+    if (early.size) renderSuggestions([...early.values()], true);
+    searchTimer = setTimeout(async () => {
+      const t = ++searchToken;
+      if (!early.size) root.querySelector('[data-suggestions]').innerHTML = '<span class="muted small">搜尋中⋯ 也可以直接打完整名字按「查詢」</span>';
+      try {
+        const res = await Api.searchMembers(q);
+        searchCache.set(q, res.members);
+        if (t === searchToken) renderSuggestions(res.members);
+      } catch (e) {
+        if (t === searchToken && !early.size) root.querySelector('[data-suggestions]').innerHTML = '';
+      }
+    }, 250);
   }
 
   async function search(raw, flash) {
