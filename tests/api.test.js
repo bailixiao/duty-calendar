@@ -606,7 +606,24 @@ test('從照片產生草稿：要登入、檢查照片、回傳草稿；模型�
   const seen = [];
   env.setFetch((url) => { seen.push(url.match(/models\/([^:]+)/)[1]); return seen.length <= 2 ? { code: 503, body: {} } : { code: 200, body: { candidates: [{ content: { parts: [{ text: '[{"name":"備用模型"}]' }] } }] } }; });
   assert.equal(env.post({ action: 'adminDraftFromImages', token, images: [img] }).data.duties[0].name, '備用模型');
-  assert.deepEqual(seen, ['gemini-3.6-flash', 'gemini-3.6-flash', 'gemini-2.5-flash']);
+  assert.deepEqual(seen, ['gemini-3.6-flash', 'gemini-3.6-flash', 'gemini-flash-latest']);
+  // 預設的都不存在：問 Google 有哪些 Flash 模型，挑新的（不是 lite 的優先）
+  const tried = [];
+  env.setFetch((url) => {
+    if (/models\?/.test(url)) return { code: 200, body: { models: [
+      { name: 'models/gemini-4.0-flash-lite', supportedGenerationMethods: ['generateContent'] },
+      { name: 'models/gemini-4.0-flash', supportedGenerationMethods: ['generateContent'] },
+      { name: 'models/gemini-4.0-flash-image', supportedGenerationMethods: ['generateContent'] },
+      { name: 'models/text-embedding', supportedGenerationMethods: ['embedContent'] }
+    ] } };
+    const m = url.match(/models\/([^:]+)/)[1];
+    tried.push(m);
+    return m === 'gemini-4.0-flash' ? { code: 200, body: { candidates: [{ content: { parts: [{ text: '[{"name":"新模型"}]' }] } }] } } : { code: 404, body: {} };
+  });
+  const listedRes = env.post({ action: 'adminDraftFromImages', token, images: [img] });
+  assert.equal(listedRes.data.duties[0].name, '新模型');
+  assert.equal(listedRes.data.model, 'gemini-4.0-flash');
+  assert.deepEqual(tried, ['gemini-3.6-flash', 'gemini-flash-latest', 'gemini-4.0-flash']);
   env.setFetch(() => ({ code: 503, body: {} }));
   assert.match(env.post({ action: 'adminDraftFromImages', token, images: [img] }).error.message, /太忙/);
 

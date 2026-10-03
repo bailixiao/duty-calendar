@@ -10,8 +10,9 @@ var AI_MAX_IMAGES = 3;
 var AI_REGION = '教全區'; // 只整理本區的勤務與人員
 var AI_REGION_SHORT = '教全';
 var AI_MAX_IMAGE_CHARS = 6000000; // 每張 base64 約 4.5MB 以內（前端縮小後通常 300KB 左右）
-// 預設先用新版，不能用（例如 Google 改了名稱）就改用下一個
-var AI_DEFAULT_MODELS = ['gemini-3.6-flash', 'gemini-2.5-flash'];
+// 預設先用新版；不能用或太忙時，改用「最新 Flash」的別名，再不行就問 Google 目前有哪些 Flash 模型可用
+var AI_DEFAULT_MODELS = ['gemini-3.6-flash', 'gemini-flash-latest'];
+var AI_MAX_MODELS = 4; // 最多試幾個模型（避免等太久）
 
 /** body = { images: [{ mime, data(base64) }], hint } */
 function adminDraftFromImages_(body) {
@@ -79,7 +80,16 @@ function geminiGenerate_(parts) {
     contents: [{ role: 'user', parts: parts }],
     generationConfig: { responseMimeType: 'application/json', temperature: 0.2 }
   });
-  for (var i = 0; i < models.length; i++) {
+  var listed = false;
+  // 清單試完還沒成功時，問 Google 目前可用的 Flash 模型補進來（只問一次）
+  var more = function () {
+    if (listed) return;
+    listed = true;
+    geminiListFlash_(key).forEach(function (m) { if (models.indexOf(m) === -1) models.push(m); });
+  };
+  for (var i = 0; i < AI_MAX_MODELS; i++) {
+    if (i >= models.length) more();
+    if (i >= models.length) break;
     var resp = geminiFetch_(models[i], key, payload);
     var code = resp.getResponseCode();
     // 500／503：Google 那邊太忙，等一下再試一次，還是忙就換下一個（通常比較不擠的）模型
@@ -89,7 +99,7 @@ function geminiGenerate_(parts) {
       code = resp.getResponseCode();
       if (code === 500 || code === 503) { busy = true; continue; }
     }
-    if (code === 404 && i < models.length - 1) continue; // 這個模型不存在：換下一個
+    if (code === 404) continue; // 這個模型不存在（Google 改名或收掉了）：換下一個
     if (code === 400 && /API key/i.test(resp.getContentText())) throw new ApiError_('CONFIG', 'Gemini 金鑰不正確，請重新設定 GEMINI_API_KEY');
     if (code === 403) throw new ApiError_('CONFIG', 'Gemini 金鑰沒有權限，請確認金鑰是在 Google AI Studio 建立的');
     if (code === 429) throw new ApiError_('AI_LIMIT', 'AI 使用次數太多，請等一分鐘再試');
@@ -102,6 +112,23 @@ function geminiGenerate_(parts) {
   }
   if (busy) throw new ApiError_('AI', 'Google 的 AI 現在太忙，請過一兩分鐘再試');
   throw new ApiError_('AI', '找不到可用的 Gemini 模型，請在指令碼屬性設定 GEMINI_MODEL');
+}
+
+/** 目前金鑰可用、能產生內容的 Flash 模型（新的排前面；不含圖片、語音、即時等特殊版本） */
+function geminiListFlash_(key) {
+  try {
+    var resp = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', {
+      headers: { 'x-goog-api-key': key }, muteHttpExceptions: true
+    });
+    if (resp.getResponseCode() !== 200) return [];
+    return (JSON.parse(resp.getContentText()).models || [])
+      .filter(function (m) { return (m.supportedGenerationMethods || []).indexOf('generateContent') !== -1; })
+      .map(function (m) { return String(m.name).replace(/^models\//, ''); })
+      .filter(function (n) { return /flash/.test(n) && !/image|tts|audio|live|thinking|embed/.test(n); })
+      .sort(function (a, b) { return (/lite/.test(a) - /lite/.test(b)) || (b < a ? -1 : b > a ? 1 : 0); });
+  } catch (e) {
+    return [];
+  }
 }
 
 function geminiFetch_(model, key, payload) {
@@ -118,4 +145,10 @@ function geminiFetch_(model, key, payload) {
 function testGemini() {
   var res = geminiGenerate_([{ text: '請只回傳 JSON：{"ok": true, "message": "Gemini 連線成功"}' }]);
   Logger.log('使用模型：' + res.model + '，回覆：' + res.text);
+}
+
+/** 在 Apps Script 編輯器執行：列出這把金鑰目前可用的 Flash 模型（要指定 GEMINI_MODEL 時參考） */
+function listGeminiModels() {
+  var key = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
+  Logger.log('可用的 Flash 模型：' + geminiListFlash_(key).join('、'));
 }
