@@ -267,6 +267,10 @@
           if (window.DutyCache) DutyCache.setMany(data.details);
           delete data.details;
           return data;
+        }, (err) => {
+          // 伺服器還是舊版（沒有 getBundle）：改用一般的行事曆讀取
+          if (err.code === 'BAD_REQUEST') return Api.getEvents(r.from, r.to);
+          throw err;
         })
         : Api.getEvents(r.from, r.to);
       entry.promise = fetcher.then((data) => {
