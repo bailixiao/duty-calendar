@@ -1565,7 +1565,6 @@ body.splash-on .app-main { opacity: 0; animation: splash-main-failsafe .5s 9s fo
 @media (prefers-reduced-motion: reduce) { .notice-big { animation: none; } }
 
 /* 加入名字的動畫：名字飛到名單、名字卡亮一下 */
-.name-fly { position: fixed; z-index: 60; pointer-events: none; padding: 8px 14px; border-radius: 10px; background: var(--accent); color: #fff; font-size: 1.15rem; font-weight: 700; box-shadow: 0 6px 16px rgba(0, 0, 0, .2); }
 .name-item.is-new { animation: name-new 1.5s ease-out; }
-@keyframes name-new { 0% { background: #fff3b0; transform: scale(.97); } 25% { background: #fff3b0; transform: scale(1); } 100% { background: var(--card); } }
+@keyframes name-new { 0%, 45% { background: #fff3b0; box-shadow: 0 0 0 3px #f0c419; } 100% { background: var(--card); box-shadow: none; } }
 @media (prefers-reduced-motion: reduce) { .name-item.is-new { animation: none; outline: 3px solid #f0c419; } }

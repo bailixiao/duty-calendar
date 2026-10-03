@@ -202,33 +202,32 @@
       state.entries.push(entry);
       hideError();
       renderNames();
-      flyIn(state.entries.length - 1, name);
+      flyIn(state.entries.length - 1);
       if (!fixed && known === undefined) lookupIdentity(entry);
       return true;
     }
 
-    /** 加入的動畫：名字從輸入框飛到下面的名單，名字卡亮一下，讓人清楚知道加進去了 */
-    function flyIn(index, name) {
+    /**
+     * 加入的動畫：新的名字卡從輸入框的位置滑下來、放大到名單裡（結尾彈一下），再亮黃色，讓人清楚知道加進去了。
+     * 直接移動名字卡本身（不用浮在畫面上的標籤），iPhone 鍵盤打開時位置也不會跑掉。
+     */
+    function flyIn(index) {
       const li = $('[data-names]').children[index];
       if (!li) return;
       li.classList.add('is-new');
-      setTimeout(() => li.classList.remove('is-new'), 1600);
+      setTimeout(() => li.classList.remove('is-new'), 1800);
       const reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
       if (reduced || !li.animate) return;
-      const from = input.getBoundingClientRect();
-      const to = li.getBoundingClientRect();
-      const ghost = document.createElement('div');
-      ghost.className = 'name-fly';
-      ghost.textContent = name;
-      ghost.style.left = from.left + 'px';
-      ghost.style.top = from.top + 'px';
-      document.body.appendChild(ghost);
-      setTimeout(() => ghost.remove(), 900); // 動畫被暫停（例如切到別的 App）也一定會拿掉
-      ghost.animate([
-        { transform: 'translate(0, 0) scale(1)', opacity: 1 },
-        { transform: `translate(${to.left - from.left + 16}px, ${to.top - from.top + 10}px) scale(1.05)`, opacity: 0.9 }
-      ], { duration: 450, easing: 'cubic-bezier(.4, 0, .2, 1)' }).finished.then(() => ghost.remove(), () => ghost.remove());
-      if (to.bottom > window.innerHeight - 40) li.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const dy = input.getBoundingClientRect().top - li.getBoundingClientRect().top;
+      li.animate([
+        { transform: `translateY(${dy}px) scale(.55)`, opacity: 0.2, offset: 0 },
+        { transform: 'translateY(6px) scale(1.03)', opacity: 1, offset: 0.75 },
+        { transform: 'none', opacity: 1, offset: 1 }
+      ], { duration: 700, easing: 'cubic-bezier(.3, .7, .3, 1)' });
+      setTimeout(() => {
+        const r = li.getBoundingClientRect();
+        if (r.bottom > window.innerHeight - 20 || r.top < 0) li.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 720);
     }
 
     /** 手動輸入的名字：查成員名單，完全同名且有身分就帶入並固定 */
