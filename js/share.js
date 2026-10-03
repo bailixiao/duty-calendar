@@ -14,7 +14,7 @@
     if (/烹飪|廚|蔬食/.test(n)) return '🍳';
     if (/捐血/.test(n)) return '🩸';
     if (/值夜/.test(n)) return '🌙';
-    if (/拜香/.test(n)) return '🪔';
+    if (/拜香/.test(n)) return '🙏'; // 表情符號沒有「香」，用合十代替
     if (/敬老|重陽|長青/.test(n)) return '👴';
     if (/志工/.test(n)) return '🙌';
     if (/班/.test(n)) return '📖';
