@@ -357,6 +357,16 @@
   }
 
   /** 報名成功：用伺服器回傳的新報名與人數直接更新畫面（不用再等一次讀取），行事曆在背景更新 */
+  /** 報名成功後的「加到手機行事曆」：每個日期一個按鈕（最多 7 個） */
+  function calButtons(result) {
+    const d = page.data;
+    if (!d || d.id !== result.dutyId) return '';
+    const many = result.dates.length > 1;
+    return `<div class="addcal-row">${result.dates.slice(0, 7).map((date) => AddCal.button({
+      name: d.name, location: d.location, start: d.start, end: d.end, startTime: d.startTime, endTime: d.endTime, dutyId: d.id, date
+    }, many ? `加到行事曆：${Fmt.shortDate(date)}` : '加到手機行事曆')).join('')}</div>`;
+  }
+
   function onSignedUp(result, res) {
     const who = (e) => `${e.name}（${e.identity}${e.accompany ? '・陪同' : ''}）`;
     const dates = result.dates.map(Fmt.shortDate).join('、');
@@ -368,6 +378,7 @@
       <div class="notice notice-success" role="status">
         <p><strong>報名成功！</strong></p>
         ${body}
+        ${calButtons(result)}
       </div>`;
     if (window.CalendarPage) CalendarPage.refresh();
     if (!page.data || page.data.id !== result.dutyId) return; // 報名期間已離開這頁（例如按了瀏覽器返回）

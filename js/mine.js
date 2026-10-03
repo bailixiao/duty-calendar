@@ -106,6 +106,7 @@
             <button type="button" class="btn btn-quiet-danger" data-cancel="${esc(it.signupId)}">取消</button>
             ${it.nature === '活動' ? '' : `<a class="btn" href="${href}">改期</a>`}
           </div>` : `<p class="muted mine-note">勤務當天（含）之後不能自己取消或改期，${esc(Fmt.askAdmin())}</p>`}
+        <div class="addcal-row">${AddCal.button({ name: it.dutyName, location: it.location, start: it.start, end: it.end, startTime: it.startTime, endTime: it.endTime, dutyId: it.dutyId, date: it.date })}</div>
       </div>`;
   }
 

@@ -1513,3 +1513,7 @@ select.input { appearance: auto; }
 .mine-actions { display: flex; gap: 8px; margin-top: 10px; }
 .mine-actions .btn { flex: 1; min-height: 48px; font-size: 1.05rem; display: flex; align-items: center; justify-content: center; text-decoration: none; }
 .mine-note { margin: 8px 0 0; font-size: .95rem; }
+
+/* 加到手機行事曆 */
+.addcal-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.btn-addcal { flex: 1 1 100%; min-height: 48px; font-size: 1.05rem; font-weight: 700; background: var(--card); }
