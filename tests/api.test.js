@@ -602,6 +602,14 @@ test('從照片產生草稿：要登入、檢查照片、回傳草稿；模型�
   const second = env.post({ action: 'adminDraftFromImages', token, images: [img] });
   assert.equal(second.data.duties[0].name, '第二個模型');
 
+  // 太忙（503）：重試一次，還是忙就換下一個模型
+  const seen = [];
+  env.setFetch((url) => { seen.push(url.match(/models\/([^:]+)/)[1]); return seen.length <= 2 ? { code: 503, body: {} } : { code: 200, body: { candidates: [{ content: { parts: [{ text: '[{"name":"備用模型"}]' }] } }] } }; });
+  assert.equal(env.post({ action: 'adminDraftFromImages', token, images: [img] }).data.duties[0].name, '備用模型');
+  assert.deepEqual(seen, ['gemini-3.6-flash', 'gemini-3.6-flash', 'gemini-2.5-flash']);
+  env.setFetch(() => ({ code: 503, body: {} }));
+  assert.match(env.post({ action: 'adminDraftFromImages', token, images: [img] }).error.message, /太忙/);
+
   env.setFetch(() => ({ code: 429, body: {} }));
   assert.equal(env.post({ action: 'adminDraftFromImages', token, images: [img] }).error.code, 'AI_LIMIT');
   env.setFetch(() => ({ code: 200, body: { candidates: [{ content: { parts: [{ text: '看不懂' }] } }] } }));

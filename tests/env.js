@@ -53,6 +53,7 @@ function createEnv(fixedNow) {
     },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock() {} }) },
     Utilities: {
+      sleep() {},
       getUuid: () => crypto.randomUUID(),
       formatDate(date, tz, pattern) {
         const d = clock.now ? new Date(clock.now) : date;

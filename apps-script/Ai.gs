@@ -72,20 +72,23 @@ function geminiGenerate_(parts) {
   var key = props.getProperty('GEMINI_API_KEY');
   if (!key) throw new ApiError_('CONFIG', '尚未設定 Gemini 金鑰，請依部署說明在「指令碼屬性」設定 GEMINI_API_KEY');
   var custom = props.getProperty('GEMINI_MODEL');
-  var models = custom ? [custom] : AI_DEFAULT_MODELS;
+  // 指定的模型優先，再接預設的（指定的不能用或太忙時還有備用）
+  var models = (custom ? [custom] : []).concat(AI_DEFAULT_MODELS.filter(function (m) { return m !== custom; }));
+  var busy = false;
   var payload = JSON.stringify({
     contents: [{ role: 'user', parts: parts }],
     generationConfig: { responseMimeType: 'application/json', temperature: 0.2 }
   });
   for (var i = 0; i < models.length; i++) {
-    var resp = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(models[i]) + ':generateContent', {
-      method: 'post',
-      contentType: 'application/json',
-      headers: { 'x-goog-api-key': key },
-      payload: payload,
-      muteHttpExceptions: true
-    });
+    var resp = geminiFetch_(models[i], key, payload);
     var code = resp.getResponseCode();
+    // 500／503：Google 那邊太忙，等一下再試一次，還是忙就換下一個（通常比較不擠的）模型
+    if (code === 500 || code === 503) {
+      Utilities.sleep(2000);
+      resp = geminiFetch_(models[i], key, payload);
+      code = resp.getResponseCode();
+      if (code === 500 || code === 503) { busy = true; continue; }
+    }
     if (code === 404 && i < models.length - 1) continue; // 這個模型不存在：換下一個
     if (code === 400 && /API key/i.test(resp.getContentText())) throw new ApiError_('CONFIG', 'Gemini 金鑰不正確，請重新設定 GEMINI_API_KEY');
     if (code === 403) throw new ApiError_('CONFIG', 'Gemini 金鑰沒有權限，請確認金鑰是在 Google AI Studio 建立的');
@@ -97,7 +100,18 @@ function geminiGenerate_(parts) {
     if (!text) throw new ApiError_('AI', 'AI 沒有回覆內容，請換一張照片再試');
     return { text: text, model: models[i] };
   }
+  if (busy) throw new ApiError_('AI', 'Google 的 AI 現在太忙，請過一兩分鐘再試');
   throw new ApiError_('AI', '找不到可用的 Gemini 模型，請在指令碼屬性設定 GEMINI_MODEL');
+}
+
+function geminiFetch_(model, key, payload) {
+  return UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'x-goog-api-key': key },
+    payload: payload,
+    muteHttpExceptions: true
+  });
 }
 
 /** 在 Apps Script 編輯器執行：授權外部連線並測試金鑰（不會寫入任何資料） */
