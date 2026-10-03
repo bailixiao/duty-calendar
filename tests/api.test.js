@@ -627,8 +627,16 @@ test('從照片產生草稿：要登入、檢查照片、回傳草稿；模型�
   env.setFetch(() => ({ code: 503, body: {} }));
   assert.match(env.post({ action: 'adminDraftFromImages', token, images: [img] }).error.message, /太忙/);
 
-  env.setFetch(() => ({ code: 429, body: {} }));
-  assert.equal(env.post({ action: 'adminDraftFromImages', token, images: [img] }).error.code, 'AI_LIMIT');
+  // 次數太多（429）：換下一個模型（免費額度每個模型分開算）
+  let k = 0;
+  env.setFetch((url) => (/models\?/.test(url) ? { code: 200, body: { models: [] } } : k++ === 0 ? { code: 429, body: {} } : { code: 200, body: { candidates: [{ content: { parts: [{ text: '[{"name":"換模型成功"}]' }] } }] } }));
+  assert.equal(env.post({ action: 'adminDraftFromImages', token, images: [img] }).data.duties[0].name, '換模型成功');
+  env.setFetch((url) => (/models\?/.test(url) ? { code: 200, body: { models: [] } } : { code: 429, body: 'Quota exceeded for metric generate_content_free_tier_requests, limit: 20, PerDay' }));
+  const day = env.post({ action: 'adminDraftFromImages', token, images: [img] });
+  assert.equal(day.error.code, 'AI_LIMIT');
+  assert.match(day.error.message, /今天/);
+  env.setFetch((url) => (/models\?/.test(url) ? { code: 200, body: { models: [] } } : { code: 429, body: 'PerMinute' }));
+  assert.match(env.post({ action: 'adminDraftFromImages', token, images: [img] }).error.message, /一分鐘/);
   env.setFetch(() => ({ code: 200, body: { candidates: [{ content: { parts: [{ text: '看不懂' }] } }] } }));
   assert.equal(env.post({ action: 'adminDraftFromImages', token, images: [img] }).error.code, 'AI');
 });

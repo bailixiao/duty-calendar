@@ -83,8 +83,9 @@ async function geminiGenerate(gs, parts) {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: payload
   });
   let busy = false;
+  let limited = ''; // 429 的內容（判斷是每分鐘還是每天的額度）
   let listed = false;
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 6; i++) {
     if (i >= models.length && !listed) {
       listed = true;
       try {
@@ -110,7 +111,7 @@ async function geminiGenerate(gs, parts) {
     const text = await res.text();
     if (res.status === 400 && /API key/i.test(text)) throw new gs.ApiError_('CONFIG', 'Gemini 金鑰不正確，請重新設定 GEMINI_API_KEY');
     if (res.status === 403) throw new gs.ApiError_('CONFIG', 'Gemini 金鑰沒有權限，請確認金鑰是在 Google AI Studio 建立的');
-    if (res.status === 429) throw new gs.ApiError_('AI_LIMIT', 'AI 使用次數太多，請等一分鐘再試');
+    if (res.status === 429) { limited += text; continue; } // 這個模型的免費額度用完：換下一個（每個模型分開算）
     if (res.status !== 200) throw new gs.ApiError_('AI', 'AI 暫時無法使用（' + res.status + '），請稍後再試');
     const json = JSON.parse(text);
     const cand = json.candidates && json.candidates[0];
@@ -118,6 +119,7 @@ async function geminiGenerate(gs, parts) {
     if (!out) throw new gs.ApiError_('AI', 'AI 沒有回覆內容，請換一張照片再試');
     return { text: out, model: models[i] };
   }
+  if (limited) throw new gs.ApiError_('AI_LIMIT', /PerDay|per day|daily/i.test(limited) ? '今天的 AI 免費額度用完了，請明天再試（常用的話可以在 Google AI Studio 開啟付費，每張照片大約不到 1 元台幣）' : 'AI 使用次數太多，請等一分鐘再試');
   if (busy) throw new gs.ApiError_('AI', 'Google 的 AI 現在太忙，請過一兩分鐘再試');
   throw new gs.ApiError_('AI', '找不到可用的 Gemini 模型，請在指令碼屬性設定 GEMINI_MODEL');
 }

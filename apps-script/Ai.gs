@@ -12,7 +12,7 @@ var AI_REGION_SHORT = '教全';
 var AI_MAX_IMAGE_CHARS = 6000000; // 每張 base64 約 4.5MB 以內（前端縮小後通常 300KB 左右）
 // 預設先用新版；不能用或太忙時，改用「最新 Flash」的別名，再不行就問 Google 目前有哪些 Flash 模型可用
 var AI_DEFAULT_MODELS = ['gemini-3.6-flash', 'gemini-flash-latest'];
-var AI_MAX_MODELS = 4; // 最多試幾個模型（避免等太久）
+var AI_MAX_MODELS = 6; // 最多試幾個模型（避免等太久）
 
 /** body = { images: [{ mime, data(base64) }], hint } */
 function adminDraftFromImages_(body) {
@@ -93,6 +93,7 @@ function geminiGenerate_(parts) {
   // 指定的模型優先，再接預設的（指定的不能用或太忙時還有備用）
   var models = (custom ? [custom] : []).concat(AI_DEFAULT_MODELS.filter(function (m) { return m !== custom; }));
   var busy = false;
+  var limited = ''; // 429 的內容（判斷是每分鐘還是每天的額度）
   var payload = JSON.stringify({
     contents: [{ role: 'user', parts: parts }],
     generationConfig: { responseMimeType: 'application/json', temperature: 0.2 }
@@ -119,7 +120,7 @@ function geminiGenerate_(parts) {
     if (code === 404) continue; // 這個模型不存在（Google 改名或收掉了）：換下一個
     if (code === 400 && /API key/i.test(resp.getContentText())) throw new ApiError_('CONFIG', 'Gemini 金鑰不正確，請重新設定 GEMINI_API_KEY');
     if (code === 403) throw new ApiError_('CONFIG', 'Gemini 金鑰沒有權限，請確認金鑰是在 Google AI Studio 建立的');
-    if (code === 429) throw new ApiError_('AI_LIMIT', 'AI 使用次數太多，請等一分鐘再試');
+    if (code === 429) { limited += resp.getContentText(); continue; } // 這個模型的免費額度用完：換下一個（每個模型分開算）
     if (code !== 200) throw new ApiError_('AI', 'AI 暫時無法使用（' + code + '），請稍後再試');
     var json = JSON.parse(resp.getContentText());
     var cand = json.candidates && json.candidates[0];
@@ -127,6 +128,7 @@ function geminiGenerate_(parts) {
     if (!text) throw new ApiError_('AI', 'AI 沒有回覆內容，請換一張照片再試');
     return { text: text, model: models[i] };
   }
+  if (limited) throw new ApiError_('AI_LIMIT', /PerDay|per day|daily/i.test(limited) ? '今天的 AI 免費額度用完了，請明天再試（常用的話可以在 Google AI Studio 開啟付費，每張照片大約不到 1 元台幣）' : 'AI 使用次數太多，請等一分鐘再試');
   if (busy) throw new ApiError_('AI', 'Google 的 AI 現在太忙，請過一兩分鐘再試');
   throw new ApiError_('AI', '找不到可用的 Gemini 模型，請在指令碼屬性設定 GEMINI_MODEL');
 }
