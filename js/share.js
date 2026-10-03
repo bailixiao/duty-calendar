@@ -7,6 +7,21 @@
     return location.origin + location.pathname;
   }
 
+  /** 依勤務名稱配一個小圖示，讓通知比較生動 */
+  function dutyEmoji(duty) {
+    const n = duty.name || '';
+    if (/打掃|掃除|打蠟|洗/.test(n)) return '🧹';
+    if (/烹飪|廚|蔬食/.test(n)) return '🍳';
+    if (/捐血/.test(n)) return '🩸';
+    if (/值夜/.test(n)) return '🌙';
+    if (/拜香/.test(n)) return '🪔';
+    if (/敬老|重陽|長青/.test(n)) return '👴';
+    if (/志工/.test(n)) return '🙌';
+    if (/班/.test(n)) return '📖';
+    if (duty.nature === '活動') return '🎉';
+    return '✨';
+  }
+
   /**
    * rows：[{ duty, date, state }]，只取缺人（state.kind === 'short'）的，依日期排好。
    * 回傳通知文字；沒有缺人回傳空字串。
@@ -15,18 +30,18 @@
     const short = rows.filter((r) => r.state.kind === 'short')
       .slice().sort((a, b) => a.date.localeCompare(b.date) || (a.duty.startTime || '').localeCompare(b.duty.startTime || ''));
     if (!short.length) return '';
-    const lines = ['【教全區勤務缺人通知】', '以下勤務還缺人，歡迎發心報名，點連結就能報名：'];
+    const lines = ['🙏【教全區勤務缺人通知】🙏', '以下勤務還缺人，歡迎發心了愿報名 💪', '點連結就能報名 👇'];
     let lastDate = '';
     short.forEach(({ duty, date, state }) => {
       if (date !== lastDate) {
-        lines.push('', Fmt.shortDate(date));
+        lines.push('', `📅 ${Fmt.shortDate(date)}`);
         lastDate = date;
       }
       const meta = [Fmt.cardTime(duty, date), duty.location].filter(Boolean).join('・');
-      lines.push(`・${duty.name}　${state.label}${meta ? `（${meta}）` : ''}`);
-      lines.push(`  ${siteUrl()}#/duty/${encodeURIComponent(duty.id)}?date=${date}`);
+      lines.push(`${dutyEmoji(duty)} ${duty.name}　🙋 ${state.label}${meta ? `（📍${meta}）` : ''}`);
+      lines.push(`👉 ${siteUrl()}#/duty/${encodeURIComponent(duty.id)}?date=${date}`);
     });
-    lines.push('', `行事曆：${siteUrl()}`);
+    lines.push('', `🗓️ 行事曆：${siteUrl()}`, '', '感謝大家歡喜了愿，感謝慈悲 🙏😊');
     return lines.join('\n');
   }
 
