@@ -23,8 +23,7 @@
     return json.data;
   }
 
-  async function getOnce(url, timeoutMs) {
-    const ctrl = new AbortController();
+  async function getOnce(url, timeoutMs, ctrl) {
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     let res;
     try {
@@ -39,21 +38,46 @@
   }
 
   /**
-   * 讀取。Apps Script 偶爾會卡住幾十秒或無故失敗，但馬上重送通常 2–3 秒就回應，
-   * 所以第一次只等 8 秒，逾時或連線失敗就重送（最多 3 次，一次比一次等久一點）。
-   * 只有讀取會自動重送；報名（寫入）不重送，避免重複寫入。
+   * 讀取。Apps Script 偶爾單一請求會卡住十幾秒，但同時再問一次通常 2–3 秒就回來。
+   * 所以第一個請求超過 waits[0] 毫秒還沒回來，就「同時」再送一個（前一個不取消），誰先回來用誰；
+   * 之後每隔 waits[i] 再加送一個，最多送 waits.length + 1 個。全部都連線失敗才算失敗。
+   * 只有讀取會這樣做；報名（寫入）不重送，避免重複寫入。
    */
-  async function get(action, params, waitList) {
+  function get(action, params, waitList) {
     const url = window.APP_CONFIG.API_URL + '?' + new URLSearchParams(Object.assign({ action }, params || {})).toString();
-    // Google 偶爾整個請求卡住幾十秒後回錯誤頁，所以短等待、多試幾次比久等一次有效
-    const waits = waitList || [8000, 12000, 30000];
-    for (let i = 0; ; i++) {
-      try {
-        return await getOnce(url, waits[i]);
-      } catch (err) {
-        if (err.code !== 'NETWORK' || i === waits.length - 1) throw err;
-      }
-    }
+    const waits = waitList || [3500, 5000, 10000];
+    return new Promise((resolve, reject) => {
+      const ctrls = [];
+      let done = false;
+      let started = 0;
+      let failed = 0;
+      let timer = null;
+      const finish = (fn, value, winner) => {
+        done = true;
+        clearTimeout(timer);
+        ctrls.forEach((c) => { if (c !== winner) c.abort(); });
+        fn(value);
+      };
+      const launch = () => {
+        if (done || started > waits.length) return;
+        const i = started++;
+        const ctrl = new AbortController();
+        ctrls.push(ctrl);
+        clearTimeout(timer);
+        if (i < waits.length) timer = setTimeout(launch, waits[i]);
+        getOnce(url, 40000, ctrl).then((data) => {
+          if (!done) finish(resolve, data, ctrl);
+        }, (err) => {
+          if (done) return;
+          if (err.code !== 'NETWORK') return finish(reject, err); // 伺服器明確回錯誤（例如找不到勤務）：不用再問
+          failed++;
+          if (failed < started) return; // 還有其他請求在等
+          if (started <= waits.length) launch(); // 全部都失敗了：馬上再送一個
+          else finish(reject, err);
+        });
+      };
+      launch();
+    });
   }
 
   /**
@@ -171,12 +195,12 @@
     isAdmin: () => !!adminToken,
     getEvents: (from, to) => get('getEvents', { from, to }),
     // 先叫醒伺服器（點名字欄時呼叫），之後的名字搜尋比較不會遇到冷啟動
-    warmUp: () => get('ping', {}, [5000]).catch(() => {}),
+    warmUp: () => get('ping', {}, []).catch(() => {}),
     getDuty: (id) => get('getDuty', { id }),
     // 開網站時一次打包：行事曆＋近 30 天勤務詳情（資料較多，第一次等久一點）
-    getBundle: (from, to) => get('getBundle', { from, to }, [12000, 15000, 30000]),
-    // 名字提示要快：平常 2 秒內回來，卡住就早點重送（3、5、8、15 秒）
-    searchMembers: (q, groupType, group) => get('searchMembers', { q, groupType: groupType || '', group: group || '' }, [3000, 5000, 8000, 15000]),
+    getBundle: (from, to) => get('getBundle', { from, to }, [4500, 6000, 10000]),
+    // 名字提示要快：平常 2 秒內回來，3 秒沒回來就同時再問一次
+    searchMembers: (q, groupType, group) => get('searchMembers', { q, groupType: groupType || '', group: group || '' }, [3000, 4000, 8000]),
     getSiblings: (dutyId) => get('getSiblings', { id: dutyId }),
     signup: (payload) => post(Object.assign({ action: 'signup' }, payload)),
     cancel: (signupId) => post({ action: 'cancel', signupId }),

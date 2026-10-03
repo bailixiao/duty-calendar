@@ -17,9 +17,9 @@ function doGet(e) {
     var p = (e && e.parameter) || {};
     switch (p.action) {
       case 'ping': return { now: nowString_(), today: todayString_(), timeZone: Session.getScriptTimeZone() };
-      case 'getEvents': return getEvents_(p);
-      case 'getDuty': return getDuty_(p);
-      case 'getBundle': return getBundle_(p);
+      case 'getEvents': return cachedRead_('getEvents', p, function () { return getEvents_(p); });
+      case 'getDuty': return cachedRead_('getDuty', p, function () { return getDuty_(p); });
+      case 'getBundle': return cachedRead_('getBundle', p, function () { return getBundle_(p); });
       case 'searchMembers': return searchMembers_(p);
       case 'getSiblings': return getSiblings_(p);
       default: throw new ApiError_('BAD_REQUEST', '未知的 action：' + (p.action || '（空白）'));
@@ -59,8 +59,14 @@ function onEdit() {
  */
 function keepWarm() {
   [SHEETS.DUTIES, SHEETS.POSITIONS, SHEETS.SIGNUPS, SHEETS.GROUPS, SHEETS.MEMBERS].forEach(function (def) {
-    readTableCached_(def, { refresh: true });
+    // 試算表被直接改過（例如插入整列，不會觸發 onEdit）：換版本號，讀取快取跟著失效
+    var before = JSON.stringify(readTableCached_(def));
+    if (JSON.stringify(readTable_(def)) !== before) invalidateTable_(def);
+    readTableCached_(def);
   });
+  // 先把今年的打包資料算好，第一個打開網站的人不用等
+  var w = yearWindow_(Number(todayString_().slice(0, 4)));
+  cachedRead_('getBundle', w, function () { return getBundle_(w); });
 }
 
 function ApiError_(code, message, details) {

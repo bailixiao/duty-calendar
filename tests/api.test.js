@@ -632,3 +632,24 @@ test('從照片產生草稿：要登入、檢查照片、回傳草稿；模型�
   env.setFetch(() => ({ code: 200, body: { candidates: [{ content: { parts: [{ text: '看不懂' }] } }] } }));
   assert.equal(env.post({ action: 'adminDraftFromImages', token, images: [img] }).error.code, 'AI');
 });
+
+// ---------- 讀取回應快取 ----------
+
+test('讀取快取：報名後勤務詳情與打包立刻更新；直接改試算表（不觸發 onEdit）由 keepWarm 發現', () => {
+  const env = createEnv(OCT_1);
+  const v = findDuty(env, '2026-10-13', '2026-10-13', d => d.name === '彌勒山志工輪值');
+  const w = { action: 'getBundle', from: '2025-12-25', to: '2027-01-07' };
+  assert.equal(env.get({ action: 'getDuty', id: v.id }).data.signups.length, 0);
+  assert.equal(env.get(w).data.details[v.id].signups.length, 0);
+  signupOne(env, v, v.positions[0].id, '2026-10-13', { name: '測試甲' });
+  assert.equal(env.get({ action: 'getDuty', id: v.id }).data.signups.length, 1);
+  assert.equal(env.get(w).data.details[v.id].signups.length, 1);
+
+  // 直接改勤務名稱（模擬插入整列等不會觸發 onEdit 的修改）
+  const rows = env.sheets['勤務'].data;
+  const row = rows.find(r => r[0] === v.id);
+  row[1] = '彌勒山志工輪值（改）';
+  assert.equal(env.get({ action: 'getDuty', id: v.id }).data.name, '彌勒山志工輪值'); // 還是快取
+  env.keepWarm();
+  assert.equal(env.get({ action: 'getDuty', id: v.id }).data.name, '彌勒山志工輪值（改）');
+});
