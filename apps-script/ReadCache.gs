@@ -66,7 +66,8 @@ function checkProject() {
     'Duties.gs': 'getDuty_', 'DutyAdmin.gs': 'adminCreateDuties_', 'DutyRules.gs': 'normalizeDutyInput_',
     'History.gs': 'adminImportHistory_', 'Mine.gs': 'mySignups_', 'People.gs': 'adminMembers_',
     'ReadCache.gs': 'cachedRead_', 'Rules.gs': 'validateSignup_', 'Seed.gs': 'seedInitialDuties',
-    'Setup.gs': 'setupSheets', 'Sheets.gs': 'readTable_', 'Signup.gs': 'signup_', 'Stats.gs': 'adminStats_'
+    'Setup.gs': 'setupSheets', 'Sheets.gs': 'readTable_', 'Signup.gs': 'signup_', 'Stats.gs': 'adminStats_',
+    'Push.gs': 'sendPushAll_'
   };
   var self = typeof globalThis !== 'undefined' ? globalThis : this;
   var missing = Object.keys(expect).filter(function (f) { return typeof self[expect[f]] !== 'function'; });

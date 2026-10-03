@@ -6,7 +6,7 @@
 //   - 資料 API（script.google.com）一律不經過這裡，永遠向伺服器拿。
 'use strict';
 
-const CACHE = 'duty-calendar-v1';
+const CACHE = 'duty-calendar-v2';
 const CDN_HOSTS = ['cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', () => self.skipWaiting());
@@ -91,3 +91,84 @@ function withTimeout(promise, ms) {
     promise.then((r) => { clearTimeout(t); resolve(r); }, (e) => { clearTimeout(t); reject(e); });
   });
 }
+
+// ---------- 手機提醒（推播，見 apps-script/Push.gs） ----------
+// 推播本身不帶內容：收到後回伺服器問「今天／明天有什麼勤務」，再顯示通知。點通知打開勤務或「近期」。
+
+self.window = self; // config.js 寫的是 window.APP_CONFIG
+try { importScripts('js/config.js'); } catch (e) { /* 讀不到就用通用通知 */ }
+
+const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
+
+function dutyEmoji(it) {
+  const n = it.name || '';
+  if (/打掃|掃除|打蠟|洗/.test(n)) return '🧹';
+  if (/烹飪|廚|蔬食/.test(n)) return '🍳';
+  if (/捐血/.test(n)) return '🩸';
+  if (/值夜/.test(n)) return '🌙';
+  if (/拜香/.test(n)) return '🙏';
+  if (/敬老|重陽|長青/.test(n)) return '👴';
+  if (/志工/.test(n)) return '🙌';
+  if (/班/.test(n)) return '📖';
+  if (it.nature === '活動') return '🎉';
+  return '✨';
+}
+
+/** 推播網址的代號（與伺服器的 pushIdOf_ 相同：SHA-256 前 16 個十六進位字） */
+async function pushId(endpoint) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(endpoint));
+  return [...new Uint8Array(buf)].slice(0, 8).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function buildNotification() {
+  const fallback = { title: '🙏 教全區勤務提醒', body: '有勤務或活動，點開看看 👉', url: '#/recent' };
+  try {
+    const sub = await self.registration.pushManager.getSubscription();
+    const api = self.APP_CONFIG && self.APP_CONFIG.API_URL;
+    if (!sub || !api) return fallback;
+    const res = await fetch(api + '?action=pushSummary&id=' + await pushId(sub.endpoint));
+    const json = await res.json();
+    if (!json.ok) return fallback;
+    const d = json.data;
+    if (d.test) return { title: '🔔 測試通知', body: '收到了！有勤務時，晚上 8 點和早上 7 點會提醒你 🙏', url: '#/recent' };
+    if (!d.items.length) return fallback;
+    const p = d.date.split('-').map(Number);
+    const wd = WEEKDAYS[new Date(p[0], p[1] - 1, p[2]).getDay()];
+    const lines = d.items.slice(0, 4).map((it) => `${dutyEmoji(it)} ${it.time ? it.time + ' ' : ''}${it.name}${it.label ? '　' + it.label : ''}`);
+    if (d.items.length > 4) lines.push(`⋯還有 ${d.items.length - 4} 項`);
+    const shortCount = d.items.filter((it) => it.short).length;
+    if (shortCount) lines.push('🙋 有勤務還缺人，歡迎發心報名');
+    return {
+      title: `🙏 ${d.when === 'today' ? '今天' : '明天'}的勤務（${p[1]}/${p[2]} ${wd}）`,
+      body: lines.join('\n'),
+      url: d.items.length === 1 ? `#/duty/${encodeURIComponent(d.items[0].id)}?date=${d.date}` : '#/recent'
+    };
+  } catch (e) {
+    return fallback;
+  }
+}
+
+self.addEventListener('push', (ev) => {
+  ev.waitUntil(buildNotification().then((n) => self.registration.showNotification(n.title, {
+    body: n.body,
+    icon: 'icons/icon-192.png',
+    badge: 'icons/favicon-32.png',
+    tag: 'duty-reminder',
+    renotify: true,
+    data: { url: n.url }
+  })));
+});
+
+self.addEventListener('notificationclick', (ev) => {
+  ev.notification.close();
+  const url = new URL((ev.notification.data && ev.notification.data.url) || '#/recent', self.registration.scope).href;
+  ev.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const win = wins.find((w) => w.url.startsWith(self.registration.scope));
+    if (win) {
+      await win.focus();
+      return win.navigate ? win.navigate(url) : null;
+    }
+    return self.clients.openWindow(url);
+  })());
+});

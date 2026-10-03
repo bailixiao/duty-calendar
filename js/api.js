@@ -205,6 +205,11 @@
     signup: (payload) => post(Object.assign({ action: 'signup' }, payload)),
     cancel: (signupId) => post({ action: 'cancel', signupId }),
     reschedule: (payload) => post(Object.assign({ action: 'reschedule' }, payload)),
+    // 手機提醒（推播）：只送瀏覽器產生的推播網址，沒有名字
+    pushKey: () => get('pushKey', {}),
+    pushSubscribe: (endpoint) => post({ action: 'pushSubscribe', endpoint }),
+    pushUnsubscribe: (endpoint) => post({ action: 'pushUnsubscribe', endpoint }),
+    pushTest: (endpoint) => post({ action: 'pushTest', endpoint }),
     // 我的報名：名字放在 POST 內容（不放網址）；只是讀取，連線失敗可以安全地重送一次
     mySignups: (name) => post({ action: 'mySignups', name }).catch((err) => { if (err.code === 'NETWORK') return post({ action: 'mySignups', name }); throw err; })
   };

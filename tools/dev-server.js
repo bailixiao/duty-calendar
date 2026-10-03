@@ -21,6 +21,7 @@ const types = {
 };
 
 const env = mock ? require('../tests/env').createEnv() : null;
+if (env) env.fn('ensurePushKeys_')(); // 本機測試也能開啟手機提醒
 
 function handleApi(req, res, url) {
   const send = (obj) => {

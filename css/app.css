@@ -1499,7 +1499,10 @@ select.input { appearance: auto; }
 .btn-line:hover { background: #05b34c; }
 
 /* 我的報名 */
-.mine-link { margin: 4px 0 12px; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; text-decoration: none; font-weight: 700; }
+.top-links { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 12px; }
+.top-links .btn { min-height: 52px; }
+.top-links .push-link { min-height: 44px; font-size: 1rem; background: transparent; }
+.mine-link { margin: 0; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; text-decoration: none; font-weight: 700; }
 .page-title { font-family: var(--serif); font-size: 1.6rem; margin: 8px 0 4px; }
 .mine-form { margin: 12px 0 16px; }
 .mine-row { display: flex; gap: 8px; margin-top: 6px; }
@@ -1541,3 +1544,10 @@ body.splash-on .app-main { opacity: 0; animation: splash-main-failsafe .5s 9s fo
 .draft-photo .modal-note { margin: 0; }
 .draft-photo ul { margin: 4px 0 0 1.2em; padding: 0; }
 .modal-box.is-dragover { outline: 3px dashed var(--accent); outline-offset: -8px; }
+
+/* 手機提醒 */
+.push-card { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 12px; padding: 12px 14px; margin: 0 0 12px; }
+.push-card p { margin: 0 0 6px; }
+.push-card-actions { display: flex; gap: 8px; margin-top: 10px; }
+.push-card-actions .btn { flex: 1; min-height: 48px; font-size: 1.05rem; }
+.push-steps { margin: 8px 0 12px 1.4em; padding: 0; line-height: 1.9; }

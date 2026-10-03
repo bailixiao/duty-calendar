@@ -654,5 +654,5 @@
     }
   }
 
-  window.CalendarPage = { init, refresh, onShow, peekDuty, peekRange, patchDuty, ready: () => ready };
+  window.CalendarPage = { init, refresh, onShow, peekDuty, peekRange, patchDuty, ready: () => ready, setView: switchView };
 })();

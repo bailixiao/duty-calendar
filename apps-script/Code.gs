@@ -22,6 +22,8 @@ function doGet(e) {
       case 'getBundle': return cachedRead_('getBundle', p, function () { return getBundle_(p); });
       case 'searchMembers': return searchMembers_(p);
       case 'getSiblings': return getSiblings_(p);
+      case 'pushKey': return pushKey_();
+      case 'pushSummary': return pushSummary_(p);
       default: throw new ApiError_('BAD_REQUEST', '未知的 action：' + (p.action || '（空白）'));
     }
   });
@@ -41,6 +43,9 @@ function doPost(e) {
       case 'cancel': return cancelSignup_(body);
       case 'reschedule': return rescheduleSignup_(body);
       case 'mySignups': return mySignups_(body);
+      case 'pushSubscribe': return pushSubscribe_(body);
+      case 'pushUnsubscribe': return pushUnsubscribe_(body);
+      case 'pushTest': return pushTest_(body);
       default: throw new ApiError_('BAD_REQUEST', '未知的 action：' + (body.action || '（空白）'));
     }
   });

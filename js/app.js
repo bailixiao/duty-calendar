@@ -32,6 +32,13 @@
       AdminPage.show(admin[1]);
       return;
     }
+    // 通知點進來：打開行事曆的「近期」
+    if (location.hash === '#/recent') {
+      history.replaceState(null, '', '#/');
+      show('calendar');
+      CalendarPage.setView('recent');
+      return;
+    }
     if (/^#\/mine\/?$/.test(location.hash)) {
       show('mine');
       MinePage.show();
@@ -78,6 +85,7 @@
     const finish = () => {
       splash.remove();
       document.body.classList.remove('splash-on');
+      if (window.PushPage) PushPage.showCardIfNeeded(); // 動畫結束後才問要不要開啟提醒
     };
     const reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduced || !splash.animate) {
@@ -153,6 +161,7 @@
     views.mine = document.getElementById('view-mine');
     views.admin = document.getElementById('view-admin');
     CalendarPage.init();
+    document.getElementById('push-open').addEventListener('click', () => PushPage.openPanel());
     hideSplashWhenReady();
     window.addEventListener('hashchange', route);
     route();

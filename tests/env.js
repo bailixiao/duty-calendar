@@ -54,6 +54,12 @@ function createEnv(fixedNow) {
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock() {} }) },
     Utilities: {
       sleep() {},
+      DigestAlgorithm: { SHA_256: 'sha256' },
+      // Apps Script 回傳有正負號的 byte 陣列，這裡照樣模擬
+      computeDigest: (alg, v) => [...crypto.createHash('sha256').update(typeof v === 'string' ? Buffer.from(v, 'utf8') : Buffer.from(v.map(b => b & 255))).digest()].map(b => (b > 127 ? b - 256 : b)),
+      computeHmacSha256Signature: (v, k) => [...crypto.createHmac('sha256', Buffer.from(k.map(b => b & 255))).update(Buffer.from(v.map(b => b & 255))).digest()].map(b => (b > 127 ? b - 256 : b)),
+      base64EncodeWebSafe: (bytes) => Buffer.from(bytes.map(b => b & 255)).toString('base64url') + '='.repeat((3 - (bytes.length % 3)) % 3),
+      newBlob: (s) => ({ getBytes: () => [...Buffer.from(s, 'utf8')].map(b => (b > 127 ? b - 256 : b)) }),
       getUuid: () => crypto.randomUUID(),
       formatDate(date, tz, pattern) {
         const d = clock.now ? new Date(clock.now) : date;
@@ -86,7 +92,14 @@ function createEnv(fixedNow) {
         })
       };
     })(),
+    ScriptApp: {
+      getProjectTriggers: () => [],
+      deleteTrigger() {},
+      newTrigger: () => { const t = { timeBased: () => t, everyDays: () => t, atHour: () => t, onWeekDay: () => t, create: () => t }; return t; },
+      WeekDay: { SUNDAY: 'SUNDAY' }
+    },
     UrlFetchApp: {
+      fetchAll(reqs) { return reqs.map((r) => this.fetch(r.url, r)); },
       fetch(url, opts) {
         fakeAi.calls.push({ url, opts });
         const r = (fakeAi.handler || defaultAi)(url, opts);
@@ -103,7 +116,7 @@ function createEnv(fixedNow) {
   const source = files.map(f => fs.readFileSync(path.join(dir, f), 'utf8')).join('\n;\n');
   const names = Object.keys(env);
   const api = new Function(...names,
-    source + '\nreturn { SHEETS, seedInitialDuties, doGet, doPost, onEdit, keepWarm };')(...names.map(n => env[n]));
+    source + '\nreturn { SHEETS, seedInitialDuties, doGet, doPost, onEdit, keepWarm, fn: function (n) { return eval(n); } };')(...names.map(n => env[n]));
 
   Object.values(api.SHEETS).forEach(def => {
     const s = makeSheet(def.name);
@@ -124,7 +137,9 @@ function createEnv(fixedNow) {
     },
     postRaw(text) { return JSON.parse(api.doPost({ postData: { contents: text } }).text); },
     onEdit: () => api.onEdit(),
-    keepWarm: () => api.keepWarm()
+    keepWarm: () => api.keepWarm(),
+    // 測試用：取得 Apps Script 內部函式
+    fn: (name) => api.fn(name)
   };
 }
 
