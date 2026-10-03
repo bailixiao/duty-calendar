@@ -87,6 +87,14 @@
     later(3500);
   }
 
+  // 網頁檔案存在手機裡（見 sw.js）。本機開發時預設不啟用（改程式後才不會看到舊檔），網址加 ?sw=1 可測試。
+  if ('serviceWorker' in navigator) {
+    const local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+    if (!local || /[?&]sw=1/.test(location.search)) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
+  }
+
   // 捲動位置由本程式自行管理（回到行事曆時還原、年檢視捲到目前月份）
   if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 
