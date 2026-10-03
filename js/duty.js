@@ -6,7 +6,7 @@
   const esc = Fmt.esc;
   let root = null;
   let token = 0;
-  const page = { id: null, data: null, viewDate: null };
+  const page = { id: null, data: null, viewDate: null, revalidate: false };
 
   function show(id, date) {
     root = document.getElementById('view-duty');
@@ -14,6 +14,18 @@
     page.id = id;
     page.data = null;
     page.viewDate = date || null;
+    page.revalidate = false;
+    // 快取裡有完整詳情（開網站時打包拿回的、或看過的）：連名單一起立刻顯示，舊的話在背景更新
+    const cached = window.DutyCache && DutyCache.get(id);
+    if (cached) {
+      page.data = cached;
+      pickViewDate();
+      render();
+      if (DutyCache.isFresh(id)) return;
+      page.revalidate = true;
+      load(token);
+      return;
+    }
     // 行事曆已有這個勤務的資料就先立刻顯示（名單除外），報名表單也可以先填；名單到了再補上
     const preview = window.CalendarPage && CalendarPage.peekDuty(id);
     if (preview) {
@@ -37,12 +49,13 @@
 
   async function load(t, flash) {
     try {
-      const data = await Api.getDuty(page.id);
+      const data = await DutyCache.fetch(page.id);
       if (t !== token) return;
       Fmt.setContact(data.contact);
       if (window.CalendarPage) CalendarPage.patchDuty(data); // 行事曆的人數一起更新
-      if (page.data && page.data.signups === null && !flash) {
-        // 先前用行事曆資料顯示：只補上說明、輪值組與名單，不重畫報名表單（避免清掉正在填的名字）
+      if (page.data && (page.data.signups === null || page.revalidate) && !flash) {
+        // 先前用行事曆資料或快取顯示：只補上說明、輪值組與名單，不重畫報名表單（避免清掉正在填的名字）
+        page.revalidate = false;
         Object.assign(page.data, data);
         renderExtra();
         renderRoster();
@@ -53,6 +66,7 @@
       render(flash);
     } catch (err) {
       if (t !== token) return;
+      if (page.revalidate) { page.revalidate = false; return; } // 背景更新失敗：繼續顯示快取的資料
       if (page.data && page.data.signups === null) {
         const el = document.getElementById('duty-roster');
         if (el) {
@@ -263,6 +277,7 @@
 
   /** 換上新資料並顯示訊息；行事曆在背景更新 */
   function showResult(flash) {
+    if (page.data && page.data.signups) DutyCache.set(page.data.id, page.data);
     if (window.CalendarPage) CalendarPage.refresh();
     render(flash);
     const box = document.getElementById('duty-flash');
@@ -387,6 +402,7 @@
       id: c.id, date: c.date, positionId: c.positionId || result.positionId, name: c.name, accompany: c.accompany
     }));
     Object.assign(page.data.days, res.days);
+    DutyCache.set(page.data.id, page.data);
     render(flash);
     const box = document.getElementById('duty-flash');
     if (box) box.scrollIntoView({ behavior: 'smooth', block: 'center' });

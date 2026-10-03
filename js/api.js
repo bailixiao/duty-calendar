@@ -173,6 +173,8 @@
     // 先叫醒伺服器（點名字欄時呼叫），之後的名字搜尋比較不會遇到冷啟動
     warmUp: () => get('ping', {}, [5000]).catch(() => {}),
     getDuty: (id) => get('getDuty', { id }),
+    // 開網站時一次打包：行事曆＋近 30 天勤務詳情（資料較多，第一次等久一點）
+    getBundle: (from, to) => get('getBundle', { from, to }, [12000, 15000, 30000]),
     // 名字提示要快：平常 2 秒內回來，卡住就早點重送（3、5、8、15 秒）
     searchMembers: (q, groupType, group) => get('searchMembers', { q, groupType: groupType || '', group: group || '' }, [3000, 5000, 8000, 15000]),
     getSiblings: (dutyId) => get('getSiblings', { id: dutyId }),

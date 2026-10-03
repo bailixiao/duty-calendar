@@ -27,6 +27,9 @@
   const cells = new Map(); // 'yyyy-MM-dd' → Set<HTMLElement>
   let calendar = null;
   let loadToken = 0;
+  // 第一次畫出資料（手機裡上次的、或剛從伺服器拿到的）或載入失敗時完成；開場動畫等它（見 app.js）
+  let readyResolve = null;
+  const ready = new Promise((r) => { readyResolve = r; });
 
   function init() {
     el.fc = document.getElementById('fc');
@@ -258,7 +261,15 @@
     }
     if (!entry.fresh && !entry.promise) {
       const r = windowRange(year);
-      entry.promise = Api.getEvents(r.from, r.to).then((data) => {
+      // 今年的資料順便打包近 30 天勤務的詳情（點進勤務就能立刻顯示，見 duty-cache.js）
+      const fetcher = year === Number(state.today.slice(0, 4))
+        ? Api.getBundle(r.from, r.to).then((data) => {
+          if (window.DutyCache) DutyCache.setMany(data.details);
+          delete data.details;
+          return data;
+        })
+        : Api.getEvents(r.from, r.to);
+      entry.promise = fetcher.then((data) => {
         entry.data = data;
         entry.fresh = true;
         if (data.today) state.today = data.today;
@@ -298,6 +309,7 @@
         hideStatus();
       } catch (err) {
         if (token !== loadToken) return;
+        readyResolve();
         if (entry.data) showStatus('error', '無法更新，目前顯示的是上次的資料');
         else showStatus('error', err.message || '無法載入勤務資料');
       }
@@ -306,6 +318,7 @@
   }
 
   function render(data, from, to) {
+    readyResolve();
     Fmt.setContact(data.contact);
     indexEvents(data, from, to);
     state.loading = false;
@@ -637,5 +650,5 @@
     }
   }
 
-  window.CalendarPage = { init, refresh, onShow, peekDuty, peekRange, patchDuty };
+  window.CalendarPage = { init, refresh, onShow, peekDuty, peekRange, patchDuty, ready: () => ready };
 })();

@@ -19,6 +19,7 @@ function doGet(e) {
       case 'ping': return { now: nowString_(), today: todayString_(), timeZone: Session.getScriptTimeZone() };
       case 'getEvents': return getEvents_(p);
       case 'getDuty': return getDuty_(p);
+      case 'getBundle': return getBundle_(p);
       case 'searchMembers': return searchMembers_(p);
       case 'getSiblings': return getSiblings_(p);
       default: throw new ApiError_('BAD_REQUEST', '未知的 action：' + (p.action || '（空白）'));

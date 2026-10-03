@@ -67,7 +67,11 @@ function getDuty_(params) {
 
   var positions = readTableCached_(SHEETS.POSITIONS).filter(function (p) { return p['勤務ID'] === duty['勤務ID']; });
   var signups = activeSignups_().filter(function (s) { return s['勤務ID'] === duty['勤務ID']; });
+  return dutyDetail_(duty, positions, signups);
+}
 
+/** 勤務詳情（getDuty 與 getBundle 共用）：positions、signups 為這個勤務的了愿項目與有效報名 */
+function dutyDetail_(duty, positions, signups) {
   var json = dutyToJson_(duty, positions);
   json.description = duty['說明'];
   json.today = todayString_();
@@ -87,6 +91,27 @@ function getDuty_(params) {
     json.groupInfo = findGroup_(duty['分組類型'], duty['負責組']);
   }
   return json;
+}
+
+var BUNDLE_DETAIL_DAYS = 30;
+
+/**
+ * 開網站時一次拿回：行事曆區間（同 getEvents）＋今天起 30 天內每個勤務的詳情與名單（同 getDuty）。
+ * Apps Script 每次回應固定約 2 秒，一次打包比點進每個勤務各等一次快很多。名單本來就公開在勤務頁。
+ */
+function getBundle_(params) {
+  var events = getEvents_(params);
+  var today = events.today;
+  var until = datesInRange_(today, '9999-12-31').slice(0, BUNDLE_DETAIL_DAYS).pop();
+  var positionsByDuty = groupBy_(readTableCached_(SHEETS.POSITIONS), '勤務ID');
+  var signupsByDuty = groupBy_(activeSignups_(), '勤務ID');
+  var details = {};
+  readTableCached_(SHEETS.DUTIES).forEach(function (d) {
+    if (!d['勤務ID'] || d['開始日'] > until || (d['結束日'] || d['開始日']) < today) return;
+    details[d['勤務ID']] = dutyDetail_(d, positionsByDuty[d['勤務ID']] || [], signupsByDuty[d['勤務ID']] || []);
+  });
+  events.details = details;
+  return events;
 }
 
 var MEMBER_SEARCH_LIMIT = 10;

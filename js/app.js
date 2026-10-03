@@ -65,6 +65,28 @@
     current = name;
   }
 
+  // ---------- 開場動畫 ----------
+  // 行事曆一畫出資料就放大淡出。手機裡有上次的資料時很快就有東西可看，只播約 0.7 秒；
+  // 第一次打開要等伺服器，至少讓 logo 長大完（1.2 秒）；伺服器太慢最多等 3.5 秒，先進行事曆，資料到了再補。
+  function hideSplashWhenReady() {
+    const splash = document.getElementById('splash');
+    if (!splash) return;
+    const started = performance.now();
+    let gone = false;
+    const hide = () => {
+      if (gone) return;
+      gone = true;
+      splash.classList.add('is-leaving');
+      setTimeout(() => splash.remove(), 600);
+    };
+    const later = (ms) => setTimeout(hide, Math.max(0, ms - performance.now()));
+    CalendarPage.ready().then(() => {
+      const cached = performance.now() - started < 200;
+      later(cached ? 700 : 1200);
+    });
+    later(3500);
+  }
+
   // 捲動位置由本程式自行管理（回到行事曆時還原、年檢視捲到目前月份）
   if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 
@@ -74,6 +96,7 @@
     views.mine = document.getElementById('view-mine');
     views.admin = document.getElementById('view-admin');
     CalendarPage.init();
+    hideSplashWhenReady();
     window.addEventListener('hashchange', route);
     route();
   });

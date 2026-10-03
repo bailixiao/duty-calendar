@@ -558,3 +558,21 @@ test('我的報名：只列完全同名、今天起、有效的報名，依日�
 
   assert.equal(env.post({ action: 'mySignups', name: '甲' }).error.code, 'BAD_REQUEST');
 });
+
+// ---------- 開網站一次打包 ----------
+
+test('getBundle：行事曆資料＋今天起 30 天內勤務的詳情（與 getDuty 相同）', () => {
+  const env = createEnv(OCT_1);
+  const v = findDuty(env, '2026-10-13', '2026-10-13', d => d.name === '彌勒山志工輪值');
+  signupOne(env, v, v.positions[0].id, '2026-10-13', { name: '測試甲' });
+  const r = env.get({ action: 'getBundle', from: '2025-12-25', to: '2027-01-07' });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  const events = env.get({ action: 'getEvents', from: '2025-12-25', to: '2027-01-07' }).data;
+  assert.equal(r.data.duties.length, events.duties.length);
+  assert.deepEqual(r.data.details[v.id], env.get({ action: 'getDuty', id: v.id }).data);
+  // 30 天以後、已過去的不含詳情
+  Object.values(r.data.details).forEach((d) => {
+    assert.ok(d.start <= '2026-10-30' && d.end >= '2026-10-01', d.name + ' ' + d.start);
+  });
+  assert.ok(Object.keys(r.data.details).length < events.duties.length);
+});

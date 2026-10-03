@@ -142,6 +142,7 @@
 | GET | `action=ping` | 檢查時區與連線 |
 | GET | `action=getEvents&from=yyyy-MM-dd&to=yyyy-MM-dd` | 區間內勤務與每日人數（不含名字） |
 | GET | `action=getDuty&id=勤務ID` | 勤務詳情、報名名單；公告型另含輪值組 |
+| GET | `action=getBundle&from=…&to=…` | 開網站一次打包：同 getEvents，另含 `details`（今天起 30 天內各勤務的 getDuty 內容） |
 | GET | `action=searchMembers&q=輸入的字[&groupType=…&group=…]` | 名字自動提示：至少一個字才回傳，只回相符者的姓名與組別（最多 10 筆，負責組組員優先），不提供整份名單 |
 | GET | `action=getSiblings&id=勤務ID` | 改期可選的同名勤務（今天以後） |
 | POST | `{"action":"signup","dutyId":…,"positionId":…,"dates":[…],"entries":[{"name":…,"identity":"道親","accompany":false}]}` | 報名；內容以 `text/plain` 送出 |
