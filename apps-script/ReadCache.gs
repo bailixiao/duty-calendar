@@ -54,3 +54,38 @@ function cachedRead_(action, params, fn) {
 function yearWindow_(year) {
   return { from: (year - 1) + '-12-25', to: (year + 1) + '-01-07' };
 }
+
+/**
+ * 健檢（在 Apps Script 編輯器執行，不會寫入任何資料、不用部署）：
+ * 檢查每個 .gs 檔案的代表函式是不是都在（貼錯檔案時會少），並模擬一次一定會被擋下的報名與讀取，記下錯誤原因。
+ */
+function checkProject() {
+  var expect = {
+    'Admin.gs': 'adminDispatch_', 'Ai.gs': 'adminDraftFromImages_', 'Attendance.gs': 'adminSetAttendance_',
+    'Backup.gs': 'backupSpreadsheet', 'Changes.gs': 'cancelSignup_', 'Code.gs': 'doPost',
+    'Duties.gs': 'getDuty_', 'DutyAdmin.gs': 'adminCreateDuties_', 'DutyRules.gs': 'normalizeDutyInput_',
+    'History.gs': 'adminImportHistory_', 'Mine.gs': 'mySignups_', 'People.gs': 'adminMembers_',
+    'ReadCache.gs': 'cachedRead_', 'Rules.gs': 'validateSignup_', 'Seed.gs': 'seedInitialDuties',
+    'Setup.gs': 'setupSheets', 'Sheets.gs': 'readTable_', 'Signup.gs': 'signup_', 'Stats.gs': 'adminStats_'
+  };
+  var self = typeof globalThis !== 'undefined' ? globalThis : this;
+  var missing = Object.keys(expect).filter(function (f) { return typeof self[expect[f]] !== 'function'; });
+  if (typeof SHEETS !== 'object' || typeof OPTIONS !== 'object') missing.push('Config.gs');
+  Logger.log(missing.length ? '❌ 這些檔案的內容不對（找不到代表函式）：' + missing.map(function (f) { return expect[f] ? f + '（' + expect[f] + '）' : f; }).join('、') : '✅ 每個檔案的代表函式都在');
+  try {
+    var w = yearWindow_(Number(todayString_().slice(0, 4)));
+    var b = getBundle_(w);
+    Logger.log('✅ 讀取正常：' + b.duties.length + ' 筆勤務');
+    var d = b.duties.filter(function (x) { return x.mode === '報名型' && x.start > b.today && x.positions.length; })[0];
+    if (d) {
+      try {
+        signup_({ dutyId: d.id, positionId: d.positions[0].id, dates: [d.start], entries: [{ name: '測試甲', identity: '', accompany: false }] });
+        Logger.log('⚠️ 測試報名沒有被擋下（不應該發生）');
+      } catch (e) {
+        Logger.log(e instanceof ApiError_ ? '✅ 報名檢查正常（' + e.code + '）' : '❌ 報名出錯：' + (e && e.stack ? e.stack : e));
+      }
+    }
+  } catch (e) {
+    Logger.log('❌ 讀取出錯：' + (e && e.stack ? e.stack : e));
+  }
+}
