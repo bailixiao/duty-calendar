@@ -4,6 +4,15 @@
 
 > 本儲存庫是公開的：成員名單、電話等個資只填在 Google Sheet，不要貼進程式碼。
 
+## 0. 目前架構（2026/10/4 起）
+
+- **API 在 Cloudflare**：`worker/`（Worker＋Durable Object，資料存在它的 SQLite）。網址 https://duty-calendar-api.duty-calendar-worker.workers.dev/ ，寫在 `js/config.js`。
+- **部署 Cloudflare 版**：改完 `apps-script/*.gs` 或 `worker/src/*` 後，`node tools/build-worker.js` → `cd worker` → `npx wrangler deploy`（要先 `npx wrangler login`）。報名規則等邏輯都在 `apps-script/*.gs`，兩邊共用。
+- **Google 試算表是副本**：Apps Script 的 `syncFromWorker` 每 10 分鐘向 Cloudflare 拿資料寫入，並更新「統計」分頁；每週備份照常。**直接改試算表不會回寫網站，改資料請用管理後台。**
+- Google 端的 Apps Script 仍要用 clasp 上傳（`Sync.gs`、統計、備份會用到），但網站已不呼叫它（寫入會回「系統已更新，請重新整理」）。
+- **緊急退回 Google 版**：Apps Script 執行 `switchBackToGoogle`（先把 Cloudflare 的最新資料寫回試算表、恢復排程），再把 `js/config.js` 的 `DEFAULT` 改成 `'gas'` 推上 GitHub，並把 Code.gs 部署成新版本。
+- 推播：Cloudflare 的排程（UTC 23:00、12:00＝台北 07:00、20:00）負責；Google 端的推播排程在切換時已刪除。
+
 ## 1. 建立 Google Sheet 與 Apps Script
 
 1. 在 Google 雲端硬碟新增一份 Google 試算表，命名為「教全區勤務行事曆」。

@@ -27,7 +27,7 @@
 | 層 | 技術 | 說明 |
 |---|---|---|
 | 前端 | 單一 HTML/CSS/JS，放 GitHub Pages | 手機優先的響應式網頁（Web App，不上架 App Store） |
-| 後端 API | **Cloudflare Workers ＋ Durable Object（2026/10 起，搬家中）**；原 Google Apps Script Web App 保留為備援 | 提供 JSON API 給前端呼叫（API 格式不變）。Apps Script 每次回應固定 1.5～2 秒、寫入常 3～5 秒；Cloudflare 約 0.1～0.3 秒 |
+| 後端 API | **Cloudflare Workers ＋ Durable Object（2026/10/4 正式切換）**；原 Google Apps Script Web App 保留為備援 | 提供 JSON API 給前端呼叫（API 格式不變）。Apps Script 每次回應固定 1.5～2 秒、寫入常 3～5 秒；Cloudflare 約 0.1～0.3 秒 |
 | 資料 | 正本：Durable Object 內建的 SQLite；副本：Google Sheet（每 10 分鐘自動同步） | 管理者在 Sheet 看資料、下載 Excel、每週備份照常；**改資料一律用管理後台**（直接改 Sheet 不會回寫）|
 | 行事曆元件 | FullCalendar（CDN） | 年／月／週檢視（另有自製的「近期」列表） |
 | 農曆換算 | lunar-javascript（CDN） | 顯示農曆日期、產生初一十五勤務（含閏月） |
