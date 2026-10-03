@@ -1,0 +1,5 @@
+{
+  "name": "duty-calendar-worker",
+  "private": true,
+  "type": "module"
+}

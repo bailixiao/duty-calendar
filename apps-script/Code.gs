@@ -31,6 +31,10 @@ function doGet(e) {
 
 function doPost(e) {
   return respond_(function () {
+    // 已搬到 Cloudflare：這裡不再接受寫入（舊網頁還開著的人，請他重新整理）
+    if (PropertiesService.getScriptProperties().getProperty('MIGRATED') === '1') {
+      throw new ApiError_('MOVED', '系統已更新，請重新整理網頁後再試一次 🙏');
+    }
     var body;
     try {
       body = JSON.parse((e && e.postData && e.postData.contents) || '{}');

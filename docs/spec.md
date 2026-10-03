@@ -27,8 +27,8 @@
 | 層 | 技術 | 說明 |
 |---|---|---|
 | 前端 | 單一 HTML/CSS/JS，放 GitHub Pages | 手機優先的響應式網頁（Web App，不上架 App Store） |
-| 後端 API | Google Apps Script Web App | 提供 JSON API 給前端呼叫 |
-| 資料 | Google Sheet | 管理者也能直接在 Sheet 看資料 |
+| 後端 API | **Cloudflare Workers ＋ Durable Object（2026/10 起，搬家中）**；原 Google Apps Script Web App 保留為備援 | 提供 JSON API 給前端呼叫（API 格式不變）。Apps Script 每次回應固定 1.5～2 秒、寫入常 3～5 秒；Cloudflare 約 0.1～0.3 秒 |
+| 資料 | 正本：Durable Object 內建的 SQLite；副本：Google Sheet（每 10 分鐘自動同步） | 管理者在 Sheet 看資料、下載 Excel、每週備份照常；**改資料一律用管理後台**（直接改 Sheet 不會回寫）|
 | 行事曆元件 | FullCalendar（CDN） | 年／月／週檢視（另有自製的「近期」列表） |
 | 農曆換算 | lunar-javascript（CDN） | 顯示農曆日期、產生初一十五勤務（含閏月） |
 
@@ -37,7 +37,8 @@
 - 時區一律為台北時間（`appsscript.json` 的 `timeZone` 設為 `Asia/Taipei`），所有「當天」「已過去」的判斷都以台北時間為準。
 - 日期在 Sheet 中一律存成 `yyyy-MM-dd` 純文字、時間存成 `HH:mm` 純文字，避免 Sheet 自動轉換格式。
 - API 絕不回傳電話等個資。
-- Apps Script 程式碼也存一份在本儲存庫的 `apps-script/` 資料夾做版本管理，由管理者手動複製貼到 Apps Script 編輯器部署。
+- Apps Script 程式碼也存一份在本儲存庫的 `apps-script/` 資料夾做版本管理，由 Claude 用 clasp 上傳部署（2026/10/3 起，不再手動貼檔案）。
+- **Cloudflare 版**（`worker/`）：建置時把 `apps-script/*.gs` 原封不動包進 Worker，換掉讀寫試算表、快取、鎖等底層（`worker/src/runtime.js`），所以報名規則、名額檢查、統計等邏輯與 Apps Script 版完全相同；需要對外連線的（推播、AI 讀照片）改寫成非同步版。所有請求都進同一個 Durable Object（依序處理，等同鎖定），資料存在它的 SQLite。Google Sheet 由 Apps Script 每 10 分鐘向 Worker 拿資料寫入（含統計分頁、每週備份）。
 - 前端只放 Apps Script API 網址，不放任何資料。
 
 ## 4. 勤務的兩種模式

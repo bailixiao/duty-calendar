@@ -1,1 +1,4 @@
 .clasp.json
+worker/src/gs.generated.js
+worker/.wrangler/
+worker/node_modules/

@@ -1552,3 +1552,6 @@ body.splash-on .app-main { opacity: 0; animation: splash-main-failsafe .5s 9s fo
 .push-card-actions .btn { flex: 1; min-height: 48px; font-size: 1.05rem; display: flex; align-items: center; justify-content: center; text-decoration: none; }
 .modal-actions a.btn { display: flex; align-items: center; justify-content: center; text-decoration: none; }
 .push-steps { margin: 8px 0 12px 1.4em; padding: 0; line-height: 1.9; }
+
+/* 搬家測試版提示 */
+.test-badge { position: fixed; left: 10px; bottom: 10px; z-index: 50; background: #2b3a4e; color: #fff; font-size: 13px; padding: 6px 10px; border-radius: 16px; text-decoration: none; opacity: .9; }

@@ -161,6 +161,14 @@
     views.mine = document.getElementById('view-mine');
     views.admin = document.getElementById('view-admin');
     CalendarPage.init();
+    // 搬家測試：用 ?api=cf 試用 Cloudflare 版時，左下角顯示提示，按一下切回正式版
+    if (window.APP_CONFIG.TEST) {
+      const b = document.createElement('a');
+      b.className = 'test-badge';
+      b.href = location.pathname + '?api=' + (window.APP_CONFIG.API_NAME === 'cf' ? 'gas' : 'cf');
+      b.textContent = '🧪 ' + (window.APP_CONFIG.API_NAME === 'cf' ? 'Cloudflare' : 'Google') + ' 測試版（按這裡切回）';
+      document.body.appendChild(b);
+    }
     document.getElementById('push-open').addEventListener('click', () => PushPage.openPanel());
     hideSplashWhenReady();
     window.addEventListener('hashchange', route);
