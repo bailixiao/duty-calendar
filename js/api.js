@@ -178,6 +178,8 @@
     getSiblings: (dutyId) => get('getSiblings', { id: dutyId }),
     signup: (payload) => post(Object.assign({ action: 'signup' }, payload)),
     cancel: (signupId) => post({ action: 'cancel', signupId }),
-    reschedule: (payload) => post(Object.assign({ action: 'reschedule' }, payload))
+    reschedule: (payload) => post(Object.assign({ action: 'reschedule' }, payload)),
+    // 我的報名：名字放在 POST 內容（不放網址）；只是讀取，連線失敗可以安全地重送一次
+    mySignups: (name) => post({ action: 'mySignups', name }).catch((err) => { if (err.code === 'NETWORK') return post({ action: 'mySignups', name }); throw err; })
   };
 })();

@@ -1,0 +1,147 @@
+// 「我的報名」（#/mine）：輸入名字，列出今天起還有效的報名，可直接取消，或到勤務頁改期。
+// 名字用 POST 送到伺服器（不放網址）；上次查的名字記在這台瀏覽器，下次自動帶入。
+(function () {
+  'use strict';
+
+  const esc = Fmt.esc;
+  const NAME_KEY = 'duty-calendar:mine-name';
+  let root = null;
+  let token = 0;
+  let current = null; // { name, today, items }
+
+  function savedName() {
+    try { return localStorage.getItem(NAME_KEY) || ''; } catch (e) { return ''; }
+  }
+
+  function saveName(name) {
+    try { localStorage.setItem(NAME_KEY, name); } catch (e) { /* 無痕模式等，忽略 */ }
+  }
+
+  function show() {
+    root = document.getElementById('view-mine');
+    token += 1;
+    root.innerHTML = `
+      <a class="back-link" href="#/">‹ 回行事曆</a>
+      <h1 class="page-title">我的報名</h1>
+      <p class="hint">輸入名字，就能看到這個人之後報了哪些勤務，可以取消或改期。</p>
+      <form class="mine-form" novalidate>
+        <label class="field-label" for="mine-name">名字</label>
+        <div class="mine-row">
+          <input id="mine-name" class="input" type="text" autocomplete="name" placeholder="例如：王小明" value="${esc(savedName())}">
+          <button type="submit" class="btn btn-primary">查詢</button>
+        </div>
+        <p class="hint">要和報名時寫的名字一樣（例如有沒有寫姓）。</p>
+      </form>
+      <div data-result aria-live="polite"></div>
+      <a class="btn btn-block back-bottom" href="#/">‹ 回行事曆</a>`;
+    const form = root.querySelector('form');
+    form.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      search(form.querySelector('input').value);
+    });
+    current = null;
+    if (savedName()) search(savedName());
+  }
+
+  async function search(raw, flash) {
+    const name = String(raw || '').replace(/[\s　]+/g, '');
+    const box = root.querySelector('[data-result]');
+    if (name.length < 2) {
+      box.innerHTML = '<div class="notice notice-error" role="alert"><p>請輸入完整的名字（至少 2 個字）</p></div>';
+      return;
+    }
+    const t = ++token;
+    box.innerHTML = '<p class="panel-empty">查詢中⋯</p>';
+    try {
+      const data = await Api.mySignups(name);
+      if (t !== token) return;
+      saveName(name);
+      current = data;
+      render(flash);
+    } catch (err) {
+      if (t !== token) return;
+      box.innerHTML = `<div class="notice notice-error" role="alert"><p>${esc(err.message || '查詢失敗，請稍後再試')}</p></div>`;
+    }
+  }
+
+  function render(flash) {
+    const box = root.querySelector('[data-result]');
+    const { name, items } = current;
+    if (!items.length) {
+      box.innerHTML = `${flash || ''}
+        <div class="notice" role="status"><p>查不到<strong>${esc(name)}</strong>今天以後的報名。</p>
+        <p class="muted">如果有報名卻查不到，可能報名時名字寫法不一樣（例如沒寫姓），可以到行事曆點進勤務看名單。</p></div>`;
+      return;
+    }
+    const byDate = new Map();
+    items.forEach((it) => {
+      if (!byDate.has(it.date)) byDate.set(it.date, []);
+      byDate.get(it.date).push(it);
+    });
+    box.innerHTML = `${flash || ''}
+      <h2 class="mine-title">${esc(name)}　共 ${items.length} 筆報名</h2>
+      ${[...byDate.entries()].map(([date, list]) => `
+        <section class="mine-day">
+          <h3 class="mine-date">${Fmt.shortDate(date)}${date === current.today ? '<span class="h2-sub">今天</span>' : ''}</h3>
+          ${list.map((it) => itemHtml(it)).join('')}
+        </section>`).join('')}`;
+    box.querySelectorAll('[data-cancel]').forEach((btn) => btn.addEventListener('click', () => {
+      cancel(current.items.find((x) => x.signupId === btn.dataset.cancel));
+    }));
+  }
+
+  function itemHtml(it) {
+    const duty = { start: it.start, end: it.end, startTime: it.startTime, endTime: it.endTime };
+    const meta = [Fmt.cardTime(duty, it.date), it.location].filter(Boolean).join('・');
+    const href = `#/duty/${encodeURIComponent(it.dutyId)}?date=${it.date}`;
+    return `
+      <div class="mine-item">
+        <a class="mine-main" href="${href}">
+          <span class="card-title">${esc(it.dutyName)}</span>
+          <span class="card-meta">${esc(it.positionName)}${it.accompany ? '（陪同）' : ''}</span>
+          ${meta ? `<span class="card-meta">${esc(meta)}</span>` : ''}
+        </a>
+        ${it.canChange ? `
+          <div class="mine-actions">
+            <button type="button" class="btn btn-quiet-danger" data-cancel="${esc(it.signupId)}">取消</button>
+            ${it.nature === '活動' ? '' : `<a class="btn" href="${href}">改期</a>`}
+          </div>` : `<p class="muted mine-note">勤務當天（含）之後不能自己取消或改期，${esc(Fmt.askAdmin())}</p>`}
+      </div>`;
+  }
+
+  async function cancel(it) {
+    if (!it) return;
+    const who = current.name + (it.accompany ? '（陪同）' : '');
+    const ok = await Confirm.open({
+      title: '確定要取消這筆報名嗎？',
+      rows: [['姓名', who], ['日期', Fmt.rocDate(it.date)], ['勤務', it.dutyName], ['了愿項目', it.positionName]],
+      confirmText: '確定取消報名',
+      cancelText: '不要取消',
+      danger: true
+    });
+    if (!ok) return;
+    const doneText = `${who}・${Fmt.shortDate(it.date)}・${it.dutyName}・${it.positionName}`;
+    const flash = (kind, title, text) => `<div class="notice notice-${kind}" role="${kind === 'error' ? 'alert' : 'status'}">
+      <p><strong>${esc(title)}</strong></p>${text ? `<p>${esc(text)}</p>` : ''}</div>`;
+    Busy.show('取消中，請稍候⋯', '請不要關閉畫面');
+    try {
+      await Api.retryBusy(() => Api.cancel(it.signupId),
+        () => Busy.show('使用的人較多，正在排隊⋯', '系統會自動重試，請不要關閉畫面'));
+      Busy.hide();
+      if (window.CalendarPage) CalendarPage.refresh();
+      await search(current.name, flash('success', '已取消報名', doneText));
+    } catch (err) {
+      Busy.hide();
+      if (err.code === 'NETWORK' || err.code === 'ALREADY' || err.code === 'NOT_FOUND') {
+        // 沒收到回應、或已經取消過：重新查一次，看這筆還在不在
+        await search(current.name);
+        const still = current && current.items.some((x) => x.signupId === it.signupId);
+        render(still ? flash('error', '沒有取消成功', '請再按一次「取消」。') : flash('success', '已取消報名', doneText));
+        return;
+      }
+      render(flash('error', err.message || '取消失敗，請稍後再試', ''));
+    }
+  }
+
+  window.MinePage = { show };
+})();

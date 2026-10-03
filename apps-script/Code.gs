@@ -39,6 +39,7 @@ function doPost(e) {
       case 'signup': return signup_(body);
       case 'cancel': return cancelSignup_(body);
       case 'reschedule': return rescheduleSignup_(body);
+      case 'mySignups': return mySignups_(body);
       default: throw new ApiError_('BAD_REQUEST', '未知的 action：' + (body.action || '（空白）'));
     }
   });

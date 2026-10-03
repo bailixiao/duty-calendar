@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/app.css?v=20261003n">
+  <link rel="stylesheet" href="css/app.css?v=20261003o">
 </head>
 <body>
   <header class="app-header">
@@ -39,6 +39,8 @@
         </div>
       </div>
 
+      <a class="btn btn-block mine-link" href="#/mine">查我的報名（取消／改期）</a>
+
       <div id="cal-status" class="status" role="status" hidden></div>
 
       <button type="button" id="past-toggle" class="btn past-toggle" hidden></button>
@@ -56,6 +58,7 @@
     </section>
 
     <section id="view-duty" class="duty-view" hidden></section>
+    <section id="view-mine" class="mine-view" hidden></section>
     <section id="view-admin" class="admin-view" hidden></section>
   </main>
 
@@ -73,27 +76,28 @@
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.21/index.global.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.21/locales/zh-tw.global.min.js"></script>
   <!-- 改了 js、css 後把 ?v= 的日期換新，手機才不會用到舊的檔案（GitHub Pages 會快取 10 分鐘） -->
-  <script src="js/config.js?v=20261003n"></script>
-  <script src="js/api.js?v=20261003n"></script>
-  <script src="js/format.js?v=20261003n"></script>
-  <script src="js/lunar-util.js?v=20261003n"></script>
-  <script src="js/share.js?v=20261003n"></script>
-  <script src="js/calendar.js?v=20261003n"></script>
-  <script src="js/confirm.js?v=20261003n"></script>
-  <script src="js/reschedule.js?v=20261003n"></script>
-  <script src="js/signup.js?v=20261003n"></script>
-  <script src="js/duty-images.js?v=20261003n"></script>
-  <script src="js/duty.js?v=20261003n"></script>
-  <script src="js/admin.js?v=20261003n"></script>
-  <script src="js/admin-pages.js?v=20261003n"></script>
-  <script src="js/admin-duties.js?v=20261003n"></script>
-  <script src="js/import-parse.js?v=20261003n"></script>
-  <script src="js/admin-import.js?v=20261003n"></script>
-  <script src="js/admin-people.js?v=20261003n"></script>
-  <script src="js/stats-calc.js?v=20261003n"></script>
-  <script src="js/admin-stats.js?v=20261003n"></script>
-  <script src="js/history-parse.js?v=20261003n"></script>
-  <script src="js/admin-history.js?v=20261003n"></script>
-  <script src="js/app.js?v=20261003n"></script>
+  <script src="js/config.js?v=20261003o"></script>
+  <script src="js/api.js?v=20261003o"></script>
+  <script src="js/format.js?v=20261003o"></script>
+  <script src="js/lunar-util.js?v=20261003o"></script>
+  <script src="js/share.js?v=20261003o"></script>
+  <script src="js/calendar.js?v=20261003o"></script>
+  <script src="js/confirm.js?v=20261003o"></script>
+  <script src="js/reschedule.js?v=20261003o"></script>
+  <script src="js/signup.js?v=20261003o"></script>
+  <script src="js/duty-images.js?v=20261003o"></script>
+  <script src="js/duty.js?v=20261003o"></script>
+  <script src="js/mine.js?v=20261003o"></script>
+  <script src="js/admin.js?v=20261003o"></script>
+  <script src="js/admin-pages.js?v=20261003o"></script>
+  <script src="js/admin-duties.js?v=20261003o"></script>
+  <script src="js/import-parse.js?v=20261003o"></script>
+  <script src="js/admin-import.js?v=20261003o"></script>
+  <script src="js/admin-people.js?v=20261003o"></script>
+  <script src="js/stats-calc.js?v=20261003o"></script>
+  <script src="js/admin-stats.js?v=20261003o"></script>
+  <script src="js/history-parse.js?v=20261003o"></script>
+  <script src="js/admin-history.js?v=20261003o"></script>
+  <script src="js/app.js?v=20261003o"></script>
 </body>
 </html>

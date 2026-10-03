@@ -1497,3 +1497,19 @@ select.input { appearance: auto; }
 .share-actions .btn { flex: 1 1 140px; min-height: 48px; font-size: 1.05rem; }
 .btn-line { background: #06c755; border-color: #06c755; color: #fff; font-weight: 700; }
 .btn-line:hover { background: #05b34c; }
+
+/* 我的報名 */
+.mine-link { margin: 4px 0 12px; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; text-decoration: none; font-weight: 700; }
+.page-title { font-family: var(--serif); font-size: 1.6rem; margin: 8px 0 4px; }
+.mine-form { margin: 12px 0 16px; }
+.mine-row { display: flex; gap: 8px; margin-top: 6px; }
+.mine-row .input { flex: 1; min-width: 0; font-size: 1.15rem; }
+.mine-row .btn { min-width: 84px; min-height: 52px; font-size: 1.1rem; }
+.mine-title { font-family: var(--serif); font-size: 1.25rem; margin: 18px 0 8px; }
+.mine-day { margin-bottom: 14px; }
+.mine-date { font-size: 1.15rem; margin: 10px 0 6px; }
+.mine-item { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
+.mine-main { display: flex; flex-direction: column; gap: 2px; color: inherit; text-decoration: none; }
+.mine-actions { display: flex; gap: 8px; margin-top: 10px; }
+.mine-actions .btn { flex: 1; min-height: 48px; font-size: 1.05rem; display: flex; align-items: center; justify-content: center; text-decoration: none; }
+.mine-note { margin: 8px 0 0; font-size: .95rem; }

@@ -534,3 +534,27 @@ test('成員名單上已登記身分的人，報名時身分以名單為準', ()
   assert.equal(r.ok, true, JSON.stringify(r.error));
   assert.deepEqual(r.data.created.map((c) => [c.name, c.identity]), [['測試甲', '壇辦'], ['測試乙', '未求道']]);
 });
+
+// ---------- 我的報名 ----------
+
+test('我的報名：只列完全同名、今天起、有效的報名，依日期排序；名字太短不查', () => {
+  const env = createEnv(OCT_1);
+  const team = findDuty(env, '2026-11-08', '2026-11-08', d => d.name === '12人小組輪值');
+  const cook = team.positions.find(p => p.name === '烹飪');
+  const later = signupOne(env, team, cook.id, '2026-11-09', { name: '測試甲' });
+  signupOne(env, team, cook.id, '2026-11-08', { name: '測試甲' });
+  signupOne(env, team, cook.id, '2026-11-08', { name: '測試丁' });
+  const cancelled = signupOne(env, team, cook.id, '2026-11-10', { name: '測試甲' });
+  env.post({ action: 'cancel', signupId: cancelled });
+
+  const r = env.post({ action: 'mySignups', name: ' 測試 甲 ' });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.deepEqual(r.data.items.map(i => i.date), ['2026-11-08', '2026-11-09']);
+  const item = r.data.items.find(i => i.signupId === later);
+  assert.equal(item.dutyName, '12人小組輪值');
+  assert.equal(item.positionName, '烹飪');
+  assert.equal(item.canChange, true);
+  assert.equal('identity' in item, false);
+
+  assert.equal(env.post({ action: 'mySignups', name: '甲' }).error.code, 'BAD_REQUEST');
+});

@@ -1,6 +1,7 @@
 // 進入點與頁面切換（#hash 路由）。
 //   #/                       行事曆
 //   #/duty/<勤務ID>?date=…   勤務詳情與報名
+//   #/mine                   我的報名（見 mine.js）
 //   #/admin…                 管理後台（見 admin.js）
 (function () {
   'use strict';
@@ -29,6 +30,11 @@
     if (admin) {
       show('admin');
       AdminPage.show(admin[1]);
+      return;
+    }
+    if (/^#\/mine\/?$/.test(location.hash)) {
+      show('mine');
+      MinePage.show();
       return;
     }
     const m = location.hash.match(/^#\/duty\/([^?]+)(?:\?date=(\d{4}-\d{2}-\d{2}))?/);
@@ -65,6 +71,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     views.calendar = document.getElementById('view-calendar');
     views.duty = document.getElementById('view-duty');
+    views.mine = document.getElementById('view-mine');
     views.admin = document.getElementById('view-admin');
     CalendarPage.init();
     window.addEventListener('hashchange', route);
