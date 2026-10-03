@@ -202,8 +202,33 @@
       state.entries.push(entry);
       hideError();
       renderNames();
+      flyIn(state.entries.length - 1, name);
       if (!fixed && known === undefined) lookupIdentity(entry);
       return true;
+    }
+
+    /** 加入的動畫：名字從輸入框飛到下面的名單，名字卡亮一下，讓人清楚知道加進去了 */
+    function flyIn(index, name) {
+      const li = $('[data-names]').children[index];
+      if (!li) return;
+      li.classList.add('is-new');
+      setTimeout(() => li.classList.remove('is-new'), 1600);
+      const reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduced || !li.animate) return;
+      const from = input.getBoundingClientRect();
+      const to = li.getBoundingClientRect();
+      const ghost = document.createElement('div');
+      ghost.className = 'name-fly';
+      ghost.textContent = name;
+      ghost.style.left = from.left + 'px';
+      ghost.style.top = from.top + 'px';
+      document.body.appendChild(ghost);
+      setTimeout(() => ghost.remove(), 900); // 動畫被暫停（例如切到別的 App）也一定會拿掉
+      ghost.animate([
+        { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+        { transform: `translate(${to.left - from.left + 16}px, ${to.top - from.top + 10}px) scale(1.05)`, opacity: 0.9 }
+      ], { duration: 450, easing: 'cubic-bezier(.4, 0, .2, 1)' }).finished.then(() => ghost.remove(), () => ghost.remove());
+      if (to.bottom > window.innerHeight - 40) li.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
     /** 手動輸入的名字：查成員名單，完全同名且有身分就帶入並固定 */
@@ -314,7 +339,11 @@
     async function submit(ev) {
       ev.preventDefault();
       if (state.submitting) return;
-      if (normalize(input.value)) addFromInput(); // 打了名字但忘了按「加入」
+      if (normalize(input.value)) { // 打了名字但還沒按「加入」：提醒他按，不自動加入
+        showError(`「${esc(normalize(input.value))}」還沒加入名單，請先按旁邊的「加入」`);
+        input.focus();
+        return;
+      }
 
       const problems = [];
       // 共用的項目沒選（有人跟著上面）→ 請選上面；改報別的人沒選 → 請選他自己的
@@ -482,11 +511,12 @@
     $('[data-add]').addEventListener('click', addFromInput);
     input.addEventListener('input', onInput);
     input.addEventListener('focus', () => { if (!searchCache.size) Api.warmUp(); }, { once: true });
+    // 鍵盤上的「✓／Enter」不加入名字（注音選字時常按到，會把還沒打完的字加進去，甚至送出報名），只收起鍵盤；
+    // 一定要按「加入」按鈕（或點提示的名字）才算加入
     input.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Enter' && !ev.isComposing) {
-        ev.preventDefault();
-        addFromInput();
-      }
+      if (ev.key !== 'Enter' || ev.isComposing || ev.keyCode === 229) return;
+      ev.preventDefault();
+      input.blur();
     });
 
     $('[data-suggestions]').addEventListener('click', (ev) => {
