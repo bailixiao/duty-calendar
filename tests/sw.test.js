@@ -46,19 +46,20 @@ test('明天有 5 項勤務：顯示前 4 項、還有幾項、缺人提醒，�
   ];
   const { push, fetchLog } = loadSw({ ok: true, data: { when: 'tomorrow', date: '2026-10-10', items } });
   const n = await push();
-  assert.equal(n.title, '🙏 明天的勤務（10/10 六）');
+  assert.equal(n.title, '🙏 明天的勤務提醒（10/10 六）');
   const lines = n.body.split('\n');
   assert.equal(lines[0], '🧹 08:00 初一十五打掃（宏宗）　缺 2 人');
   assert.equal(lines[1], '🙌 彌勒山志工輪值　人數足・3 人');
   assert.equal(lines[4], '⋯還有 1 項');
-  assert.equal(lines[5], '🙋 有勤務還缺人，歡迎發心報名');
+  assert.equal(lines[5], '🙋 部分勤務還需要人手，歡迎您發心了愿');
+  assert.equal(lines[6], '感恩您的護持 🙏');
   assert.equal(n.data.url, '#/recent');
   assert.match(fetchLog[0], /^https:\/\/api\.test\/exec\?action=pushSummary&id=[0-9a-f]{16}$/);
 });
 
 test('只有一項：點了直接打開那個勤務；測試通知；問不到伺服器時用通用通知', async () => {
   let n = await loadSw({ ok: true, data: { when: 'today', date: '2026-10-24', items: [{ id: 'D9', name: '宏宗大掃除', time: '09:00', label: '' }] } }).push();
-  assert.equal(n.title, '🙏 今天的勤務（10/24 六）');
+  assert.equal(n.title, '🙏 今天的勤務提醒（10/24 六）');
   assert.equal(n.data.url, '#/duty/D9?date=2026-10-24');
 
   n = await loadSw({ ok: true, data: { when: 'today', date: '2026-10-24', items: [], test: true } }).push();

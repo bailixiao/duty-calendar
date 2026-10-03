@@ -121,7 +121,7 @@ async function pushId(endpoint) {
 }
 
 async function buildNotification() {
-  const fallback = { title: '🙏 教全區勤務提醒', body: '有勤務或活動，點開看看 👉', url: '#/recent' };
+  const fallback = { title: '🙏 教全區勤務提醒', body: '有勤務或活動喔，歡迎點開看看 😊', url: '#/recent' };
   try {
     const sub = await self.registration.pushManager.getSubscription();
     const api = self.APP_CONFIG && self.APP_CONFIG.API_URL;
@@ -130,16 +130,17 @@ async function buildNotification() {
     const json = await res.json();
     if (!json.ok) return fallback;
     const d = json.data;
-    if (d.test) return { title: '🔔 測試通知', body: '收到了！有勤務時，晚上 8 點和早上 7 點會提醒你 🙏', url: '#/recent' };
+    if (d.test) return { title: '🔔 測試通知', body: '您好！已順利收到通知 😊\n有勤務時，前一天晚上 8 點、當天早上 7 點會溫馨提醒您 🙏', url: '#/recent' };
     if (!d.items.length) return fallback;
     const p = d.date.split('-').map(Number);
     const wd = WEEKDAYS[new Date(p[0], p[1] - 1, p[2]).getDay()];
     const lines = d.items.slice(0, 4).map((it) => `${dutyEmoji(it)} ${it.time ? it.time + ' ' : ''}${it.name}${it.label ? '　' + it.label : ''}`);
     if (d.items.length > 4) lines.push(`⋯還有 ${d.items.length - 4} 項`);
     const shortCount = d.items.filter((it) => it.short).length;
-    if (shortCount) lines.push('🙋 有勤務還缺人，歡迎發心報名');
+    if (shortCount) lines.push('🙋 部分勤務還需要人手，歡迎您發心了愿');
+    lines.push('感恩您的護持 🙏');
     return {
-      title: `🙏 ${d.when === 'today' ? '今天' : '明天'}的勤務（${p[1]}/${p[2]} ${wd}）`,
+      title: `🙏 ${d.when === 'today' ? '今天' : '明天'}的勤務提醒（${p[1]}/${p[2]} ${wd}）`,
       body: lines.join('\n'),
       url: d.items.length === 1 ? `#/duty/${encodeURIComponent(d.items[0].id)}?date=${d.date}` : '#/recent'
     };

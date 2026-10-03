@@ -21,7 +21,7 @@
   async function registration() {
     // sw.js 在網頁載入後才註冊（本機測試要加 ?sw=1）；這裡等它好，最多 10 秒
     if (!navigator.serviceWorker.controller) navigator.serviceWorker.register('sw.js').catch(() => {});
-    return Promise.race([navigator.serviceWorker.ready, new Promise((_, rej) => setTimeout(() => rej(new Error('通知功能還沒準備好，請重新整理網頁再試')), 10000))]);
+    return Promise.race([navigator.serviceWorker.ready, new Promise((_, rej) => setTimeout(() => rej(new Error('通知功能還在準備中，麻煩您重新整理網頁後再試一次，謝謝您 🙏')), 10000))]);
   }
 
   async function currentSub() {
@@ -39,7 +39,7 @@
 
   async function enable() {
     const perm = await Notification.requestPermission();
-    if (perm !== 'granted') throw new Error(perm === 'denied' ? '通知被封鎖了，請到手機的「設定 → 通知」允許這個網站' : '沒有允許通知，提醒沒有開啟');
+    if (perm !== 'granted') throw new Error(perm === 'denied' ? '通知目前被封鎖了，麻煩您到手機的「設定 → 通知」允許本網站，謝謝您 🙏' : '您還沒有允許通知，所以提醒尚未開啟。');
     const reg = await registration();
     const { publicKey } = await Api.pushKey();
     let sub = await reg.pushManager.getSubscription();
@@ -57,11 +57,11 @@
 
   const IOS_STEPS = `
     <ol class="push-steps">
-      <li>用 <strong>Safari</strong> 打開這個網站</li>
+      <li>用 <strong>Safari</strong> 開啟本網站</li>
       <li>點下方的 <strong>分享</strong> 按鈕（方框加向上箭頭 ⬆️）</li>
       <li>往下找 <strong>「加入主畫面」</strong>，按「新增」</li>
       <li>回到手機主畫面，點 <strong>「勤務行事曆」</strong> 圖示打開</li>
-      <li>再按一次 <strong>🔔 手機提醒</strong> 開啟</li>
+      <li>再按一次 <strong>🔔 手機提醒</strong>，就可以開啟了 😊</li>
     </ol>`;
 
   // ---------- 「🔔 手機提醒」視窗 ----------
@@ -74,22 +74,22 @@
       const note = flash ? `<div class="notice notice-${flash.kind}" role="status"><p>${esc(flash.text)}</p></div>` : '';
       const close = '<button type="button" class="btn btn-block" data-close>返回</button>';
       if (st === 'ios-install') {
-        body.innerHTML = `${note}<p>iPhone 要先把網站<strong>加到主畫面</strong>，才能收到勤務提醒：</p>${IOS_STEPS}<div class="modal-actions">${close}</div>`;
+        body.innerHTML = `${note}<p>iPhone 需要先把本網站<strong>加到主畫面</strong>，才能收到勤務提醒，步驟如下：</p>${IOS_STEPS}<div class="modal-actions">${close}</div>`;
       } else if (st === 'unsupported') {
-        body.innerHTML = `${note}<p>這個瀏覽器不支援通知，請改用 <strong>Chrome</strong>（Android）或 <strong>Safari</strong>（iPhone）打開網站。</p><p class="muted">也可以在報名後按「加到手機行事曆」，前一天會提醒。</p><div class="modal-actions">${close}</div>`;
+        body.innerHTML = `${note}<p>不好意思，這個瀏覽器還不支援通知。麻煩您改用 <strong>Chrome</strong>（Android）或 <strong>Safari</strong>（iPhone）開啟本網站。</p><p class="muted">您也可以在報名後按「加到手機行事曆」，前一天同樣會提醒您 😊</p><div class="modal-actions">${close}</div>`;
       } else if (st === 'denied') {
-        body.innerHTML = `${note}<p>通知被封鎖了。請到手機的 <strong>設定 → 通知</strong>（或瀏覽器的網站設定），允許這個網站傳送通知，再回來開啟。</p><div class="modal-actions">${close}</div>`;
+        body.innerHTML = `${note}<p>通知目前被封鎖了。麻煩您到手機的 <strong>設定 → 通知</strong>（或瀏覽器的網站設定），允許本網站傳送通知，再回來開啟，謝謝您 🙏</p><div class="modal-actions">${close}</div>`;
       } else if (st === 'on') {
-        body.innerHTML = `${note}<p>✅ <strong>已開啟</strong>：有勤務或活動時，每天<strong>晚上 8 點</strong>提醒明天的、<strong>早上 7 點</strong>提醒今天的。</p>
+        body.innerHTML = `${note}<p>✅ <strong>已為您開啟提醒</strong>。有勤務或活動時，會在<strong>前一天晚上 8 點</strong>、<strong>當天早上 7 點</strong>溫馨提醒您。感恩您的發心 🙏</p>
           <div class="modal-actions">
-            <button type="button" class="btn btn-block btn-primary" data-test>傳一則測試通知</button>
+            <button type="button" class="btn btn-block btn-primary" data-test>傳一則測試通知給我</button>
             <button type="button" class="btn btn-block" data-off>關閉提醒</button>
             ${close}
           </div>`;
       } else {
-        body.innerHTML = `${note}<p>開啟後，有勤務或活動時，每天<strong>晚上 8 點</strong>提醒明天的、<strong>早上 7 點</strong>提醒今天的（沒有勤務不會吵你）。</p>
+        body.innerHTML = `${note}<p>開啟後，每逢有勤務或活動，會在<strong>前一天晚上 8 點</strong>、<strong>當天早上 7 點</strong>溫馨提醒您 🙏</p><p class="muted">沒有勤務的日子不會打擾您。</p>
           <div class="modal-actions">
-            <button type="button" class="btn btn-block btn-primary" data-on>開啟提醒</button>
+            <button type="button" class="btn btn-block btn-primary" data-on>好的，請提醒我</button>
             ${close}
           </div>`;
       }
@@ -103,19 +103,19 @@
         await render(okText ? { kind: 'success', text: okText } : null);
         hideCard();
       } catch (e) {
-        await render({ kind: 'error', text: e.message || '沒有成功，請稍後再試' });
+        await render({ kind: 'error', text: e.message || '不好意思，這次沒有成功，請稍後再試一次 🙏' });
       }
     };
     function bind() {
       const q = (s) => body.querySelector(s);
       if (q('[data-close]')) q('[data-close]').addEventListener('click', () => m.close());
-      if (q('[data-on]')) q('[data-on]').addEventListener('click', (ev) => run(ev.target, '開啟中⋯', enable, '已開啟提醒 🎉 可以按「傳一則測試通知」試試看'));
-      if (q('[data-off]')) q('[data-off]').addEventListener('click', (ev) => run(ev.target, '關閉中⋯', disable, '已關閉提醒'));
-      if (q('[data-test]')) q('[data-test]').addEventListener('click', (ev) => run(ev.target, '傳送中⋯', async () => {
+      if (q('[data-on]')) q('[data-on]').addEventListener('click', (ev) => run(ev.target, '正在為您開啟⋯', enable, '已為您開啟提醒 🎉 可以按「傳一則測試通知給我」試試看喔'));
+      if (q('[data-off]')) q('[data-off]').addEventListener('click', (ev) => run(ev.target, '正在關閉⋯', disable, '已為您關閉提醒，隨時歡迎再開啟 😊'));
+      if (q('[data-test]')) q('[data-test]').addEventListener('click', (ev) => run(ev.target, '正在傳送⋯', async () => {
         const sub = await currentSub();
-        if (!sub) throw new Error('提醒沒有開啟');
+        if (!sub) throw new Error('提醒目前沒有開啟喔');
         await Api.pushTest(sub.endpoint);
-      }, '已送出，幾秒內手機會跳出通知（沒收到的話，看看手機是不是開了勿擾或省電模式）'));
+      }, '已送出測試通知，請稍候幾秒鐘 😊 若沒有收到，麻煩您看看手機是否開啟了勿擾或省電模式。'));
     }
     render();
   }
@@ -138,10 +138,10 @@
     if (st !== 'off' && st !== 'ios-install') return;
     try { await Api.pushKey(); } catch (e) { return; } // 管理者還沒設定推播（setupPush）就先不問
     card.innerHTML = st === 'ios-install'
-      ? `<p><strong>🔔 想收到勤務提醒嗎？</strong></p><p>iPhone 把網站<strong>加到主畫面</strong>，就能每天收到提醒。</p>
+      ? `<p><strong>🔔 想收到勤務提醒嗎？</strong></p><p>iPhone 只要把本網站<strong>加到主畫面</strong>，就能收到溫馨提醒 😊</p>
          <div class="push-card-actions"><button type="button" class="btn btn-primary" data-card-how>教我怎麼做</button><button type="button" class="btn" data-card-later>以後再說</button></div>`
-      : `<p><strong>🔔 要開啟勤務提醒嗎？</strong></p><p>每天晚上告訴你明天有什麼勤務或活動，點一下就能報名。</p>
-         <div class="push-card-actions"><button type="button" class="btn btn-primary" data-card-on>開啟提醒</button><button type="button" class="btn" data-card-later>以後再說</button></div>`;
+      : `<p><strong>🔔 需要為您開啟勤務提醒嗎？</strong></p><p>有勤務或活動時，會在前一天晚上溫馨提醒您，讓您不錯過每一次了愿的機會 🙏</p>
+         <div class="push-card-actions"><button type="button" class="btn btn-primary" data-card-on>好的，請提醒我</button><button type="button" class="btn" data-card-later>以後再說</button></div>`;
     card.hidden = false;
     card.querySelector('[data-card-later]').addEventListener('click', () => {
       try { localStorage.setItem(ASK_KEY, String(Date.now())); } catch (e) { /* 無痕模式：下次再問 */ }
@@ -152,15 +152,15 @@
     const on = card.querySelector('[data-card-on]');
     if (on) on.addEventListener('click', async () => {
       on.disabled = true;
-      on.textContent = '開啟中⋯';
+      on.textContent = '正在為您開啟⋯';
       try {
         await enable();
-        card.innerHTML = '<p>✅ 已開啟勤務提醒 🎉</p>';
+        card.innerHTML = '<p>✅ 已為您開啟勤務提醒，感恩您 🙏</p>';
         setTimeout(hideCard, 3000);
       } catch (e) {
         on.disabled = false;
-        on.textContent = '開啟提醒';
-        card.insertAdjacentHTML('beforeend', `<p class="form-error">${esc(e.message || '沒有成功，請稍後再試')}</p>`);
+        on.textContent = '好的，請提醒我';
+        card.insertAdjacentHTML('beforeend', `<p class="form-error">${esc(e.message || '不好意思，這次沒有成功，請稍後再試一次 🙏')}</p>`);
       }
     });
   }
