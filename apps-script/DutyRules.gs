@@ -23,7 +23,7 @@ var DUTY_FIELD_MAP_ = {
  * 同名勤務一次改可以套用的欄位（日期不行；負責組要和分組類型一起改）。
  * 「同名」以 seriesKey_ 比對，所以每月名稱不同的「九月初一拜香輪值」「十月初一拜香輪值」也算同名。
  */
-var BULK_FIELDS_ = ['name', 'nature', 'mode', 'time', 'location', 'group', 'attire', 'description', 'positions', 'teachers'];
+var BULK_FIELDS_ = ['name', 'nature', 'mode', 'time', 'location', 'group', 'attire', 'description', 'positions', 'teachers', 'dm'];
 
 function cleanText_(v) {
   return String(v === undefined || v === null ? '' : v).replace(/^[\s　]+|[\s　]+$/g, '');
@@ -218,7 +218,7 @@ function mergeBulkInput_(target, targetPositions, sourceOldName, sourceOldPositi
     deadline: target['報名截止日'] || '', // 報名截止日每筆各自設定，一起改時不動
     // 類別、DM、職司表設定照各筆原本的（沒帶的話會被當成預設值洗掉）
     category: target['類別'] || '勤務',
-    dm: parseDm_(target['DM']),
+    dm: has('dm') ? parseDm_(src['DM']) : parseDm_(target['DM']),
     layout: target['版面'] || '',
     stages: target['階段'] || '',
     teachers: pick('teachers', '師資'),

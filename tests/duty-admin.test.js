@@ -441,3 +441,16 @@ test('同名一起改：師資可以套用到過去與未來的堂次；類別�
   assert.equal(get(b).category, '教育');
   assert.equal(get(b).nature, '課程');
 });
+
+test('同名一起改：DM 也可以一起套用', () => {
+  const { createEnv } = require('./env');
+  const env = createEnv(Date.UTC(2026, 9, 1, 2, 0, 0));
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const call = (action, body) => env.post(Object.assign({ action, token }, body));
+  const c = call('adminCreateDuties', { duties: ['2026-10-10', '2026-10-17'].map((d) => ({ name: '高大班', category: '教育', nature: '課程', start: d, positions: [{ name: '參加', min: '0' }] })) });
+  const [a, b] = c.data.ids;
+  const ed = call('adminDutyForEdit', { id: a }).data.duty;
+  ed.dm = [{ id: 'F-abcdef123456', name: 'dm.jpg', mime: 'image/jpeg' }];
+  assert.equal(call('adminUpdateDuty', { id: a, duty: ed, alsoIds: [b], fields: ['dm'] }).ok, true);
+  assert.equal(env.get({ action: 'getDuty', id: b }).data.dm[0].id, 'F-abcdef123456');
+});

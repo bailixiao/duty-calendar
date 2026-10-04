@@ -1814,3 +1814,5 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 /* 同名一起改：選日期範圍 */
 .bulk-range { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 8px 0; }
 .bulk-range .input { width: auto; flex: 1 1 140px; min-width: 0; }
+
+.notice-info { background: var(--notice-soft); border-color: #c9d6e6; color: #23476b; }

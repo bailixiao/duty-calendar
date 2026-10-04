@@ -24,7 +24,7 @@
   // 同名勤務一次改的欄位（與 apps-script/DutyRules.gs 的 BULK_FIELDS_ 相同）
   const BULK_FIELDS = [
     ['name', '名稱'], ['nature', '性質'], ['mode', '模式'], ['time', '時段'], ['location', '地點'],
-    ['group', '負責組'], ['attire', '服裝'], ['description', '說明'], ['positions', '了愿項目'], ['teachers', '師資']
+    ['group', '負責組'], ['attire', '服裝'], ['description', '說明'], ['positions', '了愿項目'], ['teachers', '師資'], ['dm', 'DM']
   ];
   const MAX_LUNAR_DAYS = 800;
 
@@ -411,6 +411,7 @@
       body.innerHTML = `
         <a class="back-link" href="#/admin/duties">‹ ${T()}管理</a>
         <h2 class="detail-title">${editing ? '編輯' + F() : ctx.source ? '另存成新' + F() : '新增' + F()}</h2>
+        ${editing && ctx.source.siblings && ctx.source.siblings.length ? `<div class="notice notice-info"><p>📚 還有 <strong>${ctx.source.siblings.length} 筆同名的「${esc(original.name)}」</strong>。改好按「存檔」，可以勾選要一起改的（可選日期範圍，日期不會變）。</p></div>` : ''}
         ${editing && signupTotal ? `<div class="notice notice-success"><p>這個${F()}已有 ${signupTotal} 筆報名。有人報名的項目不能刪除、有人報名的日期不能移出期間。</p></div>` : ''}
         <form class="admin-form" novalidate>
           <fieldset class="form-block">
@@ -849,7 +850,8 @@
         attire: now.attire.trim() !== o.attire,
         description: now.description.trim() !== o.description,
         positions: posKey(now.positions) !== posKey(o.positions),
-        teachers: String(now.teachers || '').trim() !== String(o.teachers || '').trim()
+        teachers: String(now.teachers || '').trim() !== String(o.teachers || '').trim(),
+        dm: JSON.stringify((now.dm || []).map((x) => x.id)) !== JSON.stringify((o.dm || []).map((x) => x.id))
       };
       return BULK_FIELDS.filter(([k]) => changed[k]);
     }
@@ -861,7 +863,7 @@
     function askBulk() {
       const fields = changedFields();
       // 只改師資時，過去的堂次也可以一起改（例如補填前幾個月的師資）；其他欄位只列今天以後的
-      const onlyTeachers = fields.length === 1 && fields[0][0] === 'teachers';
+      const onlyTeachers = fields.length > 0 && fields.every(([k]) => k === 'teachers' || k === 'dm');
       const siblings = ctx.source.siblings.filter((x) => onlyTeachers || x.end >= today);
       if (!siblings.length || !fields.length) return Promise.resolve({});
       return new Promise((resolve) => {
