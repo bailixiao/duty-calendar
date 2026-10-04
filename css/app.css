@@ -1829,3 +1829,22 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 
 .plan-list { max-height: 50vh; overflow-y: auto; }
 .plan-list li { display: flex; align-items: center; gap: 8px 12px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+
+/* 安排整年的師資：依師資勾日期 */
+.plan-views { margin: 4px 0 12px; }
+.plan-card { margin-bottom: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+.plan-card-head { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; margin-bottom: 6px; }
+.plan-card-name { display: grid; gap: 4px; flex: 1 1 180px; font-size: 14px; color: var(--ink-2); }
+.plan-card-count { color: #23476b; font-weight: 800; padding-bottom: 10px; }
+.plan-month { margin-top: 10px; }
+.plan-month-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; color: var(--ink-2); }
+.plan-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.plan-chip { display: inline-grid; justify-items: center; min-width: 84px; min-height: 44px; padding: 6px 8px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--paper); cursor: pointer; font-weight: 700; line-height: 1.2; }
+.plan-chip input { position: absolute; opacity: 0; pointer-events: none; }
+.plan-chip small { font-size: 11px; font-weight: 400; color: var(--muted); }
+.plan-chip.is-on { border-color: #2f6ea5; background: #2f6ea5; color: #fff; }
+.plan-chip.is-on small { color: #dbe7f3; }
+.plan-chip.is-past { opacity: .75; }
+.plan-chip:focus-within { outline: 3px solid #f2c230; }
+.plan-left { color: var(--accent); margin-left: 6px; }
+.plan-done { color: var(--ok); margin-left: 6px; }

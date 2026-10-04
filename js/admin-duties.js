@@ -974,54 +974,160 @@
       }
     }
 
-    /** 安排整年的師資：這個課程每一堂（含過去）的日期＋師資，一段一段套用或逐堂改，一次存好 */
+    /**
+     * 安排整年的師資：這個課程每一堂（含過去）。兩種看法可切換：
+     *   依師資勾日期：每位師資一張卡片，勾他負責的那幾堂（一堂可以勾好幾位）；＋新增師資
+     *   依日期填：每一堂一列，直接填；上方「從～到＋師資」一段一段套用
+     * 最後「儲存師資」一次存（只改有變的堂）。
+     */
     function planTeachers() {
       const rows = [{ id: s.id, start: original.start, teachers: s.teachers || '', self: true }]
         .concat(ctx.source.siblings.map((x) => ({ id: x.id, start: x.start, teachers: x.teachers || '' })))
         .sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
+      const split = (t) => String(t || '').split(/[、，,\s]+/).filter(Boolean);
+      const before = {};
+      const cur = {}; // 每一堂現在的師資（文字）
+      rows.forEach((x) => { before[x.id] = x.teachers; cur[x.id] = x.teachers; });
+      let view = 'teacher';
+      let cards = [];
+      const buildCards = () => {
+        const map = new Map();
+        rows.forEach((x) => split(cur[x.id]).forEach((n) => {
+          if (!map.has(n)) map.set(n, new Set());
+          map.get(n).add(x.id);
+        }));
+        cards = [...map.entries()].map(([name, ids]) => ({ name, ids }));
+        if (!cards.length) cards = [{ name: '', ids: new Set() }];
+      };
+      const fromCards = () => {
+        rows.forEach((x) => { cur[x.id] = cards.filter((c) => c.name.trim() && c.ids.has(x.id)).map((c) => c.name.trim()).join('、'); });
+      };
+      buildCards();
+      const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+      const months = [];
+      rows.forEach((x) => { const k = x.start.slice(0, 7); if (!months.length || months[months.length - 1].key !== k) months.push({ key: k, rows: [] }); months[months.length - 1].rows.push(x); });
+
       const m = Modal.open(`
         <h2 class="modal-title">安排整年的師資：${esc(original.name)}</h2>
-        <p class="modal-note">共 ${rows.length} 堂。可以先用下面的「套用到這段日期」一段一段填，再逐堂微調，最後按「儲存師資」。</p>
-        <div class="teach-range">
-          <div class="teach-range-row">
-            <label><span>從</span><input class="input" type="date" data-t-from value="${esc(rows[0].start)}"></label>
-            <label><span>到</span><input class="input" type="date" data-t-to value="${esc(rows[rows.length - 1].start)}"></label>
-            <label class="teach-range-name"><span>師資</span><input class="input" data-t-name placeholder="例：張佳銘、張慧如"></label>
-            <button type="button" class="btn" data-t-apply>套用到這段日期</button>
-          </div>
+        <p class="modal-note">共 ${rows.length} 堂。最後按「儲存師資」才會存起來。</p>
+        <div class="seg plan-views">
+          <label class="seg-item"><input type="radio" name="planView" value="teacher" checked><span>依師資勾日期</span></label>
+          <label class="seg-item"><input type="radio" name="planView" value="date"><span>依日期填</span></label>
         </div>
-        <ol class="preview-list multi-preview with-teach plan-list">${rows.map((x) => `
-          <li><span class="preview-date">${esc(Fmt.rocDate(x.start))}${x.self ? ' <span class="tag">這一堂</span>' : ''}${x.start < today ? ' <span class="muted">（已過）</span>' : ''}</span>
-            <input class="input teach-input" data-plan="${esc(x.id)}" data-start="${esc(x.start)}" value="${esc(x.teachers)}" placeholder="師資" aria-label="${esc(Fmt.rocDate(x.start))} 的師資"></li>`).join('')}
-        </ol>
+        <div data-plan-body></div>
         <div class="form-error" data-plan-error hidden></div>
         <div class="modal-actions">
           <button type="button" class="btn btn-block btn-primary" data-plan-save>儲存師資</button>
           <button type="button" class="btn btn-block" data-close>返回</button>
         </div>`);
       m.el.classList.add('modal-wide');
-      const inputs = [...m.el.querySelectorAll('[data-plan]')];
-      const apply = m.el.querySelector('[data-t-apply]');
-      apply.addEventListener('click', () => {
-        const a = m.el.querySelector('[data-t-from]').value || '0000-00-00';
-        const b = m.el.querySelector('[data-t-to]').value || '9999-12-31';
-        const name = m.el.querySelector('[data-t-name]').value.trim();
-        let n = 0;
-        inputs.forEach((x) => {
-          if (x.dataset.start < a || x.dataset.start > b) return;
-          x.value = name;
-          x.classList.add('is-flash');
-          setTimeout(() => x.classList.remove('is-flash'), 900);
-          n++;
+      const pb = m.el.querySelector('[data-plan-body]');
+
+      function drawTeacher() {
+        const others = (ci) => { // 每一堂已被其他師資勾的名字（顯示小字提醒）
+          const o = {};
+          cards.forEach((c, j) => { if (j !== ci && c.name.trim()) c.ids.forEach((id) => { (o[id] = o[id] || []).push(c.name.trim()); }); });
+          return o;
+        };
+        const unassigned = rows.filter((x) => !cards.some((c) => c.name.trim() && c.ids.has(x.id))).length;
+        pb.innerHTML = `
+          <p class="hint">每位師資一張卡片：填名字，再勾他負責的那幾堂。一堂可以勾兩位以上（一起上）。${unassigned ? `<strong class="plan-left">還有 ${unassigned} 堂沒有師資</strong>` : '<strong class="plan-done">每一堂都有師資了 ✓</strong>'}</p>
+          ${cards.map((c, ci) => {
+            const o = others(ci);
+            return `
+            <section class="plan-card">
+              <div class="plan-card-head">
+                <label class="plan-card-name"><span>師資 ${ci + 1}</span><input class="input" data-card-name="${ci}" value="${esc(c.name)}" placeholder="例：張佳銘"></label>
+                <span class="plan-card-count">勾了 ${c.ids.size} 堂</span>
+                <button type="button" class="btn btn-small btn-quiet-danger" data-card-del="${ci}">移除</button>
+              </div>
+              ${months.map((mo) => `
+                <div class="plan-month">
+                  <div class="plan-month-head"><strong>${Number(mo.key.slice(0, 4)) - 1911} 年 ${Number(mo.key.slice(5, 7))} 月</strong>
+                    <button type="button" class="link-btn" data-card-month="${ci}" data-month="${mo.key}">${mo.rows.every((x) => c.ids.has(x.id)) ? '這個月都不勾' : '這個月全勾'}</button></div>
+                  <div class="plan-chips">${mo.rows.map((x) => `
+                    <label class="plan-chip${c.ids.has(x.id) ? ' is-on' : ''}${x.start < today ? ' is-past' : ''}"><input type="checkbox" data-card="${ci}" data-id="${esc(x.id)}"${c.ids.has(x.id) ? ' checked' : ''}>
+                      <span>${md(x.start)}（${esc(Fmt.weekday(x.start))}）</span>${o[x.id] ? `<small>${esc(o[x.id].join('、'))}</small>` : ''}</label>`).join('')}</div>
+                </div>`).join('')}
+            </section>`;
+          }).join('')}
+          <button type="button" class="btn btn-block" data-card-add>＋ 新增師資</button>`;
+        pb.querySelectorAll('[data-card-name]').forEach((x) => x.addEventListener('input', () => {
+          cards[Number(x.dataset.cardName)].name = x.value;
+          fromCards();
+        }));
+        pb.querySelectorAll('[data-card-name]').forEach((x) => x.addEventListener('change', () => drawTeacher()));
+        pb.querySelectorAll('[data-card]').forEach((x) => x.addEventListener('change', () => {
+          const c = cards[Number(x.dataset.card)];
+          if (x.checked) c.ids.add(x.dataset.id); else c.ids.delete(x.dataset.id);
+          fromCards();
+          drawTeacher();
+        }));
+        pb.querySelectorAll('[data-card-month]').forEach((b) => b.addEventListener('click', () => {
+          const c = cards[Number(b.dataset.cardMonth)];
+          const mo = months.find((x) => x.key === b.dataset.month);
+          const all = mo.rows.every((x) => c.ids.has(x.id));
+          mo.rows.forEach((x) => { if (all) c.ids.delete(x.id); else c.ids.add(x.id); });
+          fromCards();
+          drawTeacher();
+        }));
+        pb.querySelectorAll('[data-card-del]').forEach((b) => b.addEventListener('click', () => {
+          cards.splice(Number(b.dataset.cardDel), 1);
+          if (!cards.length) cards.push({ name: '', ids: new Set() });
+          fromCards();
+          drawTeacher();
+        }));
+        pb.querySelector('[data-card-add]').addEventListener('click', () => {
+          cards.push({ name: '', ids: new Set() });
+          drawTeacher();
+          const last = pb.querySelectorAll('[data-card-name]');
+          last[last.length - 1].focus();
         });
-        apply.textContent = `已套用 ${n} 堂 ✓`;
-        setTimeout(() => { apply.textContent = '套用到這段日期'; }, 1500);
-      });
+      }
+
+      function drawDate() {
+        pb.innerHTML = `
+          <div class="teach-range">
+            <div class="teach-range-row">
+              <label><span>從</span><input class="input" type="date" data-t-from value="${esc(rows[0].start)}"></label>
+              <label><span>到</span><input class="input" type="date" data-t-to value="${esc(rows[rows.length - 1].start)}"></label>
+              <label class="teach-range-name"><span>師資</span><input class="input" data-t-name placeholder="例：張佳銘、張慧如"></label>
+              <button type="button" class="btn" data-t-apply>套用到這段日期</button>
+            </div>
+          </div>
+          <ol class="preview-list multi-preview with-teach plan-list">${rows.map((x) => `
+            <li><span class="preview-date">${esc(Fmt.rocDate(x.start))}${x.self ? ' <span class="tag">這一堂</span>' : ''}${x.start < today ? ' <span class="muted">（已過）</span>' : ''}</span>
+              <input class="input teach-input" data-plan="${esc(x.id)}" data-start="${esc(x.start)}" value="${esc(cur[x.id])}" placeholder="師資" aria-label="${esc(Fmt.rocDate(x.start))} 的師資"></li>`).join('')}
+          </ol>`;
+        const inputs = [...pb.querySelectorAll('[data-plan]')];
+        inputs.forEach((x) => x.addEventListener('input', () => { cur[x.dataset.plan] = x.value; }));
+        const apply = pb.querySelector('[data-t-apply]');
+        apply.addEventListener('click', () => {
+          const a = pb.querySelector('[data-t-from]').value || '0000-00-00';
+          const b = pb.querySelector('[data-t-to]').value || '9999-12-31';
+          const name = pb.querySelector('[data-t-name]').value.trim();
+          let n = 0;
+          inputs.forEach((x) => {
+            if (x.dataset.start < a || x.dataset.start > b) return;
+            x.value = name;
+            cur[x.dataset.plan] = name;
+            x.classList.add('is-flash');
+            setTimeout(() => x.classList.remove('is-flash'), 900);
+            n++;
+          });
+          apply.textContent = `已套用 ${n} 堂 ✓`;
+          setTimeout(() => { apply.textContent = '套用到這段日期'; }, 1500);
+        });
+      }
+
+      m.el.querySelectorAll('input[name=planView]').forEach((r) => r.addEventListener('change', () => {
+        view = r.value;
+        if (view === 'teacher') { buildCards(); drawTeacher(); } else drawDate();
+      }));
+      drawTeacher();
       m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
       m.el.querySelector('[data-plan-save]').addEventListener('click', async () => {
-        const before = {};
-        rows.forEach((x) => { before[x.id] = x.teachers; });
-        const items = inputs.map((x) => ({ id: x.dataset.plan, teachers: x.value.trim() })).filter((x) => x.teachers !== before[x.id]);
+        const items = rows.map((x) => ({ id: x.id, teachers: split(cur[x.id]).join('、') })).filter((x) => x.teachers !== split(before[x.id]).join('、'));
         if (!items.length) { m.close(); return; }
         Busy.show(`儲存 ${items.length} 堂的師資⋯`, '請不要關閉畫面');
         try {
@@ -1030,9 +1136,8 @@
           m.close();
           afterWrite();
           const mine = items.find((x) => x.id === s.id);
-          if (mine) s.teachers = mine.teachers;
+          if (mine) { s.teachers = mine.teachers; original.teachers = mine.teachers; }
           ctx.source.siblings.forEach((x) => { const it = items.find((y) => y.id === x.id); if (it) x.teachers = it.teachers; });
-          if (mine) original.teachers = mine.teachers;
           render();
           const top = body.querySelector('[data-error]');
           if (top) top.insertAdjacentHTML('beforebegin', AdminPage.notice('success', `已儲存 ${res.updated} 堂的師資`, ''));
