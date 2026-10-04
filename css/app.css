@@ -1759,13 +1759,13 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 
 /* 職司說明：一區一列，左邊圖示＋名稱 */
 .rich-desc { display: grid; }
-.rd-sec { display: grid; grid-template-columns: 96px 1fr; gap: 4px 12px; padding: 14px 4px; border-bottom: 1px solid var(--line); }
+.rd-sec { display: grid; grid-template-columns: 120px 1fr; gap: 6px 14px; padding: 18px 4px; border-bottom: 1px solid var(--line); }
 .rd-sec:last-child { border-bottom: 0; }
 .rd-plain { grid-template-columns: 1fr; }
-.rd-head { display: flex; align-items: flex-start; gap: 6px; color: #2f6ea5; font-size: 18px; font-weight: 800; line-height: 1.5; }
-.rd-icon { font-size: 18px; }
-.rd-body { display: grid; gap: 2px; font-size: 17px; line-height: 1.65; color: var(--ink-2); }
-.rd-body strong { color: var(--ink); font-weight: 800; }
-.rd-key { margin-top: 4px; font-size: 15px; font-weight: 800; color: var(--ink-2); }
-.rd-gap { height: 6px; }
+.rd-head { display: flex; align-items: flex-start; gap: 8px; color: #2f6ea5; font-size: 23px; font-weight: 800; line-height: 1.5; }
+.rd-icon { font-size: 23px; }
+.rd-body { display: grid; gap: 4px; font-size: 21px; line-height: 1.7; color: var(--ink); }
+.rd-body strong { color: var(--accent); font-weight: 800; }
+.rd-key { margin-top: 6px; padding: 4px 10px; border-radius: 8px; background: var(--notice-soft); font-size: 19px; font-weight: 800; color: #23476b; justify-self: start; }
+.rd-gap { height: 8px; }
 @media (max-width: 560px) { .rd-sec { grid-template-columns: 1fr; } }
