@@ -142,6 +142,7 @@
     const dmImages = dm.filter((x) => /^image\//.test(x.mime)).map((x) => ({ src: Api.fileUrl(x.id), caption: '' }));
     const dmPdfs = dm.filter((x) => x.mime === 'application/pdf');
     el.innerHTML = `
+      ${d.layout === '職司表' && d.stages ? stagesSection(d) : ''}
       ${d.mode === '公告型' ? groupSection(d) : ''}
       ${dm.length ? `
         <section class="detail-section">
@@ -183,6 +184,57 @@
         <button type="button" class="btn btn-block" data-close>關閉</button>
       </div>`);
     m.el.classList.add('modal-wide');
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+  }
+
+  // ---------- 職司表：階段時間軸 ----------
+
+  function stagesSection(d) {
+    const stages = RosterGrid.parseStages(d.stages, d.start, d.today);
+    if (!stages.length) return '';
+    return `
+      <section class="detail-section">
+        <ol class="stages">${stages.map((s) => `
+          <li class="stage stage-${s.state}">
+            <span class="stage-when"><span class="stage-n">${s.n}</span>${esc(s.when)}${s.state === 'now' ? '<span class="stage-now">進行中</span>' : ''}</span>
+            <span class="stage-text">${esc(s.text)}</span>
+          </li>`).join('')}</ol>
+      </section>`;
+  }
+
+  // ---------- 職司表：一欄一天、一列一個了愿項目 ----------
+
+  function gridSection(d) {
+    if (!d.signups) return '<p class="muted">載入職司表中⋯</p>';
+    const g = RosterGrid.build(d);
+    const head = g.dates.map((x) => `<th scope="col" class="${x.today ? 'is-today' : ''}">${Fmt.shortDate(x.date).replace('（', '<br>(').replace('）', ')')}${x.today ? '<small>今天</small>' : ''}</th>`).join('');
+    const totals = g.dates.map((x) => `<td class="${x.today ? 'is-today' : ''}">${x.total} 人</td>`).join('');
+    const body = g.groups.map((grp, gi) => Array.from({ length: grp.rows }, (_, r) => `
+      <tr class="${r === 0 ? 'grid-first' : ''} grid-g${gi % 2}">
+        ${r === 0 ? `<th scope="rowgroup" rowspan="${grp.rows}" class="grid-pos"><span>${esc(grp.position.name)}</span></th>` : ''}
+        <td class="grid-n">${r + 1}</td>
+        ${g.dates.map((x) => {
+          const s = grp.cells[x.date][r];
+          if (!s) return `<td class="grid-empty${x.today ? ' is-today' : ''}">—</td>`;
+          return `<td class="${x.today ? 'is-today' : ''}"><span class="grid-name${s.leader ? ' is-leader' : ''}">${s.leader ? '<span class="grid-star" title="組長">★</span>' : ''}${esc(s.name)}${s.accompany ? '<small>陪同</small>' : ''}${s.note ? `<button type="button" class="grid-note" data-note="${esc(s.id)}" aria-label="${esc(s.name)}的註記">註</button>` : ''}</span></td>`;
+        }).join('')}
+      </tr>`).join('')).join('');
+    return `
+      <div class="grid-wrap">
+        <table class="roster-grid">
+          <thead><tr><th scope="col" colspan="2" class="grid-corner">日期</th>${head}</tr>
+            <tr class="grid-total"><th scope="row" colspan="2" class="grid-corner">人數</th>${totals}</tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+      <p class="hint">表格可以左右滑動。<span class="nw"><span class="grid-star">★</span> 是組長；</span><span class="nw">點「註」可以看註記。</span></p>`;
+  }
+
+  function openNote(s) {
+    const m = Modal.open(`
+      <h2 class="modal-title">${esc(s.name)}</h2>
+      <p class="note-full">${esc(s.note)}</p>
+      <div class="modal-actions"><button type="button" class="btn btn-block" data-close>關閉</button></div>`);
     m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
   }
 
@@ -258,17 +310,28 @@
         </li>`;
     }).join('');
 
-    el.innerHTML = `
-      <h2>報名名單${dates.length > 1 ? `<span class="h2-sub">${Fmt.shortDate(date)}</span>` : ''}</h2>
+    const daily = `
       ${tabs}
       <ul class="position-list">${rows}</ul>
       <p class="hint">「陪同」不佔名額。${canChange ? '要取消或改期，請按名字旁的按鈕。' : `勤務當天（含）之後不能自己取消或改期，${Fmt.askAdmin()}。`}</p>`;
+    el.innerHTML = d.layout === '職司表' ? `
+      <h2>職司表</h2>
+      ${gridSection(d)}
+      <details class="grid-daily"${page.dailyOpen ? ' open' : ''}>
+        <summary>每天的名單（要取消或改期點這裡）</summary>
+        ${daily}
+      </details>` : `
+      <h2>報名名單${dates.length > 1 ? `<span class="h2-sub">${Fmt.shortDate(date)}</span>` : ''}</h2>
+      ${daily}`;
+    const det = el.querySelector('.grid-daily');
+    if (det) det.addEventListener('toggle', () => { page.dailyOpen = det.open; });
 
     el.querySelectorAll('[data-date]').forEach((btn) => btn.addEventListener('click', () => {
       page.viewDate = btn.dataset.date;
       renderRoster();
     }));
     const findSignup = (id) => (d.signups || []).find((s) => s.id === id);
+    el.querySelectorAll('[data-note]').forEach((btn) => btn.addEventListener('click', () => openNote(findSignup(btn.dataset.note))));
     el.querySelectorAll('[data-cancel]').forEach((btn) => btn.addEventListener('click', () => cancelSignup(findSignup(btn.dataset.cancel))));
     el.querySelectorAll('[data-reschedule]').forEach((btn) => btn.addEventListener('click', () => {
       Reschedule.open(findSignup(btn.dataset.reschedule), d, (result) => onRescheduled(findSignup(btn.dataset.reschedule), result));

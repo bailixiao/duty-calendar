@@ -365,7 +365,7 @@
   function emptyDuty() {
     return {
       name: '', nature: NATURES_BY_CAT[myCategory()][0], mode: '報名型', category: myCategory(), dm: [], start: '', end: '', startTime: '', endTime: '',
-      location: '', groupType: '', group: '', attire: '', description: '', deadline: '',
+      location: '', groupType: '', group: '', attire: '', description: '', deadline: '', layout: '', stages: '',
       positions: [{ name: '', slot: '', min: '', max: '' }]
     };
   }
@@ -485,6 +485,13 @@
                 </li>`).join('')}
             </ul>
             <button type="button" class="btn btn-small" data-add-pos>＋ 加一個了愿項目</button>
+          </fieldset>
+
+          <fieldset class="form-block">
+            <legend>職司表（12人小組這類多天輪值）</legend>
+            <label class="check"><input type="checkbox" name="layout"${s.layout === '職司表' ? ' checked' : ''}> 用職司表顯示：一欄一天、一列一個了愿項目，報名的人自動排進去</label>
+            ${s.layout === '職司表' ? `<label class="form-row"><span>階段（可空白）</span><textarea class="input textarea" name="stages" rows="4" placeholder="一行一個，例：&#10;即日起~9/13｜向區中心報名了愿日期&#10;9/14~9/18｜職司初安排&#10;9/27~10/4｜12人小組輪值">${esc(s.stages || '')}</textarea></label>
+            <p class="hint">家人們的頁面上方會顯示成時間軸，自動亮起現在這個階段。組長 ★ 和註記在報名名單上設定。</p>` : ''}
           </fieldset>`}
 
           <fieldset class="form-block">
@@ -560,7 +567,7 @@
       const f = body.querySelector('form');
       if (!f) return;
       const val = (n) => (f.elements[n] ? f.elements[n].value : undefined);
-      ['name', 'startTime', 'endTime', 'location', 'attire', 'description', 'start', 'end', 'groupType', 'group', 'deadline'].forEach((k) => {
+      ['name', 'startTime', 'endTime', 'location', 'attire', 'description', 'start', 'end', 'groupType', 'group', 'deadline', 'stages'].forEach((k) => {
         if (val(k) !== undefined) s[k] = val(k);
       });
       const radio = (n) => { const el = f.querySelector(`input[name="${n}"]:checked`); return el ? el.value : undefined; };
@@ -572,6 +579,7 @@
       if (radio('dateType')) st.dateType = radio('dateType');
       if (radio('groupMode')) st.lunar.groupMode = radio('groupMode');
       if (f.elements.multi) s.multi = f.elements.multi.checked;
+      if (f.elements.layout) s.layout = f.elements.layout.checked ? '職司表' : '';
       if (f.elements.lunarFrom) {
         st.lunar.from = val('lunarFrom');
         st.lunar.to = val('lunarTo');
@@ -592,7 +600,7 @@
       // 會改變表單結構的選項：讀回目前的值後重畫
       f.addEventListener('change', (ev) => {
         const n = ev.target.name;
-        if (['mode', 'dateType', 'groupType', 'groupMode', 'rotation', 'category', 'quotaMode'].indexOf(n) === -1) return;
+        if (['mode', 'dateType', 'groupType', 'groupMode', 'rotation', 'category', 'quotaMode', 'layout'].indexOf(n) === -1) return;
         sync();
         if (n === 'groupType') { s.group = ''; st.lunar.rotation = []; st.lunar.rotationStart = 0; }
         if (n === 'dateType' && st.dateType === 'range' && !s.end) s.end = s.start;
@@ -662,6 +670,8 @@
         startTime: s.startTime, endTime: s.endTime, location: s.location,
         groupType: isSimple(s.category) ? '' : s.groupType, group: !isSimple(s.category) && s.groupType ? s.group : '', attire: s.attire, description: s.description, deadline: s.deadline || '',
         dm: s.dm,
+        layout: s.mode === '公告型' || isSimple(s.category) ? '' : (s.layout || ''),
+        stages: s.mode === '公告型' || isSimple(s.category) || s.layout !== '職司表' ? '' : (s.stages || ''),
         multi: s.mode === '公告型' ? false : !!(s.multi === true || s.multi === '是'),
         positions: s.mode === '公告型' ? [] : isSimple(s.category)
           ? [{ id: s.positions[0] && s.positions[0].id, name: (s.positions[0] && s.positions[0].name) || '參加', slot: '', min: '0', max: st.quota === 'limit' ? String(st.quotaMax || '').trim() : '' }]

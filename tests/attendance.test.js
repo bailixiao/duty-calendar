@@ -55,3 +55,27 @@ test('補登：不受日期限制、記為出席；名額或重複只警告；�
   assert.equal(call('adminAddAttendee', { dutyId: duty.id, positionId: pid, date: '2026-10-20', name: '測試丁', identity: '道親' }).error.code, 'VALIDATION', '日期不在勤務期間');
   assert.equal(call('adminAddAttendee', { dutyId: 'X', positionId: pid, date: '2026-10-13', name: '測試丁', identity: '道親' }).error.code, 'VALIDATION');
 });
+
+test('職司表：版面、階段存得進去；組長 ★、註記寫回報名，家人們的名單看得到', () => {
+  const { env, call } = setup();
+  const c = call('adminCreateDuties', { duties: [{ name: '小組輪值', start: '2026-10-20', end: '2026-10-22', layout: '職司表', stages: '即日起~10/10｜報名\n10/20~10/22｜輪值', positions: [{ name: '烹飪', max: '' }, { name: '維安' }] }] });
+  assert.equal(c.ok, true, JSON.stringify(c.error));
+  const id = c.data.ids[0];
+  let d = env.get({ action: 'getDuty', id }).data;
+  assert.equal(d.layout, '職司表');
+  assert.equal(d.stages, '即日起~10/10｜報名\n10/20~10/22｜輪值');
+  assert.equal(call('adminCreateDuties', { duties: [{ name: 'x', start: '2026-10-20', layout: '亂寫', positions: [{ name: 'a' }] }] }).error.code, 'VALIDATION');
+  const s = env.post({ action: 'signup', dutyId: id, positionId: d.positions[0].id, dates: ['2026-10-20', '2026-10-21'], entries: [{ name: '測試甲', identity: '道親' }] });
+  assert.equal(s.ok, true, JSON.stringify(s.error));
+  const sid = s.data.created[0].id;
+  assert.equal(call('adminSetAttendance', { signupId: sid, leader: true, note: '前一天晚上到' }).ok, true);
+  assert.equal(call('adminSetAttendance', { signupId: sid, note: 'x'.repeat(101) }).error.code, 'BAD_REQUEST');
+  d = env.get({ action: 'getDuty', id }).data;
+  const mine = d.signups.find((x) => x.id === sid);
+  assert.equal(mine.leader, true);
+  assert.equal(mine.note, '前一天晚上到');
+  assert.match(env.sheets['操作紀錄'].data.slice(-1)[0][3], /設為組長.*註記：前一天晚上到/);
+  assert.equal(call('adminSetAttendance', { signupId: sid, leader: false, note: '' }).ok, true);
+  const after = env.get({ action: 'getDuty', id }).data.signups.find((x) => x.id === sid);
+  assert.deepEqual([after.leader, after.note], [false, '']);
+});

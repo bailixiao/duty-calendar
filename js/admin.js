@@ -360,14 +360,17 @@
           </div>
           ${!d.signups ? '<p class="muted">載入名單中⋯</p>' : people.length ? `<ul class="people">${people.map((s) => `
             <li class="person-row${past && s.attend === '未到' ? ' is-absent' : ''}">
-              <span class="person"><span class="person-name">${esc(s.name)}</span>
+              <span class="person"><span class="person-name">${s.leader ? '<span class="grid-star" title="組長">★</span>' : ''}${esc(s.name)}</span>
                 ${s.identity ? `<span class="tag">${esc(s.identity)}</span>` : '<span class="tag tag-warn">未填身分</span>'}
                 ${s.accompany ? '<span class="tag">陪同</span>' : ''}
                 ${past && s.attend === '未到' ? '<span class="tag tag-warn">未到</span>' : ''}
+                ${s.note ? `<span class="tag">註：${esc(s.note)}</span>` : ''}
               </span>
               ${canEdit ? `<span class="person-actions">
                 ${past ? `<button type="button" class="btn btn-small" data-attend="${esc(s.id)}">${s.attend === '未到' ? '改出席' : '改未到'}</button>
                   ${s.identity === '壇辦' ? `<button type="button" class="btn btn-small" data-acc="${esc(s.id)}">${s.accompany ? '改了愿' : '改陪同'}</button>` : ''}` : ''}
+                ${d.layout === '職司表' ? `<button type="button" class="btn btn-small" data-leader="${esc(s.id)}">${s.leader ? '取消組長' : '★ 設組長'}</button>
+                  <button type="button" class="btn btn-small" data-note="${esc(s.id)}">${s.note ? '改註記' : '加註記'}</button>` : ''}
                 ${d.nature === '活動' ? '' : `<button type="button" class="btn btn-small" data-reschedule="${esc(s.id)}">改期</button>`}
                 <button type="button" class="btn btn-small btn-quiet-danger" data-cancel="${esc(s.id)}">取消</button>
               </span>` : ''}
@@ -408,6 +411,11 @@
       const s = find(b.dataset.attend);
       setAttendance(s, { attend: s.attend === '未到' ? '出席' : '未到' }, `${s.name}：${s.attend === '未到' ? '改為出席' : '改為未到'}`);
     }));
+    body.querySelectorAll('[data-leader]').forEach((b) => b.addEventListener('click', () => {
+      const s = find(b.dataset.leader);
+      setAttendance(s, { leader: !s.leader }, `${s.name}：${s.leader ? '取消組長' : '設為組長 ★'}`);
+    }));
+    body.querySelectorAll('[data-note]').forEach((b) => b.addEventListener('click', () => editNote(find(b.dataset.note))));
     body.querySelectorAll('[data-acc]').forEach((b) => b.addEventListener('click', () => {
       const s = find(b.dataset.acc);
       setAttendance(s, { accompany: !s.accompany }, `${s.name}：${s.accompany ? '改為了愿' : '改為陪同'}`);
@@ -445,6 +453,30 @@
       dutyPage.flash = notice('error', err.message || '修正失敗', '');
     }
     afterChange();
+  }
+
+  /** 職司表的註記：家人們點名字旁的「註」看得到 */
+  function editNote(s) {
+    if (!s) return;
+    const m = Modal.open(`
+      <form class="modal-form" novalidate>
+        <h2 class="modal-title">${esc(s.name)} 的註記</h2>
+        <p class="modal-note">${esc(Fmt.shortDate(s.date))}・家人們在職司表上點「註」就看得到，最多 100 字；清空就是刪除。</p>
+        <label class="form-row"><span>註記</span><input class="input" name="note" maxlength="100" value="${esc(s.note || '')}" placeholder="例：前一天晚上到"></label>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-block btn-primary">存檔</button>
+          <button type="button" class="btn btn-block" data-close>返回</button>
+        </div>
+      </form>`);
+    const f = m.el.querySelector('form');
+    f.elements.note.focus();
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    f.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      const note = f.elements.note.value.trim();
+      m.close();
+      setAttendance(s, { note }, `${s.name}：${note ? '註記「' + note + '」' : '刪除註記'}`);
+    });
   }
 
   /** 補登：沒報名但有來的人，直接記為出席 */

@@ -15,7 +15,8 @@ var MAX_LIMIT = 999;
 var DUTY_FIELD_MAP_ = {
   name: '名稱', nature: '性質', mode: '模式', start: '開始日', end: '結束日',
   startTime: '開始時間', endTime: '結束時間', location: '地點',
-  groupType: '分組類型', group: '負責組', attire: '服裝', description: '說明', deadline: '報名截止日', multi: '可兼任', category: '類別', dm: 'DM'
+  groupType: '分組類型', group: '負責組', attire: '服裝', description: '說明', deadline: '報名截止日', multi: '可兼任', category: '類別', dm: 'DM',
+  layout: '版面', stages: '階段'
 };
 
 /**
@@ -95,6 +96,8 @@ function normalizeDutyInput_(input, ctx) {
   if (duty['報名截止日'] && !isDateString_(duty['報名截止日'])) errors.push('報名截止日格式錯誤');
   if (['報名型', '公告型'].indexOf(duty['模式']) === -1) errors.push('模式只能是報名型或公告型');
   if (['勤務', '道務', '教育'].indexOf(duty['類別']) === -1) errors.push('類別只能是勤務、道務或教育');
+  if (['', '職司表'].indexOf(duty['版面']) === -1) errors.push('版面只能是空白或職司表');
+  if (duty['階段'].length > 1000) errors.push('階段太長（最多 1000 字）');
 
   if (!isDateString_(duty['開始日'])) errors.push('開始日格式錯誤');
   else if (!isDateString_(duty['結束日'])) errors.push('結束日格式錯誤');

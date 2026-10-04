@@ -74,6 +74,7 @@ function getDuty_(params) {
 function dutyDetail_(duty, positions, signups) {
   var json = dutyToJson_(duty, positions);
   json.description = duty['說明'];
+  json.stages = duty['階段'] || '';
   json.today = todayString_();
   json.contact = adminContact_();
   json.days = daysStatus_(duty, positions, signups, datesInRange_(duty['開始日'], duty['結束日']));
@@ -83,7 +84,9 @@ function dutyDetail_(duty, positions, signups) {
       date: s['日期'],
       positionId: s['了愿項目ID'],
       name: s['姓名'],
-      accompany: s['陪同'] === '是'
+      accompany: s['陪同'] === '是',
+      leader: s['組長'] === '是', // 職司表的組長 ★
+      note: s['註記'] || ''
     };
   });
 
@@ -161,6 +164,7 @@ function dutyToJson_(d, positions) {
     nature: d['性質'],
     category: ['勤務', '道務', '教育'].indexOf(d['類別']) !== -1 ? d['類別'] : '勤務',
     dm: parseDm_(d['DM']),
+    layout: d['版面'] === '職司表' ? '職司表' : '',
     mode: d['模式'] || '報名型',
     deadline: d['報名截止日'] || '',
     multi: d['可兼任'] === '是',
