@@ -18,12 +18,28 @@
     return new Date(Date.UTC(Number(s.slice(0, 4)), Number(s.slice(5, 7)) - 1, Number(s.slice(8, 10)) + n)).toISOString().slice(0, 10);
   }
 
-  /** 每週固定星期幾：from～to 之間，weekdays（0＝日…6＝六）的每一天 */
-  function weekly(from, to, weekdays) {
+  /**
+   * 固定的日子：from～to 之間
+   *   freq＝'w1'～'w4'：每 1～4 週的 weekdays（0＝日…6＝六），從 from 那一週（星期日開始）算第 1 週
+   *   freq＝'m1'～'m4'、'mL'：每月第 1～4 個／最後一個 weekdays
+   *   freq＝'day'：每月 dayOfMonth 號（沒有那天的月份略過，例如 2 月 30 號）
+   */
+  function weekly(from, to, weekdays, freq, dayOfMonth) {
     const out = [];
-    if (!from || !to || to < from || !weekdays.length) return out;
+    freq = freq || 'w1';
+    if (!from || !to || to < from) return out;
+    if (freq === 'day' ? !(dayOfMonth >= 1 && dayOfMonth <= 31) : !weekdays.length) return out;
+    const weekStart = addDays(from, -weekdayOf(from));
+    const every = /^w[1-4]$/.test(freq) ? Number(freq[1]) : 0;
     for (let d = from; d <= to && out.length < 400; d = addDays(d, 1)) {
-      if (weekdays.indexOf(weekdayOf(d)) !== -1) out.push(d);
+      const dom = Number(d.slice(8, 10));
+      if (freq === 'day') { if (dom === dayOfMonth) out.push(d); continue; }
+      if (weekdays.indexOf(weekdayOf(d)) === -1) continue;
+      if (every) {
+        if (Math.floor((Date.parse(d) - Date.parse(weekStart)) / 86400000 / 7) % every === 0) out.push(d);
+      } else if (freq === 'mL') {
+        if (addDays(d, 7).slice(5, 7) !== d.slice(5, 7)) out.push(d);
+      } else if (Math.ceil(dom / 7) === Number(freq[1])) out.push(d);
     }
     return out;
   }

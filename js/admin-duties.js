@@ -387,7 +387,7 @@
       dateType: s.start && s.end && s.start !== s.end ? 'range' : 'single',
       lunar: { from: '', to: '', first: true, fifteenth: true, leap: true, prefix: true, groupMode: 'fixed', rotation: [], rotationStart: 0 },
       // 多個日期：每週固定星期幾＋貼上的日期清單，合在一起；skip＝預覽時取消的日期
-      multi: { from: '', to: '', weekdays: [], year: String(new Date().getFullYear()), paste: '', skip: [], touched: [] }
+      multi: { from: '', to: '', weekdays: [], freq: 'w1', dom: '', year: String(new Date().getFullYear()), paste: '', skip: [], touched: [] }
     };
     const signupTotal = editing ? ctx.source.signups : 0;
     if (!Array.isArray(s.dm)) s.dm = [];
@@ -541,12 +541,14 @@
       const m = st.multi;
       return `
         <div class="multi-box">
-          <p class="multi-title">方法一：每週固定星期幾</p>
+          <p class="multi-title">方法一：固定的日子</p>
           <div class="form-row form-row-pair">
             <label><span>從</span><input class="input" type="date" name="multiFrom" value="${esc(m.from)}"></label>
             <label><span>到</span><input class="input" type="date" name="multiTo" value="${esc(m.to)}"></label>
           </div>
-          <div class="multi-weekdays">${DateList.WEEK.map((w, i) => `<label class="check"><input type="checkbox" name="multiWeekday" value="${i}"${m.weekdays.indexOf(i) !== -1 ? ' checked' : ''}> 星期${w}</label>`).join('')}</div>
+          <label class="form-row"><span>頻率</span><select class="input" name="multiFreq">${[['w1', '每週'], ['w2', '每兩週'], ['w3', '每三週'], ['w4', '每四週'], ['m1', '每月第一個'], ['m2', '每月第二個'], ['m3', '每月第三個'], ['m4', '每月第四個'], ['mL', '每月最後一個'], ['day', '每月固定幾號']].map(([v, l]) => `<option value="${v}"${m.freq === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+          ${m.freq === 'day' ? `<label class="form-row"><span>每月幾號</span><input class="input" name="multiDom" inputmode="numeric" value="${esc(m.dom)}" placeholder="例：15"></label>` : `<p class="hint">${/^w[2-4]$/.test(m.freq) ? '從「從」那天那一週開始算第 1 週。' : /^m/.test(m.freq) ? '例：選「每月第一個」＋勾星期六＝每月第一個星期六。' : ''}勾星期幾：</p>
+          <div class="multi-weekdays">${DateList.WEEK.map((w, i) => `<label class="check"><input type="checkbox" name="multiWeekday" value="${i}"${m.weekdays.indexOf(i) !== -1 ? ' checked' : ''}> 星期${w}</label>`).join('')}</div>`}
         </div>
         <div class="multi-box">
           <p class="multi-title">方法二：貼上日期清單</p>
@@ -560,16 +562,18 @@
 
     function multiDates() {
       const m = st.multi;
-      if (m.from || m.to || m.weekdays.length) {
-        if (!m.from || !m.to) return { error: '每週固定：請選「從」和「到」' };
-        if (m.to < m.from) return { error: '每週固定：「到」不能早於「從」' };
-        if (!m.weekdays.length) return { error: '每週固定：請勾星期幾' };
+      const useDay = m.freq === 'day';
+      if (m.from || m.to || (useDay ? String(m.dom).trim() : m.weekdays.length)) {
+        if (!m.from || !m.to) return { error: '固定的日子：請選「從」和「到」' };
+        if (m.to < m.from) return { error: '固定的日子：「到」不能早於「從」' };
+        if (useDay && !(Number(m.dom) >= 1 && Number(m.dom) <= 31)) return { error: '固定的日子：請填每月幾號（1～31）' };
+        if (!useDay && !m.weekdays.length) return { error: '固定的日子：請勾星期幾' };
       }
       if (m.paste.trim() && !/^\d{4}$/.test(String(m.year).trim())) return { error: '請填「算哪一年」，例如 2027' };
-      const weekly = DateList.weekly(m.from, m.to, m.weekdays);
+      const weekly = DateList.weekly(m.from, m.to, m.weekdays, m.freq, Number(m.dom));
       const pasted = m.paste.trim() ? DateList.parse(m.paste, Number(m.year)) : { dates: [], bad: [] };
       const dates = [...new Set(weekly.concat(pasted.dates))].sort();
-      if (!dates.length) return { error: pasted.bad.length ? '看不懂這些日期：' + pasted.bad.join('、') : '請用「每週固定」或「貼上日期清單」選日期' };
+      if (!dates.length) return { error: pasted.bad.length ? '看不懂這些日期：' + pasted.bad.join('、') : '請用「固定的日子」或「貼上日期清單」選日期' };
       if (dates.length > 200) return { error: '一次最多 200 個日期，請分兩次建立' };
       return { dates, bad: pasted.bad };
     }
@@ -681,7 +685,9 @@
         const m = st.multi;
         m.from = val('multiFrom');
         m.to = val('multiTo');
-        m.weekdays = [...f.querySelectorAll('input[name="multiWeekday"]:checked')].map((x) => Number(x.value));
+        if (f.elements.multiFreq) m.freq = val('multiFreq');
+        if (f.elements.multiDom) m.dom = val('multiDom');
+        if (f.querySelector('input[name="multiWeekday"]')) m.weekdays = [...f.querySelectorAll('input[name="multiWeekday"]:checked')].map((x) => Number(x.value));
         m.year = val('multiYear');
         m.paste = val('multiPaste');
       }
@@ -705,7 +711,7 @@
       // 會改變表單結構的選項：讀回目前的值後重畫
       f.addEventListener('change', (ev) => {
         const n = ev.target.name;
-        if (['mode', 'dateType', 'groupType', 'groupMode', 'rotation', 'category', 'quotaMode', 'layout'].indexOf(n) === -1) return;
+        if (['mode', 'dateType', 'groupType', 'groupMode', 'rotation', 'category', 'quotaMode', 'layout', 'multiFreq'].indexOf(n) === -1) return;
         sync();
         if (n === 'groupType') { s.group = ''; st.lunar.rotation = []; st.lunar.rotationStart = 0; }
         if (n === 'dateType' && st.dateType === 'range' && !s.end) s.end = s.start;
