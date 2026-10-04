@@ -7,7 +7,7 @@
  *   - updateStatsSheet：寫入試算表「統計」分頁（全年彙總＋各季＋每月明細），可下載成 .xlsx。
  */
 
-/** 每一場的出勤資料：[{ date, dutyId, name, series, nature, tan: [], dao: [], unknown: [], accompany: [], absent, short }] */
+/** 每一場的出勤資料：[{ date, dutyId, name, series, nature, category, teachers, tan: [], dao: [], unknown: [], accompany: [], absent, absentNames: [], short }] */
 function statsEvents_() {
   var today = todayString_();
   var duties = {};
@@ -24,7 +24,7 @@ function statsEvents_() {
     if (!ev) {
       ev = byKey[key] = {
         date: s['日期'], dutyId: s['勤務ID'], name: duty['名稱'], series: seriesKey_(duty['名稱']) || duty['名稱'],
-        nature: duty['性質'] || '勤務', category: dutyCategory_(duty), tan: [], dao: [], unknown: [], accompany: [], absent: 0, short: 0
+        nature: duty['性質'] || '勤務', category: dutyCategory_(duty), teachers: duty['師資'] || '', tan: [], dao: [], unknown: [], accompany: [], absent: 0, absentNames: [], short: 0
       };
       order.push(key);
     }
@@ -32,7 +32,7 @@ function statsEvents_() {
     // 可兼任的勤務：同一人在同一場兼好幾個了愿項目，只算一次
     var counted = ev.tan.indexOf(name) !== -1 || ev.dao.indexOf(name) !== -1 || ev.unknown.indexOf(name) !== -1;
     if (counted && s['出席'] !== '未到') return;
-    if (s['出席'] === '未到') ev.absent++;
+    if (s['出席'] === '未到') { ev.absent++; if (ev.absentNames.indexOf(name) === -1) ev.absentNames.push(name); }
     else if (s['陪同'] === '是') ev.accompany.push(name);
     else if (s['身分'] === '壇辦') ev.tan.push(name);
     else if (s['身分'] === '道親' || s['身分'] === '未求道') ev.dao.push(name); // 未求道算進道親
@@ -48,7 +48,24 @@ function statsEvents_() {
 }
 
 function adminStats_() {
-  return { today: todayString_(), events: statsEvents_(), sheetUpdatedAt: PropertiesService.getScriptProperties().getProperty('STATS_UPDATED_AT') || '' };
+  return { today: todayString_(), events: statsEvents_(), eduSessions: eduSessions_(), sheetUpdatedAt: PropertiesService.getScriptProperties().getProperty('STATS_UPDATED_AT') || '' };
+}
+
+/**
+ * 教育的課程堂次（今天以前、性質「課程」，沒人報名的也列）：[{ date, dutyId, name, series, teachers, category }]
+ * 同名（seriesKey_）的多筆＝同一個課程，每個日期一堂。給教育統計算堂數、出缺勤表、師資。
+ */
+function eduSessions_() {
+  var today = todayString_();
+  var out = [];
+  readTableCached_(SHEETS.DUTIES).forEach(function (d) {
+    if (!d['勤務ID'] || dutyCategory_(d) !== '教育' || d['性質'] !== '課程' || d['模式'] === '公告型') return;
+    datesInRange_(d['開始日'], d['結束日'] || d['開始日']).forEach(function (date) {
+      if (date > today) return;
+      out.push({ date: date, dutyId: d['勤務ID'], name: d['名稱'], series: seriesKey_(d['名稱']) || d['名稱'], teachers: d['師資'] || '', category: '教育' });
+    });
+  });
+  return out.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
 }
 
 /** 管理後台按鈕：更新試算表「統計」分頁。body = { year? }（預設今年） */

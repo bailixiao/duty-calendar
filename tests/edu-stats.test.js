@@ -1,0 +1,41 @@
+// 教育的統計（js/edu-stats.js）。執行：在專案根目錄執行 node --test
+// 測試用的名字一律用假名，本儲存庫不放真實人名。
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const E = require('../js/edu-stats.js');
+
+const sess = (date, dutyId, teachers, name = '讀經班') => ({ date, dutyId, name, series: name, teachers, category: '教育' });
+const ev = (date, dutyId, here, away, extra) => Object.assign({ date, dutyId, name: '讀經班', series: '讀經班', nature: '課程', category: '教育', tan: [], dao: here, unknown: [], accompany: [], absentNames: away, absent: away.length }, extra);
+
+test('課程：同名合成一個課程，每個日期一堂；學生、出缺勤、平均、出席率', () => {
+  const sessions = [sess('2026-10-07', 'D1', '測試甲'), sess('2026-10-14', 'D2', '測試甲、測試乙'), sess('2026-10-21', 'D3', '測試乙'), sess('2026-10-08', 'D9', '測試丙', '書法課')];
+  const events = [
+    ev('2026-10-07', 'D1', ['王小明', '李小華'], []),
+    ev('2026-10-14', 'D2', ['王小明'], ['李小華']),
+    ev('2026-10-03', 'D0', ['測試丁'], []), // 期間外
+    ev('2026-10-08', 'D9', ['測試戊'], [], { name: '書法課', series: '書法課' })
+  ];
+  const r = E.summarize(sessions, events, (d) => d >= '2026-10-05' && d <= '2026-10-31');
+  assert.deepEqual(r.courses.map((c) => c.name), ['讀經班', '書法課']); // 學生多的在前
+  const c = r.courses[0];
+  assert.equal(c.sessions.length, 3); // 10/21 沒人報名也算一堂
+  assert.equal(c.students.length, 2);
+  assert.equal(c.grid['李小華']['D2|2026-10-14'], '✗');
+  assert.equal(c.grid['王小明']['D3|2026-10-21'], undefined);
+  assert.equal(c.perStudent['王小明'], 2);
+  assert.equal(c.perSession['D1|2026-10-07'], 2);
+  assert.equal(c.present, 3);
+  assert.equal(c.absent, 1);
+  assert.equal(c.avg, 1);
+  assert.equal(c.rate, 0.75);
+  assert.deepEqual(c.teachers, ['測試甲', '測試乙']);
+  // 師資：教了哪些課、各幾堂
+  const t = r.teachers.find((x) => x.name === '測試甲');
+  assert.deepEqual(t, { name: '測試甲', total: 2, courses: [{ name: '讀經班', count: 2 }] });
+  assert.equal(r.teachers.find((x) => x.name === '測試丙').courses[0].name, '書法課');
+  // 複製文字
+  const text = E.gridText(c);
+  assert.match(text, /^【讀經班】出缺勤表/);
+  assert.match(text, /姓名\t10\/7\t10\/14\t10\/21\t出席/);
+  assert.match(text, /\t✗\t\t1\/3/);
+});

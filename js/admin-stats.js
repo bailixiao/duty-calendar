@@ -7,7 +7,7 @@
   const esc = Fmt.esc;
   const C = window.StatsCalc;
   const TREND_COUNT = { month: 12, quarter: 8, year: 5 };
-  const state = { unit: 'month', period: null, rankKind: 'all', rankAll: false, category: '全部' };
+  const state = { unit: 'month', period: null, rankKind: 'all', rankAll: false, category: '全部', eduCourse: '' };
 
   function show(body, guard) {
     AdminPage.swr('stats', () => Api.admin('adminStats', {}, true), (data, stale) => {
@@ -56,6 +56,8 @@
   function render(body, guard, data, stale) {
     // 類別：勤務／道務／教育帳號只拿得到自己類別的資料；總管理者、唯讀可以切換
     const canPick = ['總管理者', '唯讀'].indexOf(Api.adminWho().role) !== -1;
+    // 教育：改成以課程為單位的統計
+    if (canPick ? state.category === '教育' : Api.adminWho().role === '教育') return renderEdu(body, guard, data, stale, canPick);
     const ev = canPick && state.category !== '全部' ? data.events.filter((e) => (e.category || '勤務') === state.category) : data.events;
     const p = state.period;
     // 本期還沒過完時，比較期間只算到相同天數（見 StatsCalc.compare）
@@ -189,6 +191,107 @@
       </div>`;
 
     const rerender = () => render(body, guard, data, false);
+    bindNav(body, data, rerender);
+    body.querySelectorAll('[data-jump]').forEach((b) => b.addEventListener('click', () => {
+      const [y, n] = b.dataset.jump.split('-').map(Number);
+      state.period = { unit: state.unit, year: y, n };
+      rerender();
+    }));
+    body.querySelectorAll('input[name=rank]').forEach((r) => r.addEventListener('change', () => { state.rankKind = r.value; rerender(); }));
+    const all = body.querySelector('[data-rank-all]');
+    if (all) all.addEventListener('click', () => { state.rankAll = !state.rankAll; rerender(); });
+    body.querySelector('[data-print]').addEventListener('click', () => window.print());
+    body.querySelector('[data-copy]').addEventListener('click', () => copyReport(C.textReport(ev, p)));
+    body.querySelector('[data-sheet]').addEventListener('click', () => updateSheet(body, guard, p.year));
+  }
+
+  /** 教育的統計：以課程為單位（各課程學生量、出缺勤表、負責師資） */
+  function renderEdu(body, guard, data, stale, canPick) {
+    const p = state.period;
+    const nowP = C.periodOf(p.unit, data.today);
+    const atLatest = p.year === nowP.year && p.n === nowP.n;
+    const r = EduStats.summarize(data.eduSessions || [], data.events, (d) => C.contains(p, d));
+    const courses = r.courses;
+    const cur = courses.find((c) => c.name === state.eduCourse) || courses[0];
+    const students = new Set(courses.flatMap((c) => c.students));
+    const present = courses.reduce((n, c) => n + c.present, 0);
+    const absent = courses.reduce((n, c) => n + c.absent, 0);
+    const pctText = (v) => (v === null ? '—' : Math.round(v * 100) + '%');
+    const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+
+    body.innerHTML = `
+      ${AdminPage.staleNote(stale)}
+      <div class="stats" data-stats>
+        <div class="stats-top no-print">
+          ${canPick ? `<div class="seg stats-cats">${['全部', '勤務', '道務', '教育'].map((c) => `<label class="seg-item"><input type="radio" name="scat" value="${c}"${c === state.category ? ' checked' : ''}><span>${c}</span></label>`).join('')}</div>` : '<p class="stats-cat-fixed">「教育」類的統計</p>'}
+          <div class="seg stats-units">${[['month', '月'], ['quarter', '季'], ['year', '年']].map(([v, l]) =>
+            `<label class="seg-item"><input type="radio" name="unit" value="${v}"${v === p.unit ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div>
+        </div>
+        <div class="stats-nav">
+          <button type="button" class="btn btn-icon no-print" data-move="-1" aria-label="上一${C.UNIT_NAME[p.unit]}">‹</button>
+          <h2 class="stats-title">${esc(C.label(p))}</h2>
+          <button type="button" class="btn btn-icon no-print" data-move="1" aria-label="下一${C.UNIT_NAME[p.unit]}"${atLatest ? ' disabled' : ''}>›</button>
+        </div>
+        ${atLatest ? '' : `<p class="no-print stats-back"><button type="button" class="btn btn-small" data-latest>回到本${C.UNIT_NAME[p.unit]}</button></p>`}
+
+        <div class="stat-cards">
+          <div class="stat-card"><span class="stat-label">課程</span><span class="stat-num">${courses.length}</span><span class="stat-hint">同名的課算同一個課程</span></div>
+          <div class="stat-card"><span class="stat-label">上課堂數</span><span class="stat-num">${courses.reduce((n, c) => n + c.sessions.length, 0)}</span><span class="stat-hint">只算今天以前</span></div>
+          <div class="stat-card"><span class="stat-label">學生（不重複）</span><span class="stat-num">${students.size}</span><span class="stat-hint">同一人只算 1 位，不含陪同</span></div>
+          <div class="stat-card"><span class="stat-label">出席率</span><span class="stat-num">${pctText(present + absent ? present / (present + absent) : null)}</span><span class="stat-hint">出席 ${present} 人次・未到 ${absent} 人次</span></div>
+        </div>
+
+        <section class="stats-section">
+          <h3 class="admin-sub">各課程學生量<span class="h2-sub">點課程看出缺勤表</span></h3>
+          ${courses.length ? `<div class="edu-table-wrap"><table class="edu-table">
+            <thead><tr><th>課程</th><th>堂數</th><th>學生</th><th>平均每堂</th><th>出席率</th><th>師資</th></tr></thead>
+            <tbody>${courses.map((c, i) => `
+              <tr class="${c === cur ? 'is-current' : ''}">
+                <th scope="row"><button type="button" class="link-btn edu-course" data-course="${i}">${esc(c.name)}</button></th>
+                <td>${c.sessions.length}</td><td>${c.students.length} 人</td><td>${c.avg} 人</td><td>${pctText(c.rate)}</td>
+                <td class="edu-teachers">${c.teachers.length ? c.teachers.map(esc).join('、') : '<span class="muted">未填</span>'}</td>
+              </tr>`).join('')}</tbody>
+          </table></div>` : '<p class="panel-empty">這段期間沒有課程（教育類、性質「課程」）</p>'}
+        </section>
+
+        ${cur ? `
+        <section class="stats-section" data-grid-section>
+          <h3 class="admin-sub">出缺勤表：${esc(cur.name)}<span class="h2-sub">✓ 出席・✗ 未到・空白＝沒報名</span></h3>
+          ${cur.students.length ? `<div class="edu-table-wrap"><table class="edu-table edu-grid">
+            <thead><tr><th class="edu-sticky">姓名</th>${cur.sessions.map((s) => `<th>${md(s.date)}<small>（${esc(Fmt.weekday(s.date))}）</small></th>`).join('')}<th>出席</th></tr></thead>
+            <tbody>${cur.students.map((n) => `
+              <tr><th scope="row" class="edu-sticky">${esc(n)}</th>${cur.sessions.map((s) => {
+                const v = cur.grid[n][s.key] || '';
+                return `<td class="${v === '✓' ? 'is-here' : v === '✗' ? 'is-away' : ''}">${v}</td>`;
+              }).join('')}<td class="edu-sum">${cur.perStudent[n]}/${cur.sessions.length}</td></tr>`).join('')}</tbody>
+            <tfoot><tr><th class="edu-sticky">每堂出席</th>${cur.sessions.map((s) => `<td>${cur.perSession[s.key]}</td>`).join('')}<td></td></tr></tfoot>
+          </table></div>
+          <div class="admin-actions no-print"><button type="button" class="btn" data-copy-grid>複製出缺勤表（貼到試算表或 LINE）</button></div>` : '<p class="muted">這個課程這段期間還沒有人報名</p>'}
+          <p class="hint">沒來的人：到後台這堂課的報名名單按「改未到」；沒報名但有來的人：按「補登」。</p>
+        </section>` : ''}
+
+        <section class="stats-section">
+          <h3 class="admin-sub">各課程負責師資</h3>
+          ${r.teachers.length ? `<ul class="edu-teacher-list">${r.teachers.map((t) => `
+            <li><span class="edu-teacher-name">${esc(t.name)}</span><span class="edu-teacher-total">共 ${t.total} 堂</span>
+              <span class="edu-teacher-courses">${t.courses.map((c) => `${esc(c.name)} ${c.count} 堂`).join('、')}</span></li>`).join('')}</ul>`
+            : '<p class="muted">還沒有填師資。新增或編輯教育的課程時，在「師資」欄填上負責的師資。</p>'}
+        </section>
+      </div>`;
+
+    bindNav(body, data, () => render(body, guard, data, false));
+    body.querySelectorAll('[data-course]').forEach((b) => b.addEventListener('click', () => {
+      state.eduCourse = courses[Number(b.dataset.course)].name;
+      render(body, guard, data, false);
+      const sec = body.querySelector('[data-grid-section]');
+      if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
+    const cp = body.querySelector('[data-copy-grid]');
+    if (cp) cp.addEventListener('click', () => copyReport(EduStats.gridText(cur)));
+  }
+
+  /** 類別、月季年、上一期下一期的按鈕（一般統計與教育統計共用） */
+  function bindNav(body, data, rerender) {
     body.querySelectorAll('input[name=scat]').forEach((r) => r.addEventListener('change', () => { state.category = r.value; rerender(); }));
     body.querySelectorAll('input[name=unit]').forEach((r) => r.addEventListener('change', () => {
       state.unit = r.value;
@@ -201,17 +304,6 @@
     }));
     const latest = body.querySelector('[data-latest]');
     if (latest) latest.addEventListener('click', () => { state.period = C.periodOf(state.unit, data.today); rerender(); });
-    body.querySelectorAll('[data-jump]').forEach((b) => b.addEventListener('click', () => {
-      const [y, n] = b.dataset.jump.split('-').map(Number);
-      state.period = { unit: state.unit, year: y, n };
-      rerender();
-    }));
-    body.querySelectorAll('input[name=rank]').forEach((r) => r.addEventListener('change', () => { state.rankKind = r.value; rerender(); }));
-    const all = body.querySelector('[data-rank-all]');
-    if (all) all.addEventListener('click', () => { state.rankAll = !state.rankAll; rerender(); });
-    body.querySelector('[data-print]').addEventListener('click', () => window.print());
-    body.querySelector('[data-copy]').addEventListener('click', () => copyReport(C.textReport(ev, p)));
-    body.querySelector('[data-sheet]').addEventListener('click', () => updateSheet(body, guard, p.year));
   }
 
   async function copyReport(text) {

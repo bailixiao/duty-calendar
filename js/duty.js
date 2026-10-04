@@ -102,6 +102,7 @@
       ['日期', dateText(d)],
       ['時段', Fmt.timeRange(d)],
       ['地點', d.location],
+      ['師資', d.teachers],
       ['服裝', d.attire],
       ['報名截止', d.deadline ? Fmt.rocDate(d.deadline) : ''],
       ['負責組', isNotice ? '' : (Fmt.groupText(d) ? d.group : '')],

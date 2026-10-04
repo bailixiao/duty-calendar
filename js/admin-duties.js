@@ -367,7 +367,7 @@
   function emptyDuty() {
     return {
       name: '', nature: NATURES_BY_CAT[myCategory()][0], mode: '報名型', category: myCategory(), dm: [], start: '', end: '', startTime: '', endTime: '',
-      location: '', groupType: '', group: '', attire: '', description: '', deadline: '', layout: '', stages: '',
+      location: '', groupType: '', group: '', attire: '', description: '', deadline: '', layout: '', stages: '', teachers: '',
       positions: [{ name: '', slot: '', min: '', max: '' }]
     };
   }
@@ -496,6 +496,12 @@
             <p class="hint">家人們的頁面上方會顯示成進度條，自動亮起現在這個階段。${s.start ? `留空時依第一天自動推算：<br>${esc(RosterGrid.autoStages(s.start)).replace(/\n/g, '<br>')}` : '留空時會依第一天自動推算。'}<br>組長 ★ 和註記在報名名單上設定。</p>` : ''}
           </fieldset>`}
 
+          ${s.category === '教育' ? `<fieldset class="form-block">
+            <legend>師資</legend>
+            <label class="form-row"><span>負責師資（可空白）</span><input class="input" name="teachers" value="${esc(s.teachers || '')}" placeholder="好幾位用「、」隔開，例：王小明、李小華"></label>
+            <p class="hint">家人們的報名頁會顯示；統計的「各課程負責師資」也從這裡來。每堂課可以不同。</p>
+          </fieldset>` : ''}
+
           <fieldset class="form-block">
             <legend>DM（照片或 PDF）</legend>
             <p class="hint">家人們打開這個${F()}就看得到。最多 ${DM_MAX} 個；照片會自動縮小，PDF 一個最大 5MB。</p>
@@ -569,7 +575,7 @@
       const f = body.querySelector('form');
       if (!f) return;
       const val = (n) => (f.elements[n] ? f.elements[n].value : undefined);
-      ['name', 'startTime', 'endTime', 'location', 'attire', 'description', 'start', 'end', 'groupType', 'group', 'deadline', 'stages'].forEach((k) => {
+      ['name', 'startTime', 'endTime', 'location', 'attire', 'description', 'start', 'end', 'groupType', 'group', 'deadline', 'stages', 'teachers'].forEach((k) => {
         if (val(k) !== undefined) s[k] = val(k);
       });
       const radio = (n) => { const el = f.querySelector(`input[name="${n}"]:checked`); return el ? el.value : undefined; };
@@ -672,6 +678,7 @@
         startTime: s.startTime, endTime: s.endTime, location: s.location,
         groupType: isSimple(s.category) ? '' : s.groupType, group: !isSimple(s.category) && s.groupType ? s.group : '', attire: s.attire, description: s.description, deadline: s.deadline || '',
         dm: s.dm,
+        teachers: s.category === '教育' ? (s.teachers || '') : '',
         layout: s.mode === '公告型' || isSimple(s.category) ? '' : (s.layout || ''),
         stages: s.mode === '公告型' || isSimple(s.category) || s.layout !== '職司表' ? '' : (s.stages || ''),
         multi: s.mode === '公告型' ? false : !!(s.multi === true || s.multi === '是'),

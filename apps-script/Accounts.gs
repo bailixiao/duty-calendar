@@ -138,6 +138,7 @@ function adminScope_(session, action, result) {
     result.duties = result.duties.filter(mine);
   }
   if (action === 'adminStats' && Array.isArray(result.events)) result.events = result.events.filter(mine);
+  if (action === 'adminStats' && Array.isArray(result.eduSessions)) result.eduSessions = result.eduSessions.filter(mine);
   if (action === 'adminDutyForEdit' && Array.isArray(result.siblings)) result.siblings = result.siblings.filter(mine);
   return result;
 }

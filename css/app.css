@@ -1769,3 +1769,25 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 .rd-key { margin-top: 6px; padding: 4px 10px; border-radius: 8px; background: var(--notice-soft); font-size: 19px; font-weight: 800; color: #23476b; justify-self: start; }
 .rd-gap { height: 8px; }
 @media (max-width: 560px) { .rd-sec { grid-template-columns: 1fr; } }
+
+/* ---------- 教育統計：各課程學生量、出缺勤表、師資 ---------- */
+.edu-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.edu-table { border-collapse: separate; border-spacing: 0; min-width: 100%; font-size: 17px; }
+.edu-table th, .edu-table td { padding: 10px 12px; text-align: center; white-space: nowrap; border-bottom: 1px solid var(--line); }
+.edu-table thead th { background: var(--notice-soft); color: #23476b; font-size: 15px; }
+.edu-table thead th small { display: block; font-weight: 400; font-size: 12px; }
+.edu-table tbody th { text-align: left; font-weight: 700; }
+.edu-table tr.is-current > * { background: #fff6e0; }
+.edu-course { font-size: 17px; font-weight: 800; text-align: left; }
+.edu-teachers { text-align: left !important; white-space: normal !important; min-width: 120px; }
+.edu-grid .edu-sticky { position: sticky; left: 0; z-index: 1; background: var(--card); border-right: 1px solid var(--line); }
+.edu-grid thead .edu-sticky { background: var(--notice-soft); }
+.edu-grid td.is-here { color: var(--ok); font-weight: 800; font-size: 19px; }
+.edu-grid td.is-away { color: var(--accent); background: var(--accent-soft); font-weight: 800; font-size: 19px; }
+.edu-grid .edu-sum { font-weight: 800; }
+.edu-grid tfoot th, .edu-grid tfoot td { background: #f3f6fa; font-weight: 800; border-bottom: 0; }
+.edu-teacher-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.edu-teacher-list li { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; align-items: baseline; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.edu-teacher-name { font-size: 19px; font-weight: 800; }
+.edu-teacher-total { justify-self: end; color: #23476b; font-weight: 800; }
+.edu-teacher-courses { grid-column: 1 / -1; color: var(--ink-2); font-size: 16px; }

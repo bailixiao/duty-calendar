@@ -141,3 +141,30 @@ test('未求道算進道親；從出勤紀錄加入成員時身分可推斷為�
   assert.equal(c.identity, '未求道');
   assert.equal(call('adminSaveMember', { member: { name: '測試甲', identity: '未求道' } }).ok, true);
 });
+
+test('教育：師資欄（只有教育存）、報名頁看得到；統計的課程堂次含沒人報名的課、未到的名字', () => {
+  const { createEnv } = require('./env');
+  const env = createEnv(Date.UTC(2026, 9, 20, 2, 0, 0));
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const call = (action, body) => env.post(Object.assign({ action, token }, body));
+  const c = call('adminCreateDuties', { duties: [
+    { name: '讀經班', category: '教育', nature: '課程', start: '2026-10-07', positions: [{ name: '參加', min: '0' }], teachers: '測試甲，測試乙' },
+    { name: '讀經班', category: '教育', nature: '課程', start: '2026-10-14', positions: [{ name: '參加', min: '0' }], teachers: '測試乙' },
+    { name: '打掃', start: '2026-10-08', positions: [{ name: '打掃' }], teachers: '不該存' }
+  ] });
+  assert.equal(c.ok, true, JSON.stringify(c.error));
+  const [d1, d2, d3] = c.data.ids;
+  assert.equal(env.get({ action: 'getDuty', id: d1 }).data.teachers, '測試甲、測試乙');
+  assert.equal(env.get({ action: 'getDuty', id: d3 }).data.teachers, '');
+  const pid = env.get({ action: 'getDuty', id: d1 }).data.positions[0].id;
+  const a = call('adminAddAttendee', { dutyId: d1, positionId: pid, date: '2026-10-07', name: '王小明', identity: '道親' });
+  call('adminAddAttendee', { dutyId: d1, positionId: pid, date: '2026-10-07', name: '李小華', identity: '道親' });
+  call('adminSetAttendance', { signupId: a.data.signupId, attend: '未到' });
+  const st = call('adminStats', {}).data;
+  const sess = st.eduSessions.filter((s) => s.name === '讀經班');
+  assert.deepEqual(sess.map((s) => [s.date, s.teachers]), [['2026-10-07', '測試甲、測試乙'], ['2026-10-14', '測試乙']]); // 10/14 沒人報名也有
+  const ev = st.events.find((e) => e.dutyId === d1);
+  assert.deepEqual(ev.absentNames, ['王小明']);
+  assert.equal(ev.teachers, '測試甲、測試乙');
+  void d2;
+});

@@ -165,6 +165,7 @@ function dutyToJson_(d, positions) {
     category: ['勤務', '道務', '教育'].indexOf(d['類別']) !== -1 ? d['類別'] : '勤務',
     dm: parseDm_(d['DM']),
     layout: d['版面'] === '職司表' ? '職司表' : '',
+    teachers: d['師資'] || '', // 教育課程的負責師資（報名頁也顯示）
     mode: d['模式'] || '報名型',
     deadline: d['報名截止日'] || '',
     multi: d['可兼任'] === '是',
