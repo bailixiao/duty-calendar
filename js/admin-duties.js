@@ -385,7 +385,9 @@
     }
     const st = {
       dateType: s.start && s.end && s.start !== s.end ? 'range' : 'single',
-      lunar: { from: '', to: '', first: true, fifteenth: true, leap: true, prefix: true, groupMode: 'fixed', rotation: [], rotationStart: 0 }
+      lunar: { from: '', to: '', first: true, fifteenth: true, leap: true, prefix: true, groupMode: 'fixed', rotation: [], rotationStart: 0 },
+      // 多個日期：每週固定星期幾＋貼上的日期清單，合在一起；skip＝預覽時取消的日期
+      multi: { from: '', to: '', weekdays: [], year: String(new Date().getFullYear()), paste: '', skip: [] }
     };
     const signupTotal = editing ? ctx.source.signups : 0;
     if (!Array.isArray(s.dm)) s.dm = [];
@@ -425,15 +427,15 @@
           <fieldset class="form-block">
             <legend>日期</legend>
             <div class="form-row"><span>日期型態</span>${segmented('dateType',
-              editing ? [['single', '單日'], ['range', '連續多天']] : [['single', '單日'], ['range', '連續多天'], ['lunar', '農曆規則']], st.dateType)}</div>
-            ${lunar ? lunarFields() : `
+              editing ? [['single', '單日'], ['range', '連續多天']] : [['single', '單日'], ['range', '連續多天'], ['multi', '多個日期'], ['lunar', '農曆規則']], st.dateType)}</div>
+            ${lunar ? lunarFields() : st.dateType === 'multi' ? multiFields() : `
               <label class="form-row"><span>${st.dateType === 'range' ? '開始日' : '日期'}</span>
                 <input class="input" type="date" name="start" value="${esc(s.start)}"></label>
               ${st.dateType === 'range' ? `<label class="form-row"><span>結束日</span>
                 <input class="input" type="date" name="end" value="${esc(s.end)}"></label>` : ''}`}
-            <label class="form-row"><span>報名截止日（可空白）</span>
+            ${st.dateType === 'multi' ? '<p class="hint">多個日期時不設報名截止日（每筆都是前一天都能報名），之後可以個別編輯。</p>' : `<label class="form-row"><span>報名截止日（可空白）</span>
               <input class="input" type="date" name="deadline" value="${esc(s.deadline || '')}"></label>
-            <p class="hint">空白＝${F()}前一天都能報名。填了日期，過了那天網頁就不能再報名（管理者仍可補登）。</p>
+            <p class="hint">空白＝${F()}前一天都能報名。填了日期，過了那天網頁就不能再報名（管理者仍可補登）。</p>`}
           </fieldset>
 
           <fieldset class="form-block">
@@ -514,10 +516,10 @@
             <textarea class="input textarea" name="description" rows="4" placeholder="工作項目、注意事項⋯">${esc(s.description)}</textarea>
           </fieldset>
 
-          ${lunar ? '<div data-preview></div>' : ''}
+          ${lunar || st.dateType === 'multi' ? '<div data-preview></div>' : ''}
           <div class="form-error" data-error hidden></div>
           <div class="form-actions">
-            <button type="submit" class="btn btn-primary btn-block">${lunar ? '產生並預覽' : editing ? '存檔' : '新增' + F()}</button>
+            <button type="submit" class="btn btn-primary btn-block">${lunar || st.dateType === 'multi' ? '產生並預覽' : editing ? '存檔' : '新增' + F()}</button>
             ${editing ? `
               <a class="btn btn-block" href="#/admin/duties/new?from=${encodeURIComponent(s.id)}">另存成新${F()}</a>
               <a class="btn btn-block" href="#/admin/duty/${encodeURIComponent(s.id)}">查看報名名單</a>
@@ -533,6 +535,81 @@
         const [v, label] = Array.isArray(o) ? o : [o, o];
         return `<label class="seg-item"><input type="radio" name="${name}" value="${esc(v)}"${v === value ? ' checked' : ''}><span>${esc(label)}</span></label>`;
       }).join('')}</div>`;
+    }
+
+    function multiFields() {
+      const m = st.multi;
+      return `
+        <div class="multi-box">
+          <p class="multi-title">方法一：每週固定星期幾</p>
+          <div class="form-row form-row-pair">
+            <label><span>從</span><input class="input" type="date" name="multiFrom" value="${esc(m.from)}"></label>
+            <label><span>到</span><input class="input" type="date" name="multiTo" value="${esc(m.to)}"></label>
+          </div>
+          <div class="multi-weekdays">${DateList.WEEK.map((w, i) => `<label class="check"><input type="checkbox" name="multiWeekday" value="${i}"${m.weekdays.indexOf(i) !== -1 ? ' checked' : ''}> 星期${w}</label>`).join('')}</div>
+        </div>
+        <div class="multi-box">
+          <p class="multi-title">方法二：貼上日期清單</p>
+          <label class="form-row"><span>只寫月日時算哪一年</span><input class="input" name="multiYear" inputmode="numeric" value="${esc(m.year)}"></label>
+          <label class="form-row"><span>日期（從時間表複製貼上）</span><textarea class="input textarea" name="multiPaste" rows="4" placeholder="例：1/7、1/14、2/4（三）、3月4日、2027/3/11">${esc(m.paste)}</textarea></label>
+        </div>
+        <p class="hint">兩種可以只用一種，也可以一起用（日期會合在一起、重複的只算一次）。按「產生並預覽」後，可以再取消不要的日期（例如過年）。</p>`;
+    }
+
+    // ---- 多個日期：產生、預覽（可取消幾天）、建立 ----
+
+    function multiDates() {
+      const m = st.multi;
+      if (m.from || m.to || m.weekdays.length) {
+        if (!m.from || !m.to) return { error: '每週固定：請選「從」和「到」' };
+        if (m.to < m.from) return { error: '每週固定：「到」不能早於「從」' };
+        if (!m.weekdays.length) return { error: '每週固定：請勾星期幾' };
+      }
+      if (m.paste.trim() && !/^\d{4}$/.test(String(m.year).trim())) return { error: '請填「算哪一年」，例如 2027' };
+      const weekly = DateList.weekly(m.from, m.to, m.weekdays);
+      const pasted = m.paste.trim() ? DateList.parse(m.paste, Number(m.year)) : { dates: [], bad: [] };
+      const dates = [...new Set(weekly.concat(pasted.dates))].sort();
+      if (!dates.length) return { error: pasted.bad.length ? '看不懂這些日期：' + pasted.bad.join('、') : '請用「每週固定」或「貼上日期清單」選日期' };
+      if (dates.length > 200) return { error: '一次最多 200 個日期，請分兩次建立' };
+      return { dates, bad: pasted.bad };
+    }
+
+    function previewMulti() {
+      if (!s.name.trim()) return showError('請填名稱');
+      const r = multiDates();
+      const box = body.querySelector('[data-preview]');
+      if (r.error) { box.innerHTML = ''; return showError(esc(r.error)); }
+      body.querySelector('[data-error]').hidden = true;
+      const skip = new Set(st.multi.skip);
+      const draw = () => {
+        const n = r.dates.filter((d) => !skip.has(d)).length;
+        box.querySelector('[data-count]').textContent = n;
+        const btn = box.querySelector('[data-create]');
+        btn.textContent = `確定建立 ${n} 筆`;
+        btn.disabled = !n;
+      };
+      box.innerHTML = `
+        <section class="lunar-preview">
+          <h3 class="admin-sub">將建立 <span data-count></span> 筆${F()}<span class="h2-sub">名稱都是「${esc(s.name.trim())}」</span></h3>
+          ${r.bad.length ? `<div class="notice notice-error"><p>這些看不懂，已略過：${r.bad.map(esc).join('、')}</p></div>` : ''}
+          <p class="hint">不要的日期把勾拿掉。</p>
+          <ol class="preview-list multi-preview">${r.dates.map((d) => `
+            <li><label class="check"><input type="checkbox" data-day="${d}"${skip.has(d) ? '' : ' checked'}>
+              <span class="preview-date">${esc(Fmt.rocDate(d))}</span></label>${s.groupType && s.group ? `<span class="tag">${esc(s.group)}</span>` : ''}</li>`).join('')}
+          </ol>
+          <button type="button" class="btn btn-primary btn-block" data-create></button>
+        </section>`;
+      draw();
+      box.querySelectorAll('[data-day]').forEach((c) => c.addEventListener('change', () => {
+        if (c.checked) skip.delete(c.dataset.day); else skip.add(c.dataset.day);
+        st.multi.skip = [...skip];
+        draw();
+      }));
+      box.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      box.querySelector('[data-create]').addEventListener('click', () => {
+        const items = r.dates.filter((d) => !skip.has(d)).map((date) => ({ date, name: s.name.trim(), group: s.groupType ? s.group : '' }));
+        createLunar(items, { deadline: '' });
+      });
     }
 
     function lunarFields() {
@@ -588,6 +665,14 @@
       if (radio('groupMode')) st.lunar.groupMode = radio('groupMode');
       if (f.elements.multi) s.multi = f.elements.multi.checked;
       if (f.elements.layout) s.layout = f.elements.layout.checked ? '職司表' : '';
+      if (f.elements.multiFrom) {
+        const m = st.multi;
+        m.from = val('multiFrom');
+        m.to = val('multiTo');
+        m.weekdays = [...f.querySelectorAll('input[name="multiWeekday"]:checked')].map((x) => Number(x.value));
+        m.year = val('multiYear');
+        m.paste = val('multiPaste');
+      }
       if (f.elements.lunarFrom) {
         st.lunar.from = val('lunarFrom');
         st.lunar.to = val('lunarTo');
@@ -659,6 +744,7 @@
         ev.preventDefault();
         sync();
         if (st.dateType === 'lunar') previewLunar();
+        else if (st.dateType === 'multi') previewMulti();
         else save();
       });
     }
@@ -849,7 +935,7 @@
       if (!r.items.length) { box.innerHTML = '<div class="notice notice-error"><p>這段期間沒有符合的日期</p></div>'; return; }
       box.innerHTML = `
         <section class="lunar-preview">
-          <h3 class="admin-sub">將建立 ${r.items.length} 筆${T()}</h3>
+          <h3 class="admin-sub">將建立 ${r.items.length} 筆${F()}</h3>
           <ol class="preview-list">${r.items.map((it) => `
             <li><span class="preview-date">${esc(Fmt.rocDate(it.date))}</span>
               <span>${esc(it.name)}</span>${it.group ? `<span class="tag">${esc(it.group)}</span>` : ''}</li>`).join('')}
@@ -860,15 +946,15 @@
       box.querySelector('[data-create]').addEventListener('click', () => createLunar(r.items));
     }
 
-    async function createLunar(items) {
-      Busy.show(`建立 ${items.length} 筆${T()}中⋯`, '請不要關閉畫面');
+    async function createLunar(items, extra) {
+      Busy.show(`建立 ${items.length} 筆${F()}中⋯`, '請不要關閉畫面');
       try {
-        const duties = items.map((it) => payload({ name: it.name, start: it.date, end: it.date, group: it.group }));
+        const duties = items.map((it) => payload(Object.assign({ name: it.name, start: it.date, end: it.date, group: it.group }, extra || {})));
         const res = await createDuties(duties);
         if (!res) { Busy.hide(); return; }
         Busy.hide();
         afterWrite();
-        flash = AdminPage.notice('success', `已新增 ${res.ids.length} 筆${T()}`, `${items[0].name} 等，${Fmt.rocDate(items[0].date)} – ${Fmt.rocDate(items[items.length - 1].date)}`);
+        flash = AdminPage.notice('success', `已新增 ${res.ids.length} 筆${F()}`, `${items[0].name} 等，${Fmt.rocDate(items[0].date)} – ${Fmt.rocDate(items[items.length - 1].date)}`);
         listState.filter = 'future';
         location.hash = '#/admin/duties';
       } catch (err) {

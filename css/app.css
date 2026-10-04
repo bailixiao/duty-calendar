@@ -1791,3 +1791,9 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 .edu-teacher-name { font-size: 19px; font-weight: 800; }
 .edu-teacher-total { justify-self: end; color: #23476b; font-weight: 800; }
 .edu-teacher-courses { grid-column: 1 / -1; color: var(--ink-2); font-size: 16px; }
+
+/* 多個日期（每週固定、貼上日期清單） */
+.multi-box { margin-top: 12px; padding: 12px 14px; border: 1px dashed var(--line); border-radius: 12px; background: var(--paper); }
+.multi-title { margin: 0 0 8px; font-weight: 800; color: var(--ink); }
+.multi-weekdays { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; }
+.multi-preview li { display: flex; align-items: center; gap: 8px; }
