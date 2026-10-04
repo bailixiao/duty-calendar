@@ -167,9 +167,9 @@
     return '';
   }
 
-  /** 畫面用詞：道務、教育帳號管的是課程、法會、布達，叫「活動」；其他帳號叫「勤務」 */
+  /** 畫面用詞：道務、教育帳號管的是課程、法會、布達，唯讀帳號三組都看得到，都叫「活動」；總管理者、勤務帳號叫「勤務」 */
   function term() {
-    return Api.isAdmin() && ['道務', '教育'].indexOf(Api.adminWho().role) !== -1 ? '活動' : '勤務';
+    return Api.isAdmin() && ['道務', '教育', '唯讀'].indexOf(Api.adminWho().role) !== -1 ? '活動' : '勤務';
   }
 
   /** 依角色在 body 加上 class，CSS 會把用不到的按鈕藏起來 */
