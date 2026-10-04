@@ -52,6 +52,7 @@
       category: CATEGORIES.indexOf(d.category) !== -1 ? d.category : '勤務',
       nature: '',
       teachers: String(d.teachers || ''),
+      merge: String(d.merge || ''),
       mode: d.mode === '公告型' ? '公告型' : '報名型',
       start: d.start || '',
       end: d.end || '',
@@ -92,6 +93,7 @@
     const d = {
       name: x.name.trim(), category: x.category || '勤務', nature: x.nature, mode: x.mode, start: x.start, end: x.end || x.start,
       teachers: x.category === '教育' ? String(x.teachers || '').trim() : '',
+      merge: String(x.merge || '').trim(),
       startTime: x.startTime, endTime: x.endTime, location: x.location.trim(), attire: x.attire.trim(),
       description: x.description.trim(), deadline: x.deadline, multi: x.multi,
       positions: x.positions.filter((p) => p.name.trim()).map((p) => ({ name: p.name.trim(), min: p.min, max: p.max }))

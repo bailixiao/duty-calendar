@@ -75,6 +75,7 @@ function dutyDetail_(duty, positions, signups) {
   var json = dutyToJson_(duty, positions);
   json.description = duty['說明'];
   json.stages = duty['階段'] || '';
+  json.mergeHost = mergeHost_(duty);
   json.today = todayString_();
   json.contact = adminContact_();
   json.days = daysStatus_(duty, positions, signups, datesInRange_(duty['開始日'], duty['結束日']));
@@ -94,6 +95,22 @@ function dutyDetail_(duty, positions, signups) {
     json.groupInfo = findGroup_(duty['分組類型'], duty['負責組']);
   }
   return json;
+}
+
+/** 合併顯示：同一天名稱含「合併顯示」文字的項目（例：初一十五班 → 當天的拜香輪值），報名頁放在上面一起看 */
+function mergeHost_(duty) {
+  var key = cleanText_(duty['合併顯示']);
+  var date = duty['開始日'];
+  if (!key || (duty['結束日'] && duty['結束日'] !== date)) return null;
+  var host = readTableCached_(SHEETS.DUTIES).filter(function (d) {
+    return d['勤務ID'] !== duty['勤務ID'] && String(d['名稱']).indexOf(key) !== -1 &&
+      d['開始日'] <= date && (d['結束日'] || d['開始日']) >= date;
+  })[0];
+  if (!host) return null;
+  return {
+    id: host['勤務ID'], name: host['名稱'], mode: host['模式'] || '報名型', startTime: host['開始時間'], endTime: host['結束時間'],
+    location: host['地點'], group: host['負責組'], groupLeader: groupLeader_(host['分組類型'], host['負責組']), attire: host['服裝']
+  };
 }
 
 var BUNDLE_DETAIL_DAYS = 30;
@@ -166,6 +183,7 @@ function dutyToJson_(d, positions) {
     dm: parseDm_(d['DM']),
     layout: d['版面'] === '職司表' ? '職司表' : '',
     teachers: d['師資'] || '', // 教育課程的負責師資（報名頁也顯示）
+    merge: d['合併顯示'] || '', // 和同一天名稱含這幾個字的項目合在一起顯示（例：拜香輪值）
     mode: d['模式'] || '報名型',
     deadline: d['報名截止日'] || '',
     multi: d['可兼任'] === '是',

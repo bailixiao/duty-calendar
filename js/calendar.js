@@ -374,6 +374,20 @@
         dayMap.get(date).push(item);
       });
     });
+    // 合併顯示：同一天有「名稱含 merge 文字」的項目（例：拜香輪值），把這筆接在它後面，變成一張卡片
+    dayMap.forEach((items, date) => {
+      for (let i = items.length - 1; i >= 0; i--) {
+        const it = items[i];
+        const key = it.duty.merge;
+        if (!key) continue;
+        const host = items.find((h) => h !== it && !h.duty.merge && h.duty.name.indexOf(key) !== -1);
+        if (!host) continue;
+        (host.follow = host.follow || []).unshift(it);
+        items.splice(i, 1);
+      }
+      items.forEach((h) => { if (h.follow && !h.hostState) { h.hostState = h.state; h.state = h.follow[0].state; } }); // 卡片的狀態看要報名的那一筆
+      void date;
+    });
     dayMap.forEach((items) => items.sort((a, b) =>
       KIND_ORDER[a.state.kind] - KIND_ORDER[b.state.kind] ||
       (a.duty.startTime || '').localeCompare(b.duty.startTime || '') ||
@@ -481,6 +495,7 @@
   // ---------- 當天勤務卡片 ----------
 
   function cardHtml(item, date, compact) {
+    if (item.follow) return mergedCardHtml(item, date, compact);
     const { duty, state: st } = item;
     const meta = [duty.location, Fmt.cardTime(duty, date)].filter(Boolean);
     const group = Fmt.groupText(duty);
@@ -491,6 +506,24 @@
           <span class="card-title">${duty.category && duty.category !== '勤務' ? `<span class="cat-tag cat-${Fmt.esc(duty.category)}">${Fmt.esc(duty.category)}</span>` : ''}${Fmt.esc(duty.name)}</span>
           ${meta.length ? `<span class="card-meta">${meta.map(Fmt.esc).join('・')}</span>` : ''}
           ${group && !compact ? `<span class="card-meta">${Fmt.esc(group)}</span>` : ''}
+        </span>
+        <span class="badge badge-${st.kind}">${Fmt.esc(st.label)}</span>
+      </a>`;
+  }
+
+  /** 合併的卡片：先（拜香輪值，時間、輪值組）→ 接著（初一十五班）；點進去到要報名的那一筆 */
+  function mergedCardHtml(item, date, compact) {
+    const host = item.duty;
+    const first = item.follow[0].duty;
+    const st = item.state;
+    const cat = (d) => (d.category && d.category !== '勤務' ? `<span class="cat-tag cat-${Fmt.esc(d.category)}">${Fmt.esc(d.category)}</span>` : '');
+    const hostMeta = [Fmt.cardTime(host, date), host.location, item.hostState && item.hostState.kind === 'notice' ? item.hostState.label : Fmt.groupText(host)].filter(Boolean);
+    return `
+      <a class="duty-card kind-${st.kind} is-merged${compact ? ' is-compact' : ''}" href="#/duty/${encodeURIComponent(first.id)}?date=${date}">
+        <span class="card-main">
+          <span class="card-title">🙏 ${Fmt.esc(host.name)}</span>
+          ${hostMeta.length ? `<span class="card-meta">${hostMeta.map(Fmt.esc).join('・')}</span>` : ''}
+          ${item.follow.map((f) => `<span class="card-follow">接著　${cat(f.duty)}${Fmt.esc(f.duty.name)}${f.duty.startTime ? `<small>${Fmt.esc(f.duty.startTime)}</small>` : ''}</span>`).join('')}
         </span>
         <span class="badge badge-${st.kind}">${Fmt.esc(st.label)}</span>
       </a>`;

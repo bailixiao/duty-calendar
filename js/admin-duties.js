@@ -24,7 +24,7 @@
   // 同名勤務一次改的欄位（與 apps-script/DutyRules.gs 的 BULK_FIELDS_ 相同）
   const BULK_FIELDS = [
     ['name', '名稱'], ['nature', '性質'], ['mode', '模式'], ['time', '時段'], ['location', '地點'],
-    ['group', '負責組'], ['attire', '服裝'], ['description', '說明'], ['positions', '了愿項目'], ['teachers', '師資'], ['dm', 'DM']
+    ['group', '負責組'], ['attire', '服裝'], ['description', '說明'], ['positions', '了愿項目'], ['teachers', '師資'], ['dm', 'DM'], ['merge', '合併顯示']
   ];
   const MAX_LUNAR_DAYS = 800;
 
@@ -367,7 +367,7 @@
   function emptyDuty() {
     return {
       name: '', nature: NATURES_BY_CAT[myCategory()][0], mode: '報名型', category: myCategory(), dm: [], start: '', end: '', startTime: '', endTime: '',
-      location: '', groupType: '', group: '', attire: '', description: '', deadline: '', layout: '', stages: '', teachers: '',
+      location: '', groupType: '', group: '', attire: '', description: '', deadline: '', layout: '', stages: '', teachers: '', merge: '',
       positions: [{ name: '', slot: '', min: '', max: '' }]
     };
   }
@@ -512,6 +512,12 @@
             <p class="hint">家人們打開這個${F()}就看得到。最多 ${DM_MAX} 個；照片會自動縮小，PDF 一個最大 5MB。</p>
             ${s.dm.length ? `<ul class="dm-edit">${s.dm.map((x, i) => `<li>${/^image\//.test(x.mime) ? `<img src="${esc(Api.fileUrl(x.id))}" alt="">` : '<span class="dm-pdf">PDF</span>'}<span class="dm-name">${esc(x.name || '')}</span><button type="button" class="btn btn-small btn-quiet-danger" data-dm-del="${i}">移除</button></li>`).join('')}</ul>` : ''}
             ${s.dm.length < DM_MAX ? '<label class="btn btn-block">＋ 加照片或 PDF<input type="file" accept="image/*,application/pdf" multiple hidden data-dm-file></label>' : ''}
+          </fieldset>
+
+          <fieldset class="form-block">
+            <legend>和同一天的項目合併顯示（可空白）</legend>
+            <label class="form-row"><span>名稱含這幾個字的項目</span><input class="input" name="merge" value="${esc(s.merge || '')}" placeholder="例：拜香輪值"></label>
+            <p class="hint">例如初一十五班填「拜香輪值」：同一天有拜香輪值時，行事曆只出現一張卡片（先拜香、接著上課），點進去也一起看到。那天沒有的話照常單獨顯示。</p>
           </fieldset>
 
           <fieldset class="form-block">
@@ -703,7 +709,7 @@
       const f = body.querySelector('form');
       if (!f) return;
       const val = (n) => (f.elements[n] ? f.elements[n].value : undefined);
-      ['name', 'startTime', 'endTime', 'location', 'attire', 'description', 'start', 'end', 'groupType', 'group', 'deadline', 'stages', 'teachers'].forEach((k) => {
+      ['name', 'startTime', 'endTime', 'location', 'attire', 'description', 'start', 'end', 'groupType', 'group', 'deadline', 'stages', 'teachers', 'merge'].forEach((k) => {
         if (val(k) !== undefined) s[k] = val(k);
       });
       const radio = (n) => { const el = f.querySelector(`input[name="${n}"]:checked`); return el ? el.value : undefined; };
@@ -819,6 +825,7 @@
         startTime: s.startTime, endTime: s.endTime, location: s.location,
         groupType: isSimple(s.category) ? '' : s.groupType, group: !isSimple(s.category) && s.groupType ? s.group : '', attire: s.attire, description: s.description, deadline: s.deadline || '',
         dm: s.dm,
+        merge: String(s.merge || '').trim(),
         teachers: s.category === '教育' ? (s.teachers || '') : '',
         layout: s.mode === '公告型' || isSimple(s.category) ? '' : (s.layout || ''),
         stages: s.mode === '公告型' || isSimple(s.category) || s.layout !== '職司表' ? '' : (s.stages || ''),
@@ -887,7 +894,8 @@
         description: now.description.trim() !== o.description,
         positions: posKey(now.positions) !== posKey(o.positions),
         teachers: String(now.teachers || '').trim() !== String(o.teachers || '').trim(),
-        dm: JSON.stringify((now.dm || []).map((x) => x.id)) !== JSON.stringify((o.dm || []).map((x) => x.id))
+        dm: JSON.stringify((now.dm || []).map((x) => x.id)) !== JSON.stringify((o.dm || []).map((x) => x.id)),
+        merge: String(now.merge || '').trim() !== String(o.merge || '').trim()
       };
       return BULK_FIELDS.filter(([k]) => changed[k]);
     }

@@ -398,7 +398,10 @@
           <ul class="position-list">${positions}</ul>
           <p class="hint">${past ? '出席修正：預設報名＝出席。沒來的人按「改未到」，沒報名但有來的人按「補登」。統計表只算出席、非陪同的人。' : '管理者可以取消、改期任何日期（含當天與過去）的報名；按「＋ 幫人報名」可以直接幫人加上（不受報名截止日限制）。'}</p>
         </section>`}
-      <p class="admin-links"><a href="#/admin/duties/edit/${encodeURIComponent(d.id)}">編輯勤務 ›</a><a href="#/duty/${encodeURIComponent(d.id)}?date=${date}">查看一般使用者看到的頁面 ›</a></p>`;
+      <div class="admin-links">
+        <a class="btn btn-primary admin-link-btn" href="#/admin/duties/edit/${encodeURIComponent(d.id)}">✏️ 編輯${d.category && d.category !== '勤務' ? '活動' : '勤務'}</a>
+        <a class="btn admin-link-btn" href="#/duty/${encodeURIComponent(d.id)}?date=${date}">👀 看家人們看到的頁面</a>
+      </div>`;
 
     body.querySelectorAll('[data-date]').forEach((b) => b.addEventListener('click', () => {
       dutyPage.viewDate = b.dataset.date;

@@ -1111,7 +1111,8 @@ body.has-modal { overflow: hidden; }
 
 .list-filter { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 8px; margin-bottom: 10px; }
 
-.admin-links { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.admin-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 18px; }
+.admin-link-btn { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 56px; font-size: 18px; font-weight: 700; text-decoration: none; }
 
 .admin-form { display: grid; gap: 14px; }
 
@@ -1852,3 +1853,10 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 
 .plan-chip.is-taken { background: #ece9e3; color: #a39d92; border-style: dashed; cursor: not-allowed; }
 .plan-add { margin-bottom: 8px; }
+
+/* 合併顯示（拜香輪值＋初一十五班） */
+.duty-card.is-merged .card-follow { display: flex; align-items: center; gap: 6px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); font-weight: 700; color: var(--ink); }
+.duty-card.is-merged .card-follow small { color: var(--muted); font-weight: 400; }
+.merge-host { padding: 12px 14px; border: 1px solid #e3d3b8; border-radius: 14px; background: #fff8ec; }
+.merge-host h2 { margin-top: 0; }
+.merge-next { margin: 10px 0 6px; font-size: 18px; }

@@ -471,3 +471,20 @@ test('安排整年的師資：一次改好幾堂的師資，只動師資；只�
   const other = call('adminCreateDuties', { duties: [{ name: '打掃', start: '2026-10-11', positions: [{ name: '打掃' }] }] }).data.ids[0];
   assert.equal(call('adminSetTeachers', { items: [{ id: other, teachers: '測試甲' }] }).error.code, 'BAD_REQUEST');
 });
+
+test('合併顯示：初一十五班填「拜香輪值」，報名頁帶出同一天的拜香輪值；那天沒有就是 null', () => {
+  const { createEnv } = require('./env');
+  const env = createEnv(Date.UTC(2026, 9, 1, 2, 0, 0));
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const call = (action, body) => env.post(Object.assign({ action, token }, body));
+  const c = call('adminCreateDuties', { duties: [
+    { name: '初一十五班', category: '道務', nature: '課程', start: '2026-10-10', merge: '拜香輪值', positions: [{ name: '參加', min: '0' }] },
+    { name: '初一十五班', category: '道務', nature: '課程', start: '2026-10-25', merge: '拜香輪值', positions: [{ name: '參加', min: '0' }] }
+  ] });
+  assert.equal(c.ok, true, JSON.stringify(c.error));
+  const [a, b] = c.data.ids; // 測試資料本來就有 10/10 的九月初一拜香輪值
+  const da = env.get({ action: 'getDuty', id: a }).data;
+  assert.equal(da.merge, '拜香輪值');
+  assert.match(da.mergeHost.name, /拜香輪值/);
+  assert.equal(env.get({ action: 'getDuty', id: b }).data.mergeHost, null);
+});
