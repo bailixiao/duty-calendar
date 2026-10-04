@@ -275,7 +275,7 @@
 
   function renderList(body, data, stale) {
     const months = [...new Set(data.duties.map((d) => d.start.slice(0, 7)))];
-    const monthOptions = [['future', '今天以後'], ['all', '全部']].concat(months.map((m) => [m, rocMonth(m)]));
+    const monthOptions = [['future', '今天以後'], ['past', '已過去（補登人員）'], ['all', '全部']].concat(months.map((m) => [m, rocMonth(m)]));
     body.innerHTML = `
       ${AdminPage.staleNote(stale)}
       ${flash}
@@ -298,14 +298,16 @@
       const q = listState.q.trim();
       const items = data.duties.filter((d) => {
         if (listState.filter === 'future' && d.end < data.today) return false;
+        if (listState.filter === 'past' && d.end >= data.today) return false;
         if (/^\d{4}-\d{2}$/.test(listState.filter) && d.start.slice(0, 7) !== listState.filter) return false;
         return !q || d.name.indexOf(q) !== -1;
       });
+      if (listState.filter === 'past') items.reverse(); // 已過去：最近的排最前面
       rows.innerHTML = items.length ? `
-        <p class="muted">共 ${items.length} 筆</p>
+        <p class="muted">共 ${items.length} 筆${listState.filter === 'past' ? '・點進去就是報名名單，選日期後按「＋ 補登」加人' : ''}</p>
         <div class="card-list">
           ${items.map((d) => `
-            <a class="duty-card${d.mode === '公告型' ? ' kind-notice' : ''}" href="#/admin/duties/edit/${encodeURIComponent(d.id)}">
+            <a class="duty-card${d.mode === '公告型' ? ' kind-notice' : ''}" href="${d.end < data.today && d.mode !== '公告型' ? `#/admin/duty/${encodeURIComponent(d.id)}?date=${d.end}` : `#/admin/duties/edit/${encodeURIComponent(d.id)}`}">
               <span class="card-main">
                 <span class="card-title">${esc(d.name)}</span>
                 <span class="card-meta">${esc([dateRange(d), d.startTime, d.location, d.group].filter(Boolean).join('・'))}</span>
