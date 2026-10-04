@@ -103,7 +103,7 @@
             ${cmpList([deltaHtml('比' + prevName, C.delta(s.ratio, cmpVal(prev, 'ratio'), true)), lyName ? deltaHtml('比' + lyName, C.delta(s.ratio, cmpVal(ly, 'ratio'), true)) : ''])}
           </div>
           <div class="stat-card">
-            <span class="stat-label">勤務場次</span>
+            <span class="stat-label">${AdminPage.term()}場次</span>
             <span class="stat-num">${s.events}</span>
             ${cmpList([deltaHtml('比' + prevName, C.delta(s.events, cmpVal(prev, 'events'))), lyName ? deltaHtml('比' + lyName, C.delta(s.events, cmpVal(ly, 'events'))) : ''])}
           </div>

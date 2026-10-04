@@ -7,6 +7,8 @@
   'use strict';
 
   const esc = Fmt.esc;
+  // 畫面用詞：道務、教育帳號叫「活動」（見 AdminPage.term）
+  const T = () => (window.AdminPage && AdminPage.term ? AdminPage.term() : '勤務');
 
   // 與 apps-script/Config.gs 的 OPTIONS 相同（只是輸入提示，也可以自己打字）
   const NATURES = ['勤務', '支援', '烹飪', '活動'];
@@ -55,9 +57,9 @@
       if (err.code === 'DUPLICATE') {
         Busy.hide();
         const ok = await Confirm.open({
-          title: '已經有一樣的勤務了，還要新增嗎？',
+          title: `已經有一樣的${T()}了，還要新增嗎？`,
           rows: (err.details || []).slice(0, 8).map((d, i) => [i ? '' : '同名同日', d.message]),
-          note: '如果剛才按過一次，很可能已經建好了，請先回勤務管理看看。',
+          note: `如果剛才按過一次，很可能已經建好了，請先回${T()}管理看看。`,
           confirmText: '還是要新增', cancelText: '不要新增'
         });
         if (!ok) return null;
@@ -113,7 +115,7 @@
 
   function openDraft() {
     const m = Modal.open(`
-      <h2 class="modal-title">從照片新增勤務</h2>
+      <h2 class="modal-title">從照片新增${T()}</h2>
       <div class="draft-photo">
         <label class="btn btn-block btn-photo">📷 選照片或拍照<input type="file" accept="image/*" multiple hidden data-photo></label>
         <input class="input" type="text" data-hint placeholder="補充說明（選填）例：這是 11 月的">
@@ -243,7 +245,7 @@
         saveDraft(null);
         m.close();
         afterWrite();
-        flash = AdminPage.notice('success', `已新增 ${res.ids.length} 筆勤務`, duties.map((d) => d.name).join('、'));
+        flash = AdminPage.notice('success', `已新增 ${res.ids.length} 筆${T()}`, duties.map((d) => d.name).join('、'));
         location.hash = res.ids.length === 1 ? '#/admin/duties/edit/' + encodeURIComponent(res.ids[0]) : '#/admin/duties';
       } catch (e) {
         Busy.hide();
@@ -268,7 +270,7 @@
       ${AdminPage.staleNote(stale)}
       ${flash}
       <div class="admin-actions">
-        <a class="btn btn-primary" href="#/admin/duties/new">＋ 新增勤務</a>
+        <a class="btn btn-primary" href="#/admin/duties/new">＋ 新增${T()}</a>
         <a class="btn" href="#/admin/import">批次匯入</a>
         <button type="button" class="btn" data-draft-open>📷 從照片新增</button>
       </div>
@@ -276,7 +278,7 @@
         <select class="input" data-filter aria-label="月份">
           ${monthOptions.map(([v, label]) => `<option value="${v}"${v === listState.filter ? ' selected' : ''}>${esc(label)}</option>`).join('')}
         </select>
-        <input class="input" type="search" data-q placeholder="搜尋勤務名稱" value="${esc(listState.q)}">
+        <input class="input" type="search" data-q placeholder="搜尋${T()}名稱" value="${esc(listState.q)}">
       </div>
       <div data-rows></div>`;
     flash = '';
@@ -300,7 +302,7 @@
               </span>
               <span class="badge ${d.mode === '公告型' ? 'badge-notice' : d.signups ? 'badge-ok' : 'badge-full'}">${d.mode === '公告型' ? '公告' : `${d.signups} 筆報名`}</span>
             </a>`).join('')}
-        </div>` : '<p class="panel-empty">沒有符合的勤務</p>';
+        </div>` : `<p class="panel-empty">沒有符合的${T()}</p>`;
     }
     draw();
     body.querySelector('[data-filter]').addEventListener('change', (ev) => { listState.filter = ev.target.value; draw(); });
@@ -378,9 +380,9 @@
       const lunar = st.dateType === 'lunar';
       const isNotice = s.mode === '公告型';
       body.innerHTML = `
-        <a class="back-link" href="#/admin/duties">‹ 勤務管理</a>
-        <h2 class="detail-title">${editing ? '編輯勤務' : ctx.source ? '另存成新勤務' : '新增勤務'}</h2>
-        ${editing && signupTotal ? `<div class="notice notice-success"><p>這個勤務已有 ${signupTotal} 筆報名。有人報名的了愿項目不能刪除、有人報名的日期不能移出勤務期間。</p></div>` : ''}
+        <a class="back-link" href="#/admin/duties">‹ ${T()}管理</a>
+        <h2 class="detail-title">${editing ? '編輯' + T() : ctx.source ? '另存成新' + T() : '新增' + T()}</h2>
+        ${editing && signupTotal ? `<div class="notice notice-success"><p>這個${T()}已有 ${signupTotal} 筆報名。有人報名的項目不能刪除、有人報名的日期不能移出期間。</p></div>` : ''}
         <form class="admin-form" novalidate>
           <fieldset class="form-block">
             <legend>基本資料</legend>
@@ -404,7 +406,7 @@
                 <input class="input" type="date" name="end" value="${esc(s.end)}"></label>` : ''}`}
             <label class="form-row"><span>報名截止日（可空白）</span>
               <input class="input" type="date" name="deadline" value="${esc(s.deadline || '')}"></label>
-            <p class="hint">空白＝勤務前一天都能報名。填了日期，過了那天網頁就不能再報名（管理者仍可補登）。</p>
+            <p class="hint">空白＝${T()}前一天都能報名。填了日期，過了那天網頁就不能再報名（管理者仍可補登）。</p>
           </fieldset>
 
           <fieldset class="form-block">
@@ -463,12 +465,12 @@
           ${lunar ? '<div data-preview></div>' : ''}
           <div class="form-error" data-error hidden></div>
           <div class="form-actions">
-            <button type="submit" class="btn btn-primary btn-block">${lunar ? '產生並預覽' : editing ? '存檔' : '新增勤務'}</button>
+            <button type="submit" class="btn btn-primary btn-block">${lunar ? '產生並預覽' : editing ? '存檔' : '新增' + T()}</button>
             ${editing ? `
-              <a class="btn btn-block" href="#/admin/duties/new?from=${encodeURIComponent(s.id)}">另存成新勤務</a>
+              <a class="btn btn-block" href="#/admin/duties/new?from=${encodeURIComponent(s.id)}">另存成新${T()}</a>
               <a class="btn btn-block" href="#/admin/duty/${encodeURIComponent(s.id)}">查看報名名單</a>
-              <button type="button" class="btn btn-block btn-quiet-danger" data-delete${signupTotal ? ' disabled' : ''}>刪除勤務</button>
-              ${signupTotal ? '<p class="hint">還有報名的勤務不能刪除，要先取消或改期這些報名。</p>' : ''}` : ''}
+              <button type="button" class="btn btn-block btn-quiet-danger" data-delete${signupTotal ? ' disabled' : ''}>刪除${T()}</button>
+              ${signupTotal ? `<p class="hint">還有報名的${T()}不能刪除，要先取消或改期這些報名。</p>` : ''}` : ''}
           </div>
         </form>`;
       bind();
@@ -617,7 +619,7 @@
           if (!res) { Busy.hide(); return; }
           Busy.hide();
           afterWrite();
-          flash = AdminPage.notice('success', '已新增勤務', `${s.name}・${Fmt.rocDate(s.start)}`);
+          flash = AdminPage.notice('success', '已新增' + T(), `${s.name}・${Fmt.rocDate(s.start)}`);
           location.hash = '#/admin/duties/edit/' + encodeURIComponent(res.ids[0]);
         } catch (err) {
           Busy.hide();
@@ -633,7 +635,7 @@
         Busy.hide();
         afterWrite();
         const warn = res.warnings.length ? `<p>注意：${res.warnings.map(esc).join('；')}</p>` : '';
-        flash = `<div class="notice notice-success" role="status"><p><strong>已存檔${res.updated > 1 ? `（連同其他 ${res.updated - 1} 筆同名勤務）` : ''}</strong></p>${warn}</div>`;
+        flash = `<div class="notice notice-success" role="status"><p><strong>已存檔${res.updated > 1 ? `（連同其他 ${res.updated - 1} 筆同名${T()}）` : ''}</strong></p>${warn}</div>`;
         DutyAdminPage.reload();
       } catch (err) {
         Busy.hide();
@@ -671,8 +673,8 @@
       return new Promise((resolve) => {
         let result = null;
         const m = Modal.open(`
-          <h2 class="modal-title">也套用到其他同名勤務嗎？</h2>
-          <p class="modal-note">日期不會改。勾選要一起改的欄位和勤務：</p>
+          <h2 class="modal-title">也套用到其他同名${T()}嗎？</h2>
+          <p class="modal-note">日期不會改。勾選要一起改的欄位和${T()}：</p>
           <div class="checks checks-col">${fields.map(([k, label]) => `<label class="check"><input type="checkbox" data-field="${k}" checked> ${esc(label)}</label>`).join('')}</div>
           <div class="bulk-list">
             <label class="check"><input type="checkbox" data-all checked> <strong>全選（${siblings.length} 筆）</strong></label>
@@ -705,8 +707,8 @@
 
     async function removeDuty() {
       const ok = await Confirm.open({
-        title: '確定要刪除這個勤務嗎？',
-        rows: [['勤務', s.name], ['日期', dateRange({ start: original.start, end: original.end })]],
+        title: `確定要刪除這個${T()}嗎？`,
+        rows: [[T(), s.name], ['日期', dateRange({ start: original.start, end: original.end })]],
         note: '刪除後無法還原（操作紀錄會留下刪除前的資料）。',
         confirmText: '確定刪除',
         cancelText: '不要刪除',
@@ -718,7 +720,7 @@
         await Api.admin('adminDeleteDuty', { id: s.id });
         Busy.hide();
         afterWrite();
-        flash = AdminPage.notice('success', '已刪除勤務', `${original.name}・${Fmt.rocDate(original.start)}`);
+        flash = AdminPage.notice('success', '已刪除' + T(), `${original.name}・${Fmt.rocDate(original.start)}`);
         location.hash = '#/admin/duties';
       } catch (err) {
         Busy.hide();
@@ -760,7 +762,7 @@
       if (!r.items.length) { box.innerHTML = '<div class="notice notice-error"><p>這段期間沒有符合的日期</p></div>'; return; }
       box.innerHTML = `
         <section class="lunar-preview">
-          <h3 class="admin-sub">將建立 ${r.items.length} 筆勤務</h3>
+          <h3 class="admin-sub">將建立 ${r.items.length} 筆${T()}</h3>
           <ol class="preview-list">${r.items.map((it) => `
             <li><span class="preview-date">${esc(Fmt.rocDate(it.date))}</span>
               <span>${esc(it.name)}</span>${it.group ? `<span class="tag">${esc(it.group)}</span>` : ''}</li>`).join('')}
@@ -772,14 +774,14 @@
     }
 
     async function createLunar(items) {
-      Busy.show(`建立 ${items.length} 筆勤務中⋯`, '請不要關閉畫面');
+      Busy.show(`建立 ${items.length} 筆${T()}中⋯`, '請不要關閉畫面');
       try {
         const duties = items.map((it) => payload({ name: it.name, start: it.date, end: it.date, group: it.group }));
         const res = await createDuties(duties);
         if (!res) { Busy.hide(); return; }
         Busy.hide();
         afterWrite();
-        flash = AdminPage.notice('success', `已新增 ${res.ids.length} 筆勤務`, `${items[0].name} 等，${Fmt.rocDate(items[0].date)} – ${Fmt.rocDate(items[items.length - 1].date)}`);
+        flash = AdminPage.notice('success', `已新增 ${res.ids.length} 筆${T()}`, `${items[0].name} 等，${Fmt.rocDate(items[0].date)} – ${Fmt.rocDate(items[items.length - 1].date)}`);
         listState.filter = 'future';
         location.hash = '#/admin/duties';
       } catch (err) {

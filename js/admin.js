@@ -134,7 +134,8 @@
   /** 管理頁共用外框：上方分頁＋內容區，回傳內容區元素 */
   function shell(active) {
     const who = Api.adminWho();
-    const tabs = [['', '近期勤務'], ['duties', '勤務管理'], ['members', '成員'], ['groups', '分組'], ['stats', '統計'], ['logs', '操作紀錄'], ['day', '明日名單']];
+    const T = term();
+    const tabs = [['', '近期' + T], ['duties', T + '管理'], ['members', '成員'], ['groups', '分組'], ['stats', '統計'], ['logs', '操作紀錄'], ['day', '明日名單']];
     if (who.role === '總管理者') tabs.push(['accounts', '帳號']);
     if (who.role === '唯讀') { // 唯讀帳號：不顯示勤務管理、操作紀錄、明日名單
       ['duties', 'logs', 'day'].forEach((k) => tabs.splice(tabs.findIndex((t) => t[0] === k), 1));
@@ -161,8 +162,14 @@
   /** 角色說明（勤務／道務／教育／唯讀帳號在每頁上方看到） */
   function roleNote(role) {
     if (role === '唯讀') return '<p class="role-note">👀 唯讀帳號：可以查看所有資料，不能修改。</p>';
-    if (['勤務', '道務', '教育'].indexOf(role) !== -1) return `<p class="role-note">這個帳號管理「${esc(role)}」類的勤務與活動；成員、分組只能查看。</p>`;
+    if (role === '勤務') return '<p class="role-note">這個帳號管理「勤務」類的勤務；成員、分組只能查看。</p>';
+    if (['道務', '教育'].indexOf(role) !== -1) return `<p class="role-note">這個帳號管理「${esc(role)}」類的活動、課程與布達；成員、分組只能查看。</p>`;
     return '';
+  }
+
+  /** 畫面用詞：道務、教育帳號管的是課程、法會、布達，叫「活動」；其他帳號叫「勤務」 */
+  function term() {
+    return Api.isAdmin() && ['道務', '教育'].indexOf(Api.adminWho().role) !== -1 ? '活動' : '勤務';
   }
 
   /** 依角色在 body 加上 class，CSS 會把用不到的按鈕藏起來 */
@@ -518,5 +525,5 @@
     afterChange();
   }
 
-  window.AdminPage = { show, notice, guard, swr, clearMemo, staleNote };
+  window.AdminPage = { show, notice, guard, swr, clearMemo, staleNote, term };
 })();
