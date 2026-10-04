@@ -55,7 +55,35 @@
     return { dates: [...dates].sort(), bad };
   }
 
-  const api = { weekly, parse, weekdayOf, WEEK };
+  /**
+   * 台灣的國定假日（放假的紀念日及節日）：{ 'yyyy-MM-dd': '名稱' }。
+   * lunarToSolar(農曆年, 月, 日) → 'yyyy-MM-dd'（瀏覽器用 lunar-javascript）。
+   * 不含每年行政院公告的補假、調整放假，只列節日當天。
+   */
+  function holidays(year, lunarToSolar) {
+    const out = {};
+    const put = (date, name) => { if (date) out[date] = out[date] ? out[date] + '、' + name : name; };
+    const fixed = [['01-01', '元旦'], ['02-28', '和平紀念日'], ['04-04', '兒童節'], ['05-01', '勞動節'],
+      ['09-28', '教師節'], ['10-10', '國慶日'], ['10-25', '臺灣光復節'], ['12-25', '行憲紀念日']];
+    fixed.forEach(([md, name]) => put(`${year}-${md}`, name));
+    // 清明：4/4 或 4/5（21 世紀的節氣公式）
+    const y2 = year % 100;
+    put(`${year}-04-${pad(Math.floor(y2 * 0.2422 + 4.81) - Math.floor(y2 / 4))}`, '清明節');
+    if (lunarToSolar) {
+      // 春節（初一～初三）與除夕（初一前一天）；除夕可能落在前一年，所以算今年與明年的春節
+      [year, year + 1].forEach((ly) => {
+        const ny = lunarToSolar(ly, 1, 1);
+        [[addDays(ny, -1), '除夕'], [ny, '春節'], [addDays(ny, 1), '春節'], [addDays(ny, 2), '春節']].forEach(([d, name]) => {
+          if (d.slice(0, 4) === String(year)) put(d, name);
+        });
+      });
+      put(lunarToSolar(year, 5, 5), '端午節');
+      put(lunarToSolar(year, 8, 15), '中秋節');
+    }
+    return out;
+  }
+
+  const api = { weekly, parse, weekdayOf, WEEK, holidays };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.DateList = api;
 })();

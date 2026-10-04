@@ -1802,3 +1802,8 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 .sib-list { display: grid; gap: 6px; max-height: 50vh; overflow-y: auto; margin: 4px 0 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
 .sib-quick { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
 .sib-list .is-locked { color: var(--muted); }
+
+/* 多個日期預覽：國定假日紅字 */
+.multi-preview li.is-holiday .preview-date, .multi-preview .holiday-name { color: #c0281c; font-weight: 800; }
+.multi-preview .holiday-name { margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: #fde4e1; font-size: 14px; }
+.holiday-note { display: block; color: #c0281c; font-weight: 700; }

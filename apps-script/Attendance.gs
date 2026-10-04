@@ -59,7 +59,8 @@ function adminAddAttendee_(body) {
   var positions = duty ? readTableCached_(SHEETS.POSITIONS).filter(function (p) { return p['勤務ID'] === duty['勤務ID']; }) : [];
   return withSignupLock_(function () {
     var signups = duty ? readTable_(SHEETS.SIGNUPS).filter(function (s) { return s['勤務ID'] === duty['勤務ID']; }) : [];
-    var entry = { name: body.name, identity: body.identity, accompany: !!body.accompany };
+    // 成員名單上已登記身分的人，以名單為準（和一般報名相同）
+    var entry = withMemberIdentity_([{ name: body.name, identity: body.identity, accompany: !!body.accompany }])[0];
     var problems = validateSignup_({
       duty: duty, positions: positions, signups: signups, positionId: body.positionId,
       dates: [body.date], entries: [entry], today: '0000-00-00' // 補登不受日期限制
@@ -73,7 +74,7 @@ function adminAddAttendee_(body) {
     var now = nowString_();
     var row = {
       '報名ID': newId_('S'), '勤務ID': duty['勤務ID'], '日期': body.date, '了愿項目ID': body.positionId,
-      '姓名': normalizeName_(body.name), '身分': body.identity, '陪同': entry.accompany ? '是' : '否',
+      '姓名': normalizeName_(body.name), '身分': entry.identity, '陪同': entry.accompany ? '是' : '否',
       '出席': '出席', '狀態': '有效', '建立時間': now, '更新時間': now
     };
     if (duty['版面'] === '職司表' && body.note) row['註記'] = cleanText_(body.note).slice(0, 100);

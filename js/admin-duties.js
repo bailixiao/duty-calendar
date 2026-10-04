@@ -387,7 +387,7 @@
       dateType: s.start && s.end && s.start !== s.end ? 'range' : 'single',
       lunar: { from: '', to: '', first: true, fifteenth: true, leap: true, prefix: true, groupMode: 'fixed', rotation: [], rotationStart: 0 },
       // 多個日期：每週固定星期幾＋貼上的日期清單，合在一起；skip＝預覽時取消的日期
-      multi: { from: '', to: '', weekdays: [], year: String(new Date().getFullYear()), paste: '', skip: [] }
+      multi: { from: '', to: '', weekdays: [], year: String(new Date().getFullYear()), paste: '', skip: [], touched: [] }
     };
     const signupTotal = editing ? ctx.source.signups : 0;
     if (!Array.isArray(s.dm)) s.dm = [];
@@ -580,7 +580,14 @@
       const box = body.querySelector('[data-preview]');
       if (r.error) { box.innerHTML = ''; return showError(esc(r.error)); }
       body.querySelector('[data-error]').hidden = true;
+      // 國定假日：紅字、預設不勾（自己勾回去的就照勾）
+      const toSolar = window.Lunar ? (y, mo, d) => window.Lunar.fromYmd(y, mo, d).getSolar().toYmd() : null;
+      const hol = {};
+      [...new Set(r.dates.map((d) => Number(d.slice(0, 4))))].forEach((y) => Object.assign(hol, DateList.holidays(y, toSolar)));
+      const touched = new Set(st.multi.touched);
       const skip = new Set(st.multi.skip);
+      r.dates.forEach((d) => { if (hol[d] && !touched.has(d)) skip.add(d); });
+      const holCount = r.dates.filter((d) => hol[d]).length;
       const draw = () => {
         const n = r.dates.filter((d) => !skip.has(d)).length;
         box.querySelector('[data-count]').textContent = n;
@@ -592,16 +599,18 @@
         <section class="lunar-preview">
           <h3 class="admin-sub">將建立 <span data-count></span> 筆${F()}<span class="h2-sub">名稱都是「${esc(s.name.trim())}」</span></h3>
           ${r.bad.length ? `<div class="notice notice-error"><p>這些看不懂，已略過：${r.bad.map(esc).join('、')}</p></div>` : ''}
-          <p class="hint">不要的日期把勾拿掉。</p>
+          <p class="hint">不要的日期把勾拿掉。${holCount ? `<span class="holiday-note">紅字是國定假日（${holCount} 天），已先幫你取消勾選；要的話再勾回來。</span>` : ''}</p>
           <ol class="preview-list multi-preview">${r.dates.map((d) => `
-            <li><label class="check"><input type="checkbox" data-day="${d}"${skip.has(d) ? '' : ' checked'}>
-              <span class="preview-date">${esc(Fmt.rocDate(d))}</span></label>${s.groupType && s.group ? `<span class="tag">${esc(s.group)}</span>` : ''}</li>`).join('')}
+            <li class="${hol[d] ? 'is-holiday' : ''}"><label class="check"><input type="checkbox" data-day="${d}"${skip.has(d) ? '' : ' checked'}>
+              <span class="preview-date">${esc(Fmt.rocDate(d))}</span>${hol[d] ? `<span class="holiday-name">${esc(hol[d])}</span>` : ''}</label>${s.groupType && s.group ? `<span class="tag">${esc(s.group)}</span>` : ''}</li>`).join('')}
           </ol>
           <button type="button" class="btn btn-primary btn-block" data-create></button>
         </section>`;
       draw();
       box.querySelectorAll('[data-day]').forEach((c) => c.addEventListener('change', () => {
         if (c.checked) skip.delete(c.dataset.day); else skip.add(c.dataset.day);
+        touched.add(c.dataset.day);
+        st.multi.touched = [...touched];
         st.multi.skip = [...skip];
         draw();
       }));

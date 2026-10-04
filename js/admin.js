@@ -488,7 +488,8 @@
       <form class="modal-form" novalidate>
         <h2 class="modal-title">${past ? '補登出席' : '幫人報名'}</h2>
         <p class="modal-note">${esc(d.name)}・${esc(Fmt.rocDate(date))}・${esc(p.name)}</p>
-        <label class="form-row"><span>姓名</span><input class="input" name="name" autocomplete="off" required></label>
+        <label class="form-row"><span>姓名</span><input class="input" name="name" autocomplete="off" required placeholder="打一兩個字，下面會出現成員名單"></label>
+        <div class="suggestions" data-suggestions aria-live="polite"></div>
         <div class="form-row"><span>身分</span><div class="seg">
           <label class="seg-item"><input type="radio" name="identity" value="道親"><span>道親</span></label>
           <label class="seg-item"><input type="radio" name="identity" value="壇辦"><span>壇辦</span></label>
@@ -504,6 +505,31 @@
       </form>`);
     const f = m.el.querySelector('form');
     f.elements.name.focus();
+    // 成員名單提示：打字時列出名字含有這幾個字的成員（啟用中），點了帶入姓名與身分
+    let members = [];
+    const cached = memo.get('members');
+    (cached ? Promise.resolve(cached.data) : fetchShared('members', () => Api.admin('adminMembers', {}, true)))
+      .then((data) => { members = (data.members || []).filter((x) => x.active !== false); onName(); })
+      .catch(() => {});
+    const sug = f.querySelector('[data-suggestions]');
+    const setIdentity = (id) => {
+      const r = f.querySelector(`input[name=identity][value="${id}"]`);
+      if (r) { r.checked = true; f.dispatchEvent(new Event('change')); }
+    };
+    function onName() {
+      const q = f.elements.name.value.trim();
+      const exact = members.find((x) => x.name === q);
+      if (exact && exact.identity) setIdentity(exact.identity); // 名單上已登記的身分自動帶入
+      const list = q ? members.filter((x) => x.name.indexOf(q) !== -1 && x.name !== q).slice(0, 8) : [];
+      sug.innerHTML = list.map((x) => `<button type="button" class="suggestion" data-suggest="${esc(x.name)}">${esc(x.name)}${x.identity ? `<small>${esc(x.identity)}</small>` : ''}</button>`).join('');
+    }
+    f.elements.name.addEventListener('input', onName);
+    sug.addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-suggest]');
+      if (!b) return;
+      f.elements.name.value = b.dataset.suggest;
+      onName();
+    });
     f.addEventListener('change', () => {
       const tan = f.querySelector('input[name=identity]:checked');
       f.querySelector('[data-acc-row]').hidden = !(tan && tan.value === '壇辦');
