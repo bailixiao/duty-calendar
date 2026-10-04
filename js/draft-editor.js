@@ -7,6 +7,10 @@
 
   const esc = Fmt.esc;
   const NATURES = ['勤務', '支援', '烹飪', '活動'];
+  // 類別與各類別的性質（同 apps-script/DutyRules.gs 的 NATURES_BY_CATEGORY_）；道務、教育沒有了愿項目，只有一個「參加」
+  const CATEGORIES = ['勤務', '道務', '教育'];
+  const NATURES_BY_CAT = { 勤務: NATURES, 道務: ['法會', '課程'], 教育: ['課程', '活動'] };
+  const isSimple = (c) => c === '道務' || c === '教育';
 
   // ---------- 農曆 → 國曆 ----------
 
@@ -45,7 +49,9 @@
   function clean(d, today, members) {
     const x = {
       name: String(d.name || ''),
-      nature: NATURES.indexOf(d.nature) !== -1 ? d.nature : '勤務',
+      category: CATEGORIES.indexOf(d.category) !== -1 ? d.category : '勤務',
+      nature: '',
+      teachers: String(d.teachers || ''),
       mode: d.mode === '公告型' ? '公告型' : '報名型',
       start: d.start || '',
       end: d.end || '',
@@ -61,6 +67,9 @@
       notes: Array.isArray(d.uncertain) ? d.uncertain.slice() : [],
       people: {} // 了愿項目名稱 → [{ name, status, original?, candidates? }]
     };
+    const natures = NATURES_BY_CAT[x.category];
+    x.nature = natures.indexOf(d.nature) !== -1 ? d.nature : natures[0];
+    if (isSimple(x.category) && !(Array.isArray(d.positions) && d.positions.length)) x.positions = [{ name: '參加', min: '0', max: '' }];
     if (!x.start && d.lunarDate) {
       x.start = solarFromLunar(d.lunarDate, today);
       x.notes.push(x.start ? `照片寫農曆「${d.lunarDate}」，已換算成國曆 ${Fmt.rocDate(x.start)}，請確認` : `照片寫農曆「${d.lunarDate}」，換算不出國曆日期，請自己填`);
@@ -81,7 +90,8 @@
       if (list.length) assign[p.name] = list;
     });
     const d = {
-      name: x.name.trim(), nature: x.nature, mode: x.mode, start: x.start, end: x.end || x.start,
+      name: x.name.trim(), category: x.category || '勤務', nature: x.nature, mode: x.mode, start: x.start, end: x.end || x.start,
+      teachers: x.category === '教育' ? String(x.teachers || '').trim() : '',
       startTime: x.startTime, endTime: x.endTime, location: x.location.trim(), attire: x.attire.trim(),
       description: x.description.trim(), deadline: x.deadline, multi: x.multi,
       positions: x.positions.filter((p) => p.name.trim()).map((p) => ({ name: p.name.trim(), min: p.min, max: p.max }))
@@ -116,7 +126,11 @@
         ${x.notes.length ? `<div class="de-notes">⚠️ 請特別確認：<ul>${x.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul></div>` : ''}
         ${f('名稱', inp('name'))}
         <div class="de-row">
-          ${f('性質', `<select class="input" data-k="nature">${NATURES.map((n) => `<option${n === x.nature ? ' selected' : ''}>${n}</option>`).join('')}</select>`)}
+          ${f('類別', `<select class="input" data-k="category">${CATEGORIES.map((n) => `<option${n === x.category ? ' selected' : ''}>${n}</option>`).join('')}</select>`)}
+          ${x.category === '教育' ? f('師資', inp('teachers', 'text', 'placeholder="好幾位用「、」隔開"')) : ''}
+        </div>
+        <div class="de-row">
+          ${f('性質', `<select class="input" data-k="nature">${(NATURES_BY_CAT[x.category] || NATURES).map((n) => `<option${n === x.nature ? ' selected' : ''}>${n}</option>`).join('')}</select>`)}
           ${f('模式', `<select class="input" data-k="mode">${['報名型', '公告型'].map((n) => `<option${n === x.mode ? ' selected' : ''}>${n}</option>`).join('')}</select>`)}
         </div>
         <div class="de-row">
@@ -171,6 +185,14 @@
       const x = items[Number(card.dataset.i)];
       const k = ev.target.dataset.k;
       if (k) x[k] = ev.target.type === 'checkbox' ? ev.target.checked : ev.target.value;
+      if (k === 'category') {
+        const ns = NATURES_BY_CAT[x.category] || NATURES;
+        if (ns.indexOf(x.nature) === -1) x.nature = ns[0];
+        if (isSimple(x.category) && x.positions.length !== 1) x.positions = [{ name: '參加', min: '0', max: '' }];
+        render();
+        changed();
+        return;
+      }
       const pEl = ev.target.closest('.de-pos');
       if (pEl && ev.target.dataset.p) {
         const p = x.positions[Number(pEl.dataset.pi)];
