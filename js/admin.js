@@ -74,13 +74,18 @@
     [['recent', () => Api.admin('adminRecent', { days: 14 }, true)],
       ['members', () => Api.admin('adminMembers', {}, true)],
       ['groups', () => Api.admin('adminGroups', {}, true)],
-      ...(Api.adminWho().role === '唯讀' ? [] : [ // 唯讀帳號看不到勤務管理、操作紀錄、明日名單
-        ['dutyList', () => Api.admin('adminDutyList', {}, true)],
+      ...(Api.adminWho().role === '唯讀' ? [] : [['dutyList', () => Api.admin('adminDutyList', {}, true)]]), // 唯讀帳號看不到勤務管理
+      ...(seesLogs() ? [ // 操作紀錄、明日名單：只有總管理者
         ['logs', () => Api.admin('adminLogs', { offset: 0, limit: 50 }, true)],
-        ['day:' + tomorrow, () => Api.admin('adminDay', { date: tomorrow }, true)]]),
+        ['day:' + tomorrow, () => Api.admin('adminDay', { date: tomorrow }, true)]] : []),
       ['stats', () => Api.admin('adminStats', {}, true)]].forEach(([key, fetcher]) => {
       if (!memo.has(key)) fetchShared(key, fetcher).catch(() => {});
     });
+  }
+
+  /** 看得到操作紀錄、明日名單的帳號：只有總管理者 */
+  function seesLogs() {
+    return Api.adminWho().role === '總管理者';
   }
 
   /** 畫面上「更新中」的小字 */
@@ -126,8 +131,8 @@
     if (sub === 'groups') return PeoplePage.groups(shell('groups'), guard);
     if (sub === 'stats') return StatsPage.show(shell('stats'), guard);
     if (sub === 'history') return HistoryPage.show(shell('stats'), guard);
-    if (sub === 'logs') return AdminPages.logs(shell('logs'), guard);
-    if (sub === 'day') return AdminPages.day(shell('day'), guard);
+    if (sub === 'logs' && seesLogs()) return AdminPages.logs(shell('logs'), guard);
+    if (sub === 'day' && seesLogs()) return AdminPages.day(shell('day'), guard);
     return showRecent();
   }
 
@@ -137,9 +142,8 @@
     const T = term();
     const tabs = [['', '近期' + T], ['duties', T + '管理'], ['members', '成員'], ['groups', '分組'], ['stats', '統計'], ['logs', '操作紀錄'], ['day', '明日名單']];
     if (who.role === '總管理者') tabs.push(['accounts', '帳號']);
-    if (who.role === '唯讀') { // 唯讀帳號：不顯示勤務管理、操作紀錄、明日名單
-      ['duties', 'logs', 'day'].forEach((k) => tabs.splice(tabs.findIndex((t) => t[0] === k), 1));
-    }
+    if (who.role === '唯讀') tabs.splice(tabs.findIndex((t) => t[0] === 'duties'), 1); // 唯讀帳號：不顯示勤務管理
+    if (!seesLogs()) ['logs', 'day'].forEach((k) => tabs.splice(tabs.findIndex((t) => t[0] === k), 1)); // 操作紀錄、明日名單只給總管理者
     root.innerHTML = `
       <div class="admin-head">
         <h1 class="admin-title">管理後台</h1>

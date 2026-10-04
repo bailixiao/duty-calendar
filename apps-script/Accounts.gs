@@ -111,6 +111,8 @@ function adminAuthorize_(session, body) {
   var denied = function () { throw new ApiError_('FORBIDDEN', '這個帳號沒有權限做這件事'); };
   // 唯讀不看操作紀錄、明日名單（有個資與聯絡細節）、勤務管理
   if (role === '唯讀' && ['adminLogs', 'adminDay', 'adminDutyList', 'adminDutyForEdit'].indexOf(action) !== -1) denied();
+  // 操作紀錄、明日名單只給總管理者
+  if (['adminLogs', 'adminDay'].indexOf(action) !== -1) denied();
   if (ADMIN_READ_ACTIONS.indexOf(action) !== -1) {
     if (CATEGORIES.indexOf(role) !== -1 && (action === 'adminDuty' || action === 'adminDutyForEdit')) {
       var d = targetDuties_(body)[0];

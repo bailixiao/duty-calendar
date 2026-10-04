@@ -48,6 +48,8 @@ test('類別帳號：只能動自己類別的勤務；新增時類別固定成�
   assert.equal(env.post({ action: 'adminSaveMember', token: tok, member: { name: '測試甲' } }).error.code, 'FORBIDDEN');
   assert.equal(env.post({ action: 'adminSaveAccount', token: tok, account: { account: 'abc', role: '道務', password: 'abc12345' } }).error.code, 'FORBIDDEN');
   assert.equal(env.post({ action: 'adminMembers', token: tok }).ok, true); // 可以看
+  assert.equal(env.post({ action: 'adminLogs', token: tok }).error.code, 'FORBIDDEN'); // 操作紀錄、明日名單只給總管理者
+  assert.equal(env.post({ action: 'adminDay', token: tok, date: '2026-10-02' }).error.code, 'FORBIDDEN');
   const ev = env.get({ action: 'getEvents', from: '2026-10-13', to: '2026-10-13' }).data.duties.find((d) => d.name === '彌勒山志工輪值');
   const s = env.post({ action: 'signup', dutyId: ev.id, positionId: ev.positions[0].id, dates: ['2026-10-13'], entries: [{ name: '測試乙' }] });
   assert.equal(env.post({ action: 'adminCancel', token: tok, signupId: s.data.created[0].id }).error.code, 'FORBIDDEN');
@@ -88,6 +90,8 @@ test('停用或改密碼：那個帳號現有的登入失效；每個帳號各�
   const a1 = login('勤務組', 'abc12345').data.token;
   login('', 'test-pass'); // 別的帳號登入，不會把勤務組踢掉
   assert.equal(env.post({ action: 'adminPing', token: a1 }).ok, true);
+  assert.equal(env.post({ action: 'adminLogs', token: a1 }).error.code, 'FORBIDDEN'); // 操作紀錄、明日名單只給總管理者
+  assert.equal(env.post({ action: 'adminDay', token: a1, date: '2026-10-02' }).error.code, 'FORBIDDEN');
   const a2 = login('勤務組', 'abc12345').data.token; // 同帳號在別台登入：前一台失效
   assert.match(env.post({ action: 'adminPing', token: a1 }).error.message, /其他裝置/);
   const st = login('', 'test-pass').data.token;
