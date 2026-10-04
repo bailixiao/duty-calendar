@@ -96,7 +96,9 @@ function targetDuties_(body) {
       return [findDutyById_(body.dutyId)];
     case 'adminUpdateDuty': // 同名勤務一次改：一起改的那些也要檢查
       return [findDutyById_(body.id)].concat((body.alsoIds || []).map(findDutyById_));
-    case 'adminDeleteDuty': case 'adminDuty': case 'adminDutyForEdit':
+    case 'adminDeleteDuty': // 同名一起刪：一起刪的那些也要檢查
+      return [findDutyById_(body.id)].concat((body.alsoIds || []).map(findDutyById_));
+    case 'adminDuty': case 'adminDutyForEdit':
       return [findDutyById_(body.id)];
     default:
       return [];

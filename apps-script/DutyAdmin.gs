@@ -34,7 +34,9 @@ function adminDutyForEdit_(body) {
   if (!duty) throw new ApiError_('NOT_FOUND', '找不到這個勤務');
   var positions = readTableCached_(SHEETS.POSITIONS).filter(function (p) { return p['勤務ID'] === duty['勤務ID']; });
   var counts = {};
+  var signupCount = {};
   activeSignups_().forEach(function (s) {
+    signupCount[s['勤務ID']] = (signupCount[s['勤務ID']] || 0) + 1;
     if (s['勤務ID'] === duty['勤務ID']) counts[s['了愿項目ID']] = (counts[s['了愿項目ID']] || 0) + 1;
   });
   return {
@@ -42,7 +44,7 @@ function adminDutyForEdit_(body) {
     signups: Object.keys(counts).reduce(function (n, k) { return n + counts[k]; }, 0),
     siblings: duties
       .filter(function (d) { return d['勤務ID'] !== duty['勤務ID'] && seriesKey_(d['名稱']) === seriesKey_(duty['名稱']); })
-      .map(function (d) { return { id: d['勤務ID'], name: d['名稱'], start: d['開始日'], end: d['結束日'] || d['開始日'], location: d['地點'], group: d['負責組'], category: dutyCategory_(d) }; })
+      .map(function (d) { return { id: d['勤務ID'], name: d['名稱'], start: d['開始日'], end: d['結束日'] || d['開始日'], location: d['地點'], group: d['負責組'], category: dutyCategory_(d), signups: signupCount[d['勤務ID']] || 0 }; })
       .sort(function (a, b) { return a.start < b.start ? -1 : 1; }),
     groups: groupList_()
   };
@@ -212,24 +214,39 @@ function adminUpdateDuty_(body) {
 }
 
 /** body = { id }：沒有有效報名才能刪除；勤務與它的了愿項目一起刪掉 */
+/** body = { id, alsoIds?: [...] }：刪除勤務；alsoIds＝一起刪的其他同名勤務。全部檢查過才刪，任一筆還有報名就整批不刪 */
 function adminDeleteDuty_(body) {
   return withSignupLock_(function () {
     var duties = readTable_(SHEETS.DUTIES);
-    var duty = findById_(duties, '勤務ID', body.id);
-    if (!duty) throw new ApiError_('NOT_FOUND', '找不到這個勤務，可能已被刪除');
-    var active = signupsOf_(readTable_(SHEETS.SIGNUPS), duty['勤務ID']).filter(function (s) { return s['狀態'] !== '已取消'; });
-    if (active.length) {
-      throw new ApiError_('FORBIDDEN', '這個勤務還有 ' + active.length + ' 筆報名，不能刪除；請先取消或改期這些報名');
+    var signups = readTable_(SHEETS.SIGNUPS);
+    var allPositions = readTable_(SHEETS.POSITIONS);
+    var ids = [body.id].concat(body.alsoIds || []).filter(function (id, i, a) { return id && a.indexOf(id) === i; });
+    if (ids.length > MAX_CREATE_DUTIES) throw new ApiError_('BAD_REQUEST', '一次最多刪除 ' + MAX_CREATE_DUTIES + ' 筆');
+    var targets = ids.map(function (id) {
+      var duty = findById_(duties, '勤務ID', id);
+      if (!duty) throw new ApiError_('NOT_FOUND', '找不到這個勤務，可能已被刪除');
+      return duty;
+    });
+    var busy = targets.map(function (duty) {
+      var n = signupsOf_(signups, duty['勤務ID']).filter(function (s) { return s['狀態'] !== '已取消'; }).length;
+      return n ? { message: duty['開始日'] + ' ' + duty['名稱'] + '：還有 ' + n + ' 筆報名' } : null;
+    }).filter(Boolean);
+    if (busy.length) {
+      throw new ApiError_('FORBIDDEN', targets.length > 1 ? '有 ' + busy.length + ' 筆還有報名，整批都沒有刪除；請先取消或改期這些報名，或把它們的勾拿掉' : '這個勤務還有報名，不能刪除；請先取消或改期這些報名', busy);
     }
-    var positions = positionsOf_(readTable_(SHEETS.POSITIONS), duty['勤務ID']);
-    deleteRows_(SHEETS.POSITIONS, positions.map(function (p) { return p._row; }));
-    deleteRows_(SHEETS.DUTIES, [duty._row]);
-    writeDutyLog_('刪除勤務', duty['名稱'] + '｜' + duty['開始日'] + (duty['結束日'] && duty['結束日'] !== duty['開始日'] ? '～' + duty['結束日'] : ''),
-      { duty: rowSnapshot_(SHEETS.DUTIES, duty), positions: positions.map(function (p) { return rowSnapshot_(SHEETS.POSITIONS, p); }) });
+    var positionRows = [];
+    targets.forEach(function (duty) {
+      var positions = positionsOf_(allPositions, duty['勤務ID']);
+      positions.forEach(function (p) { positionRows.push(p._row); });
+      writeDutyLog_('刪除勤務', duty['名稱'] + '｜' + duty['開始日'] + (duty['結束日'] && duty['結束日'] !== duty['開始日'] ? '～' + duty['結束日'] : ''),
+        { duty: rowSnapshot_(SHEETS.DUTIES, duty), positions: positions.map(function (p) { return rowSnapshot_(SHEETS.POSITIONS, p); }) });
+    });
+    deleteRows_(SHEETS.POSITIONS, positionRows);
+    deleteRows_(SHEETS.DUTIES, targets.map(function (d) { return d._row; }));
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.DUTIES);
     invalidateTable_(SHEETS.POSITIONS);
-    return { id: duty['勤務ID'] };
+    return { id: body.id, deleted: targets.length };
   });
 }
 

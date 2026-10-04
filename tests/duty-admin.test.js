@@ -401,3 +401,25 @@ test('一次幫多人報不同的了愿項目（每個名字各自 positionIds�
   assert.equal(dup.error.code, 'VALIDATION');
   assert.equal(env.post({ action: 'signup', dutyId: id, positionId: a.id, dates: ['2026-12-05'], entries: [{ name: '測試丁', positionIds: [a.id, b.id] }] }).error.code, 'BAD_REQUEST');
 });
+
+test('刪除勤務：同名的可以一起刪；任一筆還有報名就整批不刪', () => {
+  const { createEnv } = require('./env');
+  const env = createEnv(Date.UTC(2026, 9, 1, 2, 0, 0));
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const call = (action, body) => env.post(Object.assign({ action, token }, body));
+  const c = call('adminCreateDuties', { duties: ['2027-01-06', '2027-01-13', '2027-01-20'].map((d) => ({ name: '週三讀經班', start: d, positions: [{ name: '參加' }] })) });
+  assert.equal(c.ok, true, JSON.stringify(c.error));
+  const [a, b, d] = c.data.ids;
+  const ed = call('adminDutyForEdit', { id: a }).data;
+  assert.deepEqual(ed.siblings.map((x) => [x.id, x.signups]), [[b, 0], [d, 0]]);
+  const pid = env.get({ action: 'getDuty', id: d }).data.positions[0].id;
+  assert.equal(env.post({ action: 'signup', dutyId: d, positionId: pid, dates: ['2027-01-20'], entries: [{ name: '測試甲', identity: '道親' }] }).ok, true);
+  const r = call('adminDeleteDuty', { id: a, alsoIds: [b, d] });
+  assert.equal(r.error.code, 'FORBIDDEN');
+  assert.match(r.error.details[0].message, /2027-01-20/);
+  assert.equal(call('adminDutyList', {}).data.duties.filter((x) => x.name === '週三讀經班').length, 3, '整批沒刪');
+  const ok = call('adminDeleteDuty', { id: a, alsoIds: [b] });
+  assert.equal(ok.ok, true, JSON.stringify(ok.error));
+  assert.equal(ok.data.deleted, 2);
+  assert.deepEqual(call('adminDutyList', {}).data.duties.filter((x) => x.name === '週三讀經班').map((x) => x.id), [d]);
+});

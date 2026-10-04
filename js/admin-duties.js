@@ -879,26 +879,64 @@
     }
 
     async function removeDuty() {
-      const ok = await Confirm.open({
+      const siblings = ctx.source.siblings || [];
+      const alsoIds = siblings.length ? await pickDeleteSiblings(siblings) : await Confirm.open({
         title: `確定要刪除這個${F()}嗎？`,
         rows: [[F(), s.name], ['日期', dateRange({ start: original.start, end: original.end })]],
         note: '刪除後無法還原（操作紀錄會留下刪除前的資料）。',
         confirmText: '確定刪除',
         cancelText: '不要刪除',
         danger: true
-      });
-      if (!ok) return;
-      Busy.show('刪除中⋯');
+      }).then((ok) => (ok ? [] : null));
+      if (!alsoIds) return;
+      Busy.show(alsoIds.length ? `刪除 ${alsoIds.length + 1} 筆中⋯` : '刪除中⋯', '請不要關閉畫面');
       try {
-        await Api.admin('adminDeleteDuty', { id: s.id });
+        const res = await Api.admin('adminDeleteDuty', { id: s.id, alsoIds });
         Busy.hide();
         afterWrite();
-        flash = AdminPage.notice('success', '已刪除' + F(), `${original.name}・${Fmt.rocDate(original.start)}`);
+        flash = AdminPage.notice('success', res.deleted > 1 ? `已刪除 ${res.deleted} 筆${F()}` : '已刪除' + F(), res.deleted > 1 ? `「${original.name}」等同名${F()}` : `${original.name}・${Fmt.rocDate(original.start)}`);
         location.hash = '#/admin/duties';
       } catch (err) {
         Busy.hide();
         if (!ctx.guard(err)) showError(errorList(err));
       }
+    }
+
+    /** 有同名的：選只刪這一筆，或連同名的一起刪（可以勾選）。回傳要一起刪的 ID（[]＝只刪這筆），取消回傳 null */
+    function pickDeleteSiblings(siblings) {
+      return new Promise((resolve) => {
+        let result = null;
+        const today = Fmt.toDateStr(new Date());
+        const m = Modal.open(`
+          <h2 class="modal-title">刪除「${esc(original.name)}」</h2>
+          <p class="modal-note">還有 ${siblings.length} 筆同名的${F()}。要一起刪除的請打勾；有人報名的不能刪。刪除後無法還原（操作紀錄會留下刪除前的資料）。</p>
+          <div class="sib-list">
+            <label class="check sib-this"><input type="checkbox" checked disabled> <strong>${esc(Fmt.shortDate(original.start))} 這一筆</strong></label>
+            <div class="sib-quick">
+              <button type="button" class="btn btn-small" data-pick="all">全選</button>
+              <button type="button" class="btn btn-small" data-pick="future">只選今天以後的</button>
+              <button type="button" class="btn btn-small" data-pick="none">都不選</button>
+            </div>
+            ${siblings.map((x) => `<label class="check${x.signups ? ' is-locked' : ''}"><input type="checkbox" data-sib="${esc(x.id)}" data-end="${esc(x.end)}"${x.signups ? ' disabled' : ''}> ${esc(Fmt.shortDate(x.start))} ${esc(x.name)}${x.signups ? `<span class="tag tag-warn">${x.signups} 筆報名</span>` : ''}</label>`).join('')}
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-block btn-danger" data-ok>只刪除這一筆</button>
+            <button type="button" class="btn btn-block" data-cancel>不要刪除</button>
+          </div>`, () => resolve(result));
+        const boxes = [...m.el.querySelectorAll('[data-sib]')];
+        const ok = m.el.querySelector('[data-ok]');
+        const draw = () => {
+          const n = boxes.filter((b) => b.checked).length;
+          ok.textContent = n ? `確定刪除 ${n + 1} 筆` : '只刪除這一筆';
+        };
+        m.el.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => {
+          boxes.forEach((x) => { if (!x.disabled) x.checked = b.dataset.pick === 'all' || (b.dataset.pick === 'future' && x.dataset.end >= today); });
+          draw();
+        }));
+        boxes.forEach((b) => b.addEventListener('change', draw));
+        ok.addEventListener('click', () => { result = boxes.filter((b) => b.checked).map((b) => b.dataset.sib); m.close(); });
+        m.el.querySelector('[data-cancel]').addEventListener('click', () => m.close());
+      });
     }
 
     // ---- 農曆規則：產生、預覽、建立 ----

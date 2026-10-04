@@ -1797,3 +1797,8 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 .multi-title { margin: 0 0 8px; font-weight: 800; color: var(--ink); }
 .multi-weekdays { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; }
 .multi-preview li { display: flex; align-items: center; gap: 8px; }
+
+/* 刪除時選同名的一起刪 */
+.sib-list { display: grid; gap: 6px; max-height: 50vh; overflow-y: auto; margin: 4px 0 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.sib-quick { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+.sib-list .is-locked { color: var(--muted); }
