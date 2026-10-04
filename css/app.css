@@ -1640,3 +1640,19 @@ body:not(.role-super) #view-admin .people-list [data-row] { cursor: default; }
 .role-option small { grid-column: 2; color: var(--muted); }
 .pw-row { display: flex; gap: 6px; }
 .pw-row .input { flex: 1; min-width: 0; }
+
+/* 管理者登入：置中卡片、logo、大欄位、顯示密碼 */
+.admin-login { max-width: 400px; margin: 28px auto; padding: 28px 22px 22px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 10px 30px rgba(60, 40, 20, .08); border-radius: 18px; }
+.login-head { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; margin-bottom: 4px; }
+.login-logo { width: 72px; height: 72px; border-radius: 18px; box-shadow: 0 4px 12px rgba(60, 40, 20, .15); }
+.login-title { font-family: var(--serif); font-size: 1.6rem; margin: 6px 0 0; letter-spacing: .1em; }
+.login-sub { margin: 0; color: var(--muted); font-size: .95rem; }
+.login-field { display: flex; flex-direction: column; gap: 6px; }
+.login-field > span:first-child { font-weight: 700; font-size: 1rem; }
+.login-input { min-height: 52px; font-size: 1.15rem; }
+select.login-input { appearance: auto; }
+.login-pw { position: relative; display: block; }
+.login-pw .login-input { width: 100%; padding-right: 72px; box-sizing: border-box; }
+.login-eye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); min-height: 40px; padding: 0 12px; border: none; background: transparent; color: var(--accent); font-size: .95rem; font-weight: 700; cursor: pointer; }
+.login-submit { min-height: 54px; font-size: 1.2rem; letter-spacing: .3em; margin-top: 4px; }
+.login-foot { margin: 0; text-align: center; color: var(--muted); font-size: .9rem; }

@@ -182,20 +182,49 @@
   // ---------- 登入 ----------
 
   function renderLogin(message) {
+    // 回行事曆：標題列左上的「‹」
     root.innerHTML = `
-      <a class="back-link" href="#/">‹ 回行事曆</a>
       <form class="admin-login" novalidate>
-        <h1 class="admin-title">管理者登入</h1>
+        <div class="login-head">
+          <img class="login-logo" src="icons/icon-192.png" alt="" width="72" height="72">
+          <h1 class="login-title">管理後台</h1>
+          <p class="login-sub">選擇帳號、輸入密碼後登入</p>
+        </div>
         ${message ? `<p class="notice notice-error">${esc(message)}</p>` : ''}
-        <label class="field-label" for="admin-account">帳號</label>
-        <input id="admin-account" class="input" type="text" autocomplete="username" placeholder="總管理者可以留空">
-        <label class="field-label" for="admin-password">密碼</label>
-        <input id="admin-password" class="input" type="password" autocomplete="current-password" required>
+        <label class="login-field">
+          <span>帳號</span>
+          <select id="admin-account" class="input login-input"><option value="總管理者">總管理者</option></select>
+        </label>
+        <label class="login-field">
+          <span>密碼</span>
+          <span class="login-pw">
+            <input id="admin-password" class="input login-input" type="password" autocomplete="current-password" required>
+            <button type="button" class="login-eye" data-eye aria-label="顯示密碼">顯示</button>
+          </span>
+        </label>
         <div class="form-error" data-error hidden></div>
-        <button type="submit" class="btn btn-primary btn-block">登入</button>
+        <button type="submit" class="btn btn-primary btn-block login-submit">登入</button>
+        <p class="login-foot">忘記密碼請聯絡總管理者重設</p>
       </form>`;
     const form = root.querySelector('form');
     const input = form.querySelector('#admin-password');
+    const pick = form.querySelector('#admin-account');
+    const eye = form.querySelector('[data-eye]');
+    eye.addEventListener('click', () => {
+      const showing = input.type === 'text';
+      input.type = showing ? 'password' : 'text';
+      eye.textContent = showing ? '顯示' : '隱藏';
+      eye.setAttribute('aria-label', showing ? '顯示密碼' : '隱藏密碼');
+      input.focus();
+    });
+    const LAST_KEY = 'duty-calendar:admin-account';
+    let last = '總管理者';
+    try { last = localStorage.getItem(LAST_KEY) || '總管理者'; } catch (e) { /* 無痕模式 */ }
+    const fill = (names) => {
+      pick.innerHTML = names.map((n) => `<option value="${esc(n)}"${n === last ? ' selected' : ''}>${esc(n)}</option>`).join('');
+    };
+    fill([last === '總管理者' ? '總管理者' : last].concat(last === '總管理者' ? [] : ['總管理者']));
+    Api.loginAccounts().then((res) => fill(res.accounts)).catch(() => { /* 讀不到清單：至少有上次的和總管理者 */ });
     input.focus();
     form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
@@ -207,7 +236,8 @@
       }
       Busy.show('登入中⋯');
       try {
-        await Api.adminLogin(input.value, form.querySelector('#admin-account').value.trim());
+        await Api.adminLogin(input.value, pick.value);
+        try { localStorage.setItem(LAST_KEY, pick.value); } catch (e) { /* 無痕模式 */ }
         Busy.hide();
         show(location.hash.replace(/^#\/admin\/?/, ''));
       } catch (err) {

@@ -23,6 +23,7 @@ function doGet(e) {
       case 'searchMembers': return searchMembers_(p);
       case 'getSiblings': return getSiblings_(p);
       case 'pushKey': return pushKey_();
+      case 'loginAccounts': return loginAccounts_();
       case 'pushSummary': return pushSummary_(p);
       default: throw new ApiError_('BAD_REQUEST', '未知的 action：' + (p.action || '（空白）'));
     }

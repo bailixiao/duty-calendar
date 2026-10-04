@@ -138,6 +138,14 @@ function adminScope_(session, action, result) {
   return result;
 }
 
+/** 登入畫面的帳號下拉選單：總管理者＋啟用中的帳號名稱（不含角色、密碼） */
+function loginAccounts_() {
+  return {
+    accounts: [SUPER_ACCOUNT].concat(accountRows_().filter(function (r) { return r['帳號'] && r['啟用'] !== '否'; })
+      .map(function (r) { return r['帳號']; }))
+  };
+}
+
 // ---------- 帳號管理（只有總管理者） ----------
 
 function accountToJson_(r) {

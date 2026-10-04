@@ -54,6 +54,16 @@ test('類別帳號：只能動自己類別的勤務；新增時類別固定成�
   assert.equal(env.post({ action: 'adminCancel', token: superTok, signupId: s.data.created[0].id }).ok, true);
 });
 
+test('登入畫面的帳號清單：總管理者＋啟用中的帳號，只有名稱', () => {
+  const { env, save } = setup();
+  save({ account: '道務', role: '道務', password: 'abc12345' });
+  save({ account: '點傳師', role: '唯讀', password: 'abc12345' });
+  save({ account: '舊帳號', role: '教育', password: 'abc12345', active: false });
+  const r = env.get({ action: 'loginAccounts' });
+  assert.deepEqual(r.data.accounts, ['總管理者', '道務', '點傳師']);
+  assert.equal(JSON.stringify(r).includes('唯讀'), false);
+});
+
 test('唯讀：什麼都能看、什麼都不能改', () => {
   const { env, login, superTok, save } = setup();
   save({ account: '查看用', role: '唯讀', password: 'abc12345' });
