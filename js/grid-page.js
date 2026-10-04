@@ -152,7 +152,7 @@
       location.replace(`#/duty/${encodeURIComponent(d.id)}`);
       return;
     }
-    const stages = d.stages ? RosterGrid.parseStages(d.stages, d.start, d.today) : [];
+    const stages = RosterGrid.parseStages(RosterGrid.stagesText(d), d.start, d.today); // 階段留空就自動推算
     const keep = root.querySelector('.grid-wrap');
     const scrollX = keep ? keep.scrollLeft : null;
     root.innerHTML = `

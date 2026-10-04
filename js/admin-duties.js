@@ -490,8 +490,8 @@
           <fieldset class="form-block">
             <legend>職司表（12人小組這類多天輪值）</legend>
             <label class="check"><input type="checkbox" name="layout"${s.layout === '職司表' ? ' checked' : ''}> 用職司表顯示：一欄一天、一列一個了愿項目，報名的人自動排進去</label>
-            ${s.layout === '職司表' ? `<label class="form-row"><span>階段（可空白）</span><textarea class="input textarea" name="stages" rows="4" placeholder="一行一個，例：&#10;即日起~9/13｜向區中心報名了愿日期&#10;9/14~9/18｜職司初安排&#10;9/27~10/4｜12人小組輪值">${esc(s.stages || '')}</textarea></label>
-            <p class="hint">家人們的頁面上方會顯示成時間軸，自動亮起現在這個階段。組長 ★ 和註記在報名名單上設定。</p>` : ''}
+            ${s.layout === '職司表' ? `<label class="form-row"><span>階段（留空會自動推算）</span><textarea class="input textarea" name="stages" rows="4" placeholder="一行一個，例：&#10;即日起~9/13｜向區中心報名了愿日期&#10;9/14~9/18｜職司初安排&#10;9/27~10/4｜12人小組輪值">${esc(s.stages || '')}</textarea></label>
+            <p class="hint">家人們的頁面上方會顯示成進度條，自動亮起現在這個階段。${s.start ? `留空時依第一天自動推算：<br>${esc(RosterGrid.autoStages(s.start)).replace(/\n/g, '<br>')}` : '留空時會依第一天自動推算。'}<br>組長 ★ 和註記在報名名單上設定。</p>` : ''}
           </fieldset>`}
 
           <fieldset class="form-block">

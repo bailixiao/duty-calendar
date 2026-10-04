@@ -38,3 +38,15 @@ test('職司表：一欄一天，組長排第一個，列數＝人最多的那�
   assert.deepEqual(g.groups[0].cells['2026-09-27'].map((s) => s.name), ['測試乙', '測試甲', '測試丙']);
   assert.deepEqual(g.groups[0].cells['2026-09-28'], []);
 });
+
+test('階段自動推算：輪值前的禮拜一調整、前一週一到五安排、再往前兩週報名', () => {
+  assert.equal(G.autoStages('2026-11-08'), '10/12~10/25｜報名了愿日期\n10/26~10/30｜職司安排\n11/2(一)｜壇辦班職司最後調整');
+  // 範例那次（9/27 開始）推回去和範例的調整日相同
+  assert.match(G.autoStages('2026-09-27'), /9\/21\(一\)｜壇辦班職司最後調整$/);
+  // 第一天就是禮拜一：調整日是前一個禮拜一
+  assert.match(G.autoStages('2026-11-09'), /11\/2\(一\)/);
+  // 跨年
+  assert.equal(G.autoStages('2027-01-10').split('\n')[0], '12/14~12/27｜報名了愿日期');
+  assert.equal(G.stagesText({ stages: '  ', start: '2026-11-08' }).split('\n').length, 3);
+  assert.equal(G.stagesText({ stages: '自己寫的', start: '2026-11-08' }), '自己寫的');
+});

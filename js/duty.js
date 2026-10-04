@@ -148,7 +148,7 @@
     const dmImages = dm.filter((x) => /^image\//.test(x.mime)).map((x) => ({ src: Api.fileUrl(x.id), caption: '' }));
     const dmPdfs = dm.filter((x) => x.mime === 'application/pdf');
     el.innerHTML = `
-      ${d.layout === '職司表' && d.stages ? stagesSection(d) : ''}
+      ${d.layout === '職司表' ? stagesSection(d) : ''}
       ${d.mode === '公告型' ? groupSection(d) : ''}
       ${dm.length ? `
         <section class="detail-section">
@@ -196,7 +196,7 @@
   // ---------- 職司表：階段時間軸 ----------
 
   function stagesSection(d) {
-    const stages = RosterGrid.parseStages(d.stages, d.start, d.today);
+    const stages = RosterGrid.parseStages(RosterGrid.stagesText(d), d.start, d.today);
     if (!stages.length) return '';
     return `
       <section class="detail-section">

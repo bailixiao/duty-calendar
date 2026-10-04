@@ -56,6 +56,34 @@
     return stages;
   }
 
+  const WEEK = ['日', '一', '二', '三', '四', '五', '六'];
+  const weekdayOf = (s) => new Date(Date.UTC(Number(s.slice(0, 4)), Number(s.slice(5, 7)) - 1, Number(s.slice(8, 10)))).getUTCDay();
+  const md = (s) => `${Number(s.slice(5, 7))}/${Number(s.slice(8, 10))}`;
+
+  /**
+   * 「階段」留空時自動推算（12人小組的節奏，教全區三個階段）：
+   *   ③ 壇辦班職司最後調整：輪值第一天之前的禮拜一（壇辦班都在禮拜一）
+   *   ② 職司安排：再前一週的禮拜一～禮拜五
+   *   ① 報名了愿日期：③ 往前三週的禮拜一～職司安排前一天（禮拜日）
+   * 例：11/8 開始 → 10/12~10/25、10/26~10/30、11/2(一)
+   */
+  function autoStages(start) {
+    let adjust = addDays(start, -1);
+    while (weekdayOf(adjust) !== 1) adjust = addDays(adjust, -1);
+    const arrange = [addDays(adjust, -7), addDays(adjust, -3)];
+    const signup = [addDays(adjust, -21), addDays(adjust, -8)];
+    return [
+      `${md(signup[0])}~${md(signup[1])}｜報名了愿日期`,
+      `${md(arrange[0])}~${md(arrange[1])}｜職司安排`,
+      `${md(adjust)}(${WEEK[weekdayOf(adjust)]})｜壇辦班職司最後調整`
+    ].join('\n');
+  }
+
+  /** 勤務要顯示的階段文字：有填就用填的，留空就自動推算 */
+  function stagesText(duty) {
+    return String(duty.stages || '').trim() || autoStages(duty.start);
+  }
+
   /**
    * 職司表資料：{ dates: [{ date, total, today }], groups: [{ position, rows, cells: { date: [報名] } }] }
    * 每格裡組長排最前面，其餘照報名順序；列數＝這個項目人最多的那天（至少 1 列）。
@@ -82,7 +110,7 @@
     return { dates, groups };
   }
 
-  const api = { parseStages, build, datesBetween };
+  const api = { parseStages, build, datesBetween, autoStages, stagesText };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.RosterGrid = api;
 })();
