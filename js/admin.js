@@ -375,7 +375,7 @@
                 <button type="button" class="btn btn-small btn-quiet-danger" data-cancel="${esc(s.id)}">取消</button>
               </span>` : ''}
             </li>`).join('')}</ul>` : `<p class="muted">${past ? '沒有人報名' : '還沒有人報名'}</p>`}
-          ${past && canEdit ? `<button type="button" class="btn btn-small" data-walkin="${esc(p.id)}">＋ 補登沒報名但有來的人</button>` : ''}
+          ${canEdit ? `<button type="button" class="btn btn-small" data-walkin="${esc(p.id)}">${past ? '＋ 補登沒報名但有來的人' : '＋ 幫人報名'}</button>` : ''}
         </li>`;
     }).join('');
 
@@ -396,7 +396,7 @@
           <h3 class="admin-sub">報名名單${dates.length > 1 ? `<span class="h2-sub">${Fmt.shortDate(date)}</span>` : ''}</h3>
           ${dates.length > 1 ? `<div class="date-tabs">${dates.map((x) => `<button type="button" class="date-tab${x === date ? ' is-active' : ''}" data-date="${x}"><span class="date-tab-day">${Fmt.shortDate(x)}</span></button>`).join('')}</div>` : ''}
           <ul class="position-list">${positions}</ul>
-          <p class="hint">${past ? '出席修正：預設報名＝出席。沒來的人按「改未到」，沒報名但有來的人按「補登」。統計表只算出席、非陪同的人。' : '管理者可以取消、改期任何日期（含當天與過去）的報名。'}</p>
+          <p class="hint">${past ? '出席修正：預設報名＝出席。沒來的人按「改未到」，沒報名但有來的人按「補登」。統計表只算出席、非陪同的人。' : '管理者可以取消、改期任何日期（含當天與過去）的報名；按「＋ 幫人報名」可以直接幫人加上（不受報名截止日限制）。'}</p>
         </section>`}
       <p class="admin-links"><a href="#/admin/duties/edit/${encodeURIComponent(d.id)}">編輯勤務 ›</a><a href="#/duty/${encodeURIComponent(d.id)}?date=${date}">查看一般使用者看到的頁面 ›</a></p>`;
 
@@ -479,12 +479,14 @@
     });
   }
 
-  /** 補登：沒報名但有來的人，直接記為出席 */
+  /** 管理者加人：當天與過去叫「補登」（沒報名但有來的人，記為出席）；未來叫「幫人報名」（不受截止日限制） */
   function addAttendee(p, date) {
     const d = dutyPage.data;
+    const past = date <= d.today;
+    const word = past ? '補登' : '報名';
     const m = Modal.open(`
       <form class="modal-form" novalidate>
-        <h2 class="modal-title">補登出席</h2>
+        <h2 class="modal-title">${past ? '補登出席' : '幫人報名'}</h2>
         <p class="modal-note">${esc(d.name)}・${esc(Fmt.rocDate(date))}・${esc(p.name)}</p>
         <label class="form-row"><span>姓名</span><input class="input" name="name" autocomplete="off" required></label>
         <div class="form-row"><span>身分</span><div class="seg">
@@ -493,9 +495,10 @@
           <label class="seg-item"><input type="radio" name="identity" value="未求道"><span>未求道</span></label>
         </div></div>
         <label class="check" data-acc-row hidden><input type="checkbox" name="accompany"> 陪同（不算人數）</label>
+        ${d.layout === '職司表' ? '<label class="form-row"><span>註記（可空白）</span><input class="input" name="note" maxlength="100" placeholder="例：8:00-19:00、代理人"></label>' : ''}
         <div class="form-error" data-error hidden></div>
         <div class="modal-actions">
-          <button type="submit" class="btn btn-block btn-primary">補登</button>
+          <button type="submit" class="btn btn-block btn-primary">${past ? '補登' : '確認報名'}</button>
           <button type="button" class="btn btn-block" data-close>返回</button>
         </div>
       </form>`);
@@ -518,12 +521,12 @@
         return;
       }
       m.el.setAttribute('data-locked', '');
-      Busy.show('補登中⋯');
+      Busy.show(word + '中⋯');
       try {
-        const res = await Api.admin('adminAddAttendee', { dutyId: d.id, positionId: p.id, date, name, identity: identity.value, accompany: f.elements.accompany.checked });
+        const res = await Api.admin('adminAddAttendee', { dutyId: d.id, positionId: p.id, date, name, identity: identity.value, accompany: f.elements.accompany.checked, note: f.elements.note ? f.elements.note.value.trim() : '' });
         Busy.hide();
         m.close();
-        dutyPage.flash = notice('success', '已補登', `${name}・${p.name}${res.warnings.length ? '（注意：' + res.warnings.join('；') + '）' : ''}`);
+        dutyPage.flash = notice('success', '已' + word, `${name}・${Fmt.shortDate(date)}・${p.name}${res.warnings.length ? '（注意：' + res.warnings.join('；') + '）' : ''}`);
         afterChange();
       } catch (err) {
         Busy.hide();

@@ -50,7 +50,10 @@ function adminSetAttendance_(body) {
   });
 }
 
-/** body = { dutyId, positionId, date, name, identity, accompany }：補登（沒報名但有來），直接記為出席 */
+/**
+ * body = { dutyId, positionId, date, name, identity, accompany, note }：管理者加人，直接記為出席。
+ * 當天與過去＝補登（沒報名但有來）；未來＝管理者幫人報名（不受截止日、當天不能報的限制）。note：職司表的註記。
+ */
 function adminAddAttendee_(body) {
   var duty = findById_(readTableCached_(SHEETS.DUTIES), '勤務ID', body.dutyId);
   var positions = duty ? readTableCached_(SHEETS.POSITIONS).filter(function (p) { return p['勤務ID'] === duty['勤務ID']; }) : [];
@@ -73,10 +76,11 @@ function adminAddAttendee_(body) {
       '姓名': normalizeName_(body.name), '身分': body.identity, '陪同': entry.accompany ? '是' : '否',
       '出席': '出席', '狀態': '有效', '建立時間': now, '更新時間': now
     };
+    if (duty['版面'] === '職司表' && body.note) row['註記'] = cleanText_(body.note).slice(0, 100);
     appendRows_(SHEETS.SIGNUPS, [row]);
     appendRows_(SHEETS.LOGS, [{
       '時間': now, '動作': '修正', '報名ID': row['報名ID'],
-      '內容摘要': signupSummary_(row, duty, position) + '｜補登' + (warnings.length ? '（警告：' + warnings.join('；') + '）' : ''),
+      '內容摘要': signupSummary_(row, duty, position) + (body.date > todayString_() ? '｜管理者幫人報名' : '｜補登') + (warnings.length ? '（警告：' + warnings.join('；') + '）' : ''),
       '還原用的前一版資料': ''
     }]);
     SpreadsheetApp.flush();

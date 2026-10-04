@@ -83,3 +83,11 @@ test('職司表：版面、階段存得進去；組長 ★、註記寫回報名�
   const after = env.get({ action: 'getDuty', id }).data.signups.find((x) => x.id === sid);
   assert.deepEqual([after.leader, after.note], [false, '']);
 });
+
+test('管理者幫人報名：未來的日期也可以加（不受截止日限制），操作紀錄寫「管理者幫人報名」', () => {
+  const { env, call, duty, pid } = setup();
+  const r = call('adminAddAttendee', { dutyId: duty.id, positionId: pid, date: '2026-10-13', name: '測試甲', identity: '道親' });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.ok(env.get({ action: 'getDuty', id: duty.id }).data.signups.some((s) => s.name === '測試甲' && s.date === '2026-10-13'));
+  assert.match(env.sheets['操作紀錄'].data.slice(-1)[0][3], /管理者幫人報名/);
+});
