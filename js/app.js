@@ -2,6 +2,7 @@
 //   #/                       行事曆
 //   #/duty/<勤務ID>?date=…   勤務詳情與報名
 //   #/mine                   我的報名（見 mine.js）
+//   #/grid/<勤務ID>          職司表大頁面（見 grid-page.js）
 //   #/admin…                 管理後台（見 admin.js）
 (function () {
   'use strict';
@@ -39,6 +40,12 @@
       CalendarPage.setView('recent');
       return;
     }
+    const grid = location.hash.match(/^#\/grid\/([^?]+)/);
+    if (grid) {
+      show('grid');
+      GridPage.show(decodeURIComponent(grid[1]));
+      return;
+    }
     if (/^#\/mine\/?$/.test(location.hash)) {
       show('mine');
       MinePage.show();
@@ -71,7 +78,8 @@
     current = name;
     // 勤務頁、我的報名、管理後台：標題列左邊顯示「‹」，點標題回行事曆（取代頁面上方的「‹ 回行事曆」）
     document.body.classList.toggle('is-sub', name !== 'calendar');
-    document.body.classList.toggle('on-admin', name === 'admin'); // 管理後台裡不顯示右下角的「管理者」連結
+    document.body.classList.toggle('on-admin', name === 'admin');
+    document.body.classList.toggle('on-grid', name === 'grid'); // 職司表大頁面：版面放寬 // 管理後台裡不顯示右下角的「管理者」連結
   }
 
   // ---------- 開場動畫 ----------
@@ -161,6 +169,7 @@
     views.calendar = document.getElementById('view-calendar');
     views.duty = document.getElementById('view-duty');
     views.mine = document.getElementById('view-mine');
+    views.grid = document.getElementById('view-grid');
     views.admin = document.getElementById('view-admin');
     CalendarPage.init();
     // 搬家測試：用 ?api=cf 試用 Cloudflare 版時，左下角顯示提示，按一下切回正式版

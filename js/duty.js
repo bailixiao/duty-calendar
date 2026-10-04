@@ -128,6 +128,12 @@
     if (!isNotice) {
       renderRoster();
       mountSignup();
+      // 從職司表頁按「點我報名」過來：直接捲到報名表單
+      if (sessionStorage.getItem('duty-calendar:to-signup') === d.id) {
+        sessionStorage.removeItem('duty-calendar:to-signup');
+        const box = document.getElementById('duty-signup');
+        if (box) setTimeout(() => box.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+      }
     }
   }
 
@@ -206,36 +212,10 @@
 
   function gridSection(d) {
     if (!d.signups) return '<p class="muted">載入職司表中⋯</p>';
-    const g = RosterGrid.build(d);
-    const head = g.dates.map((x) => `<th scope="col" class="${x.today ? 'is-today' : ''}">${Fmt.shortDate(x.date).replace('（', '<br>(').replace('）', ')')}${x.today ? '<small>今天</small>' : ''}</th>`).join('');
-    const totals = g.dates.map((x) => `<td class="${x.today ? 'is-today' : ''}">${x.total} 人</td>`).join('');
-    const body = g.groups.map((grp, gi) => Array.from({ length: grp.rows }, (_, r) => `
-      <tr class="${r === 0 ? 'grid-first' : ''} grid-g${gi % 2}">
-        ${r === 0 ? `<th scope="rowgroup" rowspan="${grp.rows}" class="grid-pos"><span>${esc(grp.position.name)}</span></th>` : ''}
-        <td class="grid-n">${r + 1}</td>
-        ${g.dates.map((x) => {
-          const s = grp.cells[x.date][r];
-          if (!s) return `<td class="grid-empty${x.today ? ' is-today' : ''}">—</td>`;
-          return `<td class="${x.today ? 'is-today' : ''}"><span class="grid-name${s.leader ? ' is-leader' : ''}">${s.leader ? '<span class="grid-star" title="組長">★</span>' : ''}${esc(s.name)}${s.accompany ? '<small>陪同</small>' : ''}${s.note ? `<button type="button" class="grid-note" data-note="${esc(s.id)}" aria-label="${esc(s.name)}的註記">註</button>` : ''}</span></td>`;
-        }).join('')}
-      </tr>`).join('')).join('');
     return `
-      <div class="grid-wrap">
-        <table class="roster-grid">
-          <thead><tr><th scope="col" colspan="2" class="grid-corner">日期</th>${head}</tr>
-            <tr class="grid-total"><th scope="row" colspan="2" class="grid-corner">人數</th>${totals}</tr></thead>
-          <tbody>${body}</tbody>
-        </table>
-      </div>
+      <a class="btn btn-primary btn-block grid-open" href="#/grid/${encodeURIComponent(d.id)}">📋 打開大張職司表</a>
+      ${GridPage.tableHtml(d)}
       <p class="hint">表格可以左右滑動。<span class="nw"><span class="grid-star">★</span> 是組長；</span><span class="nw">點「註」可以看註記。</span></p>`;
-  }
-
-  function openNote(s) {
-    const m = Modal.open(`
-      <h2 class="modal-title">${esc(s.name)}</h2>
-      <p class="note-full">${esc(s.note)}</p>
-      <div class="modal-actions"><button type="button" class="btn btn-block" data-close>關閉</button></div>`);
-    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
   }
 
   // ---------- 公告型：本次輪值組 ----------
@@ -331,7 +311,7 @@
       renderRoster();
     }));
     const findSignup = (id) => (d.signups || []).find((s) => s.id === id);
-    el.querySelectorAll('[data-note]').forEach((btn) => btn.addEventListener('click', () => openNote(findSignup(btn.dataset.note))));
+    if (d.layout === '職司表') GridPage.bindNotes(el, d);
     el.querySelectorAll('[data-cancel]').forEach((btn) => btn.addEventListener('click', () => cancelSignup(findSignup(btn.dataset.cancel))));
     el.querySelectorAll('[data-reschedule]').forEach((btn) => btn.addEventListener('click', () => {
       Reschedule.open(findSignup(btn.dataset.reschedule), d, (result) => onRescheduled(findSignup(btn.dataset.reschedule), result));

@@ -484,7 +484,8 @@
     const { duty, state: st } = item;
     const meta = [duty.location, Fmt.cardTime(duty, date)].filter(Boolean);
     const group = Fmt.groupText(duty);
-    const href = `#/duty/${encodeURIComponent(duty.id)}?date=${date}`;
+    // 職司表（12人小組）直接打開職司表大頁面；其他勤務打開勤務頁
+    const href = duty.layout === '職司表' ? `#/grid/${encodeURIComponent(duty.id)}` : `#/duty/${encodeURIComponent(duty.id)}?date=${date}`;
     return `
       <a class="duty-card kind-${st.kind}${compact ? ' is-compact' : ''}" href="${href}">
         <span class="card-main">

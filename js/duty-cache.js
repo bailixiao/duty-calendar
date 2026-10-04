@@ -92,9 +92,9 @@
 
   // 行事曆、近期、我的報名上的勤務連結：手指一碰到（還沒放開）就開始讀
   function onTouch(ev) {
-    const a = ev.target.closest && ev.target.closest('a[href^="#/duty/"]');
+    const a = ev.target.closest && ev.target.closest('a[href^="#/duty/"], a[href^="#/grid/"]');
     if (!a) return;
-    const m = a.getAttribute('href').match(/^#\/duty\/([^?]+)/);
+    const m = a.getAttribute('href').match(/^#\/(?:duty|grid)\/([^?]+)/);
     if (m) prefetch(decodeURIComponent(m[1]));
   }
   document.addEventListener('pointerdown', onTouch, { passive: true });

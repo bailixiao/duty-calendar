@@ -1707,3 +1707,31 @@ body.on-admin .app-footer { display: none; }
 .grid-daily > summary { cursor: pointer; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); font-weight: 700; color: var(--ink-2); }
 .grid-daily[open] > summary { margin-bottom: 12px; }
 .note-full { font-size: 19px; line-height: 1.6; margin: 0 0 8px; }
+
+/* ---------- 職司表大頁面（#/grid/…） ---------- */
+body.on-grid .app-main { max-width: 1280px; }
+.gp-hero { margin: -16px -16px 0; padding: 28px 20px 22px; background: linear-gradient(160deg, #2f5f8f 0%, #4a86b8 55%, #7fb0d6 100%); color: #fff; border-radius: 0 0 20px 20px; }
+.gp-when { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: .5px; }
+.gp-title { margin: 4px 0 6px; font-size: 30px; line-height: 1.25; font-family: var(--serif); }
+.gp-place { margin: 0 0 14px; font-size: 16px; opacity: .92; }
+.gp-stages { list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.gp-stage { display: grid; gap: 4px; padding: 10px 12px; border-radius: 14px; background: rgba(255, 255, 255, .16); border: 1px solid rgba(255, 255, 255, .25); }
+.gp-stage-when { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; }
+.gp-stage-n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid currentColor; font-size: 12px; flex: none; }
+.gp-stage-text { font-size: 16px; font-weight: 700; }
+.gp-stage-done { opacity: .6; }
+.gp-stage-now { background: #fff; color: #23476b; border-color: #fff; box-shadow: 0 6px 18px rgba(0, 0, 0, .18); }
+.gp-updated { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; margin: 14px 0 8px; color: var(--muted); font-size: 14px; }
+.gp-legend { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-2); font-weight: 700; }
+.gp-legend-note { cursor: default; }
+.gp-section { margin-top: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
+.gp-h2 { margin: 0 0 10px; font-size: 20px; color: #23476b; }
+.gp-section .grid-wrap { margin: 0 -6px; }
+.grid-view .roster-grid { font-size: 18px; }
+.grid-view .roster-grid th, .grid-view .roster-grid td { padding: 10px 12px; }
+.gp-desc { margin: 0 0 8px; font-size: 17px; line-height: 1.7; color: var(--ink-2); }
+.gp-foot { margin: 18px 0 90px; text-align: center; color: var(--muted); font-size: 14px; }
+.gp-signup { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 20; min-width: 220px; padding: 14px 28px; border-radius: 999px; background: linear-gradient(180deg, #f6d36b, #e2a92b); color: #4a3200; font-size: 22px; font-weight: 800; text-align: center; text-decoration: none; letter-spacing: 2px; box-shadow: 0 8px 22px rgba(120, 80, 0, .35); }
+.gp-signup:active { transform: translateX(-50%) scale(.97); }
+.grid-open { margin-bottom: 12px; }
+@media (min-width: 720px) { .gp-hero { margin: 0; border-radius: 20px; padding: 32px 28px 26px; } .gp-when { font-size: 30px; } .gp-title { font-size: 36px; } }
