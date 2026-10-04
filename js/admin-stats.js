@@ -7,7 +7,7 @@
   const esc = Fmt.esc;
   const C = window.StatsCalc;
   const TREND_COUNT = { month: 12, quarter: 8, year: 5 };
-  const state = { unit: 'month', period: null, rankKind: 'all', rankAll: false, category: '全部', eduCourse: '', eduRankOnly: false, eduRankAll: false };
+  const state = { unit: 'month', period: null, rankKind: 'all', rankAll: false, category: '全部', eduCourse: '', eduRankAll: false };
 
   function show(body, guard) {
     AdminPage.swr('stats', () => Api.admin('adminStats', {}, true), (data, stale) => {
@@ -270,17 +270,15 @@
           <p class="hint">沒來的人：到後台這堂課的報名名單按「改未到」；沒報名但有來的人：按「補登」。</p>
         </section>` : ''}
 
-        ${courses.length ? (() => {
-          const rank = EduStats.ranking(courses, state.eduRankOnly && cur ? cur.name : '');
+        ${cur ? (() => {
+          // 每個課程的學生不同：只排目前選的課程（點上面的課程名稱切換）
+          const rank = EduStats.ranking(courses, cur.name);
           return `
         <section class="stats-section">
-          <h3 class="admin-sub">學生出席排行<span class="h2-sub">出席次數多的在前</span></h3>
-          ${courses.length > 1 ? `<div class="seg rank-kind no-print">${[[false, '全部課程'], [true, '只看' + (cur ? cur.name : '')]].map(([v, l]) =>
-            `<label class="seg-item"><input type="radio" name="erank" value="${v ? 'one' : 'all'}"${v === state.eduRankOnly ? ' checked' : ''}><span>${esc(l)}</span></label>`).join('')}</div>` : ''}
+          <h3 class="admin-sub">學生出席排行：${esc(cur.name)}<span class="h2-sub">出席次數多的在前${courses.length > 1 ? '・點上面的課程換一個' : ''}</span></h3>
           ${rank.length ? `<ol class="rank-list edu-rank">${(state.eduRankAll ? rank : rank.slice(0, 10)).map((r) => `
-            <li><span class="rank-name">${esc(r.name)}${r.absent ? ` <span class="tag tag-warn">未到 ${r.absent}</span>` : ''}
-                ${courses.length > 1 && !state.eduRankOnly && r.byCourse.length ? `<small class="edu-rank-detail">${r.byCourse.map((c) => `${esc(c.name)} ${c.count}`).join('・')}</small>` : ''}</span>
-              <span class="rank-count">${r.count} 堂</span></li>`).join('')}</ol>
+            <li><span class="rank-name">${esc(r.name)}${r.absent ? ` <span class="tag tag-warn">未到 ${r.absent}</span>` : ''}</span>
+              <span class="rank-count">${r.count}／${cur.sessions.length} 堂</span></li>`).join('')}</ol>
           ${rank.length > 10 ? `<button type="button" class="btn btn-small no-print" data-erank-all>${state.eduRankAll ? '只看前 10 名' : `看全部 ${rank.length} 位`}</button>` : ''}` : '<p class="muted">還沒有學生報名</p>'}
         </section>`;
         })() : ''}
@@ -301,7 +299,6 @@
       const sec = body.querySelector('[data-grid-section]');
       if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }));
-    body.querySelectorAll('input[name=erank]').forEach((x) => x.addEventListener('change', () => { state.eduRankOnly = x.value === 'one'; render(body, guard, data, false); }));
     const ea = body.querySelector('[data-erank-all]');
     if (ea) ea.addEventListener('click', () => { state.eduRankAll = !state.eduRankAll; render(body, guard, data, false); });
     const cp = body.querySelector('[data-copy-grid]');
