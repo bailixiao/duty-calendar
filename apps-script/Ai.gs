@@ -58,7 +58,7 @@ function aiKnownDuties_() {
 function aiDraftPrompt_(hint) {
   var today = todayString_();
   return [
-    '你是佛堂勤務行事曆的助理。請讀照片（勤務表、活動公告、分工表、LINE 截圖等），整理成勤務草稿 JSON。',
+    '你是佛堂行事曆（教全區行事曆）的助理。請讀照片（勤務表、活動公告、分工表、LINE 截圖等），整理成勤務草稿 JSON。',
     '今天是 ' + today + '（台灣時間）。照片上的民國年請換成西元（民國 115 年 = 2026 年）；沒寫年份就取今天之後最近的那個日期。',
     '只輸出 JSON 陣列，每個元素是一個勤務：',
     '{',

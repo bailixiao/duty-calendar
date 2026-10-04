@@ -65,7 +65,7 @@
       <li>用 <strong>Safari</strong> 開啟本網站</li>
       <li>點下方的 <strong>分享</strong> 按鈕（方框加向上箭頭 ⬆️）</li>
       <li>往下找 <strong>「加入主畫面」</strong>，按「新增」</li>
-      <li>回到手機主畫面，點 <strong>「勤務行事曆」</strong> 圖示打開</li>
+      <li>回到手機主畫面，點 <strong>「教全區行事曆」</strong> 圖示打開</li>
       <li>再按一次 <strong>🔔 手機提醒</strong>，就可以開啟了 😊</li>
     </ol>`;
 
@@ -79,10 +79,10 @@
       const note = flash ? `<div class="notice notice-${flash.kind}" role="status"><p>${esc(flash.text)}</p></div>` : '';
       const close = '<button type="button" class="btn btn-block" data-close>返回</button>';
       if (st === 'line') {
-        body.innerHTML = `${note}<p>您現在是在 <strong>LINE 裡</strong>開啟本網站，LINE 收不到勤務提醒。</p><p>麻煩您按下面的按鈕，改用手機的瀏覽器（${isIOS() ? 'Safari' : 'Chrome'}）開啟，再開啟提醒，謝謝您 🙏</p>
+        body.innerHTML = `${note}<p>您現在是在 <strong>LINE 裡</strong>開啟本網站，LINE 收不到提醒通知。</p><p>麻煩您按下面的按鈕，改用手機的瀏覽器（${isIOS() ? 'Safari' : 'Chrome'}）開啟，再開啟提醒，謝謝您 🙏</p>
           <div class="modal-actions"><a class="btn btn-block btn-primary" href="${esc(externalUrl())}">用瀏覽器開啟</a>${close}</div>`;
       } else if (st === 'ios-install') {
-        body.innerHTML = `${note}<p>iPhone 需要先把本網站<strong>加到主畫面</strong>，才能收到勤務提醒，步驟如下：</p>${IOS_STEPS}<div class="modal-actions">${close}</div>`;
+        body.innerHTML = `${note}<p>iPhone 需要先把本網站<strong>加到主畫面</strong>，才能收到提醒通知，步驟如下：</p>${IOS_STEPS}<div class="modal-actions">${close}</div>`;
       } else if (st === 'unsupported') {
         body.innerHTML = `${note}<p>不好意思，這個瀏覽器還不支援通知。麻煩您改用 <strong>Chrome</strong>（Android）或 <strong>Safari</strong>（iPhone）開啟本網站。</p><p class="muted">您也可以在報名後按「加到手機行事曆」，前一天同樣會提醒您 😊</p><div class="modal-actions">${close}</div>`;
       } else if (st === 'denied') {
@@ -146,12 +146,12 @@
     if (st !== 'off' && st !== 'ios-install' && st !== 'line') return;
     try { await Api.pushKey(); } catch (e) { return; } // 管理者還沒設定推播（setupPush）就先不問
     card.innerHTML = st === 'line'
-      ? `<p><strong>🔔 想收到勤務提醒嗎？</strong></p><p>您現在是在 LINE 裡開啟本網站，改用手機的瀏覽器開啟，就能收到溫馨提醒 😊</p>
+      ? `<p><strong>🔔 想收到行事曆提醒嗎？</strong></p><p>您現在是在 LINE 裡開啟本網站，改用手機的瀏覽器開啟，就能收到溫馨提醒 😊</p>
          <div class="push-card-actions"><a class="btn btn-primary" href="${esc(externalUrl())}" data-card-ext>用瀏覽器開啟</a><button type="button" class="btn" data-card-later>以後再說</button></div>`
       : st === 'ios-install'
-      ? `<p><strong>🔔 想收到勤務提醒嗎？</strong></p><p>iPhone 只要把本網站<strong>加到主畫面</strong>，就能收到溫馨提醒 😊</p>
+      ? `<p><strong>🔔 想收到行事曆提醒嗎？</strong></p><p>iPhone 只要把本網站<strong>加到主畫面</strong>，就能收到溫馨提醒 😊</p>
          <div class="push-card-actions"><button type="button" class="btn btn-primary" data-card-how>教我怎麼做</button><button type="button" class="btn" data-card-later>以後再說</button></div>`
-      : `<p><strong>🔔 需要為您開啟勤務提醒嗎？</strong></p><p>有勤務或活動時，會在前一天晚上溫馨提醒您，讓您不錯過每一次了愿的機會 🙏</p>
+      : `<p><strong>🔔 需要為您開啟行事曆提醒嗎？</strong></p><p>有勤務或活動時，會在前一天晚上溫馨提醒您，讓您不錯過每一次了愿的機會 🙏</p>
          <div class="push-card-actions"><button type="button" class="btn btn-primary" data-card-on>好的，請提醒我</button><button type="button" class="btn" data-card-later>以後再說</button></div>`;
     card.hidden = false;
     card.querySelector('[data-card-later]').addEventListener('click', () => {
@@ -166,7 +166,7 @@
       on.textContent = '正在為您開啟⋯';
       try {
         await enable();
-        card.innerHTML = '<p>✅ 已為您開啟勤務提醒，感恩您 🙏</p>';
+        card.innerHTML = '<p>✅ 已為您開啟行事曆提醒，感恩您 🙏</p>';
         setTimeout(hideCard, 3000);
       } catch (e) {
         on.disabled = false;

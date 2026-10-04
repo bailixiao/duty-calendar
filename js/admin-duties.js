@@ -24,7 +24,7 @@
   // 同名勤務一次改的欄位（與 apps-script/DutyRules.gs 的 BULK_FIELDS_ 相同）
   const BULK_FIELDS = [
     ['name', '名稱'], ['nature', '性質'], ['mode', '模式'], ['time', '時段'], ['location', '地點'],
-    ['group', '負責組'], ['attire', '服裝'], ['description', '說明'], ['positions', '了愿項目']
+    ['group', '負責組'], ['attire', '服裝'], ['description', '說明'], ['positions', '了愿項目'], ['teachers', '師資']
   ];
   const MAX_LUNAR_DAYS = 800;
 
@@ -501,7 +501,7 @@
           ${s.category === '教育' ? `<fieldset class="form-block">
             <legend>師資</legend>
             <label class="form-row"><span>負責師資（可空白）</span><input class="input" name="teachers" value="${esc(s.teachers || '')}" placeholder="好幾位用「、」隔開，例：王小明、李小華"></label>
-            <p class="hint">家人們的報名頁會顯示；統計的「各課程負責師資」也從這裡來。每堂課可以不同。</p>
+            <p class="hint">家人們的報名頁會顯示；統計的「各課程負責師資」也從這裡來。每堂課可以不同：改好按存檔，可以勾選同名的其他堂一起改（例如選日期範圍 1～3 月），過去的堂次也可以。</p>
           </fieldset>` : ''}
 
           <fieldset class="form-block">
@@ -848,7 +848,8 @@
         group: now.groupType !== o.groupType || now.group !== o.group,
         attire: now.attire.trim() !== o.attire,
         description: now.description.trim() !== o.description,
-        positions: posKey(now.positions) !== posKey(o.positions)
+        positions: posKey(now.positions) !== posKey(o.positions),
+        teachers: String(now.teachers || '').trim() !== String(o.teachers || '').trim()
       };
       return BULK_FIELDS.filter(([k]) => changed[k]);
     }
@@ -858,8 +859,10 @@
      * 回傳 {}（只改這筆）、{ alsoIds, fields }（一起改）、null（返回不存）。
      */
     function askBulk() {
-      const siblings = ctx.source.siblings.filter((x) => x.end >= today);
       const fields = changedFields();
+      // 只改師資時，過去的堂次也可以一起改（例如補填前幾個月的師資）；其他欄位只列今天以後的
+      const onlyTeachers = fields.length === 1 && fields[0][0] === 'teachers';
+      const siblings = ctx.source.siblings.filter((x) => onlyTeachers || x.end >= today);
       if (!siblings.length || !fields.length) return Promise.resolve({});
       return new Promise((resolve) => {
         let result = null;
@@ -867,9 +870,16 @@
           <h2 class="modal-title">也套用到其他同名${F()}嗎？</h2>
           <p class="modal-note">日期不會改。勾選要一起改的欄位和${F()}：</p>
           <div class="checks checks-col">${fields.map(([k, label]) => `<label class="check"><input type="checkbox" data-field="${k}" checked> ${esc(label)}</label>`).join('')}</div>
+          <div class="bulk-range no-print">
+            <span>選日期範圍：</span>
+            <input class="input" type="date" data-r-from aria-label="從">
+            <span>～</span>
+            <input class="input" type="date" data-r-to aria-label="到">
+            <button type="button" class="btn btn-small" data-r-apply>只選這段</button>
+          </div>
           <div class="bulk-list">
-            <label class="check"><input type="checkbox" data-all checked> <strong>全選（${siblings.length} 筆）</strong></label>
-            ${siblings.map((x) => `<label class="check"><input type="checkbox" data-sib="${esc(x.id)}" checked> ${esc(Fmt.shortDate(x.start))} ${esc(x.name)}${x.location ? '・' + esc(x.location) : ''}</label>`).join('')}
+            <label class="check"><input type="checkbox" data-all${onlyTeachers ? '' : ' checked'}> <strong>全選（${siblings.length} 筆）</strong></label>
+            ${siblings.map((x) => `<label class="check"><input type="checkbox" data-sib="${esc(x.id)}" data-start="${esc(x.start)}"${!onlyTeachers || x.end >= today ? ' checked' : ''}> ${esc(Fmt.shortDate(x.start))} ${esc(x.name)}${x.location ? '・' + esc(x.location) : ''}${x.end < today ? ' <span class="muted">（已過）</span>' : ''}</label>`).join('')}
           </div>
           <div class="modal-actions">
             <button type="button" class="btn btn-block btn-primary" data-both>一起套用</button>
@@ -883,6 +893,12 @@
           el.querySelector('[data-both]').textContent = n ? `一起套用（另外 ${n} 筆）` : '一起套用';
         };
         el.querySelector('[data-all]').addEventListener('change', (ev) => { sibs().forEach((x) => { x.checked = ev.target.checked; }); updateLabel(); });
+        el.querySelector('[data-r-apply]').addEventListener('click', () => {
+          const a = el.querySelector('[data-r-from]').value || '0000-00-00';
+          const b = el.querySelector('[data-r-to]').value || '9999-12-31';
+          sibs().forEach((x) => { x.checked = x.dataset.start >= a && x.dataset.start <= b; });
+          updateLabel();
+        });
         sibs().forEach((x) => x.addEventListener('change', updateLabel));
         updateLabel();
         el.querySelector('[data-both]').addEventListener('click', () => {

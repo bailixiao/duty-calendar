@@ -77,7 +77,7 @@
       }
       root.innerHTML = backLink() + `
         <div class="notice notice-error" role="alert">
-          <p>${esc(err.message || '無法載入勤務')}</p>
+          <p>${esc(err.message || '無法載入，請稍後再試')}</p>
           <button type="button" class="btn" data-retry>重試</button>
         </div>`;
       root.querySelector('[data-retry]').addEventListener('click', () => {
@@ -294,7 +294,7 @@
     const daily = `
       ${tabs}
       <ul class="position-list">${rows}</ul>
-      <p class="hint">「陪同」不佔名額。${canChange ? '要取消或改期，請按名字旁的按鈕。' : `勤務當天（含）之後不能自己取消或改期，${Fmt.askAdmin()}。`}</p>`;
+      <p class="hint">「陪同」不佔名額。${canChange ? '要取消或改期，請按名字旁的按鈕。' : `當天（含）之後不能自己取消或改期，${Fmt.askAdmin()}。`}</p>`;
     el.innerHTML = d.layout === '職司表' ? `
       <h2>職司表</h2>
       ${gridSection(d)}
@@ -346,7 +346,7 @@
     const who = s.name + (s.accompany ? '（陪同）' : '');
     const ok = await Confirm.open({
       title: '確定要取消這筆報名嗎？',
-      rows: [['姓名', who], ['日期', Fmt.rocDate(s.date)], ['勤務', d.name], ['了愿項目', positionName(s.positionId)]],
+      rows: [['姓名', who], ['日期', Fmt.rocDate(s.date)], ['項目', d.name], ['了愿項目', positionName(s.positionId)]],
       confirmText: '確定取消報名',
       cancelText: '不要取消',
       danger: true
@@ -420,8 +420,8 @@
     if (!open) {
       const isToday = Fmt.datesBetween(d.start, d.end).indexOf(d.today) !== -1;
       el.innerHTML = `<h2>我要報名</h2><p class="muted">${isToday
-        ? `勤務當天不能報名。如需報名、取消或改期，${Fmt.askAdmin()}。`
-        : '這個勤務已經結束，不能報名。'}</p>`;
+        ? `當天不能報名。如需報名、取消或改期，${Fmt.askAdmin()}。`
+        : '已經結束，不能報名。'}</p>`;
       return;
     }
     SignupForm.mount(el, d, page.viewDate, onSignedUp);

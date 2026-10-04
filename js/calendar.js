@@ -230,7 +230,7 @@
     } else if (state.view === 'month') {
       text = `${Fmt.rocYear(a)} 年 ${Number(a.slice(5, 7))} 月`;
     } else if (state.view === 'recent') {
-      text = `近 ${RECENT_DAYS} 天的勤務`;
+      text = `近 ${RECENT_DAYS} 天的行程`;
     } else {
       const from = weekStart(a);
       const to = Fmt.addDays(from, 6);
@@ -318,7 +318,7 @@
         if (token !== loadToken) return;
         readyResolve();
         if (entry.data) showStatus('error', '無法更新，目前顯示的是上次的資料');
-        else showStatus('error', err.message || '無法載入勤務資料');
+        else showStatus('error', err.message || '無法載入行事曆資料');
       }
     }
     prefetchNeighbor(state.anchor);
@@ -457,7 +457,7 @@
     frame.appendChild(dots);
 
     const short = items.filter((it) => it.state.kind === 'short').length;
-    cell.setAttribute('aria-label', `${Fmt.shortDate(date)} ${items.length} 項勤務${short ? `，${short} 項缺人` : ''}`);
+    cell.setAttribute('aria-label', `${Fmt.shortDate(date)} ${items.length} 項${short ? `，${short} 項缺人` : ''}`);
   }
 
   function markSelected() {
@@ -512,7 +512,7 @@
       const items = dayMap.get(date) || [];
       body = items.length
         ? `<div class="card-list">${items.map((it) => cardHtml(it, date)).join('')}</div>`
-        : '<p class="panel-empty">這天沒有勤務</p>';
+        : '<p class="panel-empty">這天沒有行程</p>';
     }
     el.panel.innerHTML = head + body;
   }
@@ -536,7 +536,7 @@
       ? `<div class="notice notice-error recent-alert" role="status"><p><strong>近 ${RECENT_DAYS} 天有 ${shortDates.length} 天缺人</strong></p><p>${shortDates.map(Fmt.shortDate).join('、')}</p><p class="muted">點勤務就可以報名幫忙</p>${Share.buttonsHtml()}</div>`
       : `<div class="notice recent-alert" role="status"><p>近 ${RECENT_DAYS} 天的勤務都不缺人</p></div>`;
     if (!dates.length) {
-      el.week.innerHTML = `<p class="panel-empty">近 ${RECENT_DAYS} 天沒有勤務</p>`;
+      el.week.innerHTML = `<p class="panel-empty">近 ${RECENT_DAYS} 天沒有行程</p>`;
       return;
     }
     const rows = dates.map((date) => {
@@ -570,7 +570,7 @@
       let content;
       if (state.loading) content = '<p class="week-empty">載入中⋯</p>';
       else if (items.length) content = items.map((it) => cardHtml(it, date, true)).join('');
-      else content = '<p class="week-empty">沒有勤務</p>';
+      else content = '<p class="week-empty">沒有行程</p>';
       return `
         <li class="${classes.join(' ')}">
           <div class="week-date">
@@ -590,7 +590,7 @@
     el.status.hidden = false;
     el.status.className = 'status status-' + kind;
     if (kind === 'loading') {
-      el.status.innerHTML = '<span>載入勤務中⋯</span>';
+      el.status.innerHTML = '<span>載入中⋯</span>';
     } else if (kind === 'refreshing') {
       el.status.innerHTML = '<span>更新中⋯（先顯示上次的資料）</span>';
     } else {

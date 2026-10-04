@@ -1,4 +1,4 @@
-/* 教全區勤務行事曆：整潔安靜，米白底、深墨色字、赭紅色重點色；標題明體、內文黑體；按鈕至少 44px。 */
+/* 教全區行事曆：整潔安靜，米白底、深墨色字、赭紅色重點色；標題明體、內文黑體；按鈕至少 44px。 */
 
 :root {
   --paper: #f6f1e7;
@@ -1810,3 +1810,7 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 
 .edu-rank .rank-name { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
 .edu-rank-detail { flex-basis: 100%; color: var(--muted); font-size: 14px; font-weight: 400; }
+
+/* 同名一起改：選日期範圍 */
+.bulk-range { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 8px 0; }
+.bulk-range .input { width: auto; flex: 1 1 140px; min-width: 0; }

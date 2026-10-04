@@ -26,7 +26,7 @@
     token += 1;
     root.innerHTML = `
       <h1 class="page-title">我的報名</h1>
-      <p class="hint">輸入名字，就能看到這個人之後報了哪些勤務，可以取消或改期。</p>
+      <p class="hint">輸入名字，就能看到這個人之後報了哪些勤務、活動，可以取消或改期。</p>
       <form class="mine-form" novalidate>
         <label class="field-label" for="mine-name">名字</label>
         <div class="mine-row">
@@ -157,7 +157,7 @@
           <div class="mine-actions">
             <button type="button" class="btn btn-quiet-danger" data-cancel="${esc(it.signupId)}">取消</button>
             ${it.nature === '活動' ? '' : `<a class="btn" href="${href}">改期</a>`}
-          </div>` : `<p class="muted mine-note">勤務當天（含）之後不能自己取消或改期，${esc(Fmt.askAdmin())}</p>`}
+          </div>` : `<p class="muted mine-note">當天（含）之後不能自己取消或改期，${esc(Fmt.askAdmin())}</p>`}
         <div class="addcal-row">${AddCal.button({ name: it.dutyName, location: it.location, start: it.start, end: it.end, startTime: it.startTime, endTime: it.endTime, dutyId: it.dutyId, date: it.date })}</div>
       </div>`;
   }
@@ -167,7 +167,7 @@
     const who = current.name + (it.accompany ? '（陪同）' : '');
     const ok = await Confirm.open({
       title: '確定要取消這筆報名嗎？',
-      rows: [['姓名', who], ['日期', Fmt.rocDate(it.date)], ['勤務', it.dutyName], ['了愿項目', it.positionName]],
+      rows: [['姓名', who], ['日期', Fmt.rocDate(it.date)], ['項目', it.dutyName], ['了愿項目', it.positionName]],
       confirmText: '確定取消報名',
       cancelText: '不要取消',
       danger: true

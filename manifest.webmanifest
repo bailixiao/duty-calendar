@@ -1,6 +1,6 @@
 {
-  "name": "教全區勤務行事曆",
-  "short_name": "勤務行事曆",
+  "name": "教全區行事曆",
+  "short_name": "教全區行事曆",
   "description": "教全區勤務報名與行事曆",
   "lang": "zh-Hant-TW",
   "start_url": "./",

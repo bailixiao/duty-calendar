@@ -121,7 +121,7 @@ async function pushId(endpoint) {
 }
 
 async function buildNotification() {
-  const fallback = { title: '🙏 教全區勤務提醒', body: '有勤務或活動喔，歡迎點開看看 😊', url: '#/recent' };
+  const fallback = { title: '🙏 教全區行事曆提醒', body: '有勤務或活動喔，歡迎點開看看 😊', url: '#/recent' };
   try {
     const sub = await self.registration.pushManager.getSubscription();
     const api = self.APP_CONFIG && self.APP_CONFIG.API_URL;
@@ -140,7 +140,7 @@ async function buildNotification() {
     if (shortCount) lines.push('🙋 部分勤務還需要人手，歡迎您發心了愿');
     lines.push('感恩您的護持 🙏');
     return {
-      title: `🙏 ${d.when === 'today' ? '今天' : '明天'}的勤務提醒（${p[1]}/${p[2]} ${wd}）`,
+      title: `🙏 ${d.when === 'today' ? '今天' : '明天'}的行程提醒（${p[1]}/${p[2]} ${wd}）`,
       body: lines.join('\n'),
       url: d.items.length === 1 ? `#/duty/${encodeURIComponent(d.items[0].id)}?date=${d.date}` : '#/recent'
     };

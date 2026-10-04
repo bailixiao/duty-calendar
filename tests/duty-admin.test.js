@@ -423,3 +423,21 @@ test('刪除勤務：同名的可以一起刪；任一筆還有報名就整批�
   assert.equal(ok.data.deleted, 2);
   assert.deepEqual(call('adminDutyList', {}).data.duties.filter((x) => x.name === '週三讀經班').map((x) => x.id), [d]);
 });
+
+test('同名一起改：師資可以套用到過去與未來的堂次；類別、DM、職司表設定不會被洗掉', () => {
+  const { createEnv } = require('./env');
+  const env = createEnv(Date.UTC(2026, 9, 1, 2, 0, 0));
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const call = (action, body) => env.post(Object.assign({ action, token }, body));
+  const c = call('adminCreateDuties', { duties: ['2026-09-05', '2026-09-12', '2026-10-10'].map((d) => ({ name: '高大班', category: '教育', nature: '課程', start: d, positions: [{ name: '參加', min: '0' }], teachers: '測試甲' })) });
+  assert.equal(c.ok, true, JSON.stringify(c.error));
+  const [a, b, d] = c.data.ids;
+  const ed = call('adminDutyForEdit', { id: a }).data.duty;
+  ed.teachers = '測試乙';
+  const r = call('adminUpdateDuty', { id: a, duty: ed, alsoIds: [b], fields: ['teachers'] });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  const get = (id) => env.get({ action: 'getDuty', id }).data;
+  assert.deepEqual([get(a).teachers, get(b).teachers, get(d).teachers], ['測試乙', '測試乙', '測試甲']);
+  assert.equal(get(b).category, '教育');
+  assert.equal(get(b).nature, '課程');
+});
