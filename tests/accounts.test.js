@@ -69,8 +69,9 @@ test('唯讀：什麼都能看、什麼都不能改', () => {
   const { env, login, superTok, save } = setup();
   save({ account: '查看用', role: '唯讀', password: 'abc12345' });
   const tok = login('查看用', 'abc12345').data.token;
-  const list = env.post({ action: 'adminDutyList', token: tok });
-  assert.ok(list.data.duties.length > 10);
+  assert.equal(env.post({ action: 'adminDutyList', token: tok }).error.code, 'FORBIDDEN'); // 勤務管理看不到
+  const list = env.post({ action: 'adminRecent', token: tok });
+  assert.ok(list.data.duties.length > 3);
   assert.equal(env.post({ action: 'adminDuty', token: tok, id: list.data.duties[0].id }).ok, true);
   assert.equal(env.post({ action: 'adminStats', token: tok }).ok, true);
   assert.equal(env.post({ action: 'adminDeleteDuty', token: tok, id: list.data.duties[0].id }).error.code, 'FORBIDDEN');

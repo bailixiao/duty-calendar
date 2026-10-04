@@ -109,7 +109,8 @@ function adminAuthorize_(session, body) {
   var action = body.action;
   if (role === SUPER_ACCOUNT) return;
   var denied = function () { throw new ApiError_('FORBIDDEN', '這個帳號沒有權限做這件事'); };
-  if (role === '唯讀' && (action === 'adminLogs' || action === 'adminDay')) denied(); // 唯讀不看操作紀錄、明日名單（有個資與聯絡細節）
+  // 唯讀不看操作紀錄、明日名單（有個資與聯絡細節）、勤務管理
+  if (role === '唯讀' && ['adminLogs', 'adminDay', 'adminDutyList', 'adminDutyForEdit'].indexOf(action) !== -1) denied();
   if (ADMIN_READ_ACTIONS.indexOf(action) !== -1) {
     if (CATEGORIES.indexOf(role) !== -1 && (action === 'adminDuty' || action === 'adminDutyForEdit')) {
       var d = targetDuties_(body)[0];
