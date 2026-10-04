@@ -60,7 +60,8 @@ test('登入畫面的帳號清單：總管理者＋啟用中的帳號，只有�
   save({ account: '點傳師', role: '唯讀', password: 'abc12345' });
   save({ account: '舊帳號', role: '教育', password: 'abc12345', active: false });
   const r = env.get({ action: 'loginAccounts' });
-  assert.deepEqual(r.data.accounts, ['總管理者', '道務', '點傳師']);
+  save({ account: '勤務', role: '勤務', password: 'abc12345' }); // 後建立但角色排前面
+  assert.deepEqual(env.get({ action: 'loginAccounts' }).data.accounts, ['總管理者', '勤務', '道務', '點傳師']);
   assert.equal(JSON.stringify(r).includes('唯讀'), false);
 });
 
@@ -75,6 +76,8 @@ test('唯讀：什麼都能看、什麼都不能改', () => {
   assert.equal(env.post({ action: 'adminDeleteDuty', token: tok, id: list.data.duties[0].id }).error.code, 'FORBIDDEN');
   assert.equal(env.post({ action: 'adminCreateDuties', token: tok, duties: [{ name: 'x', start: '2026-11-20' }] }).error.code, 'FORBIDDEN');
   assert.equal(env.post({ action: 'adminMe', token: tok }).data.role, '唯讀');
+  assert.equal(env.post({ action: 'adminLogs', token: tok }).error.code, 'FORBIDDEN');
+  assert.equal(env.post({ action: 'adminDay', token: tok, date: '2026-10-02' }).error.code, 'FORBIDDEN');
   assert.equal(env.post({ action: 'adminAccounts', token: superTok }).data.accounts.length, 1);
 });
 

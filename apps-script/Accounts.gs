@@ -109,6 +109,7 @@ function adminAuthorize_(session, body) {
   var action = body.action;
   if (role === SUPER_ACCOUNT) return;
   var denied = function () { throw new ApiError_('FORBIDDEN', '這個帳號沒有權限做這件事'); };
+  if (role === '唯讀' && (action === 'adminLogs' || action === 'adminDay')) denied(); // 唯讀不看操作紀錄、明日名單（有個資與聯絡細節）
   if (ADMIN_READ_ACTIONS.indexOf(action) !== -1) {
     if (CATEGORIES.indexOf(role) !== -1 && (action === 'adminDuty' || action === 'adminDutyForEdit')) {
       var d = targetDuties_(body)[0];
@@ -138,10 +139,18 @@ function adminScope_(session, action, result) {
   return result;
 }
 
+/** 帳號依角色排序：勤務、道務、教育、唯讀；同角色照建立順序 */
+function sortedAccountRows_() {
+  return accountRows_().filter(function (r) { return r['帳號']; })
+    .map(function (r, i) { return { r: r, i: i }; })
+    .sort(function (a, b) { return (ROLES.indexOf(a.r['角色']) - ROLES.indexOf(b.r['角色'])) || (a.i - b.i); })
+    .map(function (x) { return x.r; });
+}
+
 /** 登入畫面的帳號下拉選單：總管理者＋啟用中的帳號名稱（不含角色、密碼） */
 function loginAccounts_() {
   return {
-    accounts: [SUPER_ACCOUNT].concat(accountRows_().filter(function (r) { return r['帳號'] && r['啟用'] !== '否'; })
+    accounts: [SUPER_ACCOUNT].concat(sortedAccountRows_().filter(function (r) { return r['啟用'] !== '否'; })
       .map(function (r) { return r['帳號']; }))
   };
 }
@@ -153,7 +162,7 @@ function accountToJson_(r) {
 }
 
 function adminAccounts_() {
-  return { accounts: accountRows_().filter(function (r) { return r['帳號']; }).map(accountToJson_), roles: ROLES.slice(1) };
+  return { accounts: sortedAccountRows_().map(accountToJson_), roles: ROLES.slice(1) };
 }
 
 /** body.account = { account, name, role, active, password（新帳號必填；舊帳號留空表示不改）, original（修改時原本的帳號） } */

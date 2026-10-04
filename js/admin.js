@@ -75,8 +75,9 @@
       ['dutyList', () => Api.admin('adminDutyList', {}, true)],
       ['members', () => Api.admin('adminMembers', {}, true)],
       ['groups', () => Api.admin('adminGroups', {}, true)],
-      ['logs', () => Api.admin('adminLogs', { offset: 0, limit: 50 }, true)],
-      ['day:' + tomorrow, () => Api.admin('adminDay', { date: tomorrow }, true)],
+      ...(Api.adminWho().role === '唯讀' ? [] : [ // 唯讀帳號看不到操作紀錄、明日名單
+        ['logs', () => Api.admin('adminLogs', { offset: 0, limit: 50 }, true)],
+        ['day:' + tomorrow, () => Api.admin('adminDay', { date: tomorrow }, true)]]),
       ['stats', () => Api.admin('adminStats', {}, true)]].forEach(([key, fetcher]) => {
       if (!memo.has(key)) fetchShared(key, fetcher).catch(() => {});
     });
@@ -135,6 +136,7 @@
     const who = Api.adminWho();
     const tabs = [['', '近期勤務'], ['duties', '勤務管理'], ['members', '成員'], ['groups', '分組'], ['stats', '統計'], ['logs', '操作紀錄'], ['day', '明日名單']];
     if (who.role === '總管理者') tabs.push(['accounts', '帳號']);
+    if (who.role === '唯讀') { tabs.splice(tabs.findIndex((t) => t[0] === 'logs'), 1); tabs.splice(tabs.findIndex((t) => t[0] === 'day'), 1); }
     root.innerHTML = `
       <div class="admin-head">
         <h1 class="admin-title">管理後台</h1>
