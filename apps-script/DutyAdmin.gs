@@ -44,7 +44,7 @@ function adminDutyForEdit_(body) {
     signups: Object.keys(counts).reduce(function (n, k) { return n + counts[k]; }, 0),
     siblings: duties
       .filter(function (d) { return d['勤務ID'] !== duty['勤務ID'] && seriesKey_(d['名稱']) === seriesKey_(duty['名稱']); })
-      .map(function (d) { return { id: d['勤務ID'], name: d['名稱'], start: d['開始日'], end: d['結束日'] || d['開始日'], location: d['地點'], group: d['負責組'], category: dutyCategory_(d), signups: signupCount[d['勤務ID']] || 0 }; })
+      .map(function (d) { return { id: d['勤務ID'], name: d['名稱'], start: d['開始日'], end: d['結束日'] || d['開始日'], location: d['地點'], group: d['負責組'], category: dutyCategory_(d), signups: signupCount[d['勤務ID']] || 0, teachers: d['師資'] || '' }; })
       .sort(function (a, b) { return a.start < b.start ? -1 : 1; }),
     groups: groupList_()
   };
@@ -247,6 +247,36 @@ function adminDeleteDuty_(body) {
     invalidateTable_(SHEETS.DUTIES);
     invalidateTable_(SHEETS.POSITIONS);
     return { id: body.id, deleted: targets.length };
+  });
+}
+
+/**
+ * body = { items: [{ id, teachers }] }：安排整年的師資，一次改好幾堂（只改師資欄，其他不動）。
+ * 只能改教育的勤務；任何一筆不通過就全部不寫入。
+ */
+function adminSetTeachers_(body) {
+  var items = Array.isArray(body.items) ? body.items : [];
+  if (!items.length) throw new ApiError_('BAD_REQUEST', '沒有要修改的師資');
+  if (items.length > MAX_CREATE_DUTIES) throw new ApiError_('BAD_REQUEST', '一次最多 ' + MAX_CREATE_DUTIES + ' 堂');
+  return withSignupLock_(function () {
+    var duties = readTable_(SHEETS.DUTIES);
+    var plans = items.map(function (it) {
+      var d = findById_(duties, '勤務ID', it.id);
+      if (!d) throw new ApiError_('NOT_FOUND', '找不到其中一堂課，可能已被刪除，請重新整理');
+      if (dutyCategory_(d) !== '教育') throw new ApiError_('BAD_REQUEST', '只有教育的課程有師資');
+      var t = cleanText_(it.teachers).split(/[、，,／\/\s]+/).filter(Boolean).join('、');
+      if (t.length > 200) throw new ApiError_('BAD_REQUEST', shortDate_(d['開始日']) + '：師資太長（最多 200 字）');
+      return { row: d, teachers: t };
+    }).filter(function (p) { return p.teachers !== (p.row['師資'] || ''); });
+    plans.forEach(function (p) { updateRow_(SHEETS.DUTIES, p.row, { '師資': p.teachers }); });
+    if (plans.length) {
+      writeDutyLog_('修改勤務', plans[0].row['名稱'] + '｜安排師資 ' + plans.length + ' 堂：' + plans.map(function (p) {
+        return shortDate_(p.row['開始日']) + ' ' + (p.teachers || '（空白）');
+      }).join('、'), null);
+    }
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.DUTIES);
+    return { updated: plans.length };
   });
 }
 

@@ -1816,3 +1816,16 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 .bulk-range .input { width: auto; flex: 1 1 140px; min-width: 0; }
 
 .notice-info { background: var(--notice-soft); border-color: #c9d6e6; color: #23476b; }
+
+/* 多個日期預覽：每一天的師資 */
+.teach-range { margin: 8px 0 12px; padding: 12px 14px; border: 1px dashed #c9d6e6; border-radius: 12px; background: var(--notice-soft); }
+.teach-range-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 10px; }
+.teach-range-row label { display: grid; gap: 4px; flex: 1 1 140px; min-width: 0; font-size: 14px; color: var(--ink-2); }
+.teach-range-row .teach-range-name { flex: 2 1 200px; }
+.teach-range-row .btn { flex: 1 1 140px; }
+.multi-preview.with-teach li { flex-wrap: wrap; }
+.teach-input { flex: 1 1 160px; min-width: 0; margin-left: auto; padding: 6px 10px; min-height: 40px; font-size: 16px; }
+.teach-input.is-flash { background: #fff6d6; transition: background .3s; }
+
+.plan-list { max-height: 50vh; overflow-y: auto; }
+.plan-list li { display: flex; align-items: center; gap: 8px 12px; padding: 6px 0; border-bottom: 1px solid var(--line); }

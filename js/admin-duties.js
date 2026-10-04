@@ -387,7 +387,7 @@
       dateType: s.start && s.end && s.start !== s.end ? 'range' : 'single',
       lunar: { from: '', to: '', first: true, fifteenth: true, leap: true, prefix: true, groupMode: 'fixed', rotation: [], rotationStart: 0 },
       // 多個日期：每週固定星期幾＋貼上的日期清單，合在一起；skip＝預覽時取消的日期
-      multi: { from: '', to: '', weekdays: [], freq: 'w1', dom: '', year: String(new Date().getFullYear()), paste: '', skip: [], touched: [] }
+      multi: { teach: {}, from: '', to: '', weekdays: [], freq: 'w1', dom: '', year: String(new Date().getFullYear()), paste: '', skip: [], touched: [] }
     };
     const signupTotal = editing ? ctx.source.signups : 0;
     if (!Array.isArray(s.dm)) s.dm = [];
@@ -502,7 +502,9 @@
           ${s.category === '教育' ? `<fieldset class="form-block">
             <legend>師資</legend>
             <label class="form-row"><span>負責師資（可空白）</span><input class="input" name="teachers" value="${esc(s.teachers || '')}" placeholder="好幾位用「、」隔開，例：王小明、李小華"></label>
-            <p class="hint">家人們的報名頁會顯示；統計的「各課程負責師資」也從這裡來。每堂課可以不同：改好按存檔，可以勾選同名的其他堂一起改（例如選日期範圍 1～3 月），過去的堂次也可以。</p>
+            <p class="hint">這一堂的師資。家人們的報名頁會顯示，統計的「各課程負責師資」也從這裡來。</p>
+            ${editing && ctx.source.siblings && ctx.source.siblings.length ? `<button type="button" class="btn btn-block" data-plan-teachers>📅 安排整年的師資（${ctx.source.siblings.length + 1} 堂）</button>
+            <p class="hint">一次看到這個課程每一堂的日期，直接填每一堂（或一段日期）是哪位師資。</p>` : ''}
           </fieldset>` : ''}
 
           <fieldset class="form-block">
@@ -603,14 +605,28 @@
         btn.textContent = `確定建立 ${n} 筆`;
         btn.disabled = !n;
       };
+      // 教育的課程：每一天的師資（預設是上面填的；可以一段一段套用或逐天改）
+      const edu = s.category === '教育';
+      const teach = st.multi.teach;
+      const teachOf = (d) => (teach[d] !== undefined ? teach[d] : (s.teachers || ''));
       box.innerHTML = `
         <section class="lunar-preview">
           <h3 class="admin-sub">將建立 <span data-count></span> 筆${F()}<span class="h2-sub">名稱都是「${esc(s.name.trim())}」</span></h3>
           ${r.bad.length ? `<div class="notice notice-error"><p>這些看不懂，已略過：${r.bad.map(esc).join('、')}</p></div>` : ''}
           <p class="hint">不要的日期把勾拿掉。${holCount ? `<span class="holiday-note">紅字是國定假日、補假或連假（${holCount} 天，連假裡的六日也算），已先幫你取消勾選；要的話再勾回來。</span>` : ''}</p>
-          <ol class="preview-list multi-preview">${r.dates.map((d) => `
+          ${edu ? `<div class="teach-range">
+            <p class="multi-title">師資：每一天可以不同</p>
+            <div class="teach-range-row">
+              <label><span>從</span><input class="input" type="date" data-t-from value="${esc(r.dates[0])}"></label>
+              <label><span>到</span><input class="input" type="date" data-t-to value="${esc(r.dates[r.dates.length - 1])}"></label>
+              <label class="teach-range-name"><span>師資</span><input class="input" data-t-name placeholder="例：張佳銘、張慧如" value="${esc(s.teachers || '')}"></label>
+              <button type="button" class="btn" data-t-apply>套用到這段日期</button>
+            </div>
+            <p class="hint">例如先選 5/1～8/31 填一位、按套用，再選 9/1～12/31 填另一位、按套用。也可以直接改下面每一天的師資。</p>
+          </div>` : ''}
+          <ol class="preview-list multi-preview${edu ? ' with-teach' : ''}">${r.dates.map((d) => `
             <li class="${hol[d] ? 'is-holiday' : ''}"><label class="check"><input type="checkbox" data-day="${d}"${skip.has(d) ? '' : ' checked'}>
-              <span class="preview-date">${esc(Fmt.rocDate(d))}</span>${hol[d] ? `<span class="holiday-name">${esc(hol[d])}</span>` : ''}</label>${s.groupType && s.group ? `<span class="tag">${esc(s.group)}</span>` : ''}</li>`).join('')}
+              <span class="preview-date">${esc(Fmt.rocDate(d))}</span>${hol[d] ? `<span class="holiday-name">${esc(hol[d])}</span>` : ''}</label>${s.groupType && s.group ? `<span class="tag">${esc(s.group)}</span>` : ''}${edu ? `<input class="input teach-input" data-teach="${d}" value="${esc(teachOf(d))}" placeholder="師資" aria-label="${esc(Fmt.rocDate(d))} 的師資">` : ''}</li>`).join('')}
           </ol>
           <button type="button" class="btn btn-primary btn-block" data-create></button>
         </section>`;
@@ -622,9 +638,27 @@
         st.multi.skip = [...skip];
         draw();
       }));
+      box.querySelectorAll('[data-teach]').forEach((x) => x.addEventListener('input', () => { teach[x.dataset.teach] = x.value; }));
+      const tApply = box.querySelector('[data-t-apply]');
+      if (tApply) tApply.addEventListener('click', () => {
+        const a = box.querySelector('[data-t-from]').value || '0000-00-00';
+        const b = box.querySelector('[data-t-to]').value || '9999-12-31';
+        const name = box.querySelector('[data-t-name]').value.trim();
+        let n = 0;
+        box.querySelectorAll('[data-teach]').forEach((x) => {
+          if (x.dataset.teach < a || x.dataset.teach > b) return;
+          x.value = name;
+          teach[x.dataset.teach] = name;
+          x.classList.add('is-flash');
+          setTimeout(() => x.classList.remove('is-flash'), 900);
+          n++;
+        });
+        tApply.textContent = `已套用 ${n} 天 ✓`;
+        setTimeout(() => { tApply.textContent = '套用到這段日期'; }, 1500);
+      });
       box.scrollIntoView({ block: 'start', behavior: 'smooth' });
       box.querySelector('[data-create]').addEventListener('click', () => {
-        const items = r.dates.filter((d) => !skip.has(d)).map((date) => ({ date, name: s.name.trim(), group: s.groupType ? s.group : '' }));
+        const items = r.dates.filter((d) => !skip.has(d)).map((date) => Object.assign({ date, name: s.name.trim(), group: s.groupType ? s.group : '' }, edu ? { teachers: teachOf(date).trim() } : {}));
         createLunar(items, { deadline: '' });
       });
     }
@@ -718,6 +752,8 @@
         if (n === 'dateType' && st.dateType === 'range' && !s.end) s.end = s.start;
         render();
       });
+      const planBtn = f.querySelector('[data-plan-teachers]');
+      if (planBtn) planBtn.addEventListener('click', () => { sync(); planTeachers(); });
       const dmFile = f.querySelector('[data-dm-file]');
       if (dmFile) dmFile.addEventListener('change', async (ev) => {
         const files = [...ev.target.files].slice(0, DM_MAX - s.dm.length);
@@ -938,6 +974,79 @@
       }
     }
 
+    /** 安排整年的師資：這個課程每一堂（含過去）的日期＋師資，一段一段套用或逐堂改，一次存好 */
+    function planTeachers() {
+      const rows = [{ id: s.id, start: original.start, teachers: s.teachers || '', self: true }]
+        .concat(ctx.source.siblings.map((x) => ({ id: x.id, start: x.start, teachers: x.teachers || '' })))
+        .sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
+      const m = Modal.open(`
+        <h2 class="modal-title">安排整年的師資：${esc(original.name)}</h2>
+        <p class="modal-note">共 ${rows.length} 堂。可以先用下面的「套用到這段日期」一段一段填，再逐堂微調，最後按「儲存師資」。</p>
+        <div class="teach-range">
+          <div class="teach-range-row">
+            <label><span>從</span><input class="input" type="date" data-t-from value="${esc(rows[0].start)}"></label>
+            <label><span>到</span><input class="input" type="date" data-t-to value="${esc(rows[rows.length - 1].start)}"></label>
+            <label class="teach-range-name"><span>師資</span><input class="input" data-t-name placeholder="例：張佳銘、張慧如"></label>
+            <button type="button" class="btn" data-t-apply>套用到這段日期</button>
+          </div>
+        </div>
+        <ol class="preview-list multi-preview with-teach plan-list">${rows.map((x) => `
+          <li><span class="preview-date">${esc(Fmt.rocDate(x.start))}${x.self ? ' <span class="tag">這一堂</span>' : ''}${x.start < today ? ' <span class="muted">（已過）</span>' : ''}</span>
+            <input class="input teach-input" data-plan="${esc(x.id)}" data-start="${esc(x.start)}" value="${esc(x.teachers)}" placeholder="師資" aria-label="${esc(Fmt.rocDate(x.start))} 的師資"></li>`).join('')}
+        </ol>
+        <div class="form-error" data-plan-error hidden></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-block btn-primary" data-plan-save>儲存師資</button>
+          <button type="button" class="btn btn-block" data-close>返回</button>
+        </div>`);
+      m.el.classList.add('modal-wide');
+      const inputs = [...m.el.querySelectorAll('[data-plan]')];
+      const apply = m.el.querySelector('[data-t-apply]');
+      apply.addEventListener('click', () => {
+        const a = m.el.querySelector('[data-t-from]').value || '0000-00-00';
+        const b = m.el.querySelector('[data-t-to]').value || '9999-12-31';
+        const name = m.el.querySelector('[data-t-name]').value.trim();
+        let n = 0;
+        inputs.forEach((x) => {
+          if (x.dataset.start < a || x.dataset.start > b) return;
+          x.value = name;
+          x.classList.add('is-flash');
+          setTimeout(() => x.classList.remove('is-flash'), 900);
+          n++;
+        });
+        apply.textContent = `已套用 ${n} 堂 ✓`;
+        setTimeout(() => { apply.textContent = '套用到這段日期'; }, 1500);
+      });
+      m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+      m.el.querySelector('[data-plan-save]').addEventListener('click', async () => {
+        const before = {};
+        rows.forEach((x) => { before[x.id] = x.teachers; });
+        const items = inputs.map((x) => ({ id: x.dataset.plan, teachers: x.value.trim() })).filter((x) => x.teachers !== before[x.id]);
+        if (!items.length) { m.close(); return; }
+        Busy.show(`儲存 ${items.length} 堂的師資⋯`, '請不要關閉畫面');
+        try {
+          const res = await Api.admin('adminSetTeachers', { items });
+          Busy.hide();
+          m.close();
+          afterWrite();
+          const mine = items.find((x) => x.id === s.id);
+          if (mine) s.teachers = mine.teachers;
+          ctx.source.siblings.forEach((x) => { const it = items.find((y) => y.id === x.id); if (it) x.teachers = it.teachers; });
+          if (mine) original.teachers = mine.teachers;
+          render();
+          const top = body.querySelector('[data-error]');
+          if (top) top.insertAdjacentHTML('beforebegin', AdminPage.notice('success', `已儲存 ${res.updated} 堂的師資`, ''));
+          body.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        } catch (err) {
+          Busy.hide();
+          if (err.code === 'UNAUTHORIZED') { m.close(); ctx.guard(err); return; }
+          const box = m.el.querySelector('[data-plan-error]');
+          box.textContent = err.message || '儲存失敗，請稍後再試';
+          box.hidden = false;
+        }
+      });
+    }
+
     /** 有同名的：選只刪這一筆，或連同名的一起刪（可以勾選）。回傳要一起刪的 ID（[]＝只刪這筆），取消回傳 null */
     function pickDeleteSiblings(siblings) {
       return new Promise((resolve) => {
@@ -1023,7 +1132,7 @@
     async function createLunar(items, extra) {
       Busy.show(`建立 ${items.length} 筆${F()}中⋯`, '請不要關閉畫面');
       try {
-        const duties = items.map((it) => payload(Object.assign({ name: it.name, start: it.date, end: it.date, group: it.group }, extra || {})));
+        const duties = items.map((it) => payload(Object.assign({ name: it.name, start: it.date, end: it.date, group: it.group }, it.teachers !== undefined ? { teachers: it.teachers } : {}, extra || {})));
         const res = await createDuties(duties);
         if (!res) { Busy.hide(); return; }
         Busy.hide();

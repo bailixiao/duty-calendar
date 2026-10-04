@@ -76,7 +76,7 @@ var ADMIN_READ_ACTIONS = ['adminPing', 'adminLogout', 'adminMe', 'adminRecent', 
   'adminDutyList', 'adminDutyForEdit', 'adminStats', 'adminMembers', 'adminGroups'];
 // 依勤務類別判斷的寫入（勤務／道務／教育帳號只能動自己類別）
 var ADMIN_CATEGORY_ACTIONS = ['adminCancel', 'adminReschedule', 'adminRestore', 'adminCreateDuties', 'adminUpdateDuty',
-  'adminDeleteDuty', 'adminSetAttendance', 'adminAddAttendee', 'adminDraftFromImages', 'adminUpdateStatsSheet'];
+  'adminDeleteDuty', 'adminSetAttendance', 'adminAddAttendee', 'adminDraftFromImages', 'adminUpdateStatsSheet', 'adminSetTeachers'];
 
 function findDutyById_(id) {
   return findById_(readTableCached_(SHEETS.DUTIES), '勤務ID', id) || null;
@@ -96,6 +96,8 @@ function targetDuties_(body) {
       return [findDutyById_(body.dutyId)];
     case 'adminUpdateDuty': // 同名勤務一次改：一起改的那些也要檢查
       return [findDutyById_(body.id)].concat((body.alsoIds || []).map(findDutyById_));
+    case 'adminSetTeachers':
+      return (body.items || []).map(function (it) { return findDutyById_(it.id); });
     case 'adminDeleteDuty': // 同名一起刪：一起刪的那些也要檢查
       return [findDutyById_(body.id)].concat((body.alsoIds || []).map(findDutyById_));
     case 'adminDuty': case 'adminDutyForEdit':

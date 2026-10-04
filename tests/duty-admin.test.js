@@ -454,3 +454,20 @@ test('同名一起改：DM 也可以一起套用', () => {
   assert.equal(call('adminUpdateDuty', { id: a, duty: ed, alsoIds: [b], fields: ['dm'] }).ok, true);
   assert.equal(env.get({ action: 'getDuty', id: b }).data.dm[0].id, 'F-abcdef123456');
 });
+
+test('安排整年的師資：一次改好幾堂的師資，只動師資；只能改教育', () => {
+  const { createEnv } = require('./env');
+  const env = createEnv(Date.UTC(2026, 9, 1, 2, 0, 0));
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const call = (action, body) => env.post(Object.assign({ action, token }, body));
+  const c = call('adminCreateDuties', { duties: ['2026-09-05', '2026-10-10', '2026-11-07'].map((d) => ({ name: '高大班', category: '教育', nature: '課程', start: d, location: '區中心', positions: [{ name: '參加', min: '0' }] })) });
+  const [a, b, d] = c.data.ids;
+  assert.equal(call('adminDutyForEdit', { id: a }).data.siblings[0].teachers, '');
+  const r = call('adminSetTeachers', { items: [{ id: a, teachers: '測試甲，測試乙' }, { id: b, teachers: '測試甲' }, { id: d, teachers: '' }] });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.equal(r.data.updated, 2); // d 本來就空白
+  const get = (id) => env.get({ action: 'getDuty', id }).data;
+  assert.deepEqual([get(a).teachers, get(b).teachers, get(a).location], ['測試甲、測試乙', '測試甲', '區中心']);
+  const other = call('adminCreateDuties', { duties: [{ name: '打掃', start: '2026-10-11', positions: [{ name: '打掃' }] }] }).data.ids[0];
+  assert.equal(call('adminSetTeachers', { items: [{ id: other, teachers: '測試甲' }] }).error.code, 'BAD_REQUEST');
+});
