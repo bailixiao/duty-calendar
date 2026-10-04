@@ -1024,6 +1024,10 @@
       const pb = m.el.querySelector('[data-plan-body]');
 
       function drawTeacher() {
+        // 重畫時保留捲動位置（不然點一個日期畫面就跳走）
+        const scroller = m.el.querySelector('.modal-box') || m.el;
+        const keepTop = scroller.scrollTop;
+        requestAnimationFrame(() => { scroller.scrollTop = keepTop; });
         const others = (ci) => { // 每一堂已被其他師資勾走的（一堂只給一位：反灰不能勾）
           const o = {};
           cards.forEach((c, j) => { if (j !== ci) c.ids.forEach((id) => { (o[id] = o[id] || []).push(c.name.trim() || `師資 ${j + 1}`); }); });

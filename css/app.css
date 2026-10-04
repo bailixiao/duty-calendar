@@ -1840,7 +1840,8 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 .plan-month-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; color: var(--ink-2); }
 .plan-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .plan-chip { display: inline-grid; justify-items: center; min-width: 84px; min-height: 44px; padding: 6px 8px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--paper); cursor: pointer; font-weight: 700; line-height: 1.2; }
-.plan-chip input { position: absolute; opacity: 0; pointer-events: none; }
+.plan-chip { position: relative; }
+.plan-chip input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; pointer-events: none; }
 .plan-chip small { font-size: 11px; font-weight: 400; color: var(--muted); }
 .plan-chip.is-on { border-color: #2f6ea5; background: #2f6ea5; color: #fff; }
 .plan-chip.is-on small { color: #dbe7f3; }
