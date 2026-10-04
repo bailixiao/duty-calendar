@@ -137,8 +137,19 @@
     const el = document.getElementById('duty-extra');
     if (!el) return;
     const images = imagesFor(d.name);
+    // DM：管理者上傳的照片、PDF（存在 Cloudflare）
+    const dm = Array.isArray(d.dm) ? d.dm : [];
+    const dmImages = dm.filter((x) => /^image\//.test(x.mime)).map((x) => ({ src: Api.fileUrl(x.id), caption: '' }));
+    const dmPdfs = dm.filter((x) => x.mime === 'application/pdf');
     el.innerHTML = `
       ${d.mode === '公告型' ? groupSection(d) : ''}
+      ${dm.length ? `
+        <section class="detail-section">
+          <h2>DM${dmImages.length ? '<span class="h2-sub">點圖片可以放大</span>' : ''}</h2>
+          ${dmImages.length ? `<div class="dm-images">${dmImages.map((img, i) => `
+            <button type="button" class="dm-image" data-dm-img="${i}"><img src="${esc(img.src)}" alt="DM" loading="lazy"></button>`).join('')}</div>` : ''}
+          ${dmPdfs.map((x) => `<a class="btn btn-block dm-pdf-link" href="${esc(Api.fileUrl(x.id))}" target="_blank" rel="noopener">📄 打開 PDF${x.name ? `：${esc(x.name.replace(/\.pdf$/i, ''))}` : ''}</a>`).join('')}
+        </section>` : ''}
       ${d.description ? `
         <section class="detail-section">
           <h2>說明</h2>
@@ -154,6 +165,7 @@
             </button>`).join('')}</div>
         </section>` : ''}`;
     el.querySelectorAll('[data-img]').forEach((b) => b.addEventListener('click', () => openImage(images[Number(b.dataset.img)])));
+    el.querySelectorAll('[data-dm-img]').forEach((b) => b.addEventListener('click', () => openImage(dmImages[Number(b.dataset.dmImg)])));
   }
 
   /** 這個勤務的重點圖片（設定在 duty-images.js） */

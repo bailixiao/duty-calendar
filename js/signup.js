@@ -30,12 +30,14 @@
     let step = 1;
     // 可兼任（可報多項）的勤務：上面只顯示名額，每個人在自己的名字卡勾項目，不會上下兩處都能選
     const perPerson = !!duty.multi && duty.positions.length > 1;
+    // 道務、教育的活動只有一個「參加」：不用選項目，直接填名字
+    const single = (duty.category === '道務' || duty.category === '教育') && duty.positions.length === 1;
 
     el.innerHTML = `
       <h2>我要報名</h2>
       <form class="signup-form" novalidate>
-        <fieldset class="field"${perPerson ? ' hidden' : ''}>
-          <legend>${perPerson ? '了愿項目名額' : `<span class="step">${step++}</span>選了愿項目`}</legend>
+        <fieldset class="field"${perPerson || single ? ' hidden' : ''}>
+          <legend>${perPerson || single ? '了愿項目名額' : `<span class="step">${step++}</span>選了愿項目`}</legend>
           <div class="choices" data-positions></div>
           ${perPerson ? '<p class="hint">這個勤務可以一人兼任多個項目：加入名字後，在每個人的名字下面勾他要報的項目（可以勾好幾項）。</p>' : ''}
         </fieldset>

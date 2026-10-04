@@ -79,6 +79,16 @@
 
   // ---------- 貼上草稿 ----------
 
+  /** PDF 等檔案讀成 base64（不含 data: 開頭） */
+  function readBase64(file) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result).split(',')[1]);
+      r.onerror = () => reject(new Error('檔案讀不出來，請換一個'));
+      r.readAsDataURL(file);
+    });
+  }
+
   /** 照片縮小成長邊 1600px 的 JPEG（上傳快、AI 也看得清楚），回傳 { mime, data(base64) } */
   function shrinkImage(file) {
     return new Promise((resolve, reject) => {
@@ -339,6 +349,12 @@
   }
 
   const CATEGORIES = ['勤務', '道務', '教育'];
+  // 每個類別可選的性質（與 apps-script/DutyRules.gs 的 NATURES_BY_CATEGORY_ 相同）
+  const NATURES_BY_CAT = { 勤務: ['勤務', '支援', '烹飪', '活動'], 道務: ['法會', '課程'], 教育: ['課程', '活動'] };
+  // 道務、教育是自由參加的法會、課程、活動：沒有負責組、沒有了愿項目，只有名額（不限／限幾人）
+  const isSimple = (cat) => cat === '道務' || cat === '教育';
+  const DM_MAX = 5;
+  const PDF_MAX_BYTES = 5 * 1024 * 1024;
 
   /** 勤務／道務／教育帳號固定是自己的類別；總管理者預設「勤務」 */
   function myCategory() {
@@ -348,7 +364,7 @@
 
   function emptyDuty() {
     return {
-      name: '', nature: '勤務', mode: '報名型', category: myCategory(), start: '', end: '', startTime: '', endTime: '',
+      name: '', nature: NATURES_BY_CAT[myCategory()][0], mode: '報名型', category: myCategory(), dm: [], start: '', end: '', startTime: '', endTime: '',
       location: '', groupType: '', group: '', attire: '', description: '', deadline: '',
       positions: [{ name: '', slot: '', min: '', max: '' }]
     };
@@ -370,6 +386,12 @@
       lunar: { from: '', to: '', first: true, fifteenth: true, leap: true, prefix: true, groupMode: 'fixed', rotation: [], rotationStart: 0 }
     };
     const signupTotal = editing ? ctx.source.signups : 0;
+    if (!Array.isArray(s.dm)) s.dm = [];
+    // 表單用詞跟著這筆的類別：道務、教育叫「活動」
+    const F = () => (isSimple(s.category) ? '活動' : T());
+    // 名額（道務、教育）：用第一個了愿項目的「最多」；空白＝不限
+    st.quotaMax = (s.positions[0] && s.positions[0].max) || '';
+    st.quota = st.quotaMax ? 'limit' : 'none';
     const today = Fmt.toDateStr(new Date());
 
     function groupsOf(type) {
@@ -379,10 +401,13 @@
     function render() {
       const lunar = st.dateType === 'lunar';
       const isNotice = s.mode === '公告型';
+      const simple = isSimple(s.category);
+      const natures = NATURES_BY_CAT[s.category] || NATURES_BY_CAT['勤務'];
+      if (natures.indexOf(s.nature) === -1) s.nature = natures[0];
       body.innerHTML = `
         <a class="back-link" href="#/admin/duties">‹ ${T()}管理</a>
-        <h2 class="detail-title">${editing ? '編輯' + T() : ctx.source ? '另存成新' + T() : '新增' + T()}</h2>
-        ${editing && signupTotal ? `<div class="notice notice-success"><p>這個${T()}已有 ${signupTotal} 筆報名。有人報名的項目不能刪除、有人報名的日期不能移出期間。</p></div>` : ''}
+        <h2 class="detail-title">${editing ? '編輯' + F() : ctx.source ? '另存成新' + F() : '新增' + F()}</h2>
+        ${editing && signupTotal ? `<div class="notice notice-success"><p>這個${F()}已有 ${signupTotal} 筆報名。有人報名的項目不能刪除、有人報名的日期不能移出期間。</p></div>` : ''}
         <form class="admin-form" novalidate>
           <fieldset class="form-block">
             <legend>基本資料</legend>
@@ -390,7 +415,7 @@
               <input class="input" name="name" value="${esc(s.name)}" placeholder="例：彌勒山志工輪值" required></label>
             ${lunar ? '<p class="hint">勾「名稱前面加上農曆日期」時，這裡只填後半段，例如「拜香輪值」。</p>' : ''}
             <div class="form-row"><span>類別</span>${Api.adminWho().role === '總管理者' ? segmented('category', CATEGORIES, s.category || '勤務') : `<strong>${esc(myCategory())}</strong>`}</div>
-            <div class="form-row"><span>性質</span>${segmented('nature', NATURES, s.nature)}</div>
+            <div class="form-row"><span>性質</span>${segmented('nature', natures, s.nature)}</div>
             <div class="form-row"><span>模式</span>${segmented('mode', ['報名型', '公告型'], s.mode)}</div>
             ${isNotice ? '<p class="hint">公告型：只顯示輪值組，不需報名、沒有了愿項目。</p>' : ''}
           </fieldset>
@@ -406,7 +431,7 @@
                 <input class="input" type="date" name="end" value="${esc(s.end)}"></label>` : ''}`}
             <label class="form-row"><span>報名截止日（可空白）</span>
               <input class="input" type="date" name="deadline" value="${esc(s.deadline || '')}"></label>
-            <p class="hint">空白＝${T()}前一天都能報名。填了日期，過了那天網頁就不能再報名（管理者仍可補登）。</p>
+            <p class="hint">空白＝${F()}前一天都能報名。填了日期，過了那天網頁就不能再報名（管理者仍可補登）。</p>
           </fieldset>
 
           <fieldset class="form-block">
@@ -424,7 +449,7 @@
             <datalist id="opt-attire">${ATTIRES.map((x) => `<option value="${esc(x)}">`).join('')}</datalist>
           </fieldset>
 
-          <fieldset class="form-block">
+          ${simple ? '' : `<fieldset class="form-block">
             <legend>負責組</legend>
             <label class="form-row"><span>分組類型</span>
               <select class="input" name="groupType">
@@ -437,9 +462,14 @@
                   <option value="">（不指定）</option>
                   ${groupsOf(s.groupType).map((x) => `<option${x === s.group ? ' selected' : ''}>${esc(x)}</option>`).join('')}
                 </select></label>`) : ''}
-          </fieldset>
+          </fieldset>`}
 
-          ${isNotice ? '' : `
+          ${isNotice ? '' : simple ? `
+          <fieldset class="form-block">
+            <legend>名額</legend>
+            ${segmented('quotaMode', [['none', '不限名額'], ['limit', '限定人數']], st.quota)}
+            ${st.quota === 'limit' ? `<label class="form-row"><span>最多幾人</span><input class="input" name="quotaMax" inputmode="numeric" value="${esc(st.quotaMax)}" placeholder="例：30"></label>` : '<p class="hint">不限人數，大家都可以報名。</p>'}
+          </fieldset>` : `
           <fieldset class="form-block">
             <legend>了愿項目與名額</legend>
             <p class="hint">「最少」留空預設 2 人；「最多」留空代表不限。</p>
@@ -458,6 +488,13 @@
           </fieldset>`}
 
           <fieldset class="form-block">
+            <legend>DM（照片或 PDF）</legend>
+            <p class="hint">家人們打開這個${F()}就看得到。最多 ${DM_MAX} 個；照片會自動縮小，PDF 一個最大 5MB。</p>
+            ${s.dm.length ? `<ul class="dm-edit">${s.dm.map((x, i) => `<li>${/^image\//.test(x.mime) ? `<img src="${esc(Api.fileUrl(x.id))}" alt="">` : '<span class="dm-pdf">PDF</span>'}<span class="dm-name">${esc(x.name || '')}</span><button type="button" class="btn btn-small btn-quiet-danger" data-dm-del="${i}">移除</button></li>`).join('')}</ul>` : ''}
+            ${s.dm.length < DM_MAX ? '<label class="btn btn-block">＋ 加照片或 PDF<input type="file" accept="image/*,application/pdf" multiple hidden data-dm-file></label>' : ''}
+          </fieldset>
+
+          <fieldset class="form-block">
             <legend>說明</legend>
             <textarea class="input textarea" name="description" rows="4" placeholder="工作項目、注意事項⋯">${esc(s.description)}</textarea>
           </fieldset>
@@ -465,12 +502,12 @@
           ${lunar ? '<div data-preview></div>' : ''}
           <div class="form-error" data-error hidden></div>
           <div class="form-actions">
-            <button type="submit" class="btn btn-primary btn-block">${lunar ? '產生並預覽' : editing ? '存檔' : '新增' + T()}</button>
+            <button type="submit" class="btn btn-primary btn-block">${lunar ? '產生並預覽' : editing ? '存檔' : '新增' + F()}</button>
             ${editing ? `
-              <a class="btn btn-block" href="#/admin/duties/new?from=${encodeURIComponent(s.id)}">另存成新${T()}</a>
+              <a class="btn btn-block" href="#/admin/duties/new?from=${encodeURIComponent(s.id)}">另存成新${F()}</a>
               <a class="btn btn-block" href="#/admin/duty/${encodeURIComponent(s.id)}">查看報名名單</a>
-              <button type="button" class="btn btn-block btn-quiet-danger" data-delete${signupTotal ? ' disabled' : ''}>刪除${T()}</button>
-              ${signupTotal ? `<p class="hint">還有報名的${T()}不能刪除，要先取消或改期這些報名。</p>` : ''}` : ''}
+              <button type="button" class="btn btn-block btn-quiet-danger" data-delete${signupTotal ? ' disabled' : ''}>刪除${F()}</button>
+              ${signupTotal ? `<p class="hint">還有報名的${F()}不能刪除，要先取消或改期這些報名。</p>` : ''}` : ''}
           </div>
         </form>`;
       bind();
@@ -529,6 +566,8 @@
       const radio = (n) => { const el = f.querySelector(`input[name="${n}"]:checked`); return el ? el.value : undefined; };
       if (radio('nature')) s.nature = radio('nature');
       if (radio('category')) s.category = radio('category');
+      if (radio('quotaMode')) st.quota = radio('quotaMode');
+      if (val('quotaMax') !== undefined) st.quotaMax = val('quotaMax');
       if (radio('mode')) s.mode = radio('mode');
       if (radio('dateType')) st.dateType = radio('dateType');
       if (radio('groupMode')) st.lunar.groupMode = radio('groupMode');
@@ -553,12 +592,38 @@
       // 會改變表單結構的選項：讀回目前的值後重畫
       f.addEventListener('change', (ev) => {
         const n = ev.target.name;
-        if (['mode', 'dateType', 'groupType', 'groupMode', 'rotation'].indexOf(n) === -1) return;
+        if (['mode', 'dateType', 'groupType', 'groupMode', 'rotation', 'category', 'quotaMode'].indexOf(n) === -1) return;
         sync();
         if (n === 'groupType') { s.group = ''; st.lunar.rotation = []; st.lunar.rotationStart = 0; }
         if (n === 'dateType' && st.dateType === 'range' && !s.end) s.end = s.start;
         render();
       });
+      const dmFile = f.querySelector('[data-dm-file]');
+      if (dmFile) dmFile.addEventListener('change', async (ev) => {
+        const files = [...ev.target.files].slice(0, DM_MAX - s.dm.length);
+        ev.target.value = '';
+        if (!files.length) return;
+        sync();
+        Busy.show('上傳中⋯', '請不要關閉畫面');
+        try {
+          for (const file of files) {
+            const isPdf = file.type === 'application/pdf';
+            if (isPdf && file.size > PDF_MAX_BYTES) throw new Error(`「${file.name}」超過 5MB，請先壓縮`);
+            const img = isPdf ? null : await shrinkImage(file);
+            const data = isPdf ? await readBase64(file) : img.data;
+            const res = await Api.admin('adminUploadFile', { mime: isPdf ? 'application/pdf' : img.mime, name: file.name, data });
+            s.dm.push({ id: res.id, name: file.name, mime: isPdf ? 'application/pdf' : img.mime });
+          }
+          Busy.hide();
+        } catch (e) {
+          Busy.hide();
+          if (e.code === 'UNAUTHORIZED') { ctx.guard(e); return; }
+          alertError(e.message || '上傳失敗，請稍後再試');
+        }
+        render();
+      });
+      f.querySelectorAll('[data-dm-del]').forEach((b) => b.addEventListener('click', () => { sync(); s.dm.splice(Number(b.dataset.dmDel), 1); render(); }));
+      function alertError(msg) { const box = f.querySelector('[data-error]'); box.textContent = msg; box.hidden = false; }
       const add = f.querySelector('[data-add-pos]');
       if (add) add.addEventListener('click', () => {
         sync();
@@ -595,9 +660,12 @@
         name: s.name, nature: s.nature, mode: s.mode, category: s.category || myCategory(),
         start: s.start, end: st.dateType === 'range' ? s.end : s.start,
         startTime: s.startTime, endTime: s.endTime, location: s.location,
-        groupType: s.groupType, group: s.groupType ? s.group : '', attire: s.attire, description: s.description, deadline: s.deadline || '',
+        groupType: isSimple(s.category) ? '' : s.groupType, group: !isSimple(s.category) && s.groupType ? s.group : '', attire: s.attire, description: s.description, deadline: s.deadline || '',
+        dm: s.dm,
         multi: s.mode === '公告型' ? false : !!(s.multi === true || s.multi === '是'),
-        positions: s.mode === '公告型' ? [] : s.positions.filter((p) => p.id || p.name.trim() || p.min || p.max)
+        positions: s.mode === '公告型' ? [] : isSimple(s.category)
+          ? [{ id: s.positions[0] && s.positions[0].id, name: (s.positions[0] && s.positions[0].name) || '參加', slot: '', min: '0', max: st.quota === 'limit' ? String(st.quotaMax || '').trim() : '' }]
+          : s.positions.filter((p) => p.id || p.name.trim() || p.min || p.max)
           .map((p) => ({ id: p.id, name: p.name, slot: p.slot, min: p.min, max: p.max }))
       };
       return Object.assign(out, overrides);
@@ -619,7 +687,7 @@
           if (!res) { Busy.hide(); return; }
           Busy.hide();
           afterWrite();
-          flash = AdminPage.notice('success', '已新增' + T(), `${s.name}・${Fmt.rocDate(s.start)}`);
+          flash = AdminPage.notice('success', '已新增' + F(), `${s.name}・${Fmt.rocDate(s.start)}`);
           location.hash = '#/admin/duties/edit/' + encodeURIComponent(res.ids[0]);
         } catch (err) {
           Busy.hide();
@@ -635,7 +703,7 @@
         Busy.hide();
         afterWrite();
         const warn = res.warnings.length ? `<p>注意：${res.warnings.map(esc).join('；')}</p>` : '';
-        flash = `<div class="notice notice-success" role="status"><p><strong>已存檔${res.updated > 1 ? `（連同其他 ${res.updated - 1} 筆同名${T()}）` : ''}</strong></p>${warn}</div>`;
+        flash = `<div class="notice notice-success" role="status"><p><strong>已存檔${res.updated > 1 ? `（連同其他 ${res.updated - 1} 筆同名${F()}）` : ''}</strong></p>${warn}</div>`;
         DutyAdminPage.reload();
       } catch (err) {
         Busy.hide();
@@ -673,8 +741,8 @@
       return new Promise((resolve) => {
         let result = null;
         const m = Modal.open(`
-          <h2 class="modal-title">也套用到其他同名${T()}嗎？</h2>
-          <p class="modal-note">日期不會改。勾選要一起改的欄位和${T()}：</p>
+          <h2 class="modal-title">也套用到其他同名${F()}嗎？</h2>
+          <p class="modal-note">日期不會改。勾選要一起改的欄位和${F()}：</p>
           <div class="checks checks-col">${fields.map(([k, label]) => `<label class="check"><input type="checkbox" data-field="${k}" checked> ${esc(label)}</label>`).join('')}</div>
           <div class="bulk-list">
             <label class="check"><input type="checkbox" data-all checked> <strong>全選（${siblings.length} 筆）</strong></label>
@@ -707,8 +775,8 @@
 
     async function removeDuty() {
       const ok = await Confirm.open({
-        title: `確定要刪除這個${T()}嗎？`,
-        rows: [[T(), s.name], ['日期', dateRange({ start: original.start, end: original.end })]],
+        title: `確定要刪除這個${F()}嗎？`,
+        rows: [[F(), s.name], ['日期', dateRange({ start: original.start, end: original.end })]],
         note: '刪除後無法還原（操作紀錄會留下刪除前的資料）。',
         confirmText: '確定刪除',
         cancelText: '不要刪除',
@@ -720,7 +788,7 @@
         await Api.admin('adminDeleteDuty', { id: s.id });
         Busy.hide();
         afterWrite();
-        flash = AdminPage.notice('success', '已刪除' + T(), `${original.name}・${Fmt.rocDate(original.start)}`);
+        flash = AdminPage.notice('success', '已刪除' + F(), `${original.name}・${Fmt.rocDate(original.start)}`);
         location.hash = '#/admin/duties';
       } catch (err) {
         Busy.hide();

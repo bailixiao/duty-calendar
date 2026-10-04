@@ -3,6 +3,7 @@
 import { createRuntime } from './runtime.js';
 import { createGs } from './gs.generated.js';
 import * as A from './async-actions.js';
+import { Buffer } from 'node:buffer';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -68,6 +69,22 @@ export function createApp(store, opts) {
       return { sheets, at: gs.nowString_() };
     }
   };
+  const FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+  const FILE_MAX = 5 * 1024 * 1024;
+  /** 上傳 DM（照片、PDF）：要登入且不是唯讀；回傳檔案代號，存勤務時放進 dm 欄位 */
+  special.adminUploadFile = (body) => {
+    const who = gs.requireAdmin_(body);
+    if (who.role === '唯讀') throw new gs.ApiError_('FORBIDDEN', '這個帳號沒有權限做這件事');
+    const mime = String(body.mime || '');
+    if (FILE_TYPES.indexOf(mime) === -1) throw new gs.ApiError_('BAD_REQUEST', '只能上傳照片（jpg、png）或 PDF');
+    const bytes = Uint8Array.from(Buffer.from(String(body.data || ''), 'base64'));
+    if (!bytes.length) throw new gs.ApiError_('BAD_REQUEST', '檔案是空的');
+    if (bytes.length > FILE_MAX) throw new gs.ApiError_('BAD_REQUEST', '檔案太大（最大 5MB），請先壓縮');
+    const id = 'F-' + crypto.randomUUID().replace(/-/g, '').slice(0, 20);
+    store.putFile(id, mime, String(body.name || '').slice(0, 80), bytes);
+    return { id };
+  };
+
   const asyncActions = {
     adminDraftFromImages: (body) => A.adminDraftFromImages(gs, body),
     pushTest: (body) => A.pushTest(gs, body)
@@ -76,6 +93,12 @@ export function createApp(store, opts) {
   async function handle(request) {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     const url = new URL(request.url);
+    if (request.method === 'GET' && url.searchParams.get('action') === 'file') {
+      // DM 檔案：代號不會重複使用，可以長期快取
+      const f = store.getFile(String(url.searchParams.get('id') || ''));
+      if (!f) return new Response('找不到檔案', { status: 404, headers: CORS });
+      return new Response(f.bytes, { headers: Object.assign({ 'Content-Type': f.mime, 'Cache-Control': 'public, max-age=31536000, immutable', 'Content-Disposition': 'inline' }, CORS) });
+    }
     if (request.method === 'GET') {
       return json(gs.doGet({ parameter: Object.fromEntries(url.searchParams) }).text);
     }

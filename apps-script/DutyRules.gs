@@ -15,7 +15,7 @@ var MAX_LIMIT = 999;
 var DUTY_FIELD_MAP_ = {
   name: '名稱', nature: '性質', mode: '模式', start: '開始日', end: '結束日',
   startTime: '開始時間', endTime: '結束時間', location: '地點',
-  groupType: '分組類型', group: '負責組', attire: '服裝', description: '說明', deadline: '報名截止日', multi: '可兼任', category: '類別'
+  groupType: '分組類型', group: '負責組', attire: '服裝', description: '說明', deadline: '報名截止日', multi: '可兼任', category: '類別', dm: 'DM'
 };
 
 /**
@@ -53,6 +53,26 @@ function cleanTime_(v) {
  * ctx: { groups: ['分組類型|組名', ...]（負責組必須存在） }
  * 回傳 { duty: { 名稱: ..., ... }, positions: [{ id, 了愿項目名稱, 時段, 最少, 最多 }], errors: [字串] }
  */
+// 每個類別可選的性質（道務、教育是自由參加的法會、課程、活動）
+var NATURES_BY_CATEGORY_ = { 勤務: ['勤務', '支援', '烹飪', '活動'], 道務: ['法會', '課程'], 教育: ['課程', '活動'] };
+var DM_MAX = 5;
+
+/** DM 附件清單：[{ id, name, mime }]（最多 5 個）→ 存成 JSON 文字；格式不對的略過 */
+function cleanDm_(v) {
+  var list = Array.isArray(v) ? v : [];
+  if (typeof v === 'string' && v) { try { list = JSON.parse(v); } catch (e) { list = []; } }
+  list = list.filter(function (x) {
+    return x && /^F-[\w-]{6,40}$/.test(String(x.id)) && /^(image\/(jpeg|png|webp)|application\/pdf)$/.test(String(x.mime));
+  }).slice(0, DM_MAX).map(function (x) { return { id: String(x.id), name: cleanText_(x.name).slice(0, 80), mime: String(x.mime) }; });
+  return list.length ? JSON.stringify(list) : '';
+}
+
+/** 勤務的 DM 欄位（JSON 文字）→ 陣列 */
+function parseDm_(text) {
+  if (!text) return [];
+  try { var v = JSON.parse(text); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+}
+
 function normalizeDutyInput_(input, ctx) {
   input = input || {};
   ctx = ctx || {};
@@ -63,13 +83,15 @@ function normalizeDutyInput_(input, ctx) {
   duty['結束時間'] = cleanTime_(duty['結束時間']);
   // 可兼任：同一人同一天可報多個了愿項目（是／空白）
   duty['可兼任'] = input.multi === true || input.multi === '是' || input.multi === 'true' ? '是' : '';
-  if (!duty['性質']) duty['性質'] = '勤務';
+  duty['DM'] = cleanDm_(input.dm);
   if (!duty['類別']) duty['類別'] = '勤務';
+  if (!duty['性質']) duty['性質'] = (NATURES_BY_CATEGORY_[duty['類別']] || ['勤務'])[0];
   if (!duty['模式']) duty['模式'] = '報名型';
   if (!duty['結束日']) duty['結束日'] = duty['開始日'];
 
   if (!duty['名稱']) errors.push('請填勤務名稱');
-  if (['勤務', '支援', '烹飪', '活動'].indexOf(duty['性質']) === -1) errors.push('性質只能是勤務、支援、烹飪或活動');
+  var natures = NATURES_BY_CATEGORY_[duty['類別']] || NATURES_BY_CATEGORY_['勤務'];
+  if (natures.indexOf(duty['性質']) === -1) errors.push('「' + (duty['類別'] || '勤務') + '」的性質只能是' + natures.join('、'));
   if (duty['報名截止日'] && !isDateString_(duty['報名截止日'])) errors.push('報名截止日格式錯誤');
   if (['報名型', '公告型'].indexOf(duty['模式']) === -1) errors.push('模式只能是報名型或公告型');
   if (['勤務', '道務', '教育'].indexOf(duty['類別']) === -1) errors.push('類別只能是勤務、道務或教育');

@@ -90,6 +90,24 @@ test('import 要管理密碼（第一次除外）；syncExport 回傳所有分�
   assert.equal(u.data.updatedAt, '2026-10-01 09:00:00');
 });
 
+test('DM 檔案：登入才能上傳（唯讀不行），之後用網址讀得到；存進勤務的 dm 欄位', async () => {
+  const { call, app, store } = await setup();
+  const tok = (await call('POST', { action: 'adminLogin', password: 'test-pass' })).data.token;
+  const png = Buffer.from('89504e470d0a1a0a0000', 'hex').toString('base64');
+  assert.equal((await call('POST', { action: 'adminUploadFile', mime: 'image/png', data: png })).error.code, 'UNAUTHORIZED');
+  assert.equal((await call('POST', { action: 'adminUploadFile', token: tok, mime: 'text/html', data: png })).error.code, 'BAD_REQUEST');
+  const up = await call('POST', { action: 'adminUploadFile', token: tok, mime: 'image/png', name: 'dm.png', data: png });
+  assert.equal(up.ok, true, JSON.stringify(up.error));
+  const res = await app.handle(new Request('https://w.test/?action=file&id=' + up.data.id));
+  assert.equal(res.headers.get('Content-Type'), 'image/png');
+  assert.equal(Buffer.from(await res.arrayBuffer()).toString('base64'), png);
+  const c = await call('POST', { action: 'adminCreateDuties', token: tok, duties: [{ name: '秋季法會', category: '道務', nature: '法會', start: '2026-11-21', end: '2026-11-21', positions: [{ name: '參加', min: '0', max: '' }], dm: [{ id: up.data.id, name: 'dm.png', mime: 'image/png' }] }] });
+  assert.equal(c.ok, true, JSON.stringify(c.error));
+  const d = (await call('GET', { action: 'getDuty', id: c.data.ids[0] })).data;
+  assert.deepEqual(d.dm, [{ id: up.data.id, name: 'dm.png', mime: 'image/png' }]);
+  void store;
+});
+
 test('推播：還沒正式切換不送；切換後用 fetch 並行送出，失效的手機自動停用；測試通知', async () => {
   const OCT_9_EVENING = Date.UTC(2026, 9, 9, 12, 0, 0);
   const { call, app, store } = await setup(OCT_9_EVENING);

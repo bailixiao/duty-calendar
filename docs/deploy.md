@@ -206,4 +206,4 @@ node tools/dev-server.js
 node tools/dev-server.js --mock
 ```
 
-開啟 http://localhost:5175 。API 改由記憶體模擬的 Apps Script（直接載入 `apps-script/*.gs` 與初始資料），管理密碼是 `test-pass`。資料只存在記憶體，重新啟動就回到初始狀態。
+開啟 http://localhost:5175 。API 改跑和正式相同的 Cloudflare Worker 程式（啟動時先 `node tools/build-worker.js`，資料放記憶體並載入初始資料），管理密碼是 `test-pass`。資料只存在記憶體，重新啟動就回到初始狀態。

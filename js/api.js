@@ -207,6 +207,8 @@
     warmUp: () => get('ping', {}, []).catch(() => {}),
     getDuty: (id) => get('getDuty', { id }),
     loginAccounts: () => get('loginAccounts', {}),
+    // DM 檔案（照片、PDF）的網址
+    fileUrl: (id) => window.APP_CONFIG.API_URL + (window.APP_CONFIG.API_URL.indexOf('?') === -1 ? '?' : '&') + 'action=file&id=' + encodeURIComponent(id),
     // 開網站時一次打包：行事曆＋近 30 天勤務詳情（資料較多，第一次等久一點）
     getBundle: (from, to) => get('getBundle', { from, to }, [4500, 6000, 10000]),
     // 名字提示要快：平常 2 秒內回來，3 秒沒回來就同時再問一次
