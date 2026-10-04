@@ -32,3 +32,20 @@ test('國定假日：固定節日、清明、春節除夕、端午中秋（農�
   assert.equal(Object.values(h).filter((x) => x === '除夕').length, 1, '2028 年的除夕（2028/1/25）不算在 2027');
   assert.equal(L.holidays(2024)['2024-04-04'], '兒童節、清明節'); // 同一天
 });
+
+test('補假與連假：國定假日遇六日補假；連在一起 3 天以上，連假裡的六日也列出來', () => {
+  // 2026：中秋 9/25（五）、教師節 9/28（一）→ 9/25～9/28 四天連假；國慶 10/10（六）→ 10/9（五）補假，10/9～10/11 連假
+  const table = { '2026-1-1': '2026-02-17', '2027-1-1': '2027-02-06', '2025-1-1': '2025-01-29', '2026-5-5': '2026-06-19', '2026-8-15': '2026-09-25' };
+  const off = L.offDays([2026], (y, m, d) => table[`${y}-${m}-${d}`]);
+  assert.equal(off['2026-09-26'].kind, 'weekend');
+  assert.match(off['2026-09-27'].name, /中秋節.*連假/);
+  assert.equal(off['2026-09-28'].kind, 'holiday');
+  assert.deepEqual([off['2026-10-09'].kind, off['2026-10-10'].kind, off['2026-10-11'].kind], ['makeup', 'holiday', 'weekend']);
+  assert.equal(off['2026-10-09'].name, '國慶日補假');
+  // 端午 6/19（五）→ 6/19～6/21 連假
+  assert.equal(off['2026-06-20'].kind, 'weekend');
+  // 普通週末不算
+  assert.equal(off['2026-10-17'], undefined);
+  // 勞動節 5/1（五）→ 5/2、5/3 也是連假
+  assert.equal(off['2026-05-03'].kind, 'weekend');
+});

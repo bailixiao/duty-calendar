@@ -582,8 +582,11 @@
       body.querySelector('[data-error]').hidden = true;
       // 國定假日：紅字、預設不勾（自己勾回去的就照勾）
       const toSolar = window.Lunar ? (y, mo, d) => window.Lunar.fromYmd(y, mo, d).getSolar().toYmd() : null;
+      // 國定假日、補假、連假裡的六日：都先不勾
+      const years = [...new Set(r.dates.map((d) => Number(d.slice(0, 4))))];
+      const offMap = DateList.offDays([Math.min(...years) - 1, ...years, Math.max(...years) + 1], toSolar);
       const hol = {};
-      [...new Set(r.dates.map((d) => Number(d.slice(0, 4))))].forEach((y) => Object.assign(hol, DateList.holidays(y, toSolar)));
+      r.dates.forEach((d) => { if (offMap[d]) hol[d] = offMap[d].name; });
       const touched = new Set(st.multi.touched);
       const skip = new Set(st.multi.skip);
       r.dates.forEach((d) => { if (hol[d] && !touched.has(d)) skip.add(d); });
@@ -599,7 +602,7 @@
         <section class="lunar-preview">
           <h3 class="admin-sub">將建立 <span data-count></span> 筆${F()}<span class="h2-sub">名稱都是「${esc(s.name.trim())}」</span></h3>
           ${r.bad.length ? `<div class="notice notice-error"><p>這些看不懂，已略過：${r.bad.map(esc).join('、')}</p></div>` : ''}
-          <p class="hint">不要的日期把勾拿掉。${holCount ? `<span class="holiday-note">紅字是國定假日（${holCount} 天），已先幫你取消勾選；要的話再勾回來。</span>` : ''}</p>
+          <p class="hint">不要的日期把勾拿掉。${holCount ? `<span class="holiday-note">紅字是國定假日、補假或連假（${holCount} 天，連假裡的六日也算），已先幫你取消勾選；要的話再勾回來。</span>` : ''}</p>
           <ol class="preview-list multi-preview">${r.dates.map((d) => `
             <li class="${hol[d] ? 'is-holiday' : ''}"><label class="check"><input type="checkbox" data-day="${d}"${skip.has(d) ? '' : ' checked'}>
               <span class="preview-date">${esc(Fmt.rocDate(d))}</span>${hol[d] ? `<span class="holiday-name">${esc(hol[d])}</span>` : ''}</label>${s.groupType && s.group ? `<span class="tag">${esc(s.group)}</span>` : ''}</li>`).join('')}

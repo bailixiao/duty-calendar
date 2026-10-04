@@ -83,7 +83,41 @@
     return out;
   }
 
-  const api = { weekly, parse, weekdayOf, WEEK, holidays };
+  /**
+   * 放假日與連假：{ 'yyyy-MM-dd': { name, kind } }，kind＝'holiday'（國定假日）／'makeup'（補假）／'weekend'（連假裡的六日）
+   *   補假：國定假日遇星期六→前一天星期五補假；遇星期日→隔天星期一補假（行政院每年的調整放假不在內）。
+   *   連假：國定假日、補假、六日連在一起 3 天以上；連假裡的六日也列出來（很多人會出遊）。
+   */
+  function offDays(years, lunarToSolar) {
+    const hol = {};
+    years.forEach((y) => Object.assign(hol, holidays(y, lunarToSolar)));
+    const off = {};
+    Object.keys(hol).forEach((d) => { off[d] = { name: hol[d], kind: 'holiday' }; });
+    Object.keys(hol).forEach((d) => {
+      const wd = weekdayOf(d);
+      const mk = wd === 6 ? addDays(d, -1) : wd === 0 ? addDays(d, 1) : null;
+      if (mk && !off[mk]) off[mk] = { name: hol[d] + '補假', kind: 'makeup' };
+    });
+    // 找連在一起的放假日（含六日），3 天以上算連假
+    const isOff = (d) => !!off[d] || weekdayOf(d) === 0 || weekdayOf(d) === 6;
+    const seen = new Set();
+    Object.keys(off).sort().forEach((d) => {
+      if (seen.has(d)) return;
+      let a = d;
+      while (isOff(addDays(a, -1))) a = addDays(a, -1);
+      let b = d;
+      while (isOff(addDays(b, 1))) b = addDays(b, 1);
+      const run = [];
+      for (let x = a; x <= b; x = addDays(x, 1)) { run.push(x); seen.add(x); }
+      if (run.length < 3) return;
+      const names = [...new Set(run.filter((x) => off[x] && off[x].kind === 'holiday').map((x) => off[x].name.split('、')[0]))];
+      const label = (names.length ? names.join('・') : '') + '連假';
+      run.forEach((x) => { if (!off[x]) off[x] = { name: label, kind: 'weekend' }; });
+    });
+    return off;
+  }
+
+  const api = { weekly, parse, weekdayOf, WEEK, holidays, offDays };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.DateList = api;
 })();
