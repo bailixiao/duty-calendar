@@ -100,6 +100,9 @@
     }
     const d = day || { total: 0, shortage: 0, full: false, counts: {} };
     const counts = d.counts || {};
+    if (duty.category === '道務' || duty.category === '教育') { // 自由參加、鼓勵為主：不算缺人
+      return d.full ? { kind: 'full', label: '額滿' } : { kind: 'ok', label: `已報 ${d.total} 人` };
+    }
     const shortage = duty.positions.reduce((sum, p) => sum + Math.max(effectiveMin(p) - (counts[p.id] || 0), 0), 0);
     if (d.full) return { kind: 'full', label: '額滿' };
     if (shortage > 0) return { kind: 'short', label: `缺 ${shortage} 人` };

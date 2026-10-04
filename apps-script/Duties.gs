@@ -188,11 +188,12 @@ function dutyToJson_(d, positions) {
 function daysStatus_(duty, positions, signups, dates) {
   var days = {};
   if (duty['模式'] === '公告型') return days;
+  var free = ['道務', '教育'].indexOf(dutyCategory_(duty)) !== -1; // 道務、教育的活動自由參加，不算缺人
   dates.forEach(function (date) {
     var s = dayStatus_(positions, signups, date);
     var counts = {};
     s.positions.forEach(function (p) { counts[p.id] = p.count; });
-    days[date] = { total: s.total, shortage: s.shortage, full: s.full, counts: counts };
+    days[date] = { total: s.total, shortage: free ? 0 : s.shortage, full: s.full, counts: counts };
   });
   return days;
 }

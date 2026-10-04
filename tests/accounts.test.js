@@ -100,6 +100,15 @@ test('停用或改密碼：那個帳號現有的登入失效；每個帳號各�
   assert.equal(login('勤務組', 'newpass99').error.code, 'UNAUTHORIZED');
 });
 
+test('道務、教育的活動自由參加：不算缺人', () => {
+  const { env, superTok } = setup();
+  const c = env.post({ action: 'adminCreateDuties', token: superTok, duties: [{ name: '週日法會', category: '道務', start: '2026-11-22', end: '2026-11-22', positions: [{ name: '參加', min: 5 }] }] });
+  assert.equal(c.ok, true, JSON.stringify(c.error));
+  const d = env.get({ action: 'getEvents', from: '2026-11-22', to: '2026-11-22' }).data.duties.find((x) => x.name === '週日法會');
+  assert.equal(d.category, '道務');
+  assert.equal(d.days['2026-11-22'].shortage, 0);
+});
+
 test('行事曆公開資料帶類別；操作紀錄記下是哪個帳號', () => {
   const { env, login, save } = setup();
   assert.equal(env.get({ action: 'getEvents', from: '2026-10-13', to: '2026-10-13' }).data.duties[0].category, '勤務');

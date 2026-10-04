@@ -287,7 +287,7 @@
 
       body.innerHTML = `
         ${staleNote(stale)}
-        ${shortDates.size
+        ${['道務', '教育'].indexOf(Api.adminWho().role) !== -1 ? '' : shortDates.size
           ? `<div class="notice notice-error" role="status"><p><strong>近 14 天有 ${shortDates.size} 天缺人</strong></p><p>${[...shortDates].map(Fmt.shortDate).join('、')}</p>${Share.buttonsHtml()}</div>`
           : '<div class="notice notice-success" role="status"><p><strong>近 14 天都不缺人</strong></p></div>'}
         ${[...byDate.entries()].map(([date, items]) => `
@@ -303,7 +303,7 @@
                   <span class="badge badge-${st.kind}">${esc(st.label)}</span>
                 </a>`).join('')}
             </div>
-          </section>`).join('') || '<p class="panel-empty">近 14 天沒有勤務</p>'}`;
+          </section>`).join('') || `<p class="panel-empty">近 14 天沒有${term()}</p>`}`;
       Share.bind(body, () => Share.shortageText(rows.map((r) => ({ duty: r.d, date: r.date, state: r.st }))));
     }
   }
