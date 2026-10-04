@@ -1807,3 +1807,6 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 .multi-preview li.is-holiday .preview-date, .multi-preview .holiday-name { color: #c0281c; font-weight: 800; }
 .multi-preview .holiday-name { margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: #fde4e1; font-size: 14px; }
 .holiday-note { display: block; color: #c0281c; font-weight: 700; }
+
+.edu-rank .rank-name { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.edu-rank-detail { flex-basis: 100%; color: var(--muted); font-size: 14px; font-weight: 400; }

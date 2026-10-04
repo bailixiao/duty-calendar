@@ -82,6 +82,26 @@
     return { courses, teachers };
   }
 
+  /**
+   * 學生出席排行：[{ name, count（出席堂數）, absent（未到）, byCourse: [{ name, count }] }]
+   * only：只算這個課程（課程名稱）；空白＝全部課程。出席多的在前，同次數未到少的在前，再依筆劃。
+   */
+  function ranking(courses, only) {
+    const map = new Map();
+    courses.filter((c) => !only || c.name === only).forEach((c) => {
+      c.students.forEach((n) => {
+        const here = Object.values(c.grid[n]).filter((v) => v === '✓').length;
+        const away = Object.values(c.grid[n]).filter((v) => v === '✗').length;
+        if (!map.has(n)) map.set(n, { name: n, count: 0, absent: 0, byCourse: [] });
+        const r = map.get(n);
+        r.count += here;
+        r.absent += away;
+        if (here) r.byCourse.push({ name: c.name, count: here });
+      });
+    });
+    return [...map.values()].sort((a, b) => b.count - a.count || a.absent - b.absent || strokeCompare(a.name, b.name));
+  }
+
   /** 出缺勤表轉成 Tab 分隔的文字（貼到試算表或 LINE） */
   function gridText(c) {
     const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
@@ -91,7 +111,7 @@
     return [`【${c.name}】出缺勤表（✓出席 ✗未到）`, head, ...rows, foot].join('\n');
   }
 
-  const api = { summarize, gridText, splitTeachers };
+  const api = { summarize, gridText, splitTeachers, ranking };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.EduStats = api;
 })();

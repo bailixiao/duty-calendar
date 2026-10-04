@@ -39,3 +39,17 @@ test('課程：同名合成一個課程，每個日期一堂；學生、出缺�
   assert.match(text, /姓名\t10\/7\t10\/14\t10\/21\t出席/);
   assert.match(text, /\t✗\t\t1\/3/);
 });
+
+test('學生出席排行：全部課程加總、只看一個課程；出席多的在前，同次數未到少的在前', () => {
+  const sessions = [sess('2026-10-07', 'D1', ''), sess('2026-10-14', 'D2', ''), sess('2026-10-08', 'D9', '', '書法課')];
+  const events = [
+    ev('2026-10-07', 'D1', ['王小明', '李小華'], []),
+    ev('2026-10-14', 'D2', ['王小明'], ['李小華']),
+    ev('2026-10-08', 'D9', ['李小華', '測試甲'], [], { name: '書法課', series: '書法課' })
+  ];
+  const r = E.summarize(sessions, events, () => true);
+  const all = E.ranking(r.courses, '');
+  assert.deepEqual(all.map((x) => [x.name, x.count, x.absent]), [['王小明', 2, 0], ['李小華', 2, 1], ['測試甲', 1, 0]]);
+  assert.deepEqual(all[1].byCourse.map((c) => c.name + c.count).sort(), ['書法課1', '讀經班1']);
+  assert.deepEqual(E.ranking(r.courses, '書法課').map((x) => x.name), ['李小華', '測試甲']);
+});
