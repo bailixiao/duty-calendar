@@ -1714,13 +1714,6 @@ body.on-grid .app-main { max-width: 1280px; }
 .gp-when { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: .5px; }
 .gp-title { margin: 4px 0 6px; font-size: 30px; line-height: 1.25; font-family: var(--serif); }
 .gp-place { margin: 0 0 14px; font-size: 16px; opacity: .92; }
-.gp-stages { list-style: none; margin: 14px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-.gp-stage { display: grid; gap: 4px; padding: 10px 12px; border-radius: 14px; background: rgba(255, 255, 255, .16); border: 1px solid rgba(255, 255, 255, .25); }
-.gp-stage-when { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; }
-.gp-stage-n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid currentColor; font-size: 12px; flex: none; }
-.gp-stage-text { font-size: 16px; font-weight: 700; }
-.gp-stage-done { opacity: .6; }
-.gp-stage-now { background: #fff; color: #23476b; border-color: #fff; box-shadow: 0 6px 18px rgba(0, 0, 0, .18); }
 .gp-updated { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; margin: 14px 0 8px; color: var(--muted); font-size: 14px; }
 .gp-legend { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-2); font-weight: 700; }
 .gp-legend-note { cursor: default; }
@@ -1733,5 +1726,46 @@ body.on-grid .app-main { max-width: 1280px; }
 .gp-foot { margin: 18px 0 90px; text-align: center; color: var(--muted); font-size: 14px; }
 .gp-signup { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 20; min-width: 220px; padding: 14px 28px; border-radius: 999px; background: linear-gradient(180deg, #f6d36b, #e2a92b); color: #4a3200; font-size: 22px; font-weight: 800; text-align: center; text-decoration: none; letter-spacing: 2px; box-shadow: 0 8px 22px rgba(120, 80, 0, .35); }
 .gp-signup:active { transform: translateX(-50%) scale(.97); }
-.grid-open { margin-bottom: 12px; }
 @media (min-width: 720px) { .gp-hero { margin: 0; border-radius: 20px; padding: 32px 28px 26px; } .gp-when { font-size: 30px; } .gp-title { font-size: 36px; } }
+
+/* 職司表大頁面：階段進度條（膠囊，現在的階段白底） */
+.gp-stages { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.gp-stage { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 999px; border: 1.5px solid rgba(255, 255, 255, .45); background: rgba(255, 255, 255, .08); color: #fff; line-height: 1.3; }
+.gp-stage-when { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; white-space: nowrap; }
+.gp-stage-n { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid currentColor; font-size: 12px; flex: none; }
+.gp-stage-text { font-size: 16px; font-weight: 700; }
+.gp-stage-done { opacity: .6; }
+.gp-stage-now { background: #fff; border-color: #fff; color: #23476b; box-shadow: 0 4px 14px rgba(0, 0, 0, .2); }
+.gp-stage-now .gp-stage-when { color: #2f6ea5; }
+.gp-stage-now .gp-stage-text { font-size: 18px; }
+@media (max-width: 560px) { .gp-stages { display: grid; grid-template-columns: 1fr 1fr; } .gp-stage { border-radius: 16px; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 12px; } }
+
+/* 勤務頁的「打開大張職司表」按鈕 */
+a.grid-open { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 56px; margin-bottom: 12px; font-size: 19px; text-decoration: none; }
+
+/* 註記小泡泡 */
+.note-pop { position: absolute; z-index: 60; width: max-content; max-width: min(300px, calc(100vw - 16px)); padding: 12px 34px 12px 14px; border: 2px solid #2f6ea5; border-radius: 14px; background: #fff; color: var(--ink); box-shadow: 0 10px 28px rgba(20, 50, 80, .25); }
+.note-pop::before { content: ''; position: absolute; left: var(--arrow, 24px); width: 14px; height: 14px; background: #fff; border: 2px solid #2f6ea5; transform: translateX(-50%) rotate(45deg); }
+.note-pop.is-below::before { top: -9px; border-right: 0; border-bottom: 0; }
+.note-pop.is-above::before { bottom: -9px; border-left: 0; border-top: 0; }
+.note-pop-head { display: flex; align-items: baseline; gap: 8px; margin: 0 0 6px; color: #2f6ea5; }
+.note-pop-head strong { font-size: 17px; }
+.note-pop-head span { font-size: 14px; font-weight: 700; }
+.note-pop-text { margin: 0; font-size: 18px; line-height: 1.5; white-space: pre-wrap; }
+.note-pop-x { position: absolute; top: 4px; right: 6px; width: 28px; height: 28px; border: 0; background: none; color: var(--muted); font-size: 22px; line-height: 1; cursor: pointer; }
+
+/* 報名表單的註記欄 */
+.note-row .input { flex: 1; min-width: 0; }
+
+/* 職司說明：一區一列，左邊圖示＋名稱 */
+.rich-desc { display: grid; }
+.rd-sec { display: grid; grid-template-columns: 96px 1fr; gap: 4px 12px; padding: 14px 4px; border-bottom: 1px solid var(--line); }
+.rd-sec:last-child { border-bottom: 0; }
+.rd-plain { grid-template-columns: 1fr; }
+.rd-head { display: flex; align-items: flex-start; gap: 6px; color: #2f6ea5; font-size: 18px; font-weight: 800; line-height: 1.5; }
+.rd-icon { font-size: 18px; }
+.rd-body { display: grid; gap: 2px; font-size: 17px; line-height: 1.65; color: var(--ink-2); }
+.rd-body strong { color: var(--ink); font-weight: 800; }
+.rd-key { margin-top: 4px; font-size: 15px; font-weight: 800; color: var(--ink-2); }
+.rd-gap { height: 6px; }
+@media (max-width: 560px) { .rd-sec { grid-template-columns: 1fr; } }

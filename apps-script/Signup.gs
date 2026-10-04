@@ -8,7 +8,8 @@ var MAX_ENTRIES_PER_SIGNUP = 20;
 var MAX_DATES_PER_SIGNUP = 31;
 
 /**
- * body = { dutyId, positionId | positionIds: [..]（可兼任的勤務可多個）, dates: ['yyyy-MM-dd'], entries: [{ name, identity, accompany }] }
+ * body = { dutyId, positionId | positionIds: [..]（可兼任的勤務可多個）, dates: ['yyyy-MM-dd'], entries: [{ name, identity, accompany, note }] }
+ * note：職司表的勤務才收（例：8:00-19:00、代理人），最多 100 字
  */
 function signup_(body) {
   var dates = uniqueList_(body.dates);
@@ -91,6 +92,7 @@ function signup_(body) {
             '建立時間': now,
             '更新時間': now
           };
+          if (duty['版面'] === '職司表' && e.note) row['註記'] = cleanText_(e.note).replace(/[\r\n]+/g, ' ').slice(0, 100);
           signupRows.push(row);
           logRows.push({
             '時間': now,

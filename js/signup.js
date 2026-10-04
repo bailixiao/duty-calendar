@@ -176,6 +176,10 @@
                   </label>`).join('')}
               </div>
             </div>` : ''}
+            ${duty.layout === '職司表' ? `<label class="option-row note-row">
+              <span class="option-label">註記</span>
+              <input class="input" data-entry-note="${i}" maxlength="100" value="${esc(e.note || '')}" placeholder="例：8:00-19:00、代理人" aria-label="${esc(e.name)} 的註記">
+            </label>` : ''}
           </div>
           ${missing ? '<p class="name-missing">請選擇道親、壇辦或未求道</p>' : ''}
           ${posMissing ? '<p class="name-missing">請選這個人的了愿項目</p>' : ''}
@@ -380,7 +384,7 @@
         positionId: chosen[0].id,
         positionIds: chosen.map((p) => p.id),
         dates: Array.from(state.dates).sort(),
-        entries: state.entries.map((e) => ({ name: e.name, identity: e.identity, accompany: e.accompany, positionIds: duty.positions.filter((p) => e.positionIds.has(p.id)).map((p) => p.id) }))
+        entries: state.entries.map((e) => ({ name: e.name, identity: e.identity, accompany: e.accompany, note: duty.layout === '職司表' ? String(e.note || '').trim() : '', positionIds: duty.positions.filter((p) => e.positionIds.has(p.id)).map((p) => p.id) }))
       };
       // 每個人報的項目不一樣時，成功訊息逐人列出
       const same = payload.entries.every((e) => e.positionIds.join() === payload.entries[0].positionIds.join());
@@ -579,6 +583,11 @@
       }
     });
 
+    // 職司表的註記：打字時只記下來，不重畫（避免游標跑掉）
+    form.addEventListener('input', (ev) => {
+      const t = ev.target;
+      if (t.dataset.entryNote !== undefined) state.entries[Number(t.dataset.entryNote)].note = t.value;
+    });
     form.addEventListener('submit', submit);
 
     renderPositions();

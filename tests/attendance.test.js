@@ -76,6 +76,10 @@ test('職司表：版面、階段存得進去；組長 ★、註記寫回報名�
   assert.equal(mine.note, '前一天晚上到');
   assert.match(env.sheets['操作紀錄'].data.slice(-1)[0][3], /設為組長.*註記：前一天晚上到/);
   assert.equal(call('adminSetAttendance', { signupId: sid, leader: false, note: '' }).ok, true);
+  // 報名時自己寫的註記（職司表才收）
+  const s2 = env.post({ action: 'signup', dutyId: id, positionId: d.positions[1].id, dates: ['2026-10-22'], entries: [{ name: '測試乙', identity: '道親', note: '8:00-19:00' }] });
+  assert.equal(s2.ok, true, JSON.stringify(s2.error));
+  assert.equal(env.get({ action: 'getDuty', id }).data.signups.find((x) => x.id === s2.data.created[0].id).note, '8:00-19:00');
   const after = env.get({ action: 'getDuty', id }).data.signups.find((x) => x.id === sid);
   assert.deepEqual([after.leader, after.note], [false, '']);
 });
