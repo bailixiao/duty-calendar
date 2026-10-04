@@ -336,9 +336,17 @@
     DutyForm(body, { editing: !!opts.id, source, groups, guard });
   }
 
+  const CATEGORIES = ['勤務', '道務', '教育'];
+
+  /** 勤務／道務／教育帳號固定是自己的類別；總管理者預設「勤務」 */
+  function myCategory() {
+    const role = Api.adminWho().role;
+    return CATEGORIES.indexOf(role) !== -1 ? role : '勤務';
+  }
+
   function emptyDuty() {
     return {
-      name: '', nature: '勤務', mode: '報名型', start: '', end: '', startTime: '', endTime: '',
+      name: '', nature: '勤務', mode: '報名型', category: myCategory(), start: '', end: '', startTime: '', endTime: '',
       location: '', groupType: '', group: '', attire: '', description: '', deadline: '',
       positions: [{ name: '', slot: '', min: '', max: '' }]
     };
@@ -379,6 +387,7 @@
             <label class="form-row"><span>名稱</span>
               <input class="input" name="name" value="${esc(s.name)}" placeholder="例：彌勒山志工輪值" required></label>
             ${lunar ? '<p class="hint">勾「名稱前面加上農曆日期」時，這裡只填後半段，例如「拜香輪值」。</p>' : ''}
+            <div class="form-row"><span>類別</span>${Api.adminWho().role === '總管理者' ? segmented('category', CATEGORIES, s.category || '勤務') : `<strong>${esc(myCategory())}</strong>`}</div>
             <div class="form-row"><span>性質</span>${segmented('nature', NATURES, s.nature)}</div>
             <div class="form-row"><span>模式</span>${segmented('mode', ['報名型', '公告型'], s.mode)}</div>
             ${isNotice ? '<p class="hint">公告型：只顯示輪值組，不需報名、沒有了愿項目。</p>' : ''}
@@ -517,6 +526,7 @@
       });
       const radio = (n) => { const el = f.querySelector(`input[name="${n}"]:checked`); return el ? el.value : undefined; };
       if (radio('nature')) s.nature = radio('nature');
+      if (radio('category')) s.category = radio('category');
       if (radio('mode')) s.mode = radio('mode');
       if (radio('dateType')) st.dateType = radio('dateType');
       if (radio('groupMode')) st.lunar.groupMode = radio('groupMode');
@@ -580,7 +590,7 @@
     /** 送給伺服器的勤務資料 */
     function payload(overrides) {
       const out = {
-        name: s.name, nature: s.nature, mode: s.mode,
+        name: s.name, nature: s.nature, mode: s.mode, category: s.category || myCategory(),
         start: s.start, end: st.dateType === 'range' ? s.end : s.start,
         startTime: s.startTime, endTime: s.endTime, location: s.location,
         groupType: s.groupType, group: s.groupType ? s.group : '', attire: s.attire, description: s.description, deadline: s.deadline || '',

@@ -8,6 +8,9 @@
   const STORAGE_KEY = 'duty-calendar:view';
   const DOTS_MAX = { year: 3, month: 4 };
   const RECENT_DAYS = 14;
+  // 類別篩選（勤務／道務／教育）：有道務或教育的項目時才顯示篩選列；記住上次的選擇
+  const CAT_KEY = 'duty-calendar:cat';
+  let catFilter = (() => { try { return localStorage.getItem(CAT_KEY) || '全部'; } catch (e) { return '全部'; } })();
   const KIND_ORDER = { short: 0, full: 1, ok: 2, notice: 3 };
 
   const el = {};
@@ -359,7 +362,9 @@
 
   function indexEvents(data, from, to) {
     dayMap.clear();
+    updateCatFilter(data);
     data.duties.forEach((duty) => {
+      if (catFilter !== '全部' && (duty.category || '勤務') !== catFilter) return;
       const start = duty.start > from ? duty.start : from;
       const end = duty.end < to ? duty.end : to;
       Fmt.datesBetween(start, end).forEach((date) => {
@@ -373,6 +378,25 @@
       KIND_ORDER[a.state.kind] - KIND_ORDER[b.state.kind] ||
       (a.duty.startTime || '').localeCompare(b.duty.startTime || '') ||
       a.duty.name.localeCompare(b.duty.name, 'zh-Hant')));
+  }
+
+  function updateCatFilter(data) {
+    const box = document.getElementById('cat-filter');
+    if (!box) return;
+    const hasOther = data.duties.some((d) => d.category && d.category !== '勤務');
+    box.hidden = !hasOther;
+    if (!hasOther) catFilter = '全部';
+    box.querySelectorAll('[data-cat]').forEach((b) => b.classList.toggle('is-active', b.dataset.cat === catFilter));
+    if (!box.dataset.bound) {
+      box.dataset.bound = '1';
+      box.addEventListener('click', (ev) => {
+        const b = ev.target.closest('[data-cat]');
+        if (!b) return;
+        catFilter = b.dataset.cat;
+        try { localStorage.setItem(CAT_KEY, catFilter); } catch (e) { /* 無痕模式：不記住 */ }
+        if (state.range) load(state.range.from, state.range.to);
+      });
+    }
   }
 
   /** 重新向伺服器讀取目前畫面（報名後呼叫） */
@@ -464,7 +488,7 @@
     return `
       <a class="duty-card kind-${st.kind}${compact ? ' is-compact' : ''}" href="${href}">
         <span class="card-main">
-          <span class="card-title">${Fmt.esc(duty.name)}</span>
+          <span class="card-title">${duty.category && duty.category !== '勤務' ? `<span class="cat-tag cat-${Fmt.esc(duty.category)}">${Fmt.esc(duty.category)}</span>` : ''}${Fmt.esc(duty.name)}</span>
           ${meta.length ? `<span class="card-meta">${meta.map(Fmt.esc).join('・')}</span>` : ''}
           ${group && !compact ? `<span class="card-meta">${Fmt.esc(group)}</span>` : ''}
         </span>

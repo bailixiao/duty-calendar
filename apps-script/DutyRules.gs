@@ -15,7 +15,7 @@ var MAX_LIMIT = 999;
 var DUTY_FIELD_MAP_ = {
   name: '名稱', nature: '性質', mode: '模式', start: '開始日', end: '結束日',
   startTime: '開始時間', endTime: '結束時間', location: '地點',
-  groupType: '分組類型', group: '負責組', attire: '服裝', description: '說明', deadline: '報名截止日', multi: '可兼任'
+  groupType: '分組類型', group: '負責組', attire: '服裝', description: '說明', deadline: '報名截止日', multi: '可兼任', category: '類別'
 };
 
 /**
@@ -64,6 +64,7 @@ function normalizeDutyInput_(input, ctx) {
   // 可兼任：同一人同一天可報多個了愿項目（是／空白）
   duty['可兼任'] = input.multi === true || input.multi === '是' || input.multi === 'true' ? '是' : '';
   if (!duty['性質']) duty['性質'] = '勤務';
+  if (!duty['類別']) duty['類別'] = '勤務';
   if (!duty['模式']) duty['模式'] = '報名型';
   if (!duty['結束日']) duty['結束日'] = duty['開始日'];
 
@@ -71,6 +72,7 @@ function normalizeDutyInput_(input, ctx) {
   if (['勤務', '支援', '烹飪', '活動'].indexOf(duty['性質']) === -1) errors.push('性質只能是勤務、支援、烹飪或活動');
   if (duty['報名截止日'] && !isDateString_(duty['報名截止日'])) errors.push('報名截止日格式錯誤');
   if (['報名型', '公告型'].indexOf(duty['模式']) === -1) errors.push('模式只能是報名型或公告型');
+  if (['勤務', '道務', '教育'].indexOf(duty['類別']) === -1) errors.push('類別只能是勤務、道務或教育');
 
   if (!isDateString_(duty['開始日'])) errors.push('開始日格式錯誤');
   else if (!isDateString_(duty['結束日'])) errors.push('結束日格式錯誤');

@@ -28,7 +28,7 @@ function cancelSignup_(body, opts) {
       '時間': now,
       '動作': '取消',
       '報名ID': row['報名ID'],
-      '內容摘要': signupSummary_(row, duty, position) + (opts.admin ? '（管理者）' : ''),
+      '內容摘要': signupSummary_(row, duty, position) + (opts.admin ? adminTag_() : ''),
       '還原用的前一版資料': JSON.stringify(before)
     }]);
     SpreadsheetApp.flush();
@@ -112,7 +112,7 @@ function rescheduleSignup_(body, opts) {
       '動作': '改期',
       '報名ID': newRow['報名ID'],
       '內容摘要': signupSummary_(row, fromDuty, fromPosition) + ' → ' + body.date + '｜' + toPosition['了愿項目名稱'] +
-        (opts.admin ? '（管理者）' : ''),
+        (opts.admin ? adminTag_() : ''),
       '還原用的前一版資料': JSON.stringify({ from: before, toSignupId: newRow['報名ID'] })
     }]);
     SpreadsheetApp.flush();

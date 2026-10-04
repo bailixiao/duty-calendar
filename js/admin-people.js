@@ -129,6 +129,7 @@
     body.querySelector('[data-from-signups]').addEventListener('click', () => fromSignups(guard, reload));
     rows.addEventListener('click', (ev) => {
       const b = ev.target.closest('[data-row]');
+      if (Api.adminWho().role !== '總管理者') return; // 只有總管理者能改成員
       if (b) editMember(data.members.find((m) => m.row === Number(b.dataset.row)), data.groups, guard, reload);
     });
   }
@@ -403,6 +404,7 @@
     flash = '';
     body.querySelector('[data-add]').addEventListener('click', () => editGroup(null, guard, reload));
     body.querySelectorAll('[data-row]').forEach((b) => b.addEventListener('click', () => {
+      if (Api.adminWho().role !== '總管理者') return; // 只有總管理者能改分組
       editGroup(data.groups.find((g) => g.row === Number(b.dataset.row)), guard, reload);
     }));
   }

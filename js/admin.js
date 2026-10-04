@@ -113,8 +113,10 @@
     root = document.getElementById('view-admin');
     token += 1;
     watchSession();
+    applyRole();
     if (!Api.isAdmin()) return renderLogin();
     prefetch();
+    if (sub === 'accounts') return AccountsPage.show(shell('accounts'), guard);
     const m = sub.match(/^duty\/([^?]+)(?:\?date=(\d{4}-\d{2}-\d{2}))?/);
     if (m) return showDuty(decodeURIComponent(m[1]), m[2] || '');
     if (/^duties(\/|\?|$)/.test(sub)) return DutyAdminPage.show(shell('duties'), guard, sub);
@@ -130,12 +132,16 @@
 
   /** 管理頁共用外框：上方分頁＋內容區，回傳內容區元素 */
   function shell(active) {
+    const who = Api.adminWho();
     const tabs = [['', '近期勤務'], ['duties', '勤務管理'], ['members', '成員'], ['groups', '分組'], ['stats', '統計'], ['logs', '操作紀錄'], ['day', '明日名單']];
+    if (who.role === '總管理者') tabs.push(['accounts', '帳號']);
     root.innerHTML = `
       <div class="admin-head">
         <h1 class="admin-title">管理後台</h1>
+        <span class="admin-who">${esc(who.account)}${who.role !== who.account ? `<small>（${esc(who.role)}）</small>` : ''}</span>
         <button type="button" class="btn btn-small" data-logout>登出</button>
       </div>
+      ${roleNote(who.role)}
       <nav class="admin-tabs" aria-label="管理功能">
         ${tabs.map(([k, label]) => `<a href="#/admin${k ? '/' + k : ''}" class="admin-tab${k === active ? ' is-active' : ''}">${label}</a>`).join('')}
       </nav>
@@ -146,6 +152,21 @@
       renderLogin();
     });
     return root.querySelector('[data-body]');
+  }
+
+  /** 角色說明（勤務／道務／教育／唯讀帳號在每頁上方看到） */
+  function roleNote(role) {
+    if (role === '唯讀') return '<p class="role-note">👀 唯讀帳號：可以查看所有資料，不能修改。</p>';
+    if (['勤務', '道務', '教育'].indexOf(role) !== -1) return `<p class="role-note">這個帳號管理「${esc(role)}」類的勤務與活動；成員、分組只能查看。</p>`;
+    return '';
+  }
+
+  /** 依角色在 body 加上 class，CSS 會把用不到的按鈕藏起來 */
+  function applyRole() {
+    const role = Api.isAdmin() ? Api.adminWho().role : '';
+    document.body.classList.toggle('role-super', role === '總管理者');
+    document.body.classList.toggle('role-readonly', role === '唯讀');
+    document.body.classList.toggle('role-cat', ['勤務', '道務', '教育'].indexOf(role) !== -1);
   }
 
   /** 管理 API 錯誤處理：登入過期就回登入畫面，其他顯示訊息；回傳 true 代表已處理 */
@@ -166,25 +187,27 @@
       <form class="admin-login" novalidate>
         <h1 class="admin-title">管理者登入</h1>
         ${message ? `<p class="notice notice-error">${esc(message)}</p>` : ''}
-        <label class="field-label" for="admin-password">管理密碼</label>
+        <label class="field-label" for="admin-account">帳號</label>
+        <input id="admin-account" class="input" type="text" autocomplete="username" placeholder="總管理者可以留空">
+        <label class="field-label" for="admin-password">密碼</label>
         <input id="admin-password" class="input" type="password" autocomplete="current-password" required>
         <div class="form-error" data-error hidden></div>
         <button type="submit" class="btn btn-primary btn-block">登入</button>
       </form>`;
     const form = root.querySelector('form');
-    const input = form.querySelector('input');
+    const input = form.querySelector('#admin-password');
     input.focus();
     form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const box = form.querySelector('[data-error]');
       if (!input.value) {
-        box.textContent = '請輸入管理密碼';
+        box.textContent = '請輸入密碼';
         box.hidden = false;
         return;
       }
       Busy.show('登入中⋯');
       try {
-        await Api.adminLogin(input.value);
+        await Api.adminLogin(input.value, form.querySelector('#admin-account').value.trim());
         Busy.hide();
         show(location.hash.replace(/^#\/admin\/?/, ''));
       } catch (err) {

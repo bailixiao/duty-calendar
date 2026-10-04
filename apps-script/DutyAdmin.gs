@@ -18,7 +18,7 @@ function adminDutyList_() {
     groups: groupList_(),
     duties: duties.map(function (d) {
       return {
-        id: d['勤務ID'], name: d['名稱'], mode: d['模式'] || '報名型',
+        id: d['勤務ID'], name: d['名稱'], mode: d['模式'] || '報名型', category: dutyCategory_(d),
         start: d['開始日'], end: d['結束日'] || d['開始日'], startTime: d['開始時間'],
         location: d['地點'], groupType: d['分組類型'], group: d['負責組'],
         signups: counts[d['勤務ID']] || 0
@@ -42,7 +42,7 @@ function adminDutyForEdit_(body) {
     signups: Object.keys(counts).reduce(function (n, k) { return n + counts[k]; }, 0),
     siblings: duties
       .filter(function (d) { return d['勤務ID'] !== duty['勤務ID'] && seriesKey_(d['名稱']) === seriesKey_(duty['名稱']); })
-      .map(function (d) { return { id: d['勤務ID'], name: d['名稱'], start: d['開始日'], end: d['結束日'] || d['開始日'], location: d['地點'], group: d['負責組'] }; })
+      .map(function (d) { return { id: d['勤務ID'], name: d['名稱'], start: d['開始日'], end: d['結束日'] || d['開始日'], location: d['地點'], group: d['負責組'], category: dutyCategory_(d) }; })
       .sort(function (a, b) { return a.start < b.start ? -1 : 1; }),
     groups: groupList_()
   };
@@ -241,6 +241,7 @@ function dutyInputFromRow_(d, positions, counts) {
   input.id = d['勤務ID'];
   input.end = input.end || input.start;
   input.mode = input.mode || '報名型';
+  input.category = input.category || '勤務';
   input.positions = positions.map(function (p) {
     return {
       id: p['了愿項目ID'], name: p['了愿項目名稱'], slot: p['時段'], min: p['最少'], max: p['最多'],

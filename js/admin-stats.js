@@ -7,7 +7,7 @@
   const esc = Fmt.esc;
   const C = window.StatsCalc;
   const TREND_COUNT = { month: 12, quarter: 8, year: 5 };
-  const state = { unit: 'month', period: null, rankKind: 'all', rankAll: false };
+  const state = { unit: 'month', period: null, rankKind: 'all', rankAll: false, category: '全部' };
 
   function show(body, guard) {
     AdminPage.swr('stats', () => Api.admin('adminStats', {}, true), (data, stale) => {
@@ -54,7 +54,9 @@
   }
 
   function render(body, guard, data, stale) {
-    const ev = data.events;
+    // 類別：勤務／道務／教育帳號只拿得到自己類別的資料；總管理者、唯讀可以切換
+    const canPick = ['總管理者', '唯讀'].indexOf(Api.adminWho().role) !== -1;
+    const ev = canPick && state.category !== '全部' ? data.events.filter((e) => (e.category || '勤務') === state.category) : data.events;
     const p = state.period;
     // 本期還沒過完時，比較期間只算到相同天數（見 StatsCalc.compare）
     const { now: s, prev, prevP, ly, lyP, partial } = C.compare(ev, p, data.today);
@@ -76,6 +78,7 @@
       ${AdminPage.staleNote(stale)}
       <div class="stats" data-stats>
         <div class="stats-top no-print">
+          ${canPick ? `<div class="seg stats-cats">${['全部', '勤務', '道務', '教育'].map((c) => `<label class="seg-item"><input type="radio" name="scat" value="${c}"${c === state.category ? ' checked' : ''}><span>${c}</span></label>`).join('')}</div>` : `<p class="stats-cat-fixed">「${esc(Api.adminWho().role)}」類的統計</p>`}
           <div class="seg stats-units">${[['month', '月'], ['quarter', '季'], ['year', '年']].map(([v, l]) =>
             `<label class="seg-item"><input type="radio" name="unit" value="${v}"${v === p.unit ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div>
         </div>
@@ -186,6 +189,7 @@
       </div>`;
 
     const rerender = () => render(body, guard, data, false);
+    body.querySelectorAll('input[name=scat]').forEach((r) => r.addEventListener('change', () => { state.category = r.value; rerender(); }));
     body.querySelectorAll('input[name=unit]').forEach((r) => r.addEventListener('change', () => {
       state.unit = r.value;
       state.period = C.periodOf(state.unit, data.today);

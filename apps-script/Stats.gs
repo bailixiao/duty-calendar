@@ -24,7 +24,7 @@ function statsEvents_() {
     if (!ev) {
       ev = byKey[key] = {
         date: s['日期'], dutyId: s['勤務ID'], name: duty['名稱'], series: seriesKey_(duty['名稱']) || duty['名稱'],
-        nature: duty['性質'] || '勤務', tan: [], dao: [], unknown: [], accompany: [], absent: 0, short: 0
+        nature: duty['性質'] || '勤務', category: dutyCategory_(duty), tan: [], dao: [], unknown: [], accompany: [], absent: 0, short: 0
       };
       order.push(key);
     }

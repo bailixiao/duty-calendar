@@ -1605,3 +1605,38 @@ body.splash-on .header-back { display: none; }
 .nm-del { margin-left: auto; border: none; background: none; font-size: 1.3rem; line-height: 1; color: var(--muted); cursor: pointer; padding: 4px 8px; }
 .draft-advanced { margin: 10px 0; }
 .draft-advanced summary { cursor: pointer; color: var(--muted); padding: 6px 0; }
+
+/* 管理後台的角色：唯讀不顯示任何修改按鈕；非總管理者不顯示成員、分組、匯入歷史的修改（伺服器也會擋） */
+.admin-who { margin-left: auto; margin-right: 8px; font-weight: 700; }
+.admin-who small { font-weight: 400; color: var(--muted); }
+.role-note { background: var(--accent-soft); border-radius: 10px; padding: 8px 12px; margin: 8px 0; font-size: .95rem; }
+.stats-cats { margin-bottom: 8px; }
+.stats-cat-fixed { font-weight: 700; margin: 0 0 8px; }
+body.role-readonly #view-admin :is([data-attend], [data-acc], [data-reschedule], [data-cancel], [data-walkin], [data-draft-open], [data-restore], [data-sheet], [data-delete], [data-add-pos], [data-del-pos]),
+body.role-readonly #view-admin a[href="#/admin/duties/new"], body.role-readonly #view-admin a[href="#/admin/import"],
+body.role-readonly #view-admin a[href^="#/admin/duties/new?from"], body.role-readonly #view-admin .admin-form [type="submit"] { display: none !important; }
+body:not(.role-super) #view-admin :is([data-from-signups], [data-delete-member]), body:not(.role-super) #view-admin a[href="#/admin/history"],
+body:not(.role-super) #view-admin [data-add] { display: none !important; }
+body:not(.role-super) #view-admin .people-list [data-row] { cursor: default; }
+
+/* 類別：篩選列與小標籤（勤務不標，道務、教育用顏色區分） */
+.cat-filter { display: flex; gap: 6px; margin: 0 0 10px; flex-wrap: wrap; }
+.cat-filter button { flex: 1 1 0; min-height: 40px; border: 1px solid var(--line); background: var(--card); border-radius: 20px; font-size: 1rem; color: var(--ink); cursor: pointer; }
+.cat-filter button.is-active { background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 700; }
+.cat-tag { display: inline-block; font-size: .78em; font-weight: 700; padding: 1px 8px; border-radius: 10px; margin-right: 6px; vertical-align: 2px; color: #fff; }
+.cat-道務 { background: #6b4fa0; }
+.cat-教育 { background: #1f6f8b; }
+.cat-勤務 { background: #8a6d3b; }
+/* 帳號管理 */
+.account-list { list-style: none; margin: 10px 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.account-main { width: 100%; text-align: left; display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); cursor: pointer; font: inherit; color: inherit; }
+.account-name { font-weight: 700; font-size: 1.1rem; }
+.account-name small { font-weight: 400; color: var(--muted); margin-left: 8px; font-size: .9rem; }
+.account-role { justify-self: end; font-weight: 700; padding: 2px 10px; border-radius: 10px; background: var(--paper-2); }
+.account-meta { grid-column: 1 / -1; color: var(--muted); font-size: .9rem; }
+.account-item.is-off .account-main { opacity: .55; }
+.role-pick { display: flex; flex-direction: column; gap: 6px; }
+.role-option { display: grid; grid-template-columns: auto 1fr; gap: 0 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
+.role-option small { grid-column: 2; color: var(--muted); }
+.pw-row { display: flex; gap: 6px; }
+.pw-row .input { flex: 1; min-width: 0; }

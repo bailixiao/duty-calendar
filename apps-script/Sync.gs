@@ -12,7 +12,8 @@ var WORKER_URL = 'https://duty-calendar-api.duty-calendar-worker.workers.dev/';
 var SYNC_SKIP_PROPS = ['BACKUP_FOLDER_ID', 'BACKUP_LAST', 'MIGRATED'];
 
 function syncSheetDefs_() {
-  return Object.keys(SHEETS).map(function (k) { return SHEETS[k]; }).filter(function (d) { return d.headers.length; });
+  // 帳號只存在 Cloudflare（含密碼雜湊），不在兩邊之間複製，避免覆蓋
+  return Object.keys(SHEETS).map(function (k) { return SHEETS[k]; }).filter(function (d) { return d.headers.length && d !== SHEETS.ACCOUNTS; });
 }
 
 function workerPost_(payload) {

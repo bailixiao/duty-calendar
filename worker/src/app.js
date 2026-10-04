@@ -63,7 +63,8 @@ export function createApp(store, opts) {
       checkPassword(body.password, false);
       if (body.statsUpdatedAt) store.setProp('STATS_UPDATED_AT', String(body.statsUpdatedAt));
       const sheets = {};
-      Object.values(gs.SHEETS).forEach((def) => { if (def.headers.length) sheets[def.name] = store.sheets[def.name] || []; });
+      // 帳號（含密碼雜湊）不同步到 Google 試算表
+      Object.values(gs.SHEETS).forEach((def) => { if (def.headers.length && def !== gs.SHEETS.ACCOUNTS) sheets[def.name] = store.sheets[def.name] || []; });
       return { sheets, at: gs.nowString_() };
     }
   };

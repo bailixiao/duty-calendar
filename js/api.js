@@ -139,23 +139,30 @@
   // 通行碼存在這個瀏覽器（6 小時後過期）；讀寫失敗不影響使用，只是要重新登入。
   const TOKEN_KEY = 'duty-calendar:admin';
 
-  function loadToken() {
+  function loadSaved() {
     try {
       const t = JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null');
-      return t && t.expires > Date.now() ? t.token : null;
+      return t && t.expires > Date.now() ? t : null;
     } catch (e) {
       return null;
     }
   }
 
-  function saveToken(token, expiresInSec) {
+  function loadToken() {
+    const t = loadSaved();
+    return t ? t.token : null;
+  }
+
+  function saveToken(token, expiresInSec, who) {
     try {
-      if (token) localStorage.setItem(TOKEN_KEY, JSON.stringify({ token, expires: Date.now() + expiresInSec * 1000 - 60000 }));
+      if (token) localStorage.setItem(TOKEN_KEY, JSON.stringify(Object.assign({ token, expires: Date.now() + expiresInSec * 1000 - 60000 }, who || {})));
       else localStorage.removeItem(TOKEN_KEY);
     } catch (e) { /* 無痕模式等，忽略 */ }
   }
 
   let adminToken = loadToken();
+  // 登入的帳號與角色（總管理者／勤務／道務／教育／唯讀）：畫面依此顯示能用的功能，真正的權限由伺服器檢查
+  let adminWho = (() => { const t = loadSaved(); return t && t.role ? { account: t.account, role: t.role } : { account: '總管理者', role: '總管理者' }; })();
 
   /**
    * 管理 API（一律 POST，通行碼放在內容）。read=true 的讀取在連線失敗時重送一次。
@@ -173,10 +180,11 @@
     }
   }
 
-  async function adminLogin(password) {
-    const data = await post({ action: 'adminLogin', password });
+  async function adminLogin(password, account) {
+    const data = await post({ action: 'adminLogin', password, account: account || '' });
     adminToken = data.token;
-    saveToken(data.token, data.expiresInSec);
+    adminWho = { account: data.account || '總管理者', role: data.role || '總管理者' };
+    saveToken(data.token, data.expiresInSec, adminWho);
   }
 
   function adminLogout() {
@@ -193,6 +201,7 @@
     adminLogin,
     adminLogout,
     isAdmin: () => !!adminToken,
+    adminWho: () => adminWho,
     getEvents: (from, to) => get('getEvents', { from, to }),
     // 先叫醒伺服器（點名字欄時呼叫），之後的名字搜尋比較不會遇到冷啟動
     warmUp: () => get('ping', {}, []).catch(() => {}),

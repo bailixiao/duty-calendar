@@ -83,6 +83,7 @@ test('import 要管理密碼（第一次除外）；syncExport 回傳所有分�
   assert.equal(s.ok, true);
   assert.ok(s.data.sheets['報名'] && s.data.sheets['勤務'].length > 10);
   assert.equal(s.data.sheets['統計'], undefined);
+  assert.equal(s.data.sheets['帳號'], undefined); // 帳號（含密碼雜湊）不同步到 Google
   assert.equal(store.getProp('STATS_UPDATED_AT'), '2026-10-01 09:00:00');
   const st = await call('POST', { action: 'adminLogin', password: 'test-pass' });
   const u = await call('POST', { action: 'adminUpdateStatsSheet', token: st.data.token, year: 2026 });

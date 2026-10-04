@@ -1,8 +1,9 @@
 /**
  * 管理後台 API（規格第 8 節管理者後台、第 7 節第 7 條還原）。
- *   - 登入：密碼存在 Script Properties 的 ADMIN_PASSWORD（不寫進程式碼）。成功後發一組通行碼（存在 CacheService，6 小時）。
- *   - 一次只能一台裝置登入：最新一次登入的通行碼記在 Script Properties 的 ADMIN_CURRENT_TOKEN，
- *     其他裝置舊的通行碼就失效（畫面會自動登出並說明原因）。
+ *   - 登入：帳號＋密碼（帳號與權限見 Accounts.gs；總管理者沿用 ADMIN_PASSWORD）。成功後發一組通行碼（存在 CacheService，6 小時），
+ *     通行碼記著是哪個帳號、什麼角色。
+ *   - 每個帳號一次只能一台裝置登入：最新一次登入的通行碼記在 Script Properties（總管理者 ADMIN_CURRENT_TOKEN，
+ *     其他帳號 ADMIN_CURRENT_TOKEN:帳號），同帳號其他裝置舊的通行碼就失效（畫面會自動登出並說明原因）。
  *   - 密碼連續錯 10 次鎖 10 分鐘（Apps Script 取不到來源 IP，以全域次數計算）。
  *   - 所有管理 API 都用 POST，通行碼放在內容（不放網址）。
  *   - 組長電話只在這裡回傳。
@@ -14,40 +15,40 @@ var ADMIN_LOCK_SEC = 600;
 var RESTORABLE_ACTIONS = ['報名', '取消', '改期'];
 
 function adminLogin_(body) {
-  var password = PropertiesService.getScriptProperties().getProperty('ADMIN_PASSWORD');
-  if (!password) throw new ApiError_('CONFIG', '尚未設定管理密碼，請依部署說明在「指令碼屬性」設定 ADMIN_PASSWORD');
-  var cache = CacheService.getScriptCache();
-  var fails = Number(cache.get('admin-fails') || 0);
-  if (fails >= ADMIN_MAX_FAILS) throw new ApiError_('LOCKED', '密碼錯誤太多次，請 10 分鐘後再試');
-  if (String(body.password || '') !== password) {
-    cache.put('admin-fails', String(fails + 1), ADMIN_LOCK_SEC);
-    throw new ApiError_('UNAUTHORIZED', '密碼不正確');
-  }
-  cache.remove('admin-fails');
+  var who = checkLogin_(body.account, body.password);
   var token = Utilities.getUuid() + Utilities.getUuid();
-  cache.put('admin-token:' + token, '1', ADMIN_TOKEN_TTL_SEC);
-  PropertiesService.getScriptProperties().setProperty('ADMIN_CURRENT_TOKEN', token);
-  return { token: token, expiresInSec: ADMIN_TOKEN_TTL_SEC };
+  CacheService.getScriptCache().put('admin-token:' + token, JSON.stringify(who), ADMIN_TOKEN_TTL_SEC);
+  PropertiesService.getScriptProperties().setProperty(currentTokenKey_(who.account), token);
+  return { token: token, expiresInSec: ADMIN_TOKEN_TTL_SEC, account: who.account, role: who.role };
 }
 
 function adminLogout_(body) {
   if (body.token) {
     CacheService.getScriptCache().remove('admin-token:' + body.token);
     var props = PropertiesService.getScriptProperties();
-    if (props.getProperty('ADMIN_CURRENT_TOKEN') === body.token) props.deleteProperty('ADMIN_CURRENT_TOKEN');
+    var key = currentTokenKey_(ADMIN_SESSION_ ? ADMIN_SESSION_.account : SUPER_ACCOUNT);
+    if (props.getProperty(key) === body.token) props.deleteProperty(key);
   }
   return {};
 }
 
+/** 驗證通行碼，回傳 { account, role }（舊版通行碼沒有帳號資訊的，視為總管理者） */
 function requireAdmin_(body) {
   var token = String(body.token || '');
-  if (!token || !CacheService.getScriptCache().get('admin-token:' + token)) {
-    throw new ApiError_('UNAUTHORIZED', '登入已過期，請重新登入');
-  }
-  var current = PropertiesService.getScriptProperties().getProperty('ADMIN_CURRENT_TOKEN');
+  var raw = token ? CacheService.getScriptCache().get('admin-token:' + token) : null;
+  if (!raw) throw new ApiError_('UNAUTHORIZED', '登入已過期，請重新登入');
+  var who;
+  try { who = raw === '1' ? null : JSON.parse(raw); } catch (e) { who = null; }
+  who = who && who.account ? who : { account: SUPER_ACCOUNT, role: SUPER_ACCOUNT };
+  var current = PropertiesService.getScriptProperties().getProperty(currentTokenKey_(who.account));
   if (current && current !== token) {
-    throw new ApiError_('UNAUTHORIZED', '管理後台已在其他裝置登入，這台已自動登出');
+    throw new ApiError_('UNAUTHORIZED', /^revoked-/.test(current) ? '帳號設定已變更，請重新登入' : '管理後台已在其他裝置登入，這台已自動登出');
   }
+  if (who.account !== SUPER_ACCOUNT) {
+    var row = accountRows_().filter(function (r) { return r['帳號'] === who.account; })[0];
+    if (!row || row['啟用'] === '否') throw new ApiError_('UNAUTHORIZED', '這個帳號已停用，請聯絡總管理者');
+  }
+  return who;
 }
 
 /** 近期勤務：今天起 N 天（預設 14） */
@@ -198,6 +199,7 @@ function adminDay_(body) {
         id: d.id,
         name: d.name,
         mode: d.mode,
+        category: d.category,
         start: d.start,
         end: d.end,
         startTime: d.startTime,
@@ -223,8 +225,17 @@ function adminDay_(body) {
 /** 管理 API 分派：除了登入，都要先驗證通行碼 */
 function adminDispatch_(body) {
   if (body.action === 'adminLogin') return adminLogin_(body);
-  requireAdmin_(body);
+  var session = requireAdmin_(body);
+  ADMIN_SESSION_ = session;
+  adminAuthorize_(session, body);
+  return adminScope_(session, body.action, adminRun_(body));
+}
+
+function adminRun_(body) {
   switch (body.action) {
+    case 'adminMe': return { account: ADMIN_SESSION_.account, role: ADMIN_SESSION_.role };
+    case 'adminAccounts': return adminAccounts_(body);
+    case 'adminSaveAccount': return adminSaveAccount_(body);
     case 'adminLogout': return adminLogout_(body);
     case 'adminPing': return {};
     case 'adminDraftFromImages': return adminDraftFromImages_(body);
