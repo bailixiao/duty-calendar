@@ -71,6 +71,7 @@
     current = name;
     // 勤務頁、我的報名、管理後台：標題列左邊顯示「‹」，點標題回行事曆（取代頁面上方的「‹ 回行事曆」）
     document.body.classList.toggle('is-sub', name !== 'calendar');
+    document.body.classList.toggle('on-admin', name === 'admin'); // 管理後台裡不顯示右下角的「管理者」連結
   }
 
   // ---------- 開場動畫 ----------
