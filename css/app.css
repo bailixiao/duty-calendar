@@ -1848,3 +1848,6 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 .plan-chip:focus-within { outline: 3px solid #f2c230; }
 .plan-left { color: var(--accent); margin-left: 6px; }
 .plan-done { color: var(--ok); margin-left: 6px; }
+
+.plan-chip.is-taken { background: #ece9e3; color: #a39d92; border-style: dashed; cursor: not-allowed; }
+.plan-add { margin-bottom: 8px; }

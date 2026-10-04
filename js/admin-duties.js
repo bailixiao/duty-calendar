@@ -1024,14 +1024,15 @@
       const pb = m.el.querySelector('[data-plan-body]');
 
       function drawTeacher() {
-        const others = (ci) => { // 每一堂已被其他師資勾的名字（顯示小字提醒）
+        const others = (ci) => { // 每一堂已被其他師資勾走的（一堂只給一位：反灰不能勾）
           const o = {};
-          cards.forEach((c, j) => { if (j !== ci && c.name.trim()) c.ids.forEach((id) => { (o[id] = o[id] || []).push(c.name.trim()); }); });
+          cards.forEach((c, j) => { if (j !== ci) c.ids.forEach((id) => { (o[id] = o[id] || []).push(c.name.trim() || `師資 ${j + 1}`); }); });
           return o;
         };
         const unassigned = rows.filter((x) => !cards.some((c) => c.name.trim() && c.ids.has(x.id))).length;
         pb.innerHTML = `
-          <p class="hint">每位師資一張卡片：填名字，再勾他負責的那幾堂。一堂可以勾兩位以上（一起上）。${unassigned ? `<strong class="plan-left">還有 ${unassigned} 堂沒有師資</strong>` : '<strong class="plan-done">每一堂都有師資了 ✓</strong>'}</p>
+          <button type="button" class="btn btn-block plan-add" data-card-add>＋ 新增師資</button>
+          <p class="hint">每位師資一張卡片：填名字，再勾他負責的那幾堂。已經被別位師資勾走的日期會反灰（下面小字是誰），要換人先到那位的卡片取消。${unassigned ? `<strong class="plan-left">還有 ${unassigned} 堂沒有師資</strong>` : '<strong class="plan-done">每一堂都有師資了 ✓</strong>'}</p>
           ${cards.map((c, ci) => {
             const o = others(ci);
             return `
@@ -1044,14 +1045,14 @@
               ${months.map((mo) => `
                 <div class="plan-month">
                   <div class="plan-month-head"><strong>${Number(mo.key.slice(0, 4)) - 1911} 年 ${Number(mo.key.slice(5, 7))} 月</strong>
-                    <button type="button" class="link-btn" data-card-month="${ci}" data-month="${mo.key}">${mo.rows.every((x) => c.ids.has(x.id)) ? '這個月都不勾' : '這個月全勾'}</button></div>
+                    <button type="button" class="link-btn" data-card-month="${ci}" data-month="${mo.key}">${mo.rows.filter((x) => !o[x.id] || c.ids.has(x.id)).every((x) => c.ids.has(x.id)) ? '這個月都不勾' : '這個月全勾'}</button></div>
                   <div class="plan-chips">${mo.rows.map((x) => `
-                    <label class="plan-chip${c.ids.has(x.id) ? ' is-on' : ''}${x.start < today ? ' is-past' : ''}"><input type="checkbox" data-card="${ci}" data-id="${esc(x.id)}"${c.ids.has(x.id) ? ' checked' : ''}>
+                    <label class="plan-chip${c.ids.has(x.id) ? ' is-on' : ''}${!c.ids.has(x.id) && o[x.id] ? ' is-taken' : ''}${x.start < today ? ' is-past' : ''}"><input type="checkbox" data-card="${ci}" data-id="${esc(x.id)}"${c.ids.has(x.id) ? ' checked' : ''}${!c.ids.has(x.id) && o[x.id] ? ' disabled' : ''}>
                       <span>${md(x.start)}（${esc(Fmt.weekday(x.start))}）</span>${o[x.id] ? `<small>${esc(o[x.id].join('、'))}</small>` : ''}</label>`).join('')}</div>
                 </div>`).join('')}
             </section>`;
           }).join('')}
-          <button type="button" class="btn btn-block" data-card-add>＋ 新增師資</button>`;
+`;
         pb.querySelectorAll('[data-card-name]').forEach((x) => x.addEventListener('input', () => {
           cards[Number(x.dataset.cardName)].name = x.value;
           fromCards();
@@ -1066,8 +1067,11 @@
         pb.querySelectorAll('[data-card-month]').forEach((b) => b.addEventListener('click', () => {
           const c = cards[Number(b.dataset.cardMonth)];
           const mo = months.find((x) => x.key === b.dataset.month);
-          const all = mo.rows.every((x) => c.ids.has(x.id));
-          mo.rows.forEach((x) => { if (all) c.ids.delete(x.id); else c.ids.add(x.id); });
+          // 只動沒被別位師資勾走的日期
+          const ci = Number(b.dataset.cardMonth);
+          const free = mo.rows.filter((x) => c.ids.has(x.id) || !cards.some((o, j) => j !== ci && o.ids.has(x.id)));
+          const all = free.every((x) => c.ids.has(x.id));
+          free.forEach((x) => { if (all) c.ids.delete(x.id); else c.ids.add(x.id); });
           fromCards();
           drawTeacher();
         }));
@@ -1078,10 +1082,9 @@
           drawTeacher();
         }));
         pb.querySelector('[data-card-add]').addEventListener('click', () => {
-          cards.push({ name: '', ids: new Set() });
+          cards.unshift({ name: '', ids: new Set() }); // 新的師資放最上面，不用往下找
           drawTeacher();
-          const last = pb.querySelectorAll('[data-card-name]');
-          last[last.length - 1].focus();
+          pb.querySelector('[data-card-name]').focus();
         });
       }
 
