@@ -314,6 +314,7 @@
               <span class="edu-teacher-courses">${t.courses.map((c) => `${esc(c.name)} ${c.count} ${L.unit}`).join('、')}</span></li>`).join('')}</ul>`
             : `<p class="muted">${L.noStaff}</p>`}
         </section>
+        ${cat === '道務' ? '<section class="stats-section" data-goals></section>' : ''}
       </div>`;
 
     bindNav(body, data, () => render(body, guard, data, false));
@@ -336,6 +337,9 @@
     if (pa) pa.addEventListener('click', () => { state.eduPick[cat] = []; render(body, guard, data, false); });
     const cp = body.querySelector('[data-copy-grid]');
     if (cp) cp.addEventListener('click', () => copyReport(EduStats.gridText(cur)));
+    // 各佛堂道務目標（年度跟著上面選的期間）
+    const goals = body.querySelector('[data-goals]');
+    if (goals) GoalsPage.mount(goals, p.year, { canEdit: ['總管理者', '道務'].indexOf(Api.adminWho().role) !== -1, guard });
   }
 
   /** 類別、月季年、上一期下一期的按鈕（一般統計與教育統計共用） */

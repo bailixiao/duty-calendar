@@ -73,10 +73,10 @@ function currentTokenKey_(account) {
 
 // 所有角色都能用的讀取
 var ADMIN_READ_ACTIONS = ['adminPing', 'adminLogout', 'adminMe', 'adminRecent', 'adminDuty', 'adminLogs', 'adminDay',
-  'adminDutyList', 'adminDutyForEdit', 'adminStats', 'adminMembers', 'adminGroups'];
+  'adminDutyList', 'adminDutyForEdit', 'adminStats', 'adminMembers', 'adminGroups', 'adminGoals'];
 // 依勤務類別判斷的寫入（勤務／道務／教育帳號只能動自己類別）
 var ADMIN_CATEGORY_ACTIONS = ['adminCancel', 'adminReschedule', 'adminRestore', 'adminCreateDuties', 'adminUpdateDuty',
-  'adminDeleteDuty', 'adminSetAttendance', 'adminAddAttendee', 'adminDraftFromImages', 'adminUpdateStatsSheet', 'adminSetTeachers'];
+  'adminDeleteDuty', 'adminSetAttendance', 'adminAddAttendee', 'adminDraftFromImages', 'adminUpdateStatsSheet', 'adminSetTeachers', 'adminSaveGoals'];
 
 function findDutyById_(id) {
   return findById_(readTableCached_(SHEETS.DUTIES), '勤務ID', id) || null;
@@ -117,6 +117,9 @@ function adminAuthorize_(session, body) {
   if (role === '唯讀' && ['adminLogs', 'adminDay', 'adminDutyList', 'adminDutyForEdit'].indexOf(action) !== -1) denied();
   // 操作紀錄、明日名單只給總管理者
   if (['adminLogs', 'adminDay'].indexOf(action) !== -1) denied();
+  // 各佛堂道務目標：總管理者、道務、唯讀看得到；只有總管理者、道務能改
+  if (action === 'adminGoals' && (role === '勤務' || role === '教育')) denied();
+  if (action === 'adminSaveGoals' && role !== '道務') denied();
   if (ADMIN_READ_ACTIONS.indexOf(action) !== -1) {
     if (CATEGORIES.indexOf(role) !== -1 && (action === 'adminDuty' || action === 'adminDutyForEdit')) {
       var d = targetDuties_(body)[0];

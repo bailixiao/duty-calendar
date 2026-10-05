@@ -1878,3 +1878,23 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 .plan-multi li { flex-wrap: wrap; }
 .plan-role-input { display: grid; gap: 2px; flex: 1 1 120px; min-width: 0; }
 .plan-role-input small { color: var(--muted); font-size: 12px; }
+
+/* 各佛堂道務目標 */
+.goal-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.goal-table { border-collapse: separate; border-spacing: 0; min-width: 100%; font-size: 17px; }
+.goal-table th, .goal-table td { padding: 8px 10px; text-align: center; white-space: nowrap; border-bottom: 1px solid var(--line); border-right: 1px solid #eee7da; }
+.goal-table thead th { background: #ece6f5; color: #3f2f66; font-size: 15px; }
+.goal-table .goal-sub { font-size: 13px; font-weight: 400; }
+.goal-table tbody th { text-align: left; font-weight: 700; }
+.goal-table .goal-sticky { position: sticky; left: 0; z-index: 1; background: var(--card); border-right: 1px solid var(--line); }
+.goal-table thead .goal-sticky { background: #ece6f5; }
+.goal-table tfoot th, .goal-table tfoot td { background: #f6f3fa; font-weight: 800; border-bottom: 0; }
+.goal-table tfoot .goal-sticky { background: #f6f3fa; }
+.goal-table td.goal-t { color: var(--ink-2); }
+.goal-table td.goal-c { font-weight: 700; }
+.goal-table td.is-done { background: var(--ok-soft); color: var(--ok); }
+.goal-table .goal-vow { text-align: left; white-space: normal; min-width: 90px; font-size: 15px; }
+.goal-table .input { min-height: 40px; padding: 4px 6px; font-size: 16px; }
+.goal-num { width: 56px; text-align: center; }
+.goal-name { min-width: 120px; }
+.goal-group { width: 80px; }

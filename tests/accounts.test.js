@@ -124,3 +124,30 @@ test('行事曆公開資料帶類別；操作紀錄記下是哪個帳號', () =>
   const logs = env.sheets['操作紀錄'].data;
   assert.match(logs[logs.length - 1][3], /（勤務組）$/);
 });
+
+test('各佛堂道務目標：道務能看能改、唯讀只能看、勤務教育看不到；總計交給前端；整年取代', () => {
+  const { env, login, superTok, save } = setup();
+  save({ account: '道務組', role: '道務', password: 'abc12345' });
+  save({ account: '教育組', role: '教育', password: 'abc12345' });
+  save({ account: '查看用', role: '唯讀', password: 'abc12345' });
+  const dao = login('道務組', 'abc12345').data.token;
+  const edu = login('教育組', 'abc12345').data.token;
+  const ro = login('查看用', 'abc12345').data.token;
+  const rows = [
+    { name: '測試甲佛堂', values: { 渡人: { target: '5', current: '2' }, 明道班: { target: '3', current: '' } }, vow: '壇主 測試乙' },
+    { name: '測試丙', values: { 渡人: { target: '21', current: '4' } }, group: '海外' },
+    { name: '測試丁', values: {}, group: '海外' }
+  ];
+  const r = env.post({ action: 'adminSaveGoals', token: dao, year: 2026, rows });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.deepEqual(r.data.rows.map((x) => [x.name, x.values.渡人.target, x.group]), [['測試甲佛堂', '5', ''], ['測試丙', '21', '海外'], ['測試丁', '', '海外']]);
+  assert.equal(env.post({ action: 'adminGoals', token: ro, year: 2026 }).data.rows[0].vow, '壇主 測試乙');
+  assert.equal(env.post({ action: 'adminSaveGoals', token: ro, year: 2026, rows }).error.code, 'FORBIDDEN');
+  assert.equal(env.post({ action: 'adminSaveGoals', token: edu, year: 2026, rows }).error.code, 'FORBIDDEN');
+  assert.equal(env.post({ action: 'adminGoals', token: edu, year: 2026 }).error.code, 'FORBIDDEN');
+  assert.equal(env.post({ action: 'adminSaveGoals', token: superTok, year: 2026, rows: [{ name: 'x', values: { 渡人: { target: 'abc' } } }] }).error.code, 'VALIDATION');
+  // 整年取代：再存一次只剩一列
+  env.post({ action: 'adminSaveGoals', token: superTok, year: 2026, rows: rows.slice(0, 1) });
+  assert.equal(env.post({ action: 'adminGoals', token: superTok, year: 2026 }).data.rows.length, 1);
+  assert.deepEqual(env.post({ action: 'adminGoals', token: superTok, year: 2027 }).data.rows, []);
+});

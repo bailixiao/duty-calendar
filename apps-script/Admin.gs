@@ -253,6 +253,8 @@ function adminRun_(body) {
     case 'adminDeleteDuty': return adminDeleteDuty_(body);
     case 'adminSetAttendance': return adminSetAttendance_(body);
     case 'adminSetTeachers': return adminSetTeachers_(body);
+    case 'adminGoals': return adminGoals_(body);
+    case 'adminSaveGoals': return adminSaveGoals_(body);
     case 'adminAddAttendee': return adminAddAttendee_(body);
     case 'adminStats': return adminStats_(body);
     case 'adminImportHistory': return adminImportHistory_(body);
