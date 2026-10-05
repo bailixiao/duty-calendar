@@ -63,3 +63,18 @@ test('場地借用：區中心當天有活動會標出來；審核只有總管�
   assert.equal(env.post({ action: 'adminVenueDecide', token: mgr, ids: [id], decision: '已同意' }).ok, true);
   assert.equal(env.post({ action: 'adminMe', token: mgr }).data.role, '場管');
 });
+
+test('場地借用：一次申請好幾天（同樣時段、同一個申請）；其中一天已借出就整筆不送', () => {
+  const env = createEnv(OCT_1);
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const r = env.post({ action: 'requestVenue', dates: ['2026-10-27', '2026-10-13', '2026-10-20'], slots: ['晚上'], name: '測試甲', phone: '0912345678', purpose: '讀書會' });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.deepEqual(r.data.dates, ['2026-10-13', '2026-10-20', '2026-10-27']);
+  const list = env.post({ action: 'adminVenue', token }).data.requests;
+  assert.equal(new Set(list.map((x) => x.group)).size, 1);
+  assert.equal(list.length, 3);
+  env.post({ action: 'adminVenueDecide', token, ids: [list[1].id], decision: '已同意' }); // 10/20 晚上借出
+  const r2 = env.post({ action: 'requestVenue', dates: ['2026-10-20', '2026-10-21'], slots: ['晚上'], name: '測試乙', phone: '0987654321', purpose: '練唱' });
+  assert.equal(r2.error.code, 'VALIDATION');
+  assert.match(r2.error.details[0].message, /10\/20/);
+});

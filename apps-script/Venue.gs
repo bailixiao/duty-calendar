@@ -78,19 +78,26 @@ function getVenue_(params) {
   return { today: todayString_(), venue: VENUE_NAME, slots: VENUE_SLOTS.map(function (s) { return { slot: s[0], from: s[1], to: s[2] }; }), days: days };
 }
 
-/** body = { date, slots: [...], name, phone, purpose, people }：送出申請（待審核） */
+/**
+ * body = { date | dates: [...], slots: [...], name, phone, purpose, people }：送出申請（待審核）。
+ * 可以一次申請好幾天（每週固定、每月、自己挑的日期），每一天都借同樣的時段；全部用同一個申請ID。
+ */
+var VENUE_MAX_DATES = 60;
 function requestVenue_(body) {
   var errors = [];
-  var date = cleanText_(body.date);
   var today = todayString_();
+  var dates = (Array.isArray(body.dates) && body.dates.length ? body.dates : [body.date]).map(cleanText_)
+    .filter(function (d, i, a) { return d && a.indexOf(d) === i; }).sort();
   var slots = (Array.isArray(body.slots) ? body.slots : []).map(cleanText_).filter(function (s, i, a) { return a.indexOf(s) === i; });
   var name = normalizeName_(body.name);
   var phone = cleanText_(body.phone).replace(/[^\d+\-() ]/g, '');
   var purpose = cleanText_(body.purpose).slice(0, 60);
   var people = cleanText_(body.people);
-  if (!isDateString_(date)) errors.push('請選日期');
-  else if (date <= today) errors.push('最早只能借明天');
-  else if (datesInRange_(today, date).length > VENUE_MAX_DAYS_AHEAD) errors.push('最多只能借半年內的日期');
+  if (!dates.length) errors.push('請選日期');
+  if (dates.length > VENUE_MAX_DATES) errors.push('一次最多申請 ' + VENUE_MAX_DATES + ' 天');
+  if (dates.some(function (d) { return !isDateString_(d); })) errors.push('日期格式不對');
+  else if (dates.some(function (d) { return d <= today; })) errors.push('最早只能借明天');
+  else if (dates.some(function (d) { return datesInRange_(today, d).length > VENUE_MAX_DAYS_AHEAD; })) errors.push('最多只能借半年內的日期');
   if (!slots.length) errors.push('請勾要借的時段');
   if (slots.some(function (s) { return venueSlotNames_().indexOf(s) === -1; })) errors.push('時段不對');
   if (!name) errors.push('請填姓名');
@@ -101,20 +108,27 @@ function requestVenue_(body) {
 
   return withSignupLock_(function () {
     var rows = venueRows_();
-    var taken = slots.filter(function (s) {
-      return rows.some(function (r) { return r['日期'] === date && r['時段'] === s && r['狀態'] === '已同意'; });
+    var taken = [];
+    dates.forEach(function (d) {
+      slots.forEach(function (s) {
+        if (rows.some(function (r) { return r['日期'] === d && r['時段'] === s && r['狀態'] === '已同意'; })) taken.push(shortDate_(d) + ' ' + s);
+      });
     });
-    if (taken.length) throw new ApiError_('VALIDATION', '申請沒有送出', [{ message: taken.join('、') + '已經借出了，請換其他時段或日期' }]);
+    if (taken.length) throw new ApiError_('VALIDATION', '申請沒有送出', [{ message: taken.join('、') + '已經借出了，請把這幾天拿掉或換時段' }]);
     var id = newId_('V');
     var now = nowString_();
-    appendRows_(SHEETS.VENUE, slots.map(function (s) {
-      return { '借用ID': id + '-' + (venueSlotNames_().indexOf(s) + 1), '申請ID': id, '日期': date, '時段': s, '姓名': name, '電話': phone,
-        '用途': purpose, '人數': people, '狀態': '待審核', '建立時間': now, '審核時間': '', '審核人': '', '備註': '' };
-    }));
-    appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '場地申請', '報名ID': '', '內容摘要': name + '｜' + date + ' ' + slots.join('、') + '｜' + purpose, '還原用的前一版資料': '' }]);
+    var out = [];
+    dates.forEach(function (d, di) {
+      slots.forEach(function (s) {
+        out.push({ '借用ID': id + '-' + (di + 1) + '-' + (venueSlotNames_().indexOf(s) + 1), '申請ID': id, '日期': d, '時段': s, '姓名': name, '電話': phone,
+          '用途': purpose, '人數': people, '狀態': '待審核', '建立時間': now, '審核時間': '', '審核人': '', '備註': '' });
+      });
+    });
+    appendRows_(SHEETS.VENUE, out);
+    appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '場地申請', '報名ID': '', '內容摘要': name + '｜' + dates.join('、') + ' ' + slots.join('、') + '｜' + purpose, '還原用的前一版資料': '' }]);
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.VENUE);
-    return { id: id, date: date, slots: slots };
+    return { id: id, date: dates[0], dates: dates, slots: slots };
   });
 }
 

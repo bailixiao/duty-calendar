@@ -13,24 +13,32 @@
     AdminPage.swr('venue', () => Api.admin('adminVenue', {}, true), (data, stale) => render(body, guard, data, stale), body);
   }
 
-  /** 同一個申請編號、同一個狀態的時段合成一張 */
+  /** 同一個申請編號、同一個狀態合成一張（可能好幾天、好幾個時段） */
   function groups(list) {
     const map = new Map();
     list.forEach((r) => {
       const k = r.group + '|' + r.status;
-      if (!map.has(k)) map.set(k, Object.assign({}, r, { ids: [], slots: [] }));
+      if (!map.has(k)) map.set(k, Object.assign({}, r, { ids: [], slots: [], dates: [], items: [] }));
       const g = map.get(k);
       g.ids.push(r.id);
-      g.slots.push(r.slot);
+      g.items.push(r);
+      if (g.slots.indexOf(r.slot) === -1) g.slots.push(r.slot);
+      if (g.dates.indexOf(r.date) === -1) g.dates.push(r.date);
     });
-    return [...map.values()];
+    return [...map.values()].map((g) => Object.assign(g, { date: g.dates.slice().sort()[0], last: g.dates.slice().sort().pop() }));
+  }
+
+  function dateText(g) {
+    const ds = g.dates.slice().sort();
+    if (ds.length === 1) return Fmt.shortDate(ds[0]);
+    return `${ds.length} 天：${ds.slice(0, 6).map(Fmt.shortDate).join('、')}${ds.length > 6 ? `⋯到 ${Fmt.shortDate(ds[ds.length - 1])}` : ''}`;
   }
 
   function card(g, actions) {
     const tel = String(g.phone || '').replace(/[^\d+]/g, '');
     return `
       <li class="venue-req is-${g.status === '已同意' ? 'ok' : g.status === '待審核' ? 'wait' : 'no'}">
-        <div class="vr-head"><strong>${esc(Fmt.shortDate(g.date))}　${g.slots.map(esc).join('、')}</strong><span class="vr-status">${esc(g.status)}</span></div>
+        <div class="vr-head"><strong>${esc(dateText(g))}<br>${g.slots.map(esc).join('、')}</strong><span class="vr-status">${esc(g.status)}</span></div>
         <dl class="vr-info">
           <div><dt>用途</dt><dd>${esc(g.purpose)}${g.people ? `（約 ${esc(g.people)} 人）` : ''}</dd></div>
           <div><dt>申請人</dt><dd>${esc(g.name)}　${tel ? `<a href="tel:${esc(tel)}">${esc(g.phone)}</a>` : ''}</dd></div>
@@ -44,8 +52,8 @@
   function render(body, guard, data, stale) {
     const today = data.today;
     const all = groups(data.requests);
-    const pending = all.filter((g) => g.status === '待審核' && g.date >= today);
-    const approved = all.filter((g) => g.status === '已同意' && g.date >= today);
+    const pending = all.filter((g) => g.status === '待審核' && g.last >= today);
+    const approved = all.filter((g) => g.status === '已同意' && g.last >= today);
     const others = all.filter((g) => pending.indexOf(g) === -1 && approved.indexOf(g) === -1);
     // 待審核的時段如果已經被同意給別人，提醒
     const takenKey = new Set(data.requests.filter((r) => r.status === '已同意').map((r) => r.date + '|' + r.slot));
@@ -53,9 +61,11 @@
       ${AdminPage.staleNote(stale)}
       <h2 class="admin-sub">待審核 <span class="badge ${pending.length ? 'badge-short' : 'badge-ok'}">${pending.length} 筆</span></h2>
       ${pending.length ? `<ul class="venue-reqs">${pending.map((g) => card(g, (x) => {
-        const clash = x.slots.filter((s) => takenKey.has(x.date + '|' + s));
-        return `${clash.length ? `<p class="vr-warn">⚠️ ${clash.map(esc).join('、')}已經借給別人了</p>` : ''}
-          <button type="button" class="btn btn-primary" data-ok="${esc(x.ids.join(','))}"${clash.length === x.slots.length ? ' disabled' : ''}>同意</button>
+        // 已經借給別人的時段：同意時略過，只同意其他的
+        const clash = x.items.filter((r) => takenKey.has(r.date + '|' + r.slot));
+        const okIds = x.items.filter((r) => clash.indexOf(r) === -1).map((r) => r.id);
+        return `${clash.length ? `<p class="vr-warn">⚠️ ${clash.map((r) => esc(Fmt.shortDate(r.date) + ' ' + r.slot)).join('、')}已經借給別人了${okIds.length ? '，按同意只會同意其他的' : ''}</p>` : ''}
+          <button type="button" class="btn btn-primary" data-ok="${esc(okIds.join(','))}"${okIds.length ? '' : ' disabled'}>同意${x.dates.length > 1 ? `（${x.dates.length} 天）` : ''}</button>
           <button type="button" class="btn btn-quiet-danger" data-no="${esc(x.ids.join(','))}">不同意</button>`;
       })).join('')}</ul>` : '<p class="muted">目前沒有待審核的申請。</p>'}
 
