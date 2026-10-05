@@ -72,11 +72,12 @@ function adminCreateDuties_(body) {
   if (errors.length) throw new ApiError_('VALIDATION', '勤務資料有錯，沒有新增任何一筆', errors);
 
   return withSignupLock_(function () {
-    // 已經有同名同日的勤務：先回報，確認後（allowDuplicate）才新增，避免按兩次或回應卡住時重複建立
+    // 已經有同類別、同名、同日的勤務：先回報，確認後（allowDuplicate）才新增，避免按兩次或回應卡住時重複建立
+    // （道務的「闡道班」課程和勤務的「闡道班」幫忙是不同的，類別不同不算重複）
     if (!body.allowDuplicate) {
       var have = {};
-      readTable_(SHEETS.DUTIES).forEach(function (d) { have[d['名稱'] + '|' + d['開始日']] = true; });
-      var dups = normalized.filter(function (n) { return have[n.duty['名稱'] + '|' + n.duty['開始日']]; })
+      readTable_(SHEETS.DUTIES).forEach(function (d) { have[dutyCategory_(d) + '|' + d['名稱'] + '|' + d['開始日']] = true; });
+      var dups = normalized.filter(function (n) { return have[(n.duty['類別'] || '勤務') + '|' + n.duty['名稱'] + '|' + n.duty['開始日']]; })
         .map(function (n) { return n.duty['名稱'] + '（' + n.duty['開始日'] + '）'; });
       if (dups.length) throw new ApiError_('DUPLICATE', '已經有同名、同一天的勤務', dups.map(function (m) { return { message: m }; }));
     }

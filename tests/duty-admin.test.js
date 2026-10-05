@@ -488,3 +488,13 @@ test('合併顯示：初一十五班填「拜香輪值」，報名頁帶出同�
   assert.match(da.mergeHost.name, /拜香輪值/);
   assert.equal(env.get({ action: 'getDuty', id: b }).data.mergeHost, null);
 });
+
+test('重複檢查：同類別、同名、同日才算重複；道務的闡道班和勤務的闡道班不算', () => {
+  const { createEnv } = require('./env');
+  const env = createEnv(Date.UTC(2026, 9, 1, 2, 0, 0));
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const call = (action, body) => env.post(Object.assign({ action, token }, body));
+  assert.equal(call('adminCreateDuties', { duties: [{ name: '闡道班', start: '2026-11-08', positions: [{ name: '烹飪' }] }] }).ok, true);
+  assert.equal(call('adminCreateDuties', { duties: [{ name: '闡道班', category: '道務', nature: '課程', start: '2026-11-08', positions: [{ name: '參加', min: '0' }] }] }).ok, true);
+  assert.equal(call('adminCreateDuties', { duties: [{ name: '闡道班', start: '2026-11-08', positions: [{ name: '烹飪' }] }] }).error.code, 'DUPLICATE');
+});
