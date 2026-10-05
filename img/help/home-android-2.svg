@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 640" width="360" height="640" font-family="'PingFang TC','Noto Sans TC','Microsoft JhengHei',sans-serif">
+<rect x="2" y="2" width="356" height="636" rx="44" fill="#1d1d1f"/>
+<rect x="12" y="12" width="336" height="616" rx="36" fill="#ffffff"/>
+<clipPath id="scr"><rect x="12" y="12" width="336" height="616" rx="36"/></clipPath>
+<g clip-path="url(#scr)">
+<text x="30" y="38" font-size="14" fill="#222" font-weight="700" text-anchor="start">09:41</text><text x="330" y="38" font-size="13" fill="#222"  text-anchor="end">▼ ▮</text>
+<rect x="12" y="52" width="336" height="576" fill="#f6f1e7"/>
+<text x="28" y="90" font-size="20" fill="#2a2724" font-weight="700" text-anchor="start">教全區行事曆</text>
+<rect x="28" y="102" width="304" height="1" fill="#ddd4c3"/>
+<rect x="28" y="122" width="304" height="50" rx="10" fill="#fffcf6" stroke="#ddd4c3"/><rect x="40" y="134" width="120" height="10" rx="5" fill="#57514a"/><rect x="40" y="152" width="90" height="8" rx="4" fill="#bdb4a5"/><rect x="262" y="138" width="56" height="20" rx="10" fill="#f4e2da"/><rect x="28" y="184" width="304" height="50" rx="10" fill="#fffcf6" stroke="#ddd4c3"/><rect x="40" y="196" width="160" height="10" rx="5" fill="#57514a"/><rect x="40" y="214" width="90" height="8" rx="4" fill="#bdb4a5"/><rect x="262" y="200" width="56" height="20" rx="10" fill="#f4e2da"/><rect x="28" y="246" width="304" height="50" rx="10" fill="#fffcf6" stroke="#ddd4c3"/><rect x="40" y="258" width="120" height="10" rx="5" fill="#57514a"/><rect x="40" y="276" width="90" height="8" rx="4" fill="#bdb4a5"/><rect x="262" y="262" width="56" height="20" rx="10" fill="#f4e2da"/><rect x="28" y="308" width="304" height="50" rx="10" fill="#fffcf6" stroke="#ddd4c3"/><rect x="40" y="320" width="160" height="10" rx="5" fill="#57514a"/><rect x="40" y="338" width="90" height="8" rx="4" fill="#bdb4a5"/><rect x="262" y="324" width="56" height="20" rx="10" fill="#f4e2da"/>
+<rect x="150" y="56" width="190" height="540" rx="8" fill="#fff" stroke="#e0e0e0"/>
+<text x="245" y="88" font-size="14" fill="#5f6368"  text-anchor="middle">→　☆　⬇　ⓘ　↻</text>
+<text x="170" y="140" font-size="15" fill="#222"  text-anchor="start">新分頁</text><text x="170" y="184" font-size="15" fill="#222"  text-anchor="start">新增無痕分頁</text><text x="170" y="228" font-size="15" fill="#222"  text-anchor="start">歷史記錄</text><text x="170" y="272" font-size="15" fill="#222"  text-anchor="start">下載內容</text><text x="170" y="316" font-size="15" fill="#222"  text-anchor="start">書籤</text><text x="170" y="360" font-size="15" fill="#222"  text-anchor="start">分享⋯</text><text x="170" y="404" font-size="15" fill="#222"  text-anchor="start">在網頁中尋找</text><text x="170" y="448" font-size="15" fill="#222" font-weight="700" text-anchor="start">加到主畫面</text><text x="170" y="492" font-size="15" fill="#222"  text-anchor="start"></text><text x="170" y="536" font-size="15" fill="#222"  text-anchor="start">電腦版網站</text><text x="170" y="580" font-size="15" fill="#222"  text-anchor="start">設定</text>
+<text x="170" y="469" font-size="12" fill="#e0262b" font-weight="700" text-anchor="start">有的寫「安裝應用程式」</text>
+<rect x="156" y="422" width="178" height="54" rx="6" fill="none" stroke="#e0262b" stroke-width="4"/>
+<circle cx="156" cy="440" r="0.01" fill="none" stroke="#e0262b" stroke-width="5"/>
+<line x1="84" y1="394" x2="156" y2="439.99" stroke="#e0262b" stroke-width="3"/>
+<rect x="49.5" y="364" width="69" height="30" rx="15" fill="#e0262b"/>
+<text x="84" y="385" font-size="16" fill="#fff" font-weight="700" text-anchor="middle">點這個</text>
+</g>
+</svg>

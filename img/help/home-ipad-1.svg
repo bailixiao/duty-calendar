@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 440" width="640" height="440" font-family="'PingFang TC','Noto Sans TC','Microsoft JhengHei',sans-serif">
+<rect x="2" y="2" width="636" height="436" rx="30" fill="#1d1d1f"/>
+<rect x="16" y="16" width="608" height="408" rx="18" fill="#f6f1e7"/>
+<rect x="16" y="16" width="608" height="54" rx="18" fill="#f2f2f7"/><rect x="16" y="50" width="608" height="20" fill="#f2f2f7"/>
+<path d="M48 35 l-8 9 l8 9" fill="none" stroke="#0a7aff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M74 35 l8 9 l-8 9" fill="none" stroke="#b8b8bd" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="190" y="26" width="260" height="34" rx="10" fill="#fff" stroke="#d1d1d6"/><text x="320" y="49" font-size="14" fill="#333"  text-anchor="middle">🔒 bailixiao.github.io</text>
+<g transform="translate(520,44) scale(1)" fill="none" stroke="#0a7aff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M-8 -2 h-3 v15 h22 v-15 h-3"/><path d="M0 -13 v17"/><path d="M-5 -8 l5 -5 l5 5"/></g><path d="M556 36 v16 M548 44 h16" stroke="#0a7aff" stroke-width="2.4"/><g transform="translate(598,44)" fill="none" stroke="#0a7aff" stroke-width="2.2"><rect x="-8" y="-6" width="15" height="15" rx="3"/><path d="M-4 -10 h11 a3 3 0 0 1 3 3 v11"/></g>
+<text x="40" y="110" font-size="22" fill="#2a2724" font-weight="700" text-anchor="start">教全區行事曆</text>
+<rect x="40" y="130" width="560" height="56" rx="10" fill="#fffcf6" stroke="#ddd4c3"/><rect x="40" y="200" width="560" height="56" rx="10" fill="#fffcf6" stroke="#ddd4c3"/><rect x="40" y="270" width="560" height="56" rx="10" fill="#fffcf6" stroke="#ddd4c3"/>
+<circle cx="520" cy="42" r="24" fill="none" stroke="#e0262b" stroke-width="5"/>
+<line x1="440" y1="134" x2="520" y2="18" stroke="#e0262b" stroke-width="3"/>
+<rect x="354.5" y="104" width="171" height="30" rx="15" fill="#e0262b"/>
+<text x="440" y="125" font-size="16" fill="#fff" font-weight="700" text-anchor="middle">點右上角的「分享」</text>
+</svg>

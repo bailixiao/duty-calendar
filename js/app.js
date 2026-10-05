@@ -4,6 +4,7 @@
 //   #/mine                   我的報名（見 mine.js）
 //   #/grid/<勤務ID>          職司表大頁面（見 grid-page.js）
 //   #/venue?date=…           借區中心場地（見 venue.js）
+//   #/help、#/help/<問題ID>、#/help?c=分類   常見問題（見 help.js）
 //   #/admin…                 管理後台（見 admin.js）
 (function () {
   'use strict';
@@ -45,6 +46,12 @@
     if (venue) {
       show('venue');
       VenuePage.show(venue[1] || '');
+      return;
+    }
+    const help = location.hash.match(/^#\/help(?:\/([^?]+))?\/?(?:\?c=([^&]+))?$/);
+    if (help) {
+      show('help');
+      HelpPage.show(help[1] ? decodeURIComponent(help[1]) : '', help[2] ? decodeURIComponent(help[2]) : '');
       return;
     }
     const grid = location.hash.match(/^#\/grid\/([^?]+)/);
@@ -179,6 +186,7 @@
     views.grid = document.getElementById('view-grid');
     views.venue = document.getElementById('view-venue');
     views.admin = document.getElementById('view-admin');
+    views.help = document.getElementById('view-help');
     CalendarPage.init();
     // 搬家測試：用 ?api=cf 試用 Cloudflare 版時，左下角顯示提示，按一下切回正式版
     if (window.APP_CONFIG.TEST) {

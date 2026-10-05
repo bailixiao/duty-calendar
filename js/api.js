@@ -207,6 +207,7 @@
     warmUp: () => get('ping', {}, []).catch(() => {}),
     getDuty: (id) => get('getDuty', { id }),
     // 區中心場地借用
+    getFaq: () => get('getFaq', {}),
     getVenue: (from, to) => get('getVenue', { from, to }),
     requestVenue: (payload) => post(Object.assign({ action: 'requestVenue' }, payload)),
     myVenue: (name) => post({ action: 'myVenue', name }),

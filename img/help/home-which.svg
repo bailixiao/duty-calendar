@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 330" width="360" height="330" font-family="'PingFang TC','Noto Sans TC','Microsoft JhengHei',sans-serif">
+<rect width="360" height="330" rx="18" fill="#fffcf6" stroke="#ddd4c3"/>
+<text x="180" y="34" font-size="18" fill="#222" font-weight="700" text-anchor="middle">看看您是用哪一個打開的</text>
+<g transform="translate(70,100)"><circle r="34" fill="#1c8cff"/><circle r="27" fill="#fff"/><path d="M0 -22 L7 0 L0 22 L-7 0 Z" fill="#e0262b" transform="rotate(45)"/><path d="M0 0 L7 0 L0 22 L-7 0 Z" fill="#c9c9c9" transform="rotate(45)"/></g>
+<text x="70" y="156" font-size="16" fill="#222" font-weight="700" text-anchor="middle">Safari</text><text x="70" y="176" font-size="13" fill="#57514a"  text-anchor="middle">iPhone、iPad</text>
+<g transform="translate(180,100)"><circle r="34" fill="#db4437"/><path d="M0 0 L-29.4 17 A34 34 0 0 1 0 -34 Z" fill="#db4437"/><path d="M0 0 L0 -34 A34 34 0 0 1 29.4 17 Z" fill="#f4b400"/><path d="M0 0 L29.4 17 A34 34 0 0 1 -29.4 17 Z" fill="#0f9d58"/><circle r="15" fill="#fff"/><circle r="11" fill="#4285f4"/></g>
+<text x="180" y="156" font-size="16" fill="#222" font-weight="700" text-anchor="middle">Chrome</text><text x="180" y="176" font-size="13" fill="#57514a"  text-anchor="middle">大部分 Android</text>
+<g transform="translate(290,100)"><circle r="34" fill="#7b4cf5"/><ellipse rx="40" ry="12" fill="none" stroke="#fff" stroke-width="5" transform="rotate(-25)"/><circle r="16" fill="#fff"/><circle r="11" fill="#7b4cf5"/></g>
+<text x="290" y="156" font-size="16" fill="#222" font-weight="700" text-anchor="middle">Samsung</text><text x="290" y="176" font-size="13" fill="#57514a"  text-anchor="middle">網際網路（三星）</text>
+<g transform="translate(125,248)"><rect x="-32" y="-32" width="64" height="64" rx="16" fill="#06c755"/><path d="M-18 -4 q0 -14 18 -14 q18 0 18 14 q0 14 -18 14 q-4 0 -8 -1 l-8 5 l2 -7 q-4 -4 -4 -11 z" fill="#fff"/></g>
+<text x="125" y="300" font-size="16" fill="#222" font-weight="700" text-anchor="middle">LINE 裡面</text><text x="125" y="318" font-size="13" fill="#e0262b"  text-anchor="middle">要先改用瀏覽器</text>
+<g transform="translate(240,248)"><rect x="-26" y="-34" width="52" height="68" rx="8" fill="#2a2724"/><rect x="-21" y="-27" width="42" height="50" rx="3" fill="#f6f1e7"/><circle cy="28" r="3" fill="#888"/></g>
+<text x="240" y="300" font-size="16" fill="#222" font-weight="700" text-anchor="middle">不確定？</text><text x="240" y="318" font-size="13" fill="#57514a"  text-anchor="middle">看手機背面的牌子</text>
+</svg>

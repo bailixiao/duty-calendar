@@ -90,7 +90,8 @@
       <li>往下找 <strong>「加入主畫面」</strong>，按「新增」</li>
       <li>回到手機主畫面，點 <strong>「教全區行事曆」</strong> 圖示打開</li>
       <li>再按一次 <strong>🔔 手機提醒</strong>，就可以開啟了 😊</li>
-    </ol>`;
+    </ol>
+    <p class="hint">您的畫面不一樣嗎？請按下面的「看圖文教學」，有各種手機的圖。</p>`;
 
   // ---------- 「🔔 手機提醒」視窗 ----------
 
@@ -105,7 +106,7 @@
         body.innerHTML = `${note}<p>您現在是在 <strong>LINE 裡</strong>開啟本網站，LINE 收不到提醒通知。</p><p>麻煩您按下面的按鈕，改用手機的瀏覽器（${isIOS() ? 'Safari' : 'Chrome'}）開啟，再開啟提醒，謝謝您 🙏</p>
           <div class="modal-actions"><a class="btn btn-block btn-primary" href="${esc(externalUrl())}">用瀏覽器開啟</a>${close}</div>`;
       } else if (st === 'ios-install') {
-        body.innerHTML = `${note}<p>iPhone 需要先把本網站<strong>加到主畫面</strong>，才能收到提醒通知，步驟如下：</p>${IOS_STEPS}<div class="modal-actions">${close}</div>`;
+        body.innerHTML = `${note}<p>iPhone 需要先把本網站<strong>加到主畫面</strong>，才能收到提醒通知，步驟如下：</p>${IOS_STEPS}<a class="btn btn-block btn-primary" href="#/help/faq-home-which" data-help-link>📖 看圖文教學（不同手機的畫面都有）</a><div class="modal-actions">${close}</div>`;
       } else if (st === 'unsupported') {
         body.innerHTML = `${note}<p>不好意思，這個瀏覽器還不支援通知。麻煩您改用 <strong>Chrome</strong>（Android）或 <strong>Safari</strong>（iPhone）開啟本網站。</p><p class="muted">您也可以在報名後按「加到手機行事曆」，前一天同樣會提醒您 😊</p><div class="modal-actions">${close}</div>`;
       } else if (st === 'denied') {
@@ -140,6 +141,7 @@
     function bind() {
       const q = (s) => body.querySelector(s);
       if (q('[data-close]')) q('[data-close]').addEventListener('click', () => m.close());
+      body.querySelectorAll('a[href^="#/help"]').forEach((a) => a.addEventListener('click', () => m.close()));
       if (q('[data-on]')) q('[data-on]').addEventListener('click', (ev) => run(ev.target, '正在為您開啟⋯', enable, '已為您開啟提醒 🎉 可以按「傳一則測試通知給我」試試看喔'));
       if (q('[data-off]')) q('[data-off]').addEventListener('click', (ev) => run(ev.target, '正在關閉⋯', disable, '已為您關閉提醒，隨時歡迎再開啟 😊'));
       if (q('[data-test]')) q('[data-test]').addEventListener('click', (ev) => run(ev.target, '正在傳送⋯', async () => {

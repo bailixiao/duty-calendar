@@ -285,6 +285,10 @@ function adminRun_(body) {
     case 'adminDay': return adminDay_(body);
     case 'adminRoster': return adminRoster_(body);
     case 'adminVenueWatch': return adminVenueWatch_(body);
+    case 'adminFaq': return adminFaq_(body);
+    case 'adminFaqSave': return adminFaqSave_(body);
+    case 'adminFaqDelete': return adminFaqDelete_(body);
+    case 'adminFaqMove': return adminFaqMove_(body);
     case 'adminPushList': return adminPushList_(body);
     case 'adminPushSave': return adminPushSave_(body);
     case 'adminPushDelete': return adminPushDelete_(body);

@@ -26,6 +26,7 @@ function doGet(e) {
       case 'loginAccounts': return loginAccounts_();
       case 'pushSummary': return pushSummary_(p);
       case 'getVenue': return getVenue_(p);
+      case 'getFaq': return getFaq_(p);
       default: throw new ApiError_('BAD_REQUEST', '未知的 action：' + (p.action || '（空白）'));
     }
   });

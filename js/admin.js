@@ -9,6 +9,7 @@
 //   #/admin/logs      操作紀錄與還原
 //   #/admin/day       名單（今天起一個月，勾日期產生文字）
 //   #/admin/push      推播（見 admin-push.js）
+//   #/admin/help      教學（常見問題的管理者題目與編輯，見 help.js）
 (function () {
   'use strict';
 
@@ -127,7 +128,8 @@
     if (!Api.isAdmin()) return renderLogin();
     prefetch();
     VenueAdminPage.autoWatch(); // 總管理者、場管：手機允許過通知就自動開啟場地申請通知
-    if (Api.adminWho().role === '場管' || sub === 'venue') return VenueAdminPage.show(shell('venue'), guard); // 場管帳號只有場地借用
+    if (sub === 'help') return HelpAdminPage.show(shell('help'), guard); // 📖 教學：所有後台帳號
+    if (Api.adminWho().role === '場管' || sub === 'venue') return VenueAdminPage.show(shell('venue'), guard); // 場管帳號只有場地借用（和教學）
     if (sub === 'accounts') return AccountsPage.show(shell('accounts'), guard);
     const m = sub.match(/^duty\/([^?]+)(?:\?date=(\d{4}-\d{2}-\d{2}))?/);
     if (m) return showDuty(decodeURIComponent(m[1]), m[2] || '');
@@ -154,6 +156,7 @@
     if (!seesLogs()) tabs.splice(tabs.findIndex((t) => t[0] === 'logs'), 1); // 操作紀錄只給總管理者
     if (!seesRoster()) ['day', 'push'].forEach((k) => tabs.splice(tabs.findIndex((t) => t[0] === k), 1)); // 名單、推播：總管理者、勤務、道務、教育
     if (who.role === '場管') tabs.splice(0, tabs.length, ['venue', '場地借用']);
+    tabs.push(['help', '📖 教學']);
     root.innerHTML = `
       <div class="admin-head">
         <h1 class="admin-title">管理後台</h1>
