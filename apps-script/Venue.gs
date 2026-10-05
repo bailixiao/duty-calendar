@@ -140,17 +140,20 @@ function myVenue_(body) {
   return {
     requests: venueRows_().filter(function (r) { return normalizeName_(r['姓名']) === name && r['日期'] >= today; })
       .map(function (r) {
+        var active = r['狀態'] === '待審核' || r['狀態'] === '已同意';
         return { id: r['借用ID'], date: r['日期'], slot: r['時段'], purpose: r['用途'], status: r['狀態'],
-          note: r['狀態'] === '不同意' || r['狀態'] === '已取消' ? r['備註'] : '',
-          canCancel: (r['狀態'] === '待審核' || r['狀態'] === '已同意') && r['日期'] > today };
+          note: r['備註'] || '',
+          cancelPending: active && !!r['申請取消'],
+          canCancel: active && !r['申請取消'] && r['日期'] > today };
       })
       .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : venueSlotNames_().indexOf(a.slot) - venueSlotNames_().indexOf(b.slot); })
   };
 }
 
 /**
- * body = { ids: [...], name, phone }：申請人自己取消（待審核或已同意、明天以後）。
- * 要對得上申請時的姓名和電話，別人打名字查得到也取消不了。
+ * body = { ids: [...], name, phone }：申請人申請取消（待審核或已同意、明天以後）。
+ * 不會直接取消：只填「申請取消」欄，狀態不變，要管理者同意取消才算。
+ * 要對得上申請時的姓名和電話，別人打名字查得到也申請不了。
  */
 function cancelVenue_(body) {
   var name = normalizeName_(body.name);
@@ -167,12 +170,14 @@ function cancelVenue_(body) {
       return r;
     });
     var mismatch = targets.some(function (r) { return normalizeName_(r['姓名']) !== name || String(r['電話']).replace(/\D/g, '') !== digits; });
-    if (mismatch) throw new ApiError_('FORBIDDEN', '電話和申請時留的不一樣，沒有取消。忘記的話請聯絡管理者。');
-    var bad = targets.filter(function (r) { return ['待審核', '已同意'].indexOf(r['狀態']) === -1 || r['日期'] <= today; });
-    if (bad.length) throw new ApiError_('VALIDATION', '沒有取消', bad.map(function (r) { return { message: r['日期'] + ' ' + r['時段'] + '：' + (r['日期'] <= today ? '當天（含）之後不能自己取消，請聯絡管理者' : '這筆已經是「' + r['狀態'] + '」') }; }));
+    if (mismatch) throw new ApiError_('FORBIDDEN', '電話和申請時留的不一樣，沒有送出。忘記的話請聯絡管理者。');
+    var bad = targets.filter(function (r) { return ['待審核', '已同意'].indexOf(r['狀態']) === -1 || r['日期'] <= today || r['申請取消']; });
+    if (bad.length) throw new ApiError_('VALIDATION', '取消申請沒有送出', bad.map(function (r) {
+      return { message: r['日期'] + ' ' + r['時段'] + '：' + (r['日期'] <= today ? '當天（含）之後要取消，請聯絡管理者' : r['申請取消'] ? '已經申請取消了，等管理者審核' : '這筆已經是「' + r['狀態'] + '」') };
+    }));
     var now = nowString_();
-    targets.forEach(function (r) { updateRow_(SHEETS.VENUE, r, { '狀態': '已取消', '審核時間': now, '審核人': '申請人', '備註': '申請人自己取消' }); });
-    appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '場地取消', '報名ID': '', '內容摘要': name + '｜' + targets.map(function (r) { return r['日期'] + ' ' + r['時段']; }).join('、') + '｜申請人自己取消', '還原用的前一版資料': '' }]);
+    targets.forEach(function (r) { updateRow_(SHEETS.VENUE, r, { '申請取消': now }); });
+    appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '場地申請取消', '報名ID': '', '內容摘要': name + '｜' + targets.map(function (r) { return r['日期'] + ' ' + r['時段']; }).join('、'), '還原用的前一版資料': '' }]);
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.VENUE);
     return myVenue_({ name: name });
@@ -189,15 +194,19 @@ function adminVenue_() {
     slots: venueSlotNames_(),
     requests: rows.map(function (r) {
       return { id: r['借用ID'], group: r['申請ID'], date: r['日期'], slot: r['時段'], name: r['姓名'], phone: r['電話'], purpose: r['用途'],
-        people: r['人數'], status: r['狀態'], createdAt: r['建立時間'], decidedAt: r['審核時間'], decidedBy: r['審核人'], note: r['備註'] };
+        people: r['人數'], status: r['狀態'], createdAt: r['建立時間'], decidedAt: r['審核時間'], decidedBy: r['審核人'], note: r['備註'],
+        cancelAsk: (r['狀態'] === '待審核' || r['狀態'] === '已同意') ? (r['申請取消'] || '') : '' };
     }).sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : venueSlotNames_().indexOf(a.slot) - venueSlotNames_().indexOf(b.slot); })
   };
 }
 
-/** body = { ids: [...], decision: '已同意'|'不同意'|'已取消', note }：審核（同一時段已經有人借到就不能再同意） */
+/**
+ * body = { ids: [...], decision: '已同意'|'不同意'|'已取消'|'同意取消'|'不同意取消', note }：審核（同一時段已經有人借到就不能再同意）。
+ * 同意取消＝申請人申請的取消照准（狀態變已取消）；不同意取消＝維持原狀態，原因寫在備註。審核後「申請取消」清空。
+ */
 function adminVenueDecide_(body) {
   var decision = cleanText_(body.decision);
-  if (['已同意', '不同意', '已取消'].indexOf(decision) === -1) throw new ApiError_('BAD_REQUEST', '審核結果不對');
+  if (['已同意', '不同意', '已取消', '同意取消', '不同意取消'].indexOf(decision) === -1) throw new ApiError_('BAD_REQUEST', '審核結果不對');
   var ids = Array.isArray(body.ids) ? body.ids : [];
   if (!ids.length) throw new ApiError_('BAD_REQUEST', '沒有選要審核的申請');
   var note = cleanText_(body.note).slice(0, 100);
@@ -209,14 +218,23 @@ function adminVenueDecide_(body) {
       return r;
     });
     if (decision === '已同意') {
-      var clash = targets.filter(function (t) {
-        return rows.some(function (r) { return r !== t && r['日期'] === t['日期'] && r['時段'] === t['時段'] && r['狀態'] === '已同意'; });
+      var clash = targets.filter(function (t, i) {
+        return rows.some(function (r) { return r !== t && r['日期'] === t['日期'] && r['時段'] === t['時段'] && r['狀態'] === '已同意'; }) ||
+          targets.slice(0, i).some(function (o) { return o['日期'] === t['日期'] && o['時段'] === t['時段']; }); // 一次同意兩筆同時段也不行
       });
       if (clash.length) throw new ApiError_('VALIDATION', '沒有同意', clash.map(function (t) { return { message: t['日期'] + ' ' + t['時段'] + '已經借給別人了' }; }));
     }
     var now = nowString_();
     var who = !ADMIN_SESSION_ ? '' : ADMIN_SESSION_.role === SUPER_ACCOUNT ? '總管理者' : ADMIN_SESSION_.account;
-    targets.forEach(function (t) { updateRow_(SHEETS.VENUE, t, { '狀態': decision, '審核時間': now, '審核人': who, '備註': note }); });
+    targets.forEach(function (t) {
+      var patch = decision === '同意取消' ? { '狀態': '已取消', '備註': note || '申請人申請取消，已同意' }
+        : decision === '不同意取消' ? { '備註': '不同意取消' + (note ? '：' + note : '') }
+        : { '狀態': decision, '備註': note };
+      patch['審核時間'] = now;
+      patch['審核人'] = who;
+      patch['申請取消'] = '';
+      updateRow_(SHEETS.VENUE, t, patch);
+    });
     appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '場地' + decision.replace('已', ''), '報名ID': '', '內容摘要': targets[0]['姓名'] + '｜' + targets.map(function (t) { return t['日期'] + ' ' + t['時段']; }).join('、') + (note ? '｜' + note : ''), '還原用的前一版資料': '' }]);
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.VENUE);

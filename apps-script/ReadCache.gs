@@ -6,7 +6,7 @@
 
 var RESP_CACHE_TTL_SEC = 300;
 var RESP_CACHE_CHUNK = 90000; // CacheService 單一值上限 100KB，切塊存
-var RESP_CACHE_TABLES = ['DUTIES', 'POSITIONS', 'SIGNUPS', 'GROUPS'];
+var RESP_CACHE_TABLES = ['DUTIES', 'POSITIONS', 'SIGNUPS', 'GROUPS', 'VENUE']; // VENUE：行事曆上的「區中心已借出」
 
 /** 分頁目前的版本號（沒有就建一個，與 readTableCached_ 共用） */
 function tableVer_(def) {

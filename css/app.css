@@ -2018,3 +2018,7 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 .vm-pick { display: inline-flex; align-items: center; gap: 6px; }
 .vm-cancel { margin-top: 10px; }
 @media (max-width: 560px) { .cat-filter { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); } .cat-filter button { padding: 0 4px; font-size: .95rem; } }
+/* 日期欄在窄手機不要擠出去、交疊 */
+input.input[type="date"] { min-width: 0; max-width: 100%; width: 100%; box-sizing: border-box; }
+.form-row-pair { min-width: 0; }
+@media (max-width: 420px) { .multi-box .form-row-pair { grid-template-columns: 1fr; } }

@@ -79,16 +79,24 @@ test('場地借用：一次申請好幾天（同樣時段、同一個申請）�
   assert.match(r2.error.details[0].message, /10\/20/);
 });
 
-test('場地借用：申請人自己取消（要對得上電話）；當天之後不能自己取消', () => {
+test('場地借用：申請人只能申請取消（要對得上電話），管理者同意取消才算', () => {
   const env = createEnv(OCT_1);
   const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
   env.post({ action: 'requestVenue', dates: ['2026-10-13', '2026-10-20'], slots: ['晚上'], name: '測試甲', phone: '0912-345-678', purpose: '讀書會' });
   const mine = env.post({ action: 'myVenue', name: '測試甲' }).data.requests;
   assert.deepEqual(mine.map((r) => r.canCancel), [true, true]);
-  env.post({ action: 'adminVenueDecide', token, ids: [mine[1].id], decision: '已同意' });
+  env.post({ action: 'adminVenueDecide', token, ids: [mine[0].id, mine[1].id], decision: '已同意' });
   assert.equal(env.post({ action: 'cancelVenue', ids: [mine[0].id], name: '測試甲', phone: '0999999999' }).error.code, 'FORBIDDEN');
   const r = env.post({ action: 'cancelVenue', ids: [mine[0].id, mine[1].id], name: '測試甲', phone: '0912345678' });
   assert.equal(r.ok, true, JSON.stringify(r.error));
-  assert.deepEqual(r.data.requests.map((x) => [x.status, x.canCancel, x.note]), [['已取消', false, '申請人自己取消'], ['已取消', false, '申請人自己取消']]);
-  assert.deepEqual(env.get({ action: 'getEvents', from: '2026-10-20', to: '2026-10-20' }).data.venue, [], '取消後行事曆就沒有了');
+  assert.deepEqual(r.data.requests.map((x) => [x.status, x.canCancel, x.cancelPending]), [['已同意', false, true], ['已同意', false, true]], '狀態不變，等審核');
+  assert.equal(env.get({ action: 'getEvents', from: '2026-10-20', to: '2026-10-20' }).data.venue.length, 1, '還沒同意取消，行事曆照樣顯示');
+  assert.equal(env.post({ action: 'cancelVenue', ids: [mine[0].id], name: '測試甲', phone: '0912345678' }).error.code, 'VALIDATION', '不能重複申請');
+  const adm = env.post({ action: 'adminVenue', token }).data.requests;
+  assert.deepEqual(adm.map((x) => !!x.cancelAsk), [true, true]);
+  env.post({ action: 'adminVenueDecide', token, ids: [mine[1].id], decision: '同意取消' });
+  env.post({ action: 'adminVenueDecide', token, ids: [mine[0].id], decision: '不同意取消', note: '當天有活動要用' });
+  const after = env.post({ action: 'myVenue', name: '測試甲' }).data.requests;
+  assert.deepEqual(after.map((x) => [x.status, x.cancelPending, x.note]), [['已同意', false, '不同意取消：當天有活動要用'], ['已取消', false, '申請人申請取消，已同意']]);
+  assert.deepEqual(env.get({ action: 'getEvents', from: '2026-10-20', to: '2026-10-20' }).data.venue, [], '同意取消後行事曆就沒有了');
 });

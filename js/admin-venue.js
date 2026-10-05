@@ -1,4 +1,4 @@
-// 管理後台：場地借用（#/admin/venue）。總管理者、場管帳號審核（同意／不同意／取消）；唯讀等只能看。
+// 管理後台：場地借用（#/admin/venue）。總管理者、場管帳號審核（同意／不同意／取消、申請人的取消申請）；唯讀等只能看。
 // 一筆申請可能有好幾個時段（同一個申請編號），一起顯示、一起審核。電話只在這裡看得到。
 (function () {
   'use strict';
@@ -17,7 +17,7 @@
   function groups(list) {
     const map = new Map();
     list.forEach((r) => {
-      const k = r.group + '|' + r.status;
+      const k = r.group + '|' + r.status + '|' + (r.cancelAsk ? 'c' : '');
       if (!map.has(k)) map.set(k, Object.assign({}, r, { ids: [], slots: [], dates: [], items: [] }));
       const g = map.get(k);
       g.ids.push(r.id);
@@ -38,11 +38,12 @@
     const tel = String(g.phone || '').replace(/[^\d+]/g, '');
     return `
       <li class="venue-req is-${g.status === '已同意' ? 'ok' : g.status === '待審核' ? 'wait' : 'no'}">
-        <div class="vr-head"><strong>${esc(dateText(g))}<br>${g.slots.map(esc).join('、')}</strong><span class="vr-status">${esc(g.status)}</span></div>
+        <div class="vr-head"><strong>${esc(dateText(g))}<br>${g.slots.map(esc).join('、')}</strong><span class="vr-status">${esc(g.status)}${g.cancelAsk ? '・申請取消' : ''}</span></div>
         <dl class="vr-info">
           <div><dt>用途</dt><dd>${esc(g.purpose)}${g.people ? `（約 ${esc(g.people)} 人）` : ''}</dd></div>
           <div><dt>申請人</dt><dd>${esc(g.name)}　${tel ? `<a href="tel:${esc(tel)}">${esc(g.phone)}</a>` : ''}</dd></div>
           <div><dt>申請時間</dt><dd>${esc(g.createdAt)}</dd></div>
+          ${g.cancelAsk ? `<div><dt>申請取消</dt><dd>${esc(g.cancelAsk)}</dd></div>` : ''}
           ${g.decidedAt ? `<div><dt>審核</dt><dd>${esc(g.decidedAt)}${g.decidedBy ? `（${esc(g.decidedBy)}）` : ''}${g.note ? `・${esc(g.note)}` : ''}</dd></div>` : ''}
         </dl>
         ${actions && canDecide() ? `<div class="vr-actions">${actions(g)}</div>` : ''}
@@ -52,13 +53,18 @@
   function render(body, guard, data, stale) {
     const today = data.today;
     const all = groups(data.requests);
-    const pending = all.filter((g) => g.status === '待審核' && g.last >= today);
-    const approved = all.filter((g) => g.status === '已同意' && g.last >= today);
-    const others = all.filter((g) => pending.indexOf(g) === -1 && approved.indexOf(g) === -1);
+    const cancelAsks = all.filter((g) => g.cancelAsk);
+    const pending = all.filter((g) => !g.cancelAsk && g.status === '待審核' && g.last >= today);
+    const approved = all.filter((g) => !g.cancelAsk && g.status === '已同意' && g.last >= today);
+    const others = all.filter((g) => cancelAsks.indexOf(g) === -1 && pending.indexOf(g) === -1 && approved.indexOf(g) === -1);
     // 待審核的時段如果已經被同意給別人，提醒
     const takenKey = new Set(data.requests.filter((r) => r.status === '已同意').map((r) => r.date + '|' + r.slot));
     body.innerHTML = `
       ${AdminPage.staleNote(stale)}
+      ${cancelAsks.length ? `<h2 class="admin-sub">申請取消 <span class="badge badge-short">${cancelAsks.length} 筆</span></h2>
+      <p class="hint">申請人想取消這些時段。同意取消後，行事曆上的「已借出」才會消失；不同意就維持原狀（可以寫原因給申請人看）。</p>
+      <ul class="venue-reqs">${cancelAsks.map((g) => card(g, (x) => `<button type="button" class="btn btn-primary" data-cok="${esc(x.ids.join(','))}">同意取消</button>
+        <button type="button" class="btn btn-quiet-danger" data-cno="${esc(x.ids.join(','))}">不同意取消</button>`)).join('')}</ul>` : ''}
       <h2 class="admin-sub">待審核 <span class="badge ${pending.length ? 'badge-short' : 'badge-ok'}">${pending.length} 筆</span></h2>
       ${pending.length ? `<ul class="venue-reqs">${pending.map((g) => card(g, (x) => {
         // 已經借給別人的時段：同意時略過，只同意其他的
@@ -103,6 +109,8 @@
         alert((err.message || '處理失敗') + (err.details ? '\n' + err.details.map((d) => d.message).join('\n') : ''));
       }
     };
+    body.querySelectorAll('[data-cok]').forEach((b) => b.addEventListener('click', () => decide(b.dataset.cok, '同意取消')));
+    body.querySelectorAll('[data-cno]').forEach((b) => b.addEventListener('click', () => askReason('不同意取消（維持原狀）', (note) => decide(b.dataset.cno, '不同意取消', note))));
     body.querySelectorAll('[data-ok]').forEach((b) => b.addEventListener('click', () => decide(b.dataset.ok, '已同意')));
     body.querySelectorAll('[data-no]').forEach((b) => b.addEventListener('click', () => askReason('不同意這個申請', (note) => decide(b.dataset.no, '不同意', note))));
     // 逐天審核：只處理勾選的日期時段
