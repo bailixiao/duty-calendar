@@ -1633,7 +1633,7 @@ body:not(.role-super) #view-admin .people-list [data-row] { cursor: default; }
 
 /* 類別：篩選列與小標籤（勤務不標，道務、教育用顏色區分） */
 .cat-filter { display: flex; gap: 6px; margin: 0 0 10px; flex-wrap: wrap; }
-.cat-filter button { flex: 1 1 0; min-height: 40px; border: 1px solid var(--line); background: var(--card); border-radius: 20px; font-size: 1rem; color: var(--ink); cursor: pointer; }
+.cat-filter button { flex: 1 1 auto; padding: 0 10px; white-space: nowrap; min-height: 40px; border: 1px solid var(--line); background: var(--card); border-radius: 20px; font-size: 1rem; color: var(--ink); cursor: pointer; }
 .cat-filter button.is-active { background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 700; }
 .cat-tag { display: inline-block; font-size: .78em; font-weight: 700; padding: 1px 8px; border-radius: 10px; margin-right: 6px; vertical-align: 2px; color: #fff; }
 .cat-勤務 { background: #9e3d22; }
@@ -1861,3 +1861,5 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 .merge-host { padding: 12px 14px; border: 1px solid #e3d3b8; border-radius: 14px; background: #fff8ec; }
 .merge-host h2 { margin-top: 0; }
 .merge-next { margin: 10px 0 6px; font-size: 18px; }
+/* 卡片標題的類別標籤：自己一行放在標題上方，標題不會被擠得斷行 */
+.card-title .cat-tag { display: table; margin: 0 0 4px; }
