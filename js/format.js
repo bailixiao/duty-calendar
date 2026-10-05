@@ -55,6 +55,12 @@
   }
 
   /** 勤務時段文字；跨日單日勤務顯示「隔天」 */
+  /** 類別標籤上的字：勤務類寫「總務・勤務」，道務、教育照原樣 */
+  function catLabel(category) {
+    const c = category || '勤務';
+    return c === '勤務' ? '總務・勤務' : c;
+  }
+
   function timeRange(duty) {
     const { start, end, startTime, endTime } = duty;
     const md = (s) => `${Number(s.slice(5, 7))}/${Number(s.slice(8, 10))}`;
@@ -154,7 +160,7 @@
   }
 
   window.Fmt = {
-    esc, toDateStr, parseDate, addDays, datesBetween, rocYear, weekday, shortDate, rocDate,
+    esc, toDateStr, parseDate, addDays, datesBetween, rocYear, weekday, shortDate, rocDate, catLabel,
     timeRange, cardTime, effectiveMin, dayState, groupText, sameName, byStroke, setContact, askAdmin
   };
 })();

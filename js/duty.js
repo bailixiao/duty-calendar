@@ -113,7 +113,7 @@
       ${backLink()}
       <article class="duty-detail">
         <header class="detail-head">
-          <p class="detail-kicker"><span class="cat-tag cat-${esc(d.category || '勤務')}">${esc(d.category || '勤務')}</span>${esc(d.nature || '勤務')}${isNotice ? '・公告（不需報名）' : ''}</p>
+          <p class="detail-kicker"><span class="cat-tag cat-${esc(d.category || '勤務')}">${esc(Fmt.catLabel(d.category))}</span>${esc(d.nature || '勤務')}${isNotice ? '・公告（不需報名）' : ''}</p>
           <h1 class="detail-title">${esc(d.name)}</h1>
         </header>
         <div id="duty-flash">${flash || ''}</div>

@@ -497,7 +497,7 @@
   /** 類別小標籤：勤務（赭紅）、道務（紫）、教育（藍綠）；舊資料沒有類別的算勤務 */
   function catTag(duty) {
     const c = duty.category || '勤務';
-    return `<span class="cat-tag cat-${Fmt.esc(c)}">${Fmt.esc(c)}</span>`;
+    return `<span class="cat-tag cat-${Fmt.esc(c)}">${Fmt.esc(Fmt.catLabel(c))}</span>`;
   }
 
   function cardHtml(item, date, compact) {
