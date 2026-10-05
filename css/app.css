@@ -2006,3 +2006,10 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 .venue-check small { display: block; color: #8a5a00; }
 .venue-intro { margin: 0 0 12px; padding: 12px 14px; border-radius: 14px; background: #fff6e0; border: 1px solid #f0dca8; font-size: 17px; line-height: 1.8; color: var(--ink); }
 .venue-mine-who { margin: 10px 0 4px; color: var(--ink-2); }
+
+.vr-status { white-space: nowrap; }
+.vr-each { flex-basis: 100%; margin-top: 4px; padding: 8px 12px; border: 1px dashed var(--line); border-radius: 12px; background: #fff; }
+.vr-each > summary { cursor: pointer; font-weight: 700; color: var(--ink-2); padding: 4px 0; }
+.vr-each-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 12px; margin: 6px 0; }
+.vr-each-list .is-taken { color: var(--muted); }
+.vr-each-quick { display: flex; gap: 16px; margin-bottom: 6px; }

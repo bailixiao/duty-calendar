@@ -66,7 +66,20 @@
         const okIds = x.items.filter((r) => clash.indexOf(r) === -1).map((r) => r.id);
         return `${clash.length ? `<p class="vr-warn">⚠️ ${clash.map((r) => esc(Fmt.shortDate(r.date) + ' ' + r.slot)).join('、')}已經借給別人了${okIds.length ? '，按同意只會同意其他的' : ''}</p>` : ''}
           <button type="button" class="btn btn-primary" data-ok="${esc(okIds.join(','))}"${okIds.length ? '' : ' disabled'}>同意${x.dates.length > 1 ? `（${x.dates.length} 天）` : ''}</button>
-          <button type="button" class="btn btn-quiet-danger" data-no="${esc(x.ids.join(','))}">不同意</button>`;
+          <button type="button" class="btn btn-quiet-danger" data-no="${esc(x.ids.join(','))}">不同意</button>
+          ${x.items.length > 1 ? `<details class="vr-each">
+            <summary>逐天審核（可以幾天同意、幾天不同意）</summary>
+            <p class="hint">勾要處理的日期時段，再按下面的按鈕；沒處理的會留在待審核。</p>
+            <div class="vr-each-list">${x.items.map((r) => {
+              const taken = clash.indexOf(r) !== -1;
+              return `<label class="check${taken ? ' is-taken' : ''}"><input type="checkbox" data-each="${esc(r.id)}"${taken ? ' disabled' : ' checked'}> ${esc(Fmt.shortDate(r.date))} ${esc(r.slot)}${taken ? '（已借給別人）' : ''}</label>`;
+            }).join('')}</div>
+            <div class="vr-each-quick"><button type="button" class="link-btn" data-each-all>全選</button><button type="button" class="link-btn" data-each-none>都不選</button></div>
+            <div class="vr-actions">
+              <button type="button" class="btn btn-primary" data-each-ok>同意勾選的</button>
+              <button type="button" class="btn btn-quiet-danger" data-each-no>不同意勾選的</button>
+            </div>
+          </details>` : ''}`;
       })).join('')}</ul>` : '<p class="muted">目前沒有待審核的申請。</p>'}
 
       <h2 class="admin-sub">已借出（今天以後）</h2>
@@ -92,6 +105,23 @@
     };
     body.querySelectorAll('[data-ok]').forEach((b) => b.addEventListener('click', () => decide(b.dataset.ok, '已同意')));
     body.querySelectorAll('[data-no]').forEach((b) => b.addEventListener('click', () => askReason('不同意這個申請', (note) => decide(b.dataset.no, '不同意', note))));
+    // 逐天審核：只處理勾選的日期時段
+    body.querySelectorAll('.vr-each').forEach((d) => {
+      const boxes = () => [...d.querySelectorAll('[data-each]:not(:disabled)')];
+      const picked = () => boxes().filter((c) => c.checked).map((c) => c.dataset.each);
+      d.querySelector('[data-each-all]').addEventListener('click', () => boxes().forEach((c) => { c.checked = true; }));
+      d.querySelector('[data-each-none]').addEventListener('click', () => boxes().forEach((c) => { c.checked = false; }));
+      d.querySelector('[data-each-ok]').addEventListener('click', () => {
+        const ids = picked();
+        if (!ids.length) return alert('請先勾要同意的日期時段');
+        decide(ids.join(','), '已同意');
+      });
+      d.querySelector('[data-each-no]').addEventListener('click', () => {
+        const ids = picked();
+        if (!ids.length) return alert('請先勾不同意的日期時段');
+        askReason(`不同意勾選的 ${ids.length} 個時段`, (note) => decide(ids.join(','), '不同意', note));
+      });
+    });
     body.querySelectorAll('[data-cancel]').forEach((b) => b.addEventListener('click', () => askReason('取消這個借用', (note) => decide(b.dataset.cancel, '已取消', note))));
   }
 
