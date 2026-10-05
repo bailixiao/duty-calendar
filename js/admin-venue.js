@@ -138,17 +138,36 @@
     body.querySelectorAll('[data-cancel]').forEach((b) => b.addEventListener('click', () => askReason('取消這個借用', (note) => decide(b.dataset.cancel, '已取消', note))));
   }
 
-  /** 這支手機要不要收「有新的場地申請」通知（總管理者、場管） */
+  /**
+   * 這支手機要不要收「有新的場地申請」通知（總管理者、場管）。
+   * 手機已經允許通知（例如開過手機提醒）就自動開啟，不用按；自己按過「關閉」的手機記住不再自動開。
+   */
+  const OFF_KEY = 'duty-calendar:venue-watch-off';
+  const offByUser = () => { try { return localStorage.getItem(OFF_KEY) === '1'; } catch (e) { return false; } };
+  const setOffByUser = (v) => { try { if (v) localStorage.setItem(OFF_KEY, '1'); else localStorage.removeItem(OFF_KEY); } catch (e) { /* 無痕模式 */ } };
   let watchOn = null; // 記住上次查到的狀態，重畫時不閃
+  let autoTried = false;
+
+  /** 登入後台時呼叫：允許過通知、沒自己關掉的審核手機，自動開啟（每次開網頁做一次） */
+  async function autoWatch() {
+    if (autoTried || !canDecide() || !window.PushPage || PushPage.canNotify() !== 'ok') return;
+    if (Notification.permission !== 'granted' || offByUser()) return;
+    autoTried = true;
+    const sub = await PushPage.currentSub();
+    if (!sub) return;
+    try { watchOn = (await Api.admin('adminVenueWatch', { endpoint: sub.endpoint, on: true }, true)).on; } catch (e) { autoTried = false; }
+  }
+
   async function drawWatch(box, guard) {
     const st = window.PushPage ? PushPage.canNotify() : 'unsupported';
     if (st !== 'ok') {
-      box.innerHTML = `<p class="hint">🔔 ${st === 'ios-install' ? 'iPhone 要先把本網站「加到主畫面」並從主畫面打開，才能開啟場地申請通知。' : st === 'line' ? '在 LINE 裡收不到通知，請改用手機的瀏覽器打開後台。' : st === 'denied' ? '這支手機封鎖了本網站的通知，請到手機設定允許後再開啟場地申請通知。' : '這個瀏覽器不支援通知。'}</p>`;
+      box.innerHTML = `<p class="hint">🔔 ${st === 'ios-install' ? 'iPhone 要先把本網站「加到主畫面」並從主畫面打開，才能收到場地申請通知。' : st === 'line' ? '在 LINE 裡收不到通知，請改用手機的瀏覽器打開後台。' : st === 'denied' ? '這支手機封鎖了本網站的通知，請到手機設定允許後，才能收到場地申請通知。' : '這個瀏覽器不支援通知。'}</p>`;
       return;
     }
     const paint = () => {
+      box.classList.toggle('is-on', !!watchOn);
       box.innerHTML = watchOn
-        ? '<p>🔔 <strong>這支手機已開啟場地申請通知</strong>：有人送出申請或申請取消時會通知您。</p><button type="button" class="btn btn-small" data-w-off>關閉通知</button>'
+        ? '<p class="venue-watch-on">✅ 這支手機會收到場地申請通知 <button type="button" class="link-btn" data-w-off>關閉</button></p>'
         : '<p>🔔 開啟後，有人送出場地申請或申請取消時，這支手機會收到通知。</p><button type="button" class="btn btn-primary" data-w-on>開啟場地申請通知</button>';
       const on = box.querySelector('[data-w-on]');
       const off = box.querySelector('[data-w-off]');
@@ -161,6 +180,7 @@
       try {
         const endpoint = await PushPage.ensureSub();
         watchOn = (await Api.admin('adminVenueWatch', { endpoint, on: value })).on;
+        setOffByUser(!value);
         paint();
       } catch (err) {
         if (guard(err)) return;
@@ -169,8 +189,9 @@
       }
     };
     if (watchOn !== null) paint();
+    await autoWatch();
     const sub = await PushPage.currentSub();
-    if (!sub) { watchOn = false; paint(); return; }
+    if (!sub) { watchOn = false; if (box.isConnected) paint(); return; }
     try {
       watchOn = (await Api.admin('adminVenueWatch', { endpoint: sub.endpoint }, true)).on;
     } catch (e) { watchOn = false; }
@@ -192,5 +213,5 @@
     f.addEventListener('submit', (ev) => { ev.preventDefault(); const note = f.elements.note.value.trim(); m.close(); onOk(note); });
   }
 
-  window.VenueAdminPage = { show };
+  window.VenueAdminPage = { show, autoWatch };
 })();

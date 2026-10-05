@@ -2067,3 +2067,5 @@ input.input[type="date"] { min-width: 0; max-width: 100%; width: 100%; box-sizin
 .push-plan-body { margin: 4px 0; color: var(--ink-2); }
 .push-plan-status { margin: 0; font-size: .95rem; }
 .push-plan-actions { display: flex; gap: 8px; margin-top: 6px; }
+.venue-watch.is-on { padding: 6px 12px; border-style: solid; }
+.venue-watch-on { margin: 0 !important; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; color: var(--ink-2); }

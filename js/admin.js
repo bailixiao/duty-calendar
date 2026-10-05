@@ -126,6 +126,7 @@
     applyRole();
     if (!Api.isAdmin()) return renderLogin();
     prefetch();
+    VenueAdminPage.autoWatch(); // 總管理者、場管：手機允許過通知就自動開啟場地申請通知
     if (Api.adminWho().role === '場管' || sub === 'venue') return VenueAdminPage.show(shell('venue'), guard); // 場管帳號只有場地借用
     if (sub === 'accounts') return AccountsPage.show(shell('accounts'), guard);
     const m = sub.match(/^duty\/([^?]+)(?:\?date=(\d{4}-\d{2}-\d{2}))?/);
