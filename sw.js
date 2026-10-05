@@ -130,6 +130,7 @@ async function buildNotification() {
     const json = await res.json();
     if (!json.ok) return fallback;
     const d = json.data;
+    if (d.message) return { title: d.message.title, body: d.message.body, url: d.message.url || '#/', tag: 'msg-' + d.message.id }; // 借場地通知、後台推播
     if (d.test) return { title: '🔔 測試通知', body: '您好！已順利收到通知 😊\n有勤務時，前一天晚上 8 點、當天早上 7 點會溫馨提醒您 🙏', url: '#/recent' };
     if (!d.items.length) return fallback;
     const p = d.date.split('-').map(Number);
@@ -154,7 +155,7 @@ self.addEventListener('push', (ev) => {
     body: n.body,
     icon: 'icons/icon-192.png',
     badge: 'icons/favicon-32.png',
-    tag: 'duty-reminder',
+    tag: n.tag || 'duty-reminder',
     renotify: true,
     data: { url: n.url }
   })));

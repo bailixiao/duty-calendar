@@ -62,6 +62,7 @@
     const takenKey = new Set(data.requests.filter((r) => r.status === '已同意').map((r) => r.date + '|' + r.slot));
     body.innerHTML = `
       ${AdminPage.staleNote(stale)}
+      ${canDecide() ? '<div class="venue-watch" data-watch></div>' : ''}
       ${cancelAsks.length ? `<h2 class="admin-sub">申請取消 <span class="badge badge-short">${cancelAsks.length} 筆</span></h2>
       <p class="hint">申請人想取消這些時段。同意取消後，行事曆上的「已借出」才會消失；不同意就維持原狀（可以寫原因給申請人看）。</p>
       <ul class="venue-reqs">${cancelAsks.map((g) => card(g, (x) => `<button type="button" class="btn btn-primary" data-cok="${esc(x.ids.join(','))}">同意取消</button>
@@ -95,6 +96,9 @@
       ${others.length ? `<details class="venue-others"><summary>其他（不同意、已取消、已過去的）${others.length} 筆</summary>
         <ul class="venue-reqs">${others.reverse().map((g) => card(g)).join('')}</ul></details>` : ''}
       <p class="hint">同意後，家人們的行事曆會出現「區中心 已借出」（用途、借用人姓名；不顯示電話）。請記得打電話告訴申請人結果。</p>`;
+
+    const watchBox = body.querySelector('[data-watch]');
+    if (watchBox) drawWatch(watchBox, guard);
 
     const decide = async (ids, decision, note) => {
       Busy.show('處理中⋯');
@@ -132,6 +136,45 @@
       });
     });
     body.querySelectorAll('[data-cancel]').forEach((b) => b.addEventListener('click', () => askReason('取消這個借用', (note) => decide(b.dataset.cancel, '已取消', note))));
+  }
+
+  /** 這支手機要不要收「有新的場地申請」通知（總管理者、場管） */
+  let watchOn = null; // 記住上次查到的狀態，重畫時不閃
+  async function drawWatch(box, guard) {
+    const st = window.PushPage ? PushPage.canNotify() : 'unsupported';
+    if (st !== 'ok') {
+      box.innerHTML = `<p class="hint">🔔 ${st === 'ios-install' ? 'iPhone 要先把本網站「加到主畫面」並從主畫面打開，才能開啟場地申請通知。' : st === 'line' ? '在 LINE 裡收不到通知，請改用手機的瀏覽器打開後台。' : st === 'denied' ? '這支手機封鎖了本網站的通知，請到手機設定允許後再開啟場地申請通知。' : '這個瀏覽器不支援通知。'}</p>`;
+      return;
+    }
+    const paint = () => {
+      box.innerHTML = watchOn
+        ? '<p>🔔 <strong>這支手機已開啟場地申請通知</strong>：有人送出申請或申請取消時會通知您。</p><button type="button" class="btn btn-small" data-w-off>關閉通知</button>'
+        : '<p>🔔 開啟後，有人送出場地申請或申請取消時，這支手機會收到通知。</p><button type="button" class="btn btn-primary" data-w-on>開啟場地申請通知</button>';
+      const on = box.querySelector('[data-w-on]');
+      const off = box.querySelector('[data-w-off]');
+      if (on) on.addEventListener('click', () => set(true, on));
+      if (off) off.addEventListener('click', () => set(false, off));
+    };
+    const set = async (value, btn) => {
+      btn.disabled = true;
+      btn.textContent = '設定中⋯';
+      try {
+        const endpoint = await PushPage.ensureSub();
+        watchOn = (await Api.admin('adminVenueWatch', { endpoint, on: value })).on;
+        paint();
+      } catch (err) {
+        if (guard(err)) return;
+        paint();
+        box.insertAdjacentHTML('beforeend', `<p class="form-error">${esc(err.message || '設定失敗，請稍後再試')}</p>`);
+      }
+    };
+    if (watchOn !== null) paint();
+    const sub = await PushPage.currentSub();
+    if (!sub) { watchOn = false; paint(); return; }
+    try {
+      watchOn = (await Api.admin('adminVenueWatch', { endpoint: sub.endpoint }, true)).on;
+    } catch (e) { watchOn = false; }
+    if (box.isConnected) paint();
   }
 
   function askReason(title, onOk) {

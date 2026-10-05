@@ -230,7 +230,11 @@ function pushSummary_(params) {
   if (params.id && CacheService.getScriptCache().get('pushtest:' + params.id)) {
     CacheService.getScriptCache().remove('pushtest:' + params.id);
     data.test = true;
+    return data;
   }
+  // 給這支手機的訊息（借場地通知）或剛送出的後台推播（見 PushMore.gs）
+  var msg = pushMessageFor_(params.id);
+  if (msg) data.message = msg;
   return data;
 }
 

@@ -128,5 +128,5 @@
     }
   }
 
-  window.Share = { shortageText, inviteText, copyText, buttonsHtml, bind };
+  window.Share = { shortageText, inviteText, needText, copyText, buttonsHtml, bind };
 })();

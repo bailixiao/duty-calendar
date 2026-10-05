@@ -284,6 +284,10 @@ function adminRun_(body) {
     case 'adminRestore': return adminRestore_(body);
     case 'adminDay': return adminDay_(body);
     case 'adminRoster': return adminRoster_(body);
+    case 'adminVenueWatch': return adminVenueWatch_(body);
+    case 'adminPushList': return adminPushList_(body);
+    case 'adminPushSave': return adminPushSave_(body);
+    case 'adminPushDelete': return adminPushDelete_(body);
     case 'adminDutyList': return adminDutyList_(body);
     case 'adminDutyForEdit': return adminDutyForEdit_(body);
     case 'adminCreateDuties': return adminCreateDuties_(body);

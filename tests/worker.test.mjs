@@ -135,3 +135,29 @@ test('推播：還沒正式切換不送；切換後用 fetch 並行送出，失�
     globalThis.fetch = realFetch;
   }
 });
+
+test('借場地通知與後台推播：請求處理完一起送出（正式切換後才送）；每 5 分鐘送排定的', async () => {
+  const { call, app, store } = await setup();
+  app.gs.ensurePushKeys_();
+  const ADMIN = 'https://fcm.googleapis.com/fcm/send/admin-dev-1';
+  const token = (await call('POST', { action: 'adminLogin', password: 'test-pass' })).data.token;
+  assert.equal((await call('POST', { action: 'adminVenueWatch', token, endpoint: ADMIN, on: true })).data.on, true);
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => { calls.push(url); return new Response('', { status: 201 }); };
+  try {
+    await call('POST', { action: 'requestVenue', dates: ['2026-10-13'], slots: ['晚上'], name: '測試甲', phone: '0912345678', purpose: '讀書會' });
+    assert.equal(calls.length, 0, '還沒正式切換不送');
+    store.setProp('LIVE', '1');
+    await call('POST', { action: 'requestVenue', dates: ['2026-10-14'], slots: ['晚上'], name: '測試甲', phone: '0912345678', purpose: '讀書會' });
+    assert.deepEqual(calls, [ADMIN]);
+    calls.length = 0;
+    assert.equal((await call('POST', { action: 'pushSubscribe', endpoint: ADMIN })).ok, true);
+    const saved = await call('POST', { action: 'adminPushSave', token, plan: { title: '📣 公告', body: '明天見', at: '2026-10-01 10:30' } });
+    assert.equal(saved.ok, true, JSON.stringify(saved.error));
+    assert.deepEqual(await app.cron('plans'), { sent: 0 });
+    assert.equal(calls.length, 0);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});

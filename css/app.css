@@ -2043,3 +2043,26 @@ input.input[type="date"] { min-width: 0; max-width: 100%; width: 100%; box-sizin
 .invite-bar[hidden] { display: none; }
 .invite-bar [data-invite-count] { flex: 1 1 100%; font-weight: 700; }
 .invite-bar .btn { flex: 1 1 140px; }
+.venue-watch { padding: 10px 12px; margin-bottom: 12px; border: 1px dashed var(--line); border-radius: 12px; background: var(--card); }
+.venue-watch p { margin: 0 0 8px; }
+.venue-notify { margin-top: 10px; }
+.push-form { padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); margin-bottom: 18px; }
+.push-when { border: 0; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
+.push-when legend { font-size: .9rem; color: var(--ink-2); margin-bottom: 4px; }
+.push-times { display: grid; gap: 8px; padding-left: 4px; }
+.push-times[hidden] { display: none; }
+.push-time-row { display: flex; gap: 10px; align-items: center; }
+.push-time-row .input { flex: 1; min-width: 0; }
+.push-quick { display: flex; flex-wrap: wrap; gap: 6px; }
+.push-quick .chip { min-height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); cursor: pointer; font: inherit; }
+.push-preview { display: grid; gap: 2px; margin: 12px 0; padding: 12px 14px; border-radius: 16px; background: #2b2b2b; color: #fff; font-size: .95rem; }
+.push-preview-app { font-size: .8rem; opacity: .7; }
+.push-plans { list-style: none; padding: 0; margin: 0 0 16px; display: grid; gap: 8px; }
+.push-plan { padding: 10px 12px; border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 12px; background: var(--card); }
+.push-plan.is-wait { border-left-color: #c58a1b; }
+.push-plan.is-ok { border-left-color: #3b7d4f; }
+.push-plan.is-no { border-left-color: var(--accent); }
+.push-plan-head { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.push-plan-body { margin: 4px 0; color: var(--ink-2); }
+.push-plan-status { margin: 0; font-size: .95rem; }
+.push-plan-actions { display: flex; gap: 8px; margin-top: 6px; }

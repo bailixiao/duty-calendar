@@ -37,9 +37,9 @@ function stub(env) {
 
 export default {
   fetch: (request, env) => stub(env).fetch(request),
-  // 台北 07:00（UTC 23:00）提醒今天、台北 20:00（UTC 12:00）提醒明天
+  // 台北 07:00（UTC 23:00）提醒今天、台北 20:00（UTC 12:00）提醒明天；每 5 分鐘送排定時間到了的後台推播
   async scheduled(event, env, ctx) {
-    const when = event.cron === '0 23 * * *' ? 'today' : 'tomorrow';
+    const when = event.cron === '0 23 * * *' ? 'today' : event.cron === '0 12 * * *' ? 'tomorrow' : 'plans';
     ctx.waitUntil(stub(env).cron(when));
   }
 };

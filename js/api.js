@@ -211,6 +211,7 @@
     requestVenue: (payload) => post(Object.assign({ action: 'requestVenue' }, payload)),
     myVenue: (name) => post({ action: 'myVenue', name }),
     cancelVenue: (payload) => post(Object.assign({ action: 'cancelVenue' }, payload)),
+    venueWatch: (endpoint, id) => post({ action: 'venueWatch', endpoint, id }),
     loginAccounts: () => get('loginAccounts', {}),
     // DM 檔案（照片、PDF）的網址
     fileUrl: (id) => window.APP_CONFIG.API_URL + (window.APP_CONFIG.API_URL.indexOf('?') === -1 ? '?' : '&') + 'action=file&id=' + encodeURIComponent(id),

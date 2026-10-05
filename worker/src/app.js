@@ -109,12 +109,30 @@ export function createApp(store, opts) {
     const action = body && body.action;
     if (special[action]) return json(await A.respondAsync(gs, () => special[action](body)));
     if (asyncActions[action]) return json(await A.respondAsync(gs, () => asyncActions[action](body)));
-    return json(gs.doPost({ postData: { contents: text } }).text);
+    const out = gs.doPost({ postData: { contents: text } }).text;
+    await flushPush();
+    return json(out);
+  }
+
+  /** 這次請求排進去的推播（借場地通知、後台現在推播）一起送出；還沒正式切換不送 */
+  async function flushPush() {
+    const eps = gs.takePendingPush_();
+    if (!eps.length || store.getProp('LIVE') !== '1') return;
+    try {
+      gs.markPushResults_(await A.sendPushTo(gs, eps));
+    } catch (e) {
+      console.error(e && e.stack ? e.stack : e);
+    }
   }
 
   /** 每天兩次的推播（正式切換後才送，避免和 Google 端重複） */
   async function cron(when) {
     if (store.getProp('LIVE') !== '1') return { skipped: 'not-live' };
+    if (when === 'plans') { // 每 5 分鐘：排定時間到了的後台推播
+      const res = gs.runDuePushPlans_();
+      await flushPush();
+      return res;
+    }
     return A.sendPushAll(gs, when);
   }
 

@@ -8,6 +8,7 @@
 //   #/admin/stats     統計（見 admin-stats.js）、#/admin/history 匯入歷史資料（見 admin-history.js）
 //   #/admin/logs      操作紀錄與還原
 //   #/admin/day       名單（今天起一個月，勾日期產生文字）
+//   #/admin/push      推播（見 admin-push.js）
 (function () {
   'use strict';
 
@@ -137,6 +138,7 @@
     if (sub === 'history') return HistoryPage.show(shell('stats'), guard);
     if (sub === 'logs' && seesLogs()) return AdminPages.logs(shell('logs'), guard);
     if (sub === 'day' && seesRoster()) return AdminPages.day(shell('day'), guard);
+    if (sub === 'push' && seesRoster()) return PushAdminPage.show(shell('push'), guard);
     return showRecent();
   }
 
@@ -144,12 +146,12 @@
   function shell(active) {
     const who = Api.adminWho();
     const T = term();
-    const tabs = [['', '近期' + T], ['duties', T + '管理'], ['members', '成員'], ['groups', '分組'], ['stats', '統計'], ['logs', '操作紀錄'], ['day', '名單']];
+    const tabs = [['', '近期' + T], ['duties', T + '管理'], ['members', '成員'], ['groups', '分組'], ['stats', '統計'], ['logs', '操作紀錄'], ['day', '名單'], ['push', '📣 推播']];
     if (['總管理者', '唯讀'].indexOf(who.role) !== -1) tabs.push(['venue', '場地借用']);
     if (who.role === '總管理者') tabs.push(['accounts', '帳號']);
     if (who.role === '唯讀') tabs.splice(tabs.findIndex((t) => t[0] === 'duties'), 1); // 唯讀帳號：不顯示勤務管理
     if (!seesLogs()) tabs.splice(tabs.findIndex((t) => t[0] === 'logs'), 1); // 操作紀錄只給總管理者
-    if (!seesRoster()) tabs.splice(tabs.findIndex((t) => t[0] === 'day'), 1); // 名單：總管理者、勤務、道務、教育
+    if (!seesRoster()) ['day', 'push'].forEach((k) => tabs.splice(tabs.findIndex((t) => t[0] === k), 1)); // 名單、推播：總管理者、勤務、道務、教育
     if (who.role === '場管') tabs.splice(0, tabs.length, ['venue', '場地借用']);
     root.innerHTML = `
       <div class="admin-head">

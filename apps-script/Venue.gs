@@ -126,6 +126,7 @@ function requestVenue_(body) {
       });
     });
     appendRows_(SHEETS.VENUE, out);
+    notifyVenueAdmins_('🏠 有新的場地申請', name + '｜' + dates.slice(0, 3).map(shortDate_).join('、') + (dates.length > 3 ? ' 等 ' + dates.length + ' 天' : '') + ' ' + slots.join('、') + '｜' + purpose + '\n請到後台審核 🙏');
     appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '場地申請', '報名ID': '', '內容摘要': name + '｜' + dates.join('、') + ' ' + slots.join('、') + '｜' + purpose, '還原用的前一版資料': '' }]);
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.VENUE);
@@ -178,6 +179,7 @@ function cancelVenue_(body) {
     }));
     var now = nowString_();
     targets.forEach(function (r) { updateRow_(SHEETS.VENUE, r, { '申請取消': now }); });
+    notifyVenueAdmins_('🏠 有人申請取消場地', name + '｜' + targets.slice(0, 4).map(function (r) { return shortDate_(r['日期']) + ' ' + r['時段']; }).join('、') + (targets.length > 4 ? ' 等 ' + targets.length + ' 個時段' : '') + '\n請到後台審核 🙏');
     appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '場地申請取消', '報名ID': '', '內容摘要': name + '｜' + targets.map(function (r) { return r['日期'] + ' ' + r['時段']; }).join('、'), '還原用的前一版資料': '' }]);
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.VENUE);
@@ -237,6 +239,7 @@ function adminVenueDecide_(body) {
       patch['申請取消'] = '';
       updateRow_(SHEETS.VENUE, t, patch);
     });
+    notifyVenueApplicants_(targets, decision, note);
     appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '場地' + decision.replace('已', ''), '報名ID': '', '內容摘要': targets[0]['姓名'] + '｜' + targets.map(function (t) { return t['日期'] + ' ' + t['時段']; }).join('、') + (note ? '｜' + note : ''), '還原用的前一版資料': '' }]);
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.VENUE);

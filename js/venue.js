@@ -286,6 +286,7 @@
       root.querySelector('[data-flash]').innerHTML = `<div class="notice notice-success notice-big" role="status">
         <p><strong>🎉 已收到您的申請，感恩您！</strong></p>
         <p>${n > 1 ? `${esc(Fmt.shortDate(res.dates[0]))} 等 ${n} 天` : esc(Fmt.rocDate(res.dates[0]))}　${res.slots.map(esc).join('、')}<br>✅ 管理者同意後就會出現在行事曆上 🗓️，再請您到下面「🔍 查我的申請」看申請狀態，感謝慈悲 🙏😊</p></div>`;
+      offerNotify(root.querySelector('[data-flash]'), res.id);
       root.querySelector('[data-flash]').scrollIntoView({ behavior: 'smooth', block: 'center' });
       state.status = {};
       state.dates.clear();
@@ -351,6 +352,41 @@
     } catch (err) {
       out.innerHTML = `<p class="muted">${esc(err.message || '查詢失敗')}</p>`;
     }
+  }
+
+  /** 送出申請後：問要不要收審核結果通知（已經允許過通知的手機直接幫他登記） */
+  async function offerNotify(box, groupId) {
+    if (!groupId || !window.PushPage) return;
+    const st = PushPage.canNotify();
+    if (st === 'unsupported' || st === 'denied') return;
+    const card = document.createElement('div');
+    card.className = 'notice venue-notify';
+    box.appendChild(card);
+    const watch = async () => Api.venueWatch(await PushPage.ensureSub(), groupId);
+    if (st === 'ok' && Notification.permission === 'granted') {
+      try {
+        await watch();
+        card.innerHTML = '<p>🔔 審核結果出來時，會傳通知到這支手機給您 😊</p>';
+      } catch (e) { card.remove(); }
+      return;
+    }
+    if (st !== 'ok') {
+      card.innerHTML = `<p>🔔 想收到審核結果通知嗎？${st === 'line' ? '在 LINE 裡收不到通知，改用手機的瀏覽器開啟就可以。' : 'iPhone 要先把本網站「加到主畫面」才收得到通知。'}也可以隨時到下面「🔍 查我的申請」看結果。</p>`;
+      return;
+    }
+    card.innerHTML = `<p><strong>🔔 要收到審核結果通知嗎？</strong></p><p>管理者同意或不同意時，會傳通知到這支手機。</p>
+      <div class="push-card-actions"><button type="button" class="btn btn-primary" data-yes>好的，通知我</button><button type="button" class="btn" data-no>不用了</button></div>`;
+    card.querySelector('[data-no]').addEventListener('click', () => card.remove());
+    card.querySelector('[data-yes]').addEventListener('click', async (ev) => {
+      ev.target.disabled = true;
+      ev.target.textContent = '設定中⋯';
+      try {
+        await watch();
+        card.innerHTML = '<p>✅ 好的，審核結果出來時會通知您 😊</p>';
+      } catch (e) {
+        card.innerHTML = `<p class="form-error">${esc(e.message || '不好意思，沒有設定成功，可以到「查我的申請」看結果 🙏')}</p>`;
+      }
+    });
   }
 
   /** 查我的申請的結果：還沒到的（審核中、已借到）可以勾起來「申請取消」（管理者同意才算取消） */

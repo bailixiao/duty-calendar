@@ -9,6 +9,10 @@
   const esc = Fmt.esc;
   const ASK_KEY = 'duty-calendar:push-ask-later';
   const ASK_AGAIN_MS = 14 * 24 * 3600 * 1000;
+  // 只為了借場地結果、管理者通知而建立的訂閱，不算「開啟每日提醒」（'0'）；按了開啟提醒是 '1'
+  const DAILY_KEY = 'duty-calendar:push-daily';
+  const setDaily = (v) => { try { localStorage.setItem(DAILY_KEY, v); } catch (e) { /* 無痕模式 */ } };
+  const dailyOff = () => { try { return localStorage.getItem(DAILY_KEY) === '0'; } catch (e) { return false; } };
 
   const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const standalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
@@ -39,24 +43,43 @@
     if (isIOS() && !standalone()) return 'ios-install';
     if (!supported()) return 'unsupported';
     if (Notification.permission === 'denied') return 'denied';
-    return (await currentSub()) ? 'on' : 'off';
+    return (await currentSub()) && !dailyOff() ? 'on' : 'off';
+  }
+
+  /** 取得這支手機的推播網址（第一次會請本人允許通知）；不會開啟每日提醒 */
+  async function ensureSub() {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') throw new Error(perm === 'denied' ? '通知目前被封鎖了，麻煩您到手機的「設定 → 通知」允許本網站，謝謝您 🙏' : '您還沒有允許通知，所以沒有開啟。');
+    const reg = await registration();
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      const { publicKey } = await Api.pushKey();
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(publicKey) });
+      if (!localStorage.getItem(DAILY_KEY)) setDaily('0');
+    }
+    return sub.endpoint;
+  }
+
+  /** 能不能在這裡開通知：'ok' | 'line' | 'ios-install' | 'unsupported' | 'denied' */
+  function canNotify() {
+    if (inLine()) return 'line';
+    if (isIOS() && !standalone()) return 'ios-install';
+    if (!supported()) return 'unsupported';
+    if (Notification.permission === 'denied') return 'denied';
+    return 'ok';
   }
 
   async function enable() {
-    const perm = await Notification.requestPermission();
-    if (perm !== 'granted') throw new Error(perm === 'denied' ? '通知目前被封鎖了，麻煩您到手機的「設定 → 通知」允許本網站，謝謝您 🙏' : '您還沒有允許通知，所以提醒尚未開啟。');
-    const reg = await registration();
-    const { publicKey } = await Api.pushKey();
-    let sub = await reg.pushManager.getSubscription();
-    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(publicKey) });
-    await Api.pushSubscribe(sub.endpoint);
+    const endpoint = await ensureSub();
+    await Api.pushSubscribe(endpoint);
+    setDaily('1');
   }
 
   async function disable() {
     const sub = await currentSub();
     if (!sub) return;
     const endpoint = sub.endpoint;
-    await sub.unsubscribe();
+    setDaily('0'); // 只關每日提醒；借場地、管理者通知還是收得到
     await Api.pushUnsubscribe(endpoint).catch(() => {});
   }
 
@@ -176,5 +199,5 @@
     });
   }
 
-  window.PushPage = { openPanel, showCardIfNeeded };
+  window.PushPage = { openPanel, showCardIfNeeded, ensureSub, canNotify, currentSub };
 })();
