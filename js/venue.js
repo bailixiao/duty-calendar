@@ -29,7 +29,8 @@
       <section class="venue-step">
         <h2 class="venue-h"><span class="step">2</span>填資料</h2>
         <form class="venue-form" novalidate>
-          <label class="form-row"><span>姓名</span><input class="input" name="name" autocomplete="name" value="${esc(savedName())}" placeholder="例：王小明"></label>
+          <label class="form-row"><span>姓名</span><input class="input" name="name" autocomplete="off" value="${esc(savedName())}" placeholder="打一兩個字，下面會出現成員名單"></label>
+          <div class="suggestions" data-sug-name aria-live="polite"></div>
           <label class="form-row"><span>聯絡電話（只有管理者看得到）</span><input class="input" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="例：0912-345678"></label>
           <label class="form-row"><span>用途</span><input class="input" name="purpose" maxlength="60" placeholder="例：讀書會、家族聚會、練唱"></label>
           <label class="form-row"><span>人數（大約）</span><input class="input" name="people" inputmode="numeric" placeholder="例：15"></label>
@@ -41,9 +42,11 @@
         <h2 class="venue-h">查我的申請</h2>
         <form class="mine-form" data-mine novalidate>
           <div class="mine-row">
-            <input class="input" name="mname" autocomplete="name" placeholder="輸入申請時的姓名" value="${esc(savedName())}">
+            <input class="input" name="mname" autocomplete="off" placeholder="輸入申請時的姓名" value="${esc(savedName())}">
             <button type="submit" class="btn">查詢</button>
           </div>
+          <div class="suggestions" data-sug-mine aria-live="polite"></div>
+          <p class="hint">打一個字就會提示成員名單上的名字，點一下就查。</p>
         </form>
         <div data-mine-result aria-live="polite"></div>
       </section>
@@ -56,8 +59,47 @@
       loadSlots();
     });
     root.querySelector('.venue-form').addEventListener('submit', submit);
-    root.querySelector('[data-mine]').addEventListener('submit', (ev) => { ev.preventDefault(); mine(ev.target.elements.mname.value); });
+    root.querySelector('[data-mine]').addEventListener('submit', (ev) => { ev.preventDefault(); clearSug(root.querySelector('[data-sug-mine]')); mine(ev.target.elements.mname.value); });
+    // 姓名欄：跟報名一樣提示成員名單
+    const nameInput = root.querySelector('.venue-form').elements.name;
+    suggest(nameInput, root.querySelector('[data-sug-name]'), () => {});
+    const mineInput = root.querySelector('[data-mine]').elements.mname;
+    suggest(mineInput, root.querySelector('[data-sug-mine]'), (n) => mine(n));
     loadSlots();
+  }
+
+  // ---- 成員名單提示（同 mine.js）：打字後列出名字含這幾個字的成員，點了帶入 ----
+  const sugCache = new Map();
+  function clearSug(box) { if (box) box.innerHTML = ''; }
+  function suggest(input, box, onPick) {
+    let timer = null;
+    let seq = 0;
+    const draw = (list) => {
+      const q = input.value.replace(/[\s　]+/g, '');
+      const items = list.filter((m) => m.name !== q).slice(0, 8);
+      box.innerHTML = items.map((m) => `<button type="button" class="suggestion" data-suggest="${esc(m.name)}">${esc(m.name)}</button>`).join('');
+    };
+    input.addEventListener('input', () => {
+      clearTimeout(timer);
+      const q = input.value.replace(/[\s　]+/g, '');
+      if (!q) { clearSug(box); return; }
+      if (sugCache.has(q)) { draw(sugCache.get(q)); return; }
+      timer = setTimeout(async () => {
+        const t = ++seq;
+        try {
+          const res = await Api.searchMembers(q);
+          sugCache.set(q, res.members);
+          if (t === seq) draw(res.members);
+        } catch (e) { /* 提示失敗就算了，照樣可以自己打完整名字 */ }
+      }, 250);
+    });
+    box.addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-suggest]');
+      if (!b) return;
+      input.value = b.dataset.suggest;
+      clearSug(box);
+      onPick(b.dataset.suggest);
+    });
   }
 
   async function loadSlots() {
@@ -141,8 +183,9 @@
 
   async function mine(name) {
     const out = root.querySelector('[data-mine-result]');
-    name = String(name || '').trim();
+    name = String(name || '').replace(/[\s　]+/g, '');
     if (!name) { out.innerHTML = ''; return; }
+    if (name.length < 2) { out.innerHTML = '<p class="muted">請輸入完整的名字（至少 2 個字），或從提示點名字</p>'; return; }
     out.innerHTML = '<p class="muted">查詢中⋯</p>';
     try {
       const res = await Api.myVenue(name);
