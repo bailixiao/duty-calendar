@@ -42,6 +42,14 @@
     return span;
   }
 
+  // 卡片或表格：記住這台裝置選的；沒選過的話手機用卡片、電腦用表格
+  const MODE_KEY = 'duty-calendar:goal-mode';
+  function mode() {
+    try { const v = localStorage.getItem(MODE_KEY); if (v === 'cards' || v === 'table') return v; } catch (e) { /* 無痕模式 */ }
+    return window.matchMedia && window.matchMedia('(max-width: 719px)').matches ? 'cards' : 'table';
+  }
+  function setMode(v) { try { localStorage.setItem(MODE_KEY, v); } catch (e) { /* 無痕模式 */ } }
+
   function mount(el, year, opts) {
     const canEdit = !!opts.canEdit;
     let data = null;
@@ -141,9 +149,10 @@
           </table>
         </div>` : `
         ${bars ? `<ul class="goal-bars">${bars}</ul>` : ''}
+        <div class="seg goal-mode no-print"><label class="seg-item"><input type="radio" name="goalMode" value="cards"${mode() === 'cards' ? ' checked' : ''}><span>卡片</span></label><label class="seg-item"><input type="radio" name="goalMode" value="table"${mode() === 'table' ? ' checked' : ''}><span>表格</span></label></div>
         <p class="goal-legend"><span class="goal-key is-zero">還沒開始</span><span class="goal-key is-part">做到一部分</span><span class="goal-key is-done">達成 ✓</span><span class="muted">格子裡是「目前／目標」</span></p>
-        <ul class="goal-cards">${cards}</ul>
-        <div class="goal-wrap goal-view-wrap">
+        <ul class="goal-cards"${mode() === 'cards' ? '' : ' hidden'}>${cards}</ul>
+        <div class="goal-wrap goal-view-wrap"${mode() === 'table' ? '' : ' hidden'}>
           <table class="goal-table goal-view">
             <thead>
               <tr><th class="goal-sticky">佛堂</th>${items.map((k) => `<th>${esc(k)}</th>`).join('')}<th>立愿</th></tr>
@@ -186,6 +195,7 @@
     }
 
     function bind() {
+      el.querySelectorAll('input[name=goalMode]').forEach((r) => r.addEventListener('change', () => { setMode(r.value); draw(); }));
       const q = (sel) => el.querySelector(sel);
       if (q('[data-edit]')) q('[data-edit]').addEventListener('click', () => { flash = ''; editing = JSON.parse(JSON.stringify(data.rows)); draw(); });
       if (!editing) return;

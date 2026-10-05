@@ -7,7 +7,7 @@
   const esc = Fmt.esc;
   const C = window.StatsCalc;
   const TREND_COUNT = { month: 12, quarter: 8, year: 5 };
-  const state = { unit: 'month', period: null, rankKind: 'all', rankAll: false, category: '全部', eduCourse: {}, eduRankAll: false, eduPick: {} };
+  const state = { unit: 'month', period: null, rankKind: 'all', rankAll: false, category: '勤務', eduCourse: {}, eduRankAll: false, eduPick: {} };
 
   function show(body, guard) {
     AdminPage.swr('stats', () => Api.admin('adminStats', {}, true), (data, stale) => {
@@ -82,7 +82,7 @@
       ${AdminPage.staleNote(stale)}
       <div class="stats" data-stats>
         <div class="stats-top no-print">
-          ${canPick ? `<div class="seg stats-cats">${['全部', '勤務', '道務', '教育'].map((c) => `<label class="seg-item"><input type="radio" name="scat" value="${c}"${c === state.category ? ' checked' : ''}><span>${c}</span></label>`).join('')}</div>` : `<p class="stats-cat-fixed">「${esc(Api.adminWho().role)}」類的統計</p>`}
+          ${canPick ? `<div class="seg stats-cats">${['勤務', '道務', '教育'].map((c) => `<label class="seg-item"><input type="radio" name="scat" value="${c}"${c === state.category ? ' checked' : ''}><span>${Fmt.catLabel(c)}</span></label>`).join('')}</div>` : `<p class="stats-cat-fixed">「${esc(Api.adminWho().role)}」類的統計</p>`}
           <div class="seg stats-units">${[['month', '月'], ['quarter', '季'], ['year', '年']].map(([v, l]) =>
             `<label class="seg-item"><input type="radio" name="unit" value="${v}"${v === p.unit ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div>
         </div>
@@ -241,7 +241,7 @@
       ${AdminPage.staleNote(stale)}
       <div class="stats" data-stats>
         <div class="stats-top no-print">
-          ${canPick ? `<div class="seg stats-cats">${['全部', '勤務', '道務', '教育'].map((c) => `<label class="seg-item"><input type="radio" name="scat" value="${c}"${c === state.category ? ' checked' : ''}><span>${c}</span></label>`).join('')}</div>` : `<p class="stats-cat-fixed">「${cat}」類的統計</p>`}
+          ${canPick ? `<div class="seg stats-cats">${['勤務', '道務', '教育'].map((c) => `<label class="seg-item"><input type="radio" name="scat" value="${c}"${c === state.category ? ' checked' : ''}><span>${Fmt.catLabel(c)}</span></label>`).join('')}</div>` : `<p class="stats-cat-fixed">「${cat}」類的統計</p>`}
           <div class="seg stats-units">${[['month', '月'], ['quarter', '季'], ['year', '年']].map(([v, l]) =>
             `<label class="seg-item"><input type="radio" name="unit" value="${v}"${v === p.unit ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div>
         </div>
