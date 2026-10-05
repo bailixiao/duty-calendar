@@ -498,3 +498,26 @@ test('重複檢查：同類別、同名、同日才算重複；道務的闡道�
   assert.equal(call('adminCreateDuties', { duties: [{ name: '闡道班', category: '道務', nature: '課程', start: '2026-11-08', positions: [{ name: '參加', min: '0' }] }] }).ok, true);
   assert.equal(call('adminCreateDuties', { duties: [{ name: '闡道班', start: '2026-11-08', positions: [{ name: '烹飪' }] }] }).error.code, 'DUPLICATE');
 });
+
+test('道務：講師、帶班、助理帶班（只有道務存）；安排整年的人員一次改；統計堂次帶人員', () => {
+  const { createEnv } = require('./env');
+  const env = createEnv(Date.UTC(2026, 9, 30, 2, 0, 0));
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const call = (action, body) => env.post(Object.assign({ action, token }, body));
+  const c = call('adminCreateDuties', { duties: [
+    { name: '初一十五班', category: '道務', nature: '課程', start: '2026-10-10', lecturers: '測試甲', leaders: '測試乙', assistants: '測試丙', positions: [{ name: '參加', min: '0' }] },
+    { name: '初一十五班', category: '道務', nature: '課程', start: '2026-10-25', positions: [{ name: '參加', min: '0' }] },
+    { name: '打掃', start: '2026-10-11', lecturers: '不該存', positions: [{ name: '打掃' }] }
+  ] });
+  assert.equal(c.ok, true, JSON.stringify(c.error));
+  const [a, b, x] = c.data.ids;
+  const da = env.get({ action: 'getDuty', id: a }).data;
+  assert.deepEqual([da.lecturers, da.leaders, da.assistants], ['測試甲', '測試乙', '測試丙']);
+  assert.equal(env.get({ action: 'getDuty', id: x }).data.lecturers, '');
+  const r = call('adminSetTeachers', { items: [{ id: b, leaders: '測試丙', assistants: '測試丁，測試戊' }] });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  const db = env.get({ action: 'getDuty', id: b }).data;
+  assert.deepEqual([db.leaders, db.assistants, db.lecturers], ['測試丙', '測試丁、測試戊', '']);
+  const sess = call('adminStats', {}).data.eduSessions.filter((s) => s.name === '初一十五班');
+  assert.deepEqual(sess.map((s) => [s.date, s.category, s.leaders]), [['2026-10-10', '道務', '測試乙'], ['2026-10-25', '道務', '測試丙']]);
+});

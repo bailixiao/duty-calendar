@@ -52,17 +52,21 @@ function adminStats_() {
 }
 
 /**
- * 教育的課程堂次（今天以前、性質「課程」，沒人報名的也列）：[{ date, dutyId, name, series, teachers, category }]
+ * 教育的課程、道務的課程與法會（今天以前，沒人報名的也列）：[{ date, dutyId, name, series, nature, category, teachers, lecturers, leaders, assistants }]
  * 同名（seriesKey_）的多筆＝同一個課程，每個日期一堂。給教育統計算堂數、出缺勤表、師資。
  */
 function eduSessions_() {
   var today = todayString_();
   var out = [];
   readTableCached_(SHEETS.DUTIES).forEach(function (d) {
-    if (!d['勤務ID'] || dutyCategory_(d) !== '教育' || d['性質'] !== '課程' || d['模式'] === '公告型') return;
+    var cat = dutyCategory_(d);
+    // 教育：課程；道務：課程、法會
+    var ok = (cat === '教育' && d['性質'] === '課程') || (cat === '道務' && (d['性質'] === '課程' || d['性質'] === '法會'));
+    if (!d['勤務ID'] || !ok || d['模式'] === '公告型') return;
     datesInRange_(d['開始日'], d['結束日'] || d['開始日']).forEach(function (date) {
       if (date > today) return;
-      out.push({ date: date, dutyId: d['勤務ID'], name: d['名稱'], series: seriesKey_(d['名稱']) || d['名稱'], teachers: d['師資'] || '', category: '教育' });
+      out.push({ date: date, dutyId: d['勤務ID'], name: d['名稱'], series: seriesKey_(d['名稱']) || d['名稱'], nature: d['性質'], category: cat,
+        teachers: d['師資'] || '', lecturers: d['講師'] || '', leaders: d['帶班'] || '', assistants: d['助理帶班'] || '' });
     });
   });
   return out.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });

@@ -7,6 +7,14 @@
 
   const strokeCompare = new Intl.Collator('zh-Hant-TW-u-co-stroke').compare;
   const splitTeachers = (t) => String(t || '').split(/[、，,\s]+/).filter(Boolean);
+  // 每個類別算哪些性質、負責人員有哪些角色
+  const NATURES = { 教育: ['課程'], 道務: ['課程', '法會'] };
+  const ROLES = { 教育: [['teachers', '師資']], 道務: [['lecturers', '講師'], ['leaders', '帶班'], ['assistants', '助理帶班']] };
+  const rolesOf = (s, category) => {
+    const out = {};
+    (ROLES[category] || ROLES['教育']).forEach(([k, label]) => { out[label] = splitTeachers(s[k]); });
+    return out;
+  };
 
   /**
    * inPeriod(date) → 是否在期間內。回傳
@@ -14,30 +22,33 @@
    *               present, absent, avg, rate, teachers: [], perStudent: { 名字: 出席堂數 }, perSession: { key: 出席人數 } }]
    *   teachers: [{ name, total, courses: [{ name, count }] }]
    */
-  function summarize(eduSessions, events, inPeriod) {
+  function summarize(eduSessions, events, inPeriod, category) {
+    category = category || '教育';
     const byKey = {};
     (events || []).forEach((e) => {
-      if ((e.category || '勤務') === '教育') byKey[e.dutyId + '|' + e.date] = e;
+      if ((e.category || '勤務') === category) byKey[e.dutyId + '|' + e.date] = e;
     });
     const map = new Map();
     const course = (series, name) => {
       if (!map.has(series)) map.set(series, { name, sessions: [], keys: new Set() });
       return map.get(series);
     };
-    (eduSessions || []).filter((s) => inPeriod(s.date)).forEach((s) => {
+    (eduSessions || []).filter((s) => (s.category || '教育') === category && inPeriod(s.date)).forEach((s) => {
       const c = course(s.series || s.name, s.name);
       const key = s.dutyId + '|' + s.date;
       if (c.keys.has(key)) return;
       c.keys.add(key);
-      c.sessions.push({ key, date: s.date, dutyId: s.dutyId, teachers: splitTeachers(s.teachers) });
+      const roles = rolesOf(s, category);
+      c.sessions.push({ key, date: s.date, dutyId: s.dutyId, roles, teachers: [...new Set([].concat(...Object.values(roles)))] });
     });
     // 堂次清單沒有、但有出勤資料的（例如舊資料性質不是課程）：只收教育的「課程」
-    Object.values(byKey).filter((e) => e.nature === '課程' && inPeriod(e.date)).forEach((e) => {
+    Object.values(byKey).filter((e) => NATURES[category].indexOf(e.nature) !== -1 && inPeriod(e.date)).forEach((e) => {
       const c = course(e.series || e.name, e.name);
       const key = e.dutyId + '|' + e.date;
       if (c.keys.has(key)) return;
       c.keys.add(key);
-      c.sessions.push({ key, date: e.date, dutyId: e.dutyId, teachers: splitTeachers(e.teachers) });
+      const roles = rolesOf(e, category);
+      c.sessions.push({ key, date: e.date, dutyId: e.dutyId, roles, teachers: [...new Set([].concat(...Object.values(roles)))] });
     });
 
     const courses = [...map.values()].map((c) => {
@@ -70,19 +81,24 @@
     return { courses, teachers: teachersOf(courses) };
   }
 
-  /** 各課程負責師資：[{ name, total, courses: [{ name, count }] }]（只算給的這些課程） */
+  /**
+   * 負責人員（只算給的這些課程）：[{ name, total（參與的堂數）, byRole: { 角色: 次數 }, courses: [{ name, count }] }]
+   * 教育只有「師資」；道務分講師、帶班、助理帶班（看得出誰在學習帶班）。
+   */
   function teachersOf(courses) {
-    const tmap = new Map();
-    courses.forEach((c) => c.sessions.forEach((s) => s.teachers.forEach((t) => {
-      if (!tmap.has(t)) tmap.set(t, new Map());
-      const m = tmap.get(t);
-      m.set(c.name, (m.get(c.name) || 0) + 1);
-    })));
-    return [...tmap.entries()].map(([name, m]) => ({
-      name,
-      total: [...m.values()].reduce((a, b) => a + b, 0),
-      courses: [...m.entries()].map(([n, count]) => ({ name: n, count }))
-    })).sort((a, b) => b.total - a.total || strokeCompare(a.name, b.name));
+    const map = new Map();
+    courses.forEach((c) => c.sessions.forEach((s) => {
+      const roles = s.roles || { 師資: s.teachers };
+      const seen = new Set();
+      Object.keys(roles).forEach((role) => roles[role].forEach((t) => {
+        if (!map.has(t)) map.set(t, { name: t, total: 0, byRole: {}, cm: new Map() });
+        const r = map.get(t);
+        r.byRole[role] = (r.byRole[role] || 0) + 1;
+        if (!seen.has(t)) { seen.add(t); r.total++; r.cm.set(c.name, (r.cm.get(c.name) || 0) + 1); }
+      }));
+    }));
+    return [...map.values()].map((r) => ({ name: r.name, total: r.total, byRole: r.byRole, courses: [...r.cm.entries()].map(([n, count]) => ({ name: n, count })) }))
+      .sort((a, b) => b.total - a.total || strokeCompare(a.name, b.name));
   }
 
   /**

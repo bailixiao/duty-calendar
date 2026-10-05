@@ -44,7 +44,8 @@ function adminDutyForEdit_(body) {
     signups: Object.keys(counts).reduce(function (n, k) { return n + counts[k]; }, 0),
     siblings: duties
       .filter(function (d) { return d['勤務ID'] !== duty['勤務ID'] && seriesKey_(d['名稱']) === seriesKey_(duty['名稱']); })
-      .map(function (d) { return { id: d['勤務ID'], name: d['名稱'], start: d['開始日'], end: d['結束日'] || d['開始日'], location: d['地點'], group: d['負責組'], category: dutyCategory_(d), signups: signupCount[d['勤務ID']] || 0, teachers: d['師資'] || '' }; })
+      .map(function (d) { return { id: d['勤務ID'], name: d['名稱'], start: d['開始日'], end: d['結束日'] || d['開始日'], location: d['地點'], group: d['負責組'], category: dutyCategory_(d), signups: signupCount[d['勤務ID']] || 0, teachers: d['師資'] || '',
+        lecturers: d['講師'] || '', leaders: d['帶班'] || '', assistants: d['助理帶班'] || '', description: d['說明'] || '' }; })
       .sort(function (a, b) { return a.start < b.start ? -1 : 1; }),
     groups: groupList_()
   };
@@ -256,23 +257,32 @@ function adminDeleteDuty_(body) {
  * 只能改教育的勤務；任何一筆不通過就全部不寫入。
  */
 function adminSetTeachers_(body) {
+  // 教育：teachers（師資）；道務：lecturers（講師）、leaders（帶班）、assistants（助理帶班），沒帶的欄位不動
+  var KEYS = { teachers: '師資', lecturers: '講師', leaders: '帶班', assistants: '助理帶班' };
+  var ALLOW = { 教育: ['teachers'], 道務: ['lecturers', 'leaders', 'assistants'] };
   var items = Array.isArray(body.items) ? body.items : [];
-  if (!items.length) throw new ApiError_('BAD_REQUEST', '沒有要修改的師資');
+  if (!items.length) throw new ApiError_('BAD_REQUEST', '沒有要修改的人員');
   if (items.length > MAX_CREATE_DUTIES) throw new ApiError_('BAD_REQUEST', '一次最多 ' + MAX_CREATE_DUTIES + ' 堂');
   return withSignupLock_(function () {
     var duties = readTable_(SHEETS.DUTIES);
     var plans = items.map(function (it) {
       var d = findById_(duties, '勤務ID', it.id);
-      if (!d) throw new ApiError_('NOT_FOUND', '找不到其中一堂課，可能已被刪除，請重新整理');
-      if (dutyCategory_(d) !== '教育') throw new ApiError_('BAD_REQUEST', '只有教育的課程有師資');
-      var t = cleanText_(it.teachers).split(/[、，,／\/\s]+/).filter(Boolean).join('、');
-      if (t.length > 200) throw new ApiError_('BAD_REQUEST', shortDate_(d['開始日']) + '：師資太長（最多 200 字）');
-      return { row: d, teachers: t };
-    }).filter(function (p) { return p.teachers !== (p.row['師資'] || ''); });
-    plans.forEach(function (p) { updateRow_(SHEETS.DUTIES, p.row, { '師資': p.teachers }); });
+      if (!d) throw new ApiError_('NOT_FOUND', '找不到其中一堂，可能已被刪除，請重新整理');
+      var allow = ALLOW[dutyCategory_(d)];
+      if (!allow) throw new ApiError_('BAD_REQUEST', '只有教育、道務有負責人員');
+      var changes = {};
+      allow.forEach(function (k) {
+        if (it[k] === undefined) return;
+        var v = cleanNames_(it[k]);
+        if (v.length > 200) throw new ApiError_('BAD_REQUEST', shortDate_(d['開始日']) + '：' + KEYS[k] + '太長（最多 200 字）');
+        if (v !== (d[KEYS[k]] || '')) changes[KEYS[k]] = v;
+      });
+      return { row: d, changes: changes };
+    }).filter(function (p) { return Object.keys(p.changes).length; });
+    plans.forEach(function (p) { updateRow_(SHEETS.DUTIES, p.row, p.changes); });
     if (plans.length) {
-      writeDutyLog_('修改勤務', plans[0].row['名稱'] + '｜安排師資 ' + plans.length + ' 堂：' + plans.map(function (p) {
-        return shortDate_(p.row['開始日']) + ' ' + (p.teachers || '（空白）');
+      writeDutyLog_('修改勤務', plans[0].row['名稱'] + '｜安排人員 ' + plans.length + ' 堂：' + plans.map(function (p) {
+        return shortDate_(p.row['開始日']) + ' ' + Object.keys(p.changes).map(function (k) { return k + ' ' + (p.changes[k] || '（空白）'); }).join('，');
       }).join('、'), null);
     }
     SpreadsheetApp.flush();

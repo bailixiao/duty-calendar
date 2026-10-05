@@ -16,14 +16,23 @@ var DUTY_FIELD_MAP_ = {
   name: '名稱', nature: '性質', mode: '模式', start: '開始日', end: '結束日',
   startTime: '開始時間', endTime: '結束時間', location: '地點',
   groupType: '分組類型', group: '負責組', attire: '服裝', description: '說明', deadline: '報名截止日', multi: '可兼任', category: '類別', dm: 'DM',
-  layout: '版面', stages: '階段', teachers: '師資', merge: '合併顯示'
+  layout: '版面', stages: '階段', teachers: '師資', merge: '合併顯示',
+  lecturers: '講師', leaders: '帶班', assistants: '助理帶班'
 };
+
+// 道務的負責人員欄位（統計「負責人員」用）
+var STAFF_FIELDS_ = ['講師', '帶班', '助理帶班'];
+
+/** 人名清單：逗號、頓號、空白都當分隔，統一用「、」 */
+function cleanNames_(v) {
+  return cleanText_(v).split(/[、，,／\/\s]+/).filter(Boolean).join('、');
+}
 
 /**
  * 同名勤務一次改可以套用的欄位（日期不行；負責組要和分組類型一起改）。
  * 「同名」以 seriesKey_ 比對，所以每月名稱不同的「九月初一拜香輪值」「十月初一拜香輪值」也算同名。
  */
-var BULK_FIELDS_ = ['name', 'nature', 'mode', 'time', 'location', 'group', 'attire', 'description', 'positions', 'teachers', 'dm', 'merge'];
+var BULK_FIELDS_ = ['name', 'nature', 'mode', 'time', 'location', 'group', 'attire', 'description', 'positions', 'teachers', 'dm', 'merge', 'staff'];
 
 function cleanText_(v) {
   return String(v === undefined || v === null ? '' : v).replace(/^[\s　]+|[\s　]+$/g, '');
@@ -101,6 +110,10 @@ function normalizeDutyInput_(input, ctx) {
   duty['師資'] = duty['類別'] === '教育' ? duty['師資'].split(/[、，,／\/\s]+/).filter(Boolean).join('、') : '';
   if (duty['師資'].length > 200) errors.push('師資太長（最多 200 字）');
   if (duty['合併顯示'].length > 20) errors.push('「和哪個項目合併顯示」最多 20 字');
+  STAFF_FIELDS_.forEach(function (k) {
+    duty[k] = duty['類別'] === '道務' ? cleanNames_(duty[k]) : '';
+    if (duty[k].length > 200) errors.push(k + '太長（最多 200 字）');
+  });
   if (duty['階段'].length > 1000) errors.push('階段太長（最多 1000 字）');
 
   if (!isDateString_(duty['開始日'])) errors.push('開始日格式錯誤');
@@ -224,6 +237,9 @@ function mergeBulkInput_(target, targetPositions, sourceOldName, sourceOldPositi
     stages: target['階段'] || '',
     teachers: pick('teachers', '師資'),
     merge: pick('merge', '合併顯示'),
+    lecturers: pick('staff', '講師'),
+    leaders: pick('staff', '帶班'),
+    assistants: pick('staff', '助理帶班'),
     multi: has('positions') ? src['可兼任'] : target['可兼任'] // 可兼任跟著了愿項目一起改
   };
 

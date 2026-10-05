@@ -184,6 +184,9 @@ function dutyToJson_(d, positions) {
     layout: d['版面'] === '職司表' ? '職司表' : '',
     teachers: d['師資'] || '', // 教育課程的負責師資（報名頁也顯示）
     merge: d['合併顯示'] || '', // 和同一天名稱含這幾個字的項目合在一起顯示（例：拜香輪值）
+    lecturers: d['講師'] || '', // 道務的負責人員（報名頁顯示講師、帶班）
+    leaders: d['帶班'] || '',
+    assistants: d['助理帶班'] || '',
     mode: d['模式'] || '報名型',
     deadline: d['報名截止日'] || '',
     multi: d['可兼任'] === '是',

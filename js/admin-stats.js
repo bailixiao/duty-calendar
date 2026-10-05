@@ -7,7 +7,7 @@
   const esc = Fmt.esc;
   const C = window.StatsCalc;
   const TREND_COUNT = { month: 12, quarter: 8, year: 5 };
-  const state = { unit: 'month', period: null, rankKind: 'all', rankAll: false, category: '全部', eduCourse: '', eduRankAll: false, eduPick: [] };
+  const state = { unit: 'month', period: null, rankKind: 'all', rankAll: false, category: '全部', eduCourse: {}, eduRankAll: false, eduPick: {} };
 
   function show(body, guard) {
     AdminPage.swr('stats', () => Api.admin('adminStats', {}, true), (data, stale) => {
@@ -57,7 +57,9 @@
     // 類別：勤務／道務／教育帳號只拿得到自己類別的資料；總管理者、唯讀可以切換
     const canPick = ['總管理者', '唯讀'].indexOf(Api.adminWho().role) !== -1;
     // 教育：改成以課程為單位的統計
-    if (canPick ? state.category === '教育' : Api.adminWho().role === '教育') return renderEdu(body, guard, data, stale, canPick);
+    // 教育、道務：改成以課程（道務含法會）為單位的統計
+    const eduCat = canPick ? state.category : Api.adminWho().role;
+    if (eduCat === '教育' || eduCat === '道務') return renderEdu(body, guard, data, stale, canPick, eduCat);
     const ev = canPick && state.category !== '全部' ? data.events.filter((e) => (e.category || '勤務') === state.category) : data.events;
     const p = state.period;
     // 本期還沒過完時，比較期間只算到相同天數（見 StatsCalc.compare）
@@ -205,29 +207,40 @@
     body.querySelector('[data-sheet]').addEventListener('click', () => updateSheet(body, guard, p.year));
   }
 
-  /** 教育的統計：以課程為單位（各課程學生量、出缺勤表、負責師資） */
-  function renderEdu(body, guard, data, stale, canPick) {
+  // 教育、道務統計的用詞
+  const EDU_LABELS = {
+    教育: { item: '課程', unit: '堂', person: '學生', staff: '師資', staffTitle: '各課程負責師資', pick: '選課程',
+      empty: '這段期間沒有課程（教育類、性質「課程」）', noStaff: '還沒有填師資。新增或編輯教育的課程時，在「師資」欄填上負責的師資。' },
+    道務: { item: '項目', unit: '場', person: '參與者', staff: '負責人員', staffTitle: '負責人員（講師・帶班・助理帶班）', pick: '選項目',
+      empty: '這段期間沒有道務的課程或法會', noStaff: '還沒有填講師、帶班、助理帶班。在道務的編輯畫面填寫，或用「安排整年的人員」一次排好。' }
+  };
+
+  /** 教育、道務的統計：以課程（道務也含法會）為單位（參與量、出缺勤表、出席排行、負責人員） */
+  function renderEdu(body, guard, data, stale, canPick, cat) {
+    const L = EDU_LABELS[cat];
     const p = state.period;
     const nowP = C.periodOf(p.unit, data.today);
     const atLatest = p.year === nowP.year && p.n === nowP.n;
-    const r = EduStats.summarize(data.eduSessions || [], data.events, (d) => C.contains(p, d));
+    const r = EduStats.summarize(data.eduSessions || [], data.events, (d) => C.contains(p, d), cat);
     const allCourses = r.courses;
-    // 選課程：沒勾＝全部；勾了就只算勾的（卡片、學生量、出缺勤、排行、師資都跟著）
-    const picked = state.eduPick.filter((n) => allCourses.some((c) => c.name === n));
+    // 選課程：沒勾＝全部；勾了就只算勾的（卡片、參與量、出缺勤、排行、人員都跟著）
+    const pickList = state.eduPick[cat] || [];
+    const picked = pickList.filter((n) => allCourses.some((c) => c.name === n));
     const courses = picked.length ? allCourses.filter((c) => picked.indexOf(c.name) !== -1) : allCourses;
     const teacherList = EduStats.teachersOf(courses);
-    const cur = courses.find((c) => c.name === state.eduCourse) || courses[0];
+    const cur = courses.find((c) => c.name === state.eduCourse[cat]) || courses[0];
     const students = new Set(courses.flatMap((c) => c.students));
     const present = courses.reduce((n, c) => n + c.present, 0);
     const absent = courses.reduce((n, c) => n + c.absent, 0);
     const pctText = (v) => (v === null ? '—' : Math.round(v * 100) + '%');
     const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+    const roleText = (t) => Object.keys(t.byRole).map((k) => `${k} ${t.byRole[k]}`).join('・');
 
     body.innerHTML = `
       ${AdminPage.staleNote(stale)}
       <div class="stats" data-stats>
         <div class="stats-top no-print">
-          ${canPick ? `<div class="seg stats-cats">${['全部', '勤務', '道務', '教育'].map((c) => `<label class="seg-item"><input type="radio" name="scat" value="${c}"${c === state.category ? ' checked' : ''}><span>${c}</span></label>`).join('')}</div>` : '<p class="stats-cat-fixed">「教育」類的統計</p>'}
+          ${canPick ? `<div class="seg stats-cats">${['全部', '勤務', '道務', '教育'].map((c) => `<label class="seg-item"><input type="radio" name="scat" value="${c}"${c === state.category ? ' checked' : ''}><span>${c}</span></label>`).join('')}</div>` : `<p class="stats-cat-fixed">「${cat}」類的統計</p>`}
           <div class="seg stats-units">${[['month', '月'], ['quarter', '季'], ['year', '年']].map(([v, l]) =>
             `<label class="seg-item"><input type="radio" name="unit" value="${v}"${v === p.unit ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div>
         </div>
@@ -239,29 +252,29 @@
         ${atLatest ? '' : `<p class="no-print stats-back"><button type="button" class="btn btn-small" data-latest>回到本${C.UNIT_NAME[p.unit]}</button></p>`}
 
         ${allCourses.length > 1 ? `<div class="edu-pick no-print">
-          <span class="edu-pick-label">選課程：</span>
+          <span class="edu-pick-label">${L.pick}：</span>
           <button type="button" class="edu-pick-btn${picked.length ? '' : ' is-on'}" data-pick-all>全部</button>
           ${allCourses.map((c) => `<button type="button" class="edu-pick-btn${picked.indexOf(c.name) !== -1 ? ' is-on' : ''}" data-pick="${esc(c.name)}">${picked.indexOf(c.name) !== -1 ? '✓ ' : ''}${esc(c.name)}</button>`).join('')}
         </div>${picked.length ? `<p class="stats-note">只看：${picked.map(esc).join('、')}</p>` : ''}` : ''}
 
         <div class="stat-cards">
-          <div class="stat-card"><span class="stat-label">課程</span><span class="stat-num">${courses.length}</span><span class="stat-hint">同名的課算同一個課程</span></div>
-          <div class="stat-card"><span class="stat-label">上課堂數</span><span class="stat-num">${courses.reduce((n, c) => n + c.sessions.length, 0)}</span><span class="stat-hint">只算今天以前</span></div>
-          <div class="stat-card"><span class="stat-label">學生（不重複）</span><span class="stat-num">${students.size}</span><span class="stat-hint">同一人只算 1 位，不含陪同</span></div>
+          <div class="stat-card"><span class="stat-label">${L.item}</span><span class="stat-num">${courses.length}</span><span class="stat-hint">同名的算同一個${L.item}</span></div>
+          <div class="stat-card"><span class="stat-label">${cat === '教育' ? '上課堂數' : '場次'}</span><span class="stat-num">${courses.reduce((n, c) => n + c.sessions.length, 0)}</span><span class="stat-hint">只算今天以前</span></div>
+          <div class="stat-card"><span class="stat-label">${L.person}（不重複）</span><span class="stat-num">${students.size}</span><span class="stat-hint">同一人只算 1 位，不含陪同</span></div>
           <div class="stat-card"><span class="stat-label">出席率</span><span class="stat-num">${pctText(present + absent ? present / (present + absent) : null)}</span><span class="stat-hint">出席 ${present} 人次・未到 ${absent} 人次</span></div>
         </div>
 
         <section class="stats-section">
-          <h3 class="admin-sub">各課程學生量<span class="h2-sub">點課程看出缺勤表</span></h3>
+          <h3 class="admin-sub">各${L.item}${L.person}量<span class="h2-sub">點${L.item}看出缺勤表</span></h3>
           ${courses.length ? `<div class="edu-table-wrap"><table class="edu-table">
-            <thead><tr><th>課程</th><th>堂數</th><th>學生</th><th>平均每堂</th><th>出席率</th><th>師資</th></tr></thead>
+            <thead><tr><th>${L.item}</th><th>${L.unit}數</th><th>${L.person}</th><th>平均每${L.unit}</th><th>出席率</th><th>${L.staff}</th></tr></thead>
             <tbody>${courses.map((c, i) => `
               <tr class="${c === cur ? 'is-current' : ''}">
                 <th scope="row"><button type="button" class="link-btn edu-course" data-course="${i}">${esc(c.name)}</button></th>
                 <td>${c.sessions.length}</td><td>${c.students.length} 人</td><td>${c.avg} 人</td><td>${pctText(c.rate)}</td>
                 <td class="edu-teachers">${c.teachers.length ? c.teachers.map(esc).join('、') : '<span class="muted">未填</span>'}</td>
               </tr>`).join('')}</tbody>
-          </table></div>` : '<p class="panel-empty">這段期間沒有課程（教育類、性質「課程」）</p>'}
+          </table></div>` : `<p class="panel-empty">${L.empty}</p>`}
         </section>
 
         ${cur ? `
@@ -274,37 +287,38 @@
                 const v = cur.grid[n][s.key] || '';
                 return `<td class="${v === '✓' ? 'is-here' : v === '✗' ? 'is-away' : ''}">${v}</td>`;
               }).join('')}<td class="edu-sum">${cur.perStudent[n]}/${cur.sessions.length}</td></tr>`).join('')}</tbody>
-            <tfoot><tr><th class="edu-sticky">每堂出席</th>${cur.sessions.map((s) => `<td>${cur.perSession[s.key]}</td>`).join('')}<td></td></tr></tfoot>
+            <tfoot><tr><th class="edu-sticky">每${L.unit}出席</th>${cur.sessions.map((s) => `<td>${cur.perSession[s.key]}</td>`).join('')}<td></td></tr></tfoot>
           </table></div>
-          <div class="admin-actions no-print"><button type="button" class="btn" data-copy-grid>複製出缺勤表（貼到試算表或 LINE）</button></div>` : '<p class="muted">這個課程這段期間還沒有人報名</p>'}
-          <p class="hint">沒來的人：到後台這堂課的報名名單按「改未到」；沒報名但有來的人：按「補登」。</p>
+          <div class="admin-actions no-print"><button type="button" class="btn" data-copy-grid>複製出缺勤表（貼到試算表或 LINE）</button></div>` : `<p class="muted">這個${L.item}這段期間還沒有人報名</p>`}
+          <p class="hint">沒來的人：到後台這${L.unit}的報名名單按「改未到」；沒報名但有來的人：按「補登」。</p>
         </section>` : ''}
 
         ${cur ? (() => {
-          // 每個課程的學生不同：只排目前選的課程（點上面的課程名稱切換）
+          // 每個課程的人不同：只排目前選的（點上面的名稱切換）
           const rank = EduStats.ranking(courses, cur.name);
           return `
         <section class="stats-section">
-          <h3 class="admin-sub">學生出席排行：${esc(cur.name)}<span class="h2-sub">出席次數多的在前${courses.length > 1 ? '・點上面的課程換一個' : ''}</span></h3>
-          ${rank.length ? `<ol class="rank-list edu-rank">${(state.eduRankAll ? rank : rank.slice(0, 10)).map((r) => `
-            <li><span class="rank-name">${esc(r.name)}${r.absent ? ` <span class="tag tag-warn">未到 ${r.absent}</span>` : ''}</span>
-              <span class="rank-count">${r.count}／${cur.sessions.length} 堂</span></li>`).join('')}</ol>
-          ${rank.length > 10 ? `<button type="button" class="btn btn-small no-print" data-erank-all>${state.eduRankAll ? '只看前 10 名' : `看全部 ${rank.length} 位`}</button>` : ''}` : '<p class="muted">還沒有學生報名</p>'}
+          <h3 class="admin-sub">${L.person}出席排行：${esc(cur.name)}<span class="h2-sub">出席次數多的在前${courses.length > 1 ? `・點上面的${L.item}換一個` : ''}</span></h3>
+          ${rank.length ? `<ol class="rank-list edu-rank">${(state.eduRankAll ? rank : rank.slice(0, 10)).map((x) => `
+            <li><span class="rank-name">${esc(x.name)}${x.absent ? ` <span class="tag tag-warn">未到 ${x.absent}</span>` : ''}</span>
+              <span class="rank-count">${x.count}／${cur.sessions.length} ${L.unit}</span></li>`).join('')}</ol>
+          ${rank.length > 10 ? `<button type="button" class="btn btn-small no-print" data-erank-all>${state.eduRankAll ? '只看前 10 名' : `看全部 ${rank.length} 位`}</button>` : ''}` : `<p class="muted">還沒有${L.person}報名</p>`}
         </section>`;
         })() : ''}
 
         <section class="stats-section">
-          <h3 class="admin-sub">各課程負責師資</h3>
+          <h3 class="admin-sub">${L.staffTitle}</h3>
           ${teacherList.length ? `<ul class="edu-teacher-list">${teacherList.map((t) => `
-            <li><span class="edu-teacher-name">${esc(t.name)}</span><span class="edu-teacher-total">共 ${t.total} 堂</span>
-              <span class="edu-teacher-courses">${t.courses.map((c) => `${esc(c.name)} ${c.count} 堂`).join('、')}</span></li>`).join('')}</ul>`
-            : '<p class="muted">還沒有填師資。新增或編輯教育的課程時，在「師資」欄填上負責的師資。</p>'}
+            <li><span class="edu-teacher-name">${esc(t.name)}</span><span class="edu-teacher-total">共 ${t.total} ${L.unit}</span>
+              ${cat === '道務' ? `<span class="edu-teacher-roles">${esc(roleText(t))}</span>` : ''}
+              <span class="edu-teacher-courses">${t.courses.map((c) => `${esc(c.name)} ${c.count} ${L.unit}`).join('、')}</span></li>`).join('')}</ul>`
+            : `<p class="muted">${L.noStaff}</p>`}
         </section>
       </div>`;
 
     bindNav(body, data, () => render(body, guard, data, false));
     body.querySelectorAll('[data-course]').forEach((b) => b.addEventListener('click', () => {
-      state.eduCourse = courses[Number(b.dataset.course)].name;
+      state.eduCourse[cat] = courses[Number(b.dataset.course)].name;
       render(body, guard, data, false);
       const sec = body.querySelector('[data-grid-section]');
       if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -313,13 +327,13 @@
     if (ea) ea.addEventListener('click', () => { state.eduRankAll = !state.eduRankAll; render(body, guard, data, false); });
     body.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => {
       const n = b.dataset.pick;
-      const set = new Set(state.eduPick);
+      const set = new Set(state.eduPick[cat] || []);
       if (set.has(n)) set.delete(n); else set.add(n);
-      state.eduPick = [...set];
+      state.eduPick[cat] = [...set];
       render(body, guard, data, false);
     }));
     const pa = body.querySelector('[data-pick-all]');
-    if (pa) pa.addEventListener('click', () => { state.eduPick = []; render(body, guard, data, false); });
+    if (pa) pa.addEventListener('click', () => { state.eduPick[cat] = []; render(body, guard, data, false); });
     const cp = body.querySelector('[data-copy-grid]');
     if (cp) cp.addEventListener('click', () => copyReport(EduStats.gridText(cur)));
   }

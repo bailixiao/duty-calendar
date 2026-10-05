@@ -24,7 +24,7 @@
   // 同名勤務一次改的欄位（與 apps-script/DutyRules.gs 的 BULK_FIELDS_ 相同）
   const BULK_FIELDS = [
     ['name', '名稱'], ['nature', '性質'], ['mode', '模式'], ['time', '時段'], ['location', '地點'],
-    ['group', '負責組'], ['attire', '服裝'], ['description', '說明'], ['positions', '了愿項目'], ['teachers', '師資'], ['dm', 'DM'], ['merge', '合併顯示']
+    ['group', '負責組'], ['attire', '服裝'], ['description', '說明'], ['positions', '了愿項目'], ['teachers', '師資'], ['dm', 'DM'], ['merge', '合併顯示'], ['staff', '講師・帶班・助理帶班']
   ];
   const MAX_LUNAR_DAYS = 800;
 
@@ -367,7 +367,7 @@
   function emptyDuty() {
     return {
       name: '', nature: NATURES_BY_CAT[myCategory()][0], mode: '報名型', category: myCategory(), dm: [], start: '', end: '', startTime: '', endTime: '',
-      location: '', groupType: '', group: '', attire: '', description: '', deadline: '', layout: '', stages: '', teachers: '', merge: '',
+      location: '', groupType: '', group: '', attire: '', description: '', deadline: '', layout: '', stages: '', teachers: '', merge: '', lecturers: '', leaders: '', assistants: '',
       positions: [{ name: '', slot: '', min: '', max: '' }]
     };
   }
@@ -505,6 +505,15 @@
             <p class="hint">這一堂的師資。家人們的報名頁會顯示，統計的「各課程負責師資」也從這裡來。</p>
             ${editing && ctx.source.siblings && ctx.source.siblings.length ? `<button type="button" class="btn btn-block" data-plan-teachers>📅 安排整年的師資（${ctx.source.siblings.length + 1} 堂）</button>
             <p class="hint">一次看到這個課程每一堂的日期，直接填每一堂（或一段日期）是哪位師資。</p>` : ''}
+          </fieldset>` : ''}
+          ${s.category === '道務' ? `<fieldset class="form-block">
+            <legend>講師、帶班、助理帶班</legend>
+            <label class="form-row"><span>講師（可空白）</span><input class="input" name="lecturers" value="${esc(s.lecturers || '')}" placeholder="好幾位用「、」隔開"></label>
+            <label class="form-row"><span>帶班（可空白）</span><input class="input" name="leaders" value="${esc(s.leaders || '')}"></label>
+            <label class="form-row"><span>助理帶班（可空白）</span><input class="input" name="assistants" value="${esc(s.assistants || '')}"></label>
+            <p class="hint">這一堂的人員。報名頁會顯示講師、帶班；統計的「負責人員」看得出誰在學習帶班。</p>
+            ${editing && ctx.source.siblings && ctx.source.siblings.length ? `<button type="button" class="btn btn-block" data-plan-teachers>📅 安排整年的人員（${ctx.source.siblings.length + 1} 堂）</button>
+            <p class="hint">一次看到每一堂，依人勾日期或依日期填；也可以從說明自動帶入。</p>` : ''}
           </fieldset>` : ''}
 
           <fieldset class="form-block">
@@ -709,7 +718,7 @@
       const f = body.querySelector('form');
       if (!f) return;
       const val = (n) => (f.elements[n] ? f.elements[n].value : undefined);
-      ['name', 'startTime', 'endTime', 'location', 'attire', 'description', 'start', 'end', 'groupType', 'group', 'deadline', 'stages', 'teachers', 'merge'].forEach((k) => {
+      ['name', 'startTime', 'endTime', 'location', 'attire', 'description', 'start', 'end', 'groupType', 'group', 'deadline', 'stages', 'teachers', 'merge', 'lecturers', 'leaders', 'assistants'].forEach((k) => {
         if (val(k) !== undefined) s[k] = val(k);
       });
       const radio = (n) => { const el = f.querySelector(`input[name="${n}"]:checked`); return el ? el.value : undefined; };
@@ -827,6 +836,9 @@
         dm: s.dm,
         merge: String(s.merge || '').trim(),
         teachers: s.category === '教育' ? (s.teachers || '') : '',
+        lecturers: s.category === '道務' ? (s.lecturers || '') : '',
+        leaders: s.category === '道務' ? (s.leaders || '') : '',
+        assistants: s.category === '道務' ? (s.assistants || '') : '',
         layout: s.mode === '公告型' || isSimple(s.category) ? '' : (s.layout || ''),
         stages: s.mode === '公告型' || isSimple(s.category) || s.layout !== '職司表' ? '' : (s.stages || ''),
         multi: s.mode === '公告型' ? false : !!(s.multi === true || s.multi === '是'),
@@ -895,7 +907,8 @@
         positions: posKey(now.positions) !== posKey(o.positions),
         teachers: String(now.teachers || '').trim() !== String(o.teachers || '').trim(),
         dm: JSON.stringify((now.dm || []).map((x) => x.id)) !== JSON.stringify((o.dm || []).map((x) => x.id)),
-        merge: String(now.merge || '').trim() !== String(o.merge || '').trim()
+        merge: String(now.merge || '').trim() !== String(o.merge || '').trim(),
+        staff: ['lecturers', 'leaders', 'assistants'].some((k) => String(now[k] || '').trim() !== String(o[k] || '').trim())
       };
       return BULK_FIELDS.filter(([k]) => changed[k]);
     }
@@ -907,7 +920,7 @@
     function askBulk() {
       const fields = changedFields();
       // 只改師資時，過去的堂次也可以一起改（例如補填前幾個月的師資）；其他欄位只列今天以後的
-      const onlyTeachers = fields.length > 0 && fields.every(([k]) => k === 'teachers' || k === 'dm');
+      const onlyTeachers = fields.length > 0 && fields.every(([k]) => k === 'teachers' || k === 'dm' || k === 'staff');
       const siblings = ctx.source.siblings.filter((x) => onlyTeachers || x.end >= today);
       if (!siblings.length || !fields.length) return Promise.resolve({});
       return new Promise((resolve) => {
@@ -983,24 +996,31 @@
     }
 
     /**
-     * 安排整年的師資：這個課程每一堂（含過去）。兩種看法可切換：
-     *   依師資勾日期：每位師資一張卡片，勾他負責的那幾堂（一堂可以勾好幾位）；＋新增師資
-     *   依日期填：每一堂一列，直接填；上方「從～到＋師資」一段一段套用
-     * 最後「儲存師資」一次存（只改有變的堂）。
+     * 安排整年的人員：這個課程每一堂（含過去）。教育只有「師資」；道務分「講師」「帶班」「助理帶班」（上方切換）。
+     * 兩種看法：
+     *   依人勾日期：每個人一張卡片，勾他負責的那幾堂（同一個角色一堂只給一位，別人勾走的反灰）；＋新增
+     *   依日期填：每一堂一列，直接填；上方「從～到＋角色＋名字」一段一段套用
+     * 道務另有「從說明帶入」：從每一堂說明裡的「帶班：」「助理帶班：」與主題括號裡的講師自動填好。
+     * 最後「儲存」一次存（只改有變的堂）。
      */
     function planTeachers() {
-      const rows = [{ id: s.id, start: original.start, teachers: s.teachers || '', self: true }]
-        .concat(ctx.source.siblings.map((x) => ({ id: x.id, start: x.start, teachers: x.teachers || '' })))
+      const ROLES = s.category === '道務'
+        ? [['lecturers', '講師'], ['leaders', '帶班'], ['assistants', '助理帶班']]
+        : [['teachers', '師資']];
+      const WORD = s.category === '道務' ? '人員' : '師資';
+      const rows = [Object.assign({ id: s.id, start: original.start, description: s.description || '', self: true }, ...ROLES.map(([k]) => ({ [k]: s[k] || '' })))]
+        .concat(ctx.source.siblings.map((x) => Object.assign({ id: x.id, start: x.start, description: x.description || '' }, ...ROLES.map(([k]) => ({ [k]: x[k] || '' })))))
         .sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
       const split = (t) => String(t || '').split(/[、，,\s]+/).filter(Boolean);
       const before = {};
-      const cur = {}; // 每一堂現在的師資（文字）
-      rows.forEach((x) => { before[x.id] = x.teachers; cur[x.id] = x.teachers; });
-      let view = 'teacher';
+      const cur = {}; // cur[角色][堂] = 名字（文字）
+      ROLES.forEach(([k]) => { before[k] = {}; cur[k] = {}; rows.forEach((x) => { before[k][x.id] = x[k]; cur[k][x.id] = x[k]; }); });
+      let role = ROLES[0][0];
+      const roleLabel = () => ROLES.find(([k]) => k === role)[1];
       let cards = [];
       const buildCards = () => {
         const map = new Map();
-        rows.forEach((x) => split(cur[x.id]).forEach((n) => {
+        rows.forEach((x) => split(cur[role][x.id]).forEach((n) => {
           if (!map.has(n)) map.set(n, new Set());
           map.get(n).add(x.id);
         }));
@@ -1008,7 +1028,7 @@
         if (!cards.length) cards = [{ name: '', ids: new Set() }];
       };
       const fromCards = () => {
-        rows.forEach((x) => { cur[x.id] = cards.filter((c) => c.name.trim() && c.ids.has(x.id)).map((c) => c.name.trim()).join('、'); });
+        rows.forEach((x) => { cur[role][x.id] = cards.filter((c) => c.name.trim() && c.ids.has(x.id)).map((c) => c.name.trim()).join('、'); });
       };
       buildCards();
       const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
@@ -1016,41 +1036,47 @@
       rows.forEach((x) => { const k = x.start.slice(0, 7); if (!months.length || months[months.length - 1].key !== k) months.push({ key: k, rows: [] }); months[months.length - 1].rows.push(x); });
 
       const m = Modal.open(`
-        <h2 class="modal-title">安排整年的師資：${esc(original.name)}</h2>
-        <p class="modal-note">共 ${rows.length} 堂。最後按「儲存師資」才會存起來。</p>
+        <h2 class="modal-title">安排整年的${WORD}：${esc(original.name)}</h2>
+        <p class="modal-note">共 ${rows.length} 堂。最後按「儲存${WORD}」才會存起來。</p>
+        ${s.category === '道務' ? `<button type="button" class="btn btn-block plan-auto" data-plan-auto>📋 從說明帶入講師、帶班、助理帶班</button>
+        <p class="hint">會讀每一堂說明裡的「帶班：」「助理帶班：」和主題括號裡的講師（例：主題：安東家訓（曾建錩壇主）），帶入後可以再改。</p>` : ''}
+        ${ROLES.length > 1 ? `<div class="seg plan-roles">${ROLES.map(([k, l], i) => `<label class="seg-item"><input type="radio" name="planRole" value="${k}"${i === 0 ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div>` : ''}
         <div class="seg plan-views">
-          <label class="seg-item"><input type="radio" name="planView" value="teacher" checked><span>依師資勾日期</span></label>
+          <label class="seg-item"><input type="radio" name="planView" value="teacher" checked><span>依人勾日期</span></label>
           <label class="seg-item"><input type="radio" name="planView" value="date"><span>依日期填</span></label>
         </div>
         <div data-plan-body></div>
         <div class="form-error" data-plan-error hidden></div>
         <div class="modal-actions">
-          <button type="button" class="btn btn-block btn-primary" data-plan-save>儲存師資</button>
+          <button type="button" class="btn btn-block btn-primary" data-plan-save>儲存${WORD}</button>
           <button type="button" class="btn btn-block" data-close>返回</button>
         </div>`);
       m.el.classList.add('modal-wide');
       const pb = m.el.querySelector('[data-plan-body]');
+      let view = 'teacher';
+      const redraw = () => { if (view === 'teacher') { buildCards(); drawTeacher(); } else drawDate(); };
 
       function drawTeacher() {
         // 重畫時保留捲動位置（不然點一個日期畫面就跳走）
         const scroller = m.el.querySelector('.modal-box') || m.el;
         const keepTop = scroller.scrollTop;
         requestAnimationFrame(() => { scroller.scrollTop = keepTop; });
-        const others = (ci) => { // 每一堂已被其他師資勾走的（一堂只給一位：反灰不能勾）
+        const L = roleLabel();
+        const others = (ci) => { // 同一個角色：別人勾走的反灰
           const o = {};
-          cards.forEach((c, j) => { if (j !== ci) c.ids.forEach((id) => { (o[id] = o[id] || []).push(c.name.trim() || `師資 ${j + 1}`); }); });
+          cards.forEach((c, j) => { if (j !== ci) c.ids.forEach((id) => { (o[id] = o[id] || []).push(c.name.trim() || `${L} ${j + 1}`); }); });
           return o;
         };
         const unassigned = rows.filter((x) => !cards.some((c) => c.name.trim() && c.ids.has(x.id))).length;
         pb.innerHTML = `
-          <button type="button" class="btn btn-block plan-add" data-card-add>＋ 新增師資</button>
-          <p class="hint">每位師資一張卡片：填名字，再勾他負責的那幾堂。已經被別位師資勾走的日期會反灰（下面小字是誰），要換人先到那位的卡片取消。${unassigned ? `<strong class="plan-left">還有 ${unassigned} 堂沒有師資</strong>` : '<strong class="plan-done">每一堂都有師資了 ✓</strong>'}</p>
+          <button type="button" class="btn btn-block plan-add" data-card-add>＋ 新增${L}</button>
+          <p class="hint">每個人一張卡片：填名字，再勾他當${L}的那幾堂。已經被別人勾走的日期會反灰（下面小字是誰），要換人先到那個人的卡片取消。${unassigned ? `<strong class="plan-left">還有 ${unassigned} 堂沒有${L}</strong>` : `<strong class="plan-done">每一堂都有${L}了 ✓</strong>`}</p>
           ${cards.map((c, ci) => {
             const o = others(ci);
             return `
             <section class="plan-card">
               <div class="plan-card-head">
-                <label class="plan-card-name"><span>師資 ${ci + 1}</span><input class="input" data-card-name="${ci}" value="${esc(c.name)}" placeholder="例：張佳銘"></label>
+                <label class="plan-card-name"><span>${L} ${ci + 1}</span><input class="input" data-card-name="${ci}" value="${esc(c.name)}" placeholder="名字"></label>
                 <span class="plan-card-count">勾了 ${c.ids.size} 堂</span>
                 <button type="button" class="btn btn-small btn-quiet-danger" data-card-del="${ci}">移除</button>
               </div>
@@ -1063,8 +1089,7 @@
                       <span>${md(x.start)}（${esc(Fmt.weekday(x.start))}）</span>${o[x.id] ? `<small>${esc(o[x.id].join('、'))}</small>` : ''}</label>`).join('')}</div>
                 </div>`).join('')}
             </section>`;
-          }).join('')}
-`;
+          }).join('')}`;
         pb.querySelectorAll('[data-card-name]').forEach((x) => x.addEventListener('input', () => {
           cards[Number(x.dataset.cardName)].name = x.value;
           fromCards();
@@ -1077,10 +1102,9 @@
           drawTeacher();
         }));
         pb.querySelectorAll('[data-card-month]').forEach((b) => b.addEventListener('click', () => {
-          const c = cards[Number(b.dataset.cardMonth)];
-          const mo = months.find((x) => x.key === b.dataset.month);
-          // 只動沒被別位師資勾走的日期
           const ci = Number(b.dataset.cardMonth);
+          const c = cards[ci];
+          const mo = months.find((x) => x.key === b.dataset.month);
           const free = mo.rows.filter((x) => c.ids.has(x.id) || !cards.some((o, j) => j !== ci && o.ids.has(x.id)));
           const all = free.every((x) => c.ids.has(x.id));
           free.forEach((x) => { if (all) c.ids.delete(x.id); else c.ids.add(x.id); });
@@ -1094,7 +1118,7 @@
           drawTeacher();
         }));
         pb.querySelector('[data-card-add]').addEventListener('click', () => {
-          cards.unshift({ name: '', ids: new Set() }); // 新的師資放最上面，不用往下找
+          cards.unshift({ name: '', ids: new Set() }); // 新的放最上面，不用往下找
           drawTeacher();
           pb.querySelector('[data-card-name]').focus();
         });
@@ -1106,26 +1130,28 @@
             <div class="teach-range-row">
               <label><span>從</span><input class="input" type="date" data-t-from value="${esc(rows[0].start)}"></label>
               <label><span>到</span><input class="input" type="date" data-t-to value="${esc(rows[rows.length - 1].start)}"></label>
-              <label class="teach-range-name"><span>師資</span><input class="input" data-t-name placeholder="例：張佳銘、張慧如"></label>
+              ${ROLES.length > 1 ? `<label><span>角色</span><select class="input" data-t-role>${ROLES.map(([k, l]) => `<option value="${k}"${k === role ? ' selected' : ''}>${l}</option>`).join('')}</select></label>` : ''}
+              <label class="teach-range-name"><span>名字</span><input class="input" data-t-name placeholder="例：張佳銘、張慧如"></label>
               <button type="button" class="btn" data-t-apply>套用到這段日期</button>
             </div>
           </div>
-          <ol class="preview-list multi-preview with-teach plan-list">${rows.map((x) => `
+          <ol class="preview-list multi-preview with-teach plan-list${ROLES.length > 1 ? ' plan-multi' : ''}">${rows.map((x) => `
             <li><span class="preview-date">${esc(Fmt.rocDate(x.start))}${x.self ? ' <span class="tag">這一堂</span>' : ''}${x.start < today ? ' <span class="muted">（已過）</span>' : ''}</span>
-              <input class="input teach-input" data-plan="${esc(x.id)}" data-start="${esc(x.start)}" value="${esc(cur[x.id])}" placeholder="師資" aria-label="${esc(Fmt.rocDate(x.start))} 的師資"></li>`).join('')}
+              ${ROLES.map(([k, l]) => `<label class="plan-role-input">${ROLES.length > 1 ? `<small>${l}</small>` : ''}<input class="input teach-input" data-plan="${esc(x.id)}" data-role="${k}" data-start="${esc(x.start)}" value="${esc(cur[k][x.id])}" placeholder="${l}" aria-label="${esc(Fmt.rocDate(x.start))} 的${l}"></label>`).join('')}</li>`).join('')}
           </ol>`;
         const inputs = [...pb.querySelectorAll('[data-plan]')];
-        inputs.forEach((x) => x.addEventListener('input', () => { cur[x.dataset.plan] = x.value; }));
+        inputs.forEach((x) => x.addEventListener('input', () => { cur[x.dataset.role][x.dataset.plan] = x.value; }));
         const apply = pb.querySelector('[data-t-apply]');
         apply.addEventListener('click', () => {
           const a = pb.querySelector('[data-t-from]').value || '0000-00-00';
           const b = pb.querySelector('[data-t-to]').value || '9999-12-31';
+          const rk = pb.querySelector('[data-t-role]') ? pb.querySelector('[data-t-role]').value : ROLES[0][0];
           const name = pb.querySelector('[data-t-name]').value.trim();
           let n = 0;
           inputs.forEach((x) => {
-            if (x.dataset.start < a || x.dataset.start > b) return;
+            if (x.dataset.role !== rk || x.dataset.start < a || x.dataset.start > b) return;
             x.value = name;
-            cur[x.dataset.plan] = name;
+            cur[rk][x.dataset.plan] = name;
             x.classList.add('is-flash');
             setTimeout(() => x.classList.remove('is-flash'), 900);
             n++;
@@ -1135,27 +1161,54 @@
         });
       }
 
-      m.el.querySelectorAll('input[name=planView]').forEach((r) => r.addEventListener('change', () => {
-        view = r.value;
-        if (view === 'teacher') { buildCards(); drawTeacher(); } else drawDate();
-      }));
+      // 道務：從說明帶入（帶班：、助理帶班：、主題括號裡的講師）
+      const auto = m.el.querySelector('[data-plan-auto]');
+      if (auto) auto.addEventListener('click', () => {
+        let n = 0;
+        rows.forEach((x) => {
+          const t = x.description || '';
+          const pick = (re) => { const mm = t.match(re); return mm ? mm[1].trim() : ''; };
+          const leader = pick(/(?:^|[\s　])帶班[：:]\s*([^\s　，,]+)/);
+          const assist = pick(/助理帶班[：:]\s*([^\s　，,]+)/);
+          const topic = pick(/主題(?:課程)?[：:]\s*([^\n]+)/);
+          const lm = topic.match(/[（(]([^（）()]+?)(?:壇主|前賢|經理|點傳師|老師)?[）)]\s*$/);
+          const lecturer = lm && /^[一-鿿、]{2,12}$/.test(lm[1]) && !/準備|自拜|佛堂/.test(lm[1]) ? lm[1] : '';
+          if (leader) { cur.leaders[x.id] = leader; n++; }
+          if (assist) { cur.assistants[x.id] = assist; n++; }
+          if (lecturer) { cur.lecturers[x.id] = lecturer; n++; }
+        });
+        auto.textContent = n ? `已帶入 ${n} 個名字 ✓（請檢查後按儲存）` : '說明裡找不到講師、帶班、助理帶班';
+        redraw();
+      });
+
+      m.el.querySelectorAll('input[name=planRole]').forEach((r) => r.addEventListener('change', () => { role = r.value; redraw(); }));
+      m.el.querySelectorAll('input[name=planView]').forEach((r) => r.addEventListener('change', () => { view = r.value; redraw(); }));
       drawTeacher();
       m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
       m.el.querySelector('[data-plan-save]').addEventListener('click', async () => {
-        const items = rows.map((x) => ({ id: x.id, teachers: split(cur[x.id]).join('、') })).filter((x) => x.teachers !== split(before[x.id]).join('、'));
+        const items = rows.map((x) => {
+          const it = { id: x.id };
+          let changed = false;
+          ROLES.forEach(([k]) => {
+            const v = split(cur[k][x.id]).join('、');
+            if (v !== split(before[k][x.id]).join('、')) { it[k] = v; changed = true; }
+          });
+          return changed ? it : null;
+        }).filter(Boolean);
         if (!items.length) { m.close(); return; }
-        Busy.show(`儲存 ${items.length} 堂的師資⋯`, '請不要關閉畫面');
+        Busy.show(`儲存 ${items.length} 堂的${WORD}⋯`, '請不要關閉畫面');
         try {
           const res = await Api.admin('adminSetTeachers', { items });
           Busy.hide();
           m.close();
           afterWrite();
+          const apply = (target, it) => ROLES.forEach(([k]) => { if (it[k] !== undefined) target[k] = it[k]; });
           const mine = items.find((x) => x.id === s.id);
-          if (mine) { s.teachers = mine.teachers; original.teachers = mine.teachers; }
-          ctx.source.siblings.forEach((x) => { const it = items.find((y) => y.id === x.id); if (it) x.teachers = it.teachers; });
+          if (mine) { apply(s, mine); apply(original, mine); }
+          ctx.source.siblings.forEach((x) => { const it = items.find((y) => y.id === x.id); if (it) apply(x, it); });
           render();
           const top = body.querySelector('[data-error]');
-          if (top) top.insertAdjacentHTML('beforebegin', AdminPage.notice('success', `已儲存 ${res.updated} 堂的師資`, ''));
+          if (top) top.insertAdjacentHTML('beforebegin', AdminPage.notice('success', `已儲存 ${res.updated} 堂的${WORD}`, ''));
           body.scrollIntoView({ block: 'start', behavior: 'smooth' });
         } catch (err) {
           Busy.hide();

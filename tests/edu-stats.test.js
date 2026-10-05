@@ -31,7 +31,7 @@ test('課程：同名合成一個課程，每個日期一堂；學生、出缺�
   assert.deepEqual(c.teachers, ['測試甲', '測試乙']);
   // 師資：教了哪些課、各幾堂
   const t = r.teachers.find((x) => x.name === '測試甲');
-  assert.deepEqual(t, { name: '測試甲', total: 2, courses: [{ name: '讀經班', count: 2 }] });
+  assert.deepEqual(t, { name: '測試甲', total: 2, byRole: { 師資: 2 }, courses: [{ name: '讀經班', count: 2 }] });
   assert.equal(r.teachers.find((x) => x.name === '測試丙').courses[0].name, '書法課');
   // 複製文字
   const text = E.gridText(c);
@@ -59,4 +59,24 @@ test('只看幾個課程時，師資也只算那幾個課程', () => {
   const r = E.summarize(sessions, [], () => true);
   assert.deepEqual(E.teachersOf(r.courses.filter((c) => c.name === '書法課')).map((t) => t.name), ['測試乙']);
   assert.equal(E.teachersOf(r.courses).length, 2);
+});
+
+test('道務：課程與法會都算；負責人員分講師、帶班、助理帶班', () => {
+  const s = (date, dutyId, name, nature, lecturers, leaders, assistants) => ({ date, dutyId, name, series: name, nature, category: '道務', lecturers, leaders, assistants });
+  const sessions = [
+    s('2026-10-10', 'A1', '初一十五班', '課程', '測試甲', '測試乙', '測試丙'),
+    s('2026-10-24', 'A2', '初一十五班', '課程', '', '測試丙', '測試丁'),
+    s('2026-11-08', 'B1', '平安齋', '法會', '', '', ''),
+    { date: '2026-10-11', dutyId: 'E1', name: '讀經班', series: '讀經班', nature: '課程', category: '教育', teachers: '測試戊' }
+  ];
+  const events = [ev('2026-10-10', 'A1', ['王小明'], [], { name: '初一十五班', series: '初一十五班', category: '道務' })];
+  const r = E.summarize(sessions, events, () => true, '道務');
+  assert.deepEqual(r.courses.map((c) => c.name).sort(), ['初一十五班', '平安齋']);
+  const c = r.courses.find((x) => x.name === '初一十五班');
+  assert.equal(c.sessions.length, 2);
+  assert.deepEqual(c.students, ['王小明']);
+  const staff = E.teachersOf(r.courses);
+  const bing = staff.find((x) => x.name === '測試丙');
+  assert.deepEqual([bing.total, bing.byRole], [2, { 助理帶班: 1, 帶班: 1 }]); // 先當助理、後來帶班
+  assert.equal(E.summarize(sessions, [], () => true, '教育').courses[0].name, '讀經班'); // 教育不受影響
 });
