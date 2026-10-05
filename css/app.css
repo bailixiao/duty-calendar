@@ -2029,7 +2029,8 @@ input.input[type="date"] { min-width: 0; max-width: 100%; width: 100%; box-sizin
 .mine-bulk { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 12px; margin: 4px 0 10px; color: var(--ink-2); font-size: .95rem; }
 .mine-bulk-quick { display: inline-flex; gap: 14px; }
 .mine-bulk-go { margin-top: 6px; min-height: 52px; font-size: 1.1rem; }
-.roster-mine-link { margin-top: 8px; }
+.roster-mine-link { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 10px; min-height: 52px; font-size: 1.1rem; font-weight: 700; text-decoration: none; color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.roster-mine-link:hover { text-decoration: none; filter: brightness(.97); }
 .vm-quick { display: flex; gap: 16px; margin-bottom: 4px; }
 .roster-quick { display: flex; gap: 16px; margin: 6px 0; }
 .roster-dates { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 6px; margin-bottom: 12px; }
