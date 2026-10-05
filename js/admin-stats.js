@@ -234,7 +234,8 @@
     const absent = courses.reduce((n, c) => n + c.absent, 0);
     const pctText = (v) => (v === null ? '—' : Math.round(v * 100) + '%');
     const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
-    const roleText = (t) => Object.keys(t.byRole).map((k) => `${k} ${t.byRole[k]}`).join('・');
+    // 只有一種角色：只寫角色（場數看右邊「共 N 場」）；兩種以上才寫各幾場
+    const roleText = (t) => { const ks = Object.keys(t.byRole); return ks.length === 1 ? ks[0] : ks.map((k) => `${k} ${t.byRole[k]}`).join('・'); };
 
     body.innerHTML = `
       ${AdminPage.staleNote(stale)}

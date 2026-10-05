@@ -93,6 +93,30 @@
           </li>`;
       }).join('');
 
+      const groupFirst = {}; // 渡人合併：第一個佛堂的名稱
+      rows.forEach((r) => { if (r.group && !groupFirst[r.group]) groupFirst[r.group] = r.name; });
+      const cards = rows.map((r) => {
+        const lines = items.map((k) => {
+          if (k === '渡人' && r.group && groupFirst[r.group] !== r.name) {
+            return `<li class="gc-line gc-note"><span class="gc-name">${esc(k)}</span><span>和「${esc(groupFirst[r.group])}」合計</span></li>`;
+          }
+          const v = r.values[k] || {};
+          const t = num(v.target);
+          const c = num(v.current) || 0;
+          if (t === null && !c) return '';
+          const lv = level(t, c);
+          const w = t ? Math.min(100, Math.round((c / t) * 100)) : 0;
+          return `<li class="gc-line is-${lv || 'part'}"><span class="gc-name">${esc(k)}${k === '渡人' && r.group ? `<small>（${esc(r.group)}）</small>` : ''}</span>
+            ${t === null ? '' : `<span class="gc-track"><span class="gc-fill" style="width:${w}%"></span></span>`}
+            <span class="gc-num"><strong>${c}</strong>${t === null ? '' : `／${t}`}${lv === 'done' ? ' ✓' : ''}</span></li>`;
+        }).join('');
+        return `
+          <li class="goal-card">
+            <div class="gc-head"><strong>${esc(r.name)}</strong>${r.vow ? `<span class="gc-vow">立愿：${esc(r.vow)}</span>` : ''}</div>
+            ${lines ? `<ul class="gc-lines">${lines}</ul>` : '<p class="muted gc-empty">今年沒有目標</p>'}
+          </li>`;
+      }).join('');
+
       el.innerHTML = `
         <h3 class="admin-sub"><span class="nw">${roc} 年各佛堂道務目標</span></h3>
         ${flash}
@@ -118,7 +142,8 @@
         </div>` : `
         ${bars ? `<ul class="goal-bars">${bars}</ul>` : ''}
         <p class="goal-legend"><span class="goal-key is-zero">還沒開始</span><span class="goal-key is-part">做到一部分</span><span class="goal-key is-done">達成 ✓</span><span class="muted">格子裡是「目前／目標」</span></p>
-        <div class="goal-wrap">
+        <ul class="goal-cards">${cards}</ul>
+        <div class="goal-wrap goal-view-wrap">
           <table class="goal-table goal-view">
             <thead>
               <tr><th class="goal-sticky">佛堂</th>${items.map((k) => `<th>${esc(k)}</th>`).join('')}<th>立愿</th></tr>

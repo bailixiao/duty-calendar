@@ -1919,3 +1919,25 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 .goal-view .goal-of { font-size: 14px; font-weight: 400; color: var(--muted); }
 .goal-view .goal-cell.is-done .goal-of { color: var(--ok); }
 .goal-merged { color: var(--muted); font-size: 14px; }
+
+/* 各佛堂道務目標：手機每個佛堂一張卡片，電腦用表格 */
+.goal-cards { list-style: none; margin: 0; padding: 0; display: none; gap: 10px; }
+.goal-card { padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+.gc-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-bottom: 8px; }
+.gc-head strong { font-size: 20px; }
+.gc-vow { font-size: 15px; color: var(--ink-2); }
+.gc-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.gc-line { display: grid; grid-template-columns: 5em 1fr auto; align-items: center; gap: 10px; font-size: 17px; }
+.gc-name { font-weight: 700; }
+.gc-name small { display: block; font-size: 12px; font-weight: 400; color: var(--muted); }
+.gc-track { display: block; height: 12px; border-radius: 999px; background: #ece9e3; overflow: hidden; }
+.gc-fill { display: block; height: 100%; border-radius: 999px; background: #6b4fa0; }
+.gc-line.is-done .gc-fill { background: var(--ok); }
+.gc-line.is-done .gc-num { color: var(--ok); font-weight: 800; }
+.gc-num strong { font-size: 19px; }
+.gc-note { grid-template-columns: 5em 1fr; color: var(--muted); font-size: 15px; }
+.gc-empty { margin: 0; }
+@media (max-width: 719px) {
+  .goal-cards { display: grid; }
+  .goal-view-wrap { display: none; }
+}
