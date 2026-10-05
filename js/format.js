@@ -159,8 +159,15 @@
     return '請聯絡管理者' + contact;
   }
 
+  /** 缺人日期一串：超過 max 天只列前面幾天＋「⋯等 N 天」 */
+  function shortDateList(dates, max) {
+    const list = [...dates];
+    const n = max || 8;
+    return list.slice(0, n).map(shortDate).join('、') + (list.length > n ? `⋯等 ${list.length} 天` : '');
+  }
+
   window.Fmt = {
     esc, toDateStr, parseDate, addDays, datesBetween, rocYear, weekday, shortDate, rocDate, catLabel,
-    timeRange, cardTime, effectiveMin, dayState, groupText, sameName, byStroke, setContact, askAdmin
+    timeRange, cardTime, effectiveMin, dayState, groupText, sameName, byStroke, setContact, askAdmin, shortDateList
   };
 })();

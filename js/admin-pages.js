@@ -1,4 +1,4 @@
-// 管理後台：操作紀錄與還原、明日名單（產生文字並複製，方便貼到 LINE 群組；不含電話）。
+// 管理後台：操作紀錄與還原、名單（今天起一個月勾日期，產生文字並複製，方便貼到 LINE 群組；不含電話）。
 (function () {
   'use strict';
 
@@ -91,68 +91,56 @@
     loadFirst();
   }
 
-  // ---------- 明日名單 ----------
+  // ---------- 名單 ----------
+  // 今天起一個月有人報名的日期，勾選（可全選）後產生貼到 LINE 的文字：
+  //   教全區
+  //   11/14（六）
+  //   勤務名稱人員:名字、名字
 
   function day(body, guard) {
-    const tomorrow = Fmt.addDays(Fmt.toDateStr(new Date()), 1);
-    body.innerHTML = `
-      <div class="day-pick">
-        <label class="field-label" for="day-date">日期</label>
-        <div class="name-row">
-          <input id="day-date" class="input" type="date" value="${tomorrow}">
-          <button type="button" class="btn" data-make>產生名單</button>
-        </div>
-      </div>
-      <div data-result></div>`;
-    const input = body.querySelector('#day-date');
-    const result = body.querySelector('[data-result]');
-
-    function make() {
-      const date = input.value;
-      if (!date) return;
-      result.innerHTML = '<p class="panel-empty">載入中⋯</p>';
-      AdminPage.swr('day:' + date, () => Api.admin('adminDay', { date }, true), (data, stale) => {
-        if (input.value !== date) return;
-        const text = dayText(data);
-        result.innerHTML = `
-          ${AdminPage.staleNote(stale)}
-          <textarea class="day-text" rows="16" aria-label="名單文字（可修改）">${esc(text)}</textarea>
-          <button type="button" class="btn btn-primary btn-block" data-copy>複製文字</button>
-          <p class="hint">可以先在框內修改，再按「複製文字」，然後貼到 LINE 群組。名單不含電話。</p>`;
-        result.querySelector('[data-copy]').addEventListener('click', () => copy(result.querySelector('textarea'), result.querySelector('[data-copy]')));
-      }, result);
-    }
-
-    body.querySelector('[data-make]').addEventListener('click', make);
-    input.addEventListener('change', make);
-    make();
+    AdminPage.swr('roster', () => Api.admin('adminRoster', {}, true), (data, stale) => renderRoster(body, data, stale), body);
   }
 
-  /** 產生貼到 LINE 的文字 */
-  function dayText(data) {
-    const lines = [`【${Fmt.rocDate(data.date)} 勤務名單】`];
-    if (!data.duties.length) {
-      lines.push('', '這天沒有勤務。');
-      return lines.join('\n');
+  function renderRoster(body, data, stale) {
+    if (!data.days.length) {
+      body.innerHTML = `${AdminPage.staleNote(stale)}<p class="panel-empty">今天起一個月還沒有人報名。</p>`;
+      return;
     }
-    data.duties.forEach((d) => {
-      const time = Fmt.cardTime(d, data.date);
-      lines.push('', `■ ${d.name}${d.mode === '公告型' ? '（公告）' : ''}`);
-      const meta = [d.location, time].filter(Boolean).join('・');
-      if (meta) lines.push(meta);
-      if (d.mode === '公告型') {
-        const g = d.groupInfo || {};
-        lines.push(`輪值：${g.name || d.group || ''}` + (g.leader ? `　組長：${g.leader}` : '') + (g.assistant ? `　佐理：${g.assistant}` : ''));
-        if (g.members && g.members.length) lines.push(`組員：${g.members.join('、')}`);
-        return;
-      }
-      if (d.group && d.name.indexOf('12人小組') === -1) lines.push(`負責：${d.group}`);
-      d.positions.forEach((p) => {
-        const names = p.people.map((x) => x.name + (x.accompany ? '（陪同）' : ''));
-        const count = p.people.filter((x) => !x.accompany).length;
-        const short = count < Fmt.effectiveMin(p) ? `（缺 ${Fmt.effectiveMin(p) - count} 人）` : '';
-        lines.push(`${p.name}：${names.length ? names.join('、') : '（尚無）'}${short}`);
-      });
+    const tomorrow = Fmt.addDays(data.today, 1);
+    const prev = new Set([...body.querySelectorAll('[data-roster-date]:checked')].map((c) => c.value));
+    const first = !body.querySelector('[data-roster-date]');
+    body.innerHTML = `
+      ${AdminPage.staleNote(stale)}
+      <p class="hint">勾要產生名單的日期（今天起一個月，有人報名的日子），下面的文字會跟著變，按「複製文字」貼到 LINE。</p>
+      <div class="roster-quick"><button type="button" class="link-btn" data-all>全選</button><button type="button" class="link-btn" data-none>都不選</button></div>
+      <div class="roster-dates">${data.days.map((d) => {
+        const on = first ? d.date === tomorrow : prev.has(d.date);
+        return `<label class="check roster-date"><input type="checkbox" data-roster-date value="${d.date}"${on ? ' checked' : ''}>
+          <span><strong>${esc(Fmt.shortDate(d.date))}</strong>${d.date === data.today ? '<small>今天</small>' : d.date === tomorrow ? '<small>明天</small>' : ''}<br><small>${esc(d.duties.map((x) => x.name).join('、'))}</small></span></label>`;
+      }).join('')}</div>
+      <textarea class="day-text" rows="14" aria-label="名單文字（可修改）"></textarea>
+      <button type="button" class="btn btn-primary btn-block" data-copy>複製文字</button>
+      <p class="hint">可以先在框內修改，再按「複製文字」。名單不含電話。</p>`;
+    const area = body.querySelector('textarea');
+    const boxes = () => [...body.querySelectorAll('[data-roster-date]')];
+    const update = () => {
+      const picked = new Set(boxes().filter((c) => c.checked).map((c) => c.value));
+      area.value = rosterText(data.days.filter((d) => picked.has(d.date)));
+    };
+    boxes().forEach((c) => c.addEventListener('change', update));
+    body.querySelector('[data-all]').addEventListener('click', () => { boxes().forEach((c) => { c.checked = true; }); update(); });
+    body.querySelector('[data-none]').addEventListener('click', () => { boxes().forEach((c) => { c.checked = false; }); update(); });
+    body.querySelector('[data-copy]').addEventListener('click', () => copy(area, body.querySelector('[data-copy]')));
+    update();
+  }
+
+  /** 名單文字：教全區＋每個日期一段，每個勤務一行「名稱人員:名字、名字」 */
+  function rosterText(days) {
+    if (!days.length) return '';
+    const lines = ['教全區'];
+    days.forEach((d) => {
+      lines.push(Fmt.shortDate(d.date));
+      d.duties.forEach((x) => lines.push(`${x.name}人員:${x.names.join('、')}`));
     });
     return lines.join('\n');
   }
@@ -172,5 +160,5 @@
     setTimeout(() => { button.textContent = '複製文字'; }, 2500);
   }
 
-  window.AdminPages = { logs, day, dayText };
+  window.AdminPages = { logs, day, rosterText };
 })();

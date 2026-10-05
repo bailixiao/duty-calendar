@@ -2022,3 +2022,24 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 input.input[type="date"] { min-width: 0; max-width: 100%; width: 100%; box-sizing: border-box; }
 .form-row-pair { min-width: 0; }
 @media (max-width: 420px) { .multi-box .form-row-pair { grid-template-columns: 1fr; } }
+.mine-item { position: relative; }
+.mine-item:has(.mine-pick) { padding-left: 52px; }
+.mine-pick { position: absolute; left: 0; top: 0; width: 48px; height: 60px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.mine-pick input { width: 24px; height: 24px; accent-color: var(--accent); }
+.mine-bulk { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 12px; margin: 4px 0 10px; color: var(--ink-2); font-size: .95rem; }
+.mine-bulk-quick { display: inline-flex; gap: 14px; }
+.mine-bulk-go { margin-top: 6px; min-height: 52px; font-size: 1.1rem; }
+.roster-mine-link { margin-top: 8px; }
+.vm-quick { display: flex; gap: 16px; margin-bottom: 4px; }
+.roster-quick { display: flex; gap: 16px; margin: 6px 0; }
+.roster-dates { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 6px; margin-bottom: 12px; }
+.roster-date { align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+.roster-date small { color: var(--ink-2); margin-left: 4px; }
+.roster-date br + small { margin-left: 0; }
+.recent-item { display: flex; flex-direction: column; gap: 2px; }
+.recent-tools { display: flex; justify-content: flex-end; align-items: center; gap: 18px; padding: 0 6px 4px; font-size: .95rem; }
+.recent-tools .check { min-height: 40px; }
+.invite-bar { position: sticky; bottom: 10px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; margin-top: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.12); }
+.invite-bar[hidden] { display: none; }
+.invite-bar [data-invite-count] { flex: 1 1 100%; font-weight: 700; }
+.invite-bar .btn { flex: 1 1 140px; }

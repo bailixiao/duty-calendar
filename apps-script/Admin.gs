@@ -222,6 +222,43 @@ function adminDay_(body) {
   };
 }
 
+/**
+ * 名單（後台「名單」分頁）：今天起一個月，每天有人報名的勤務與名字（不分了愿項目、同名只列一次，依報名順序）。
+ * 回傳 { today, days: [{ date, duties: [{ id, name, category, names }] }] }；類別帳號由 adminScope_ 只留自己類別。
+ */
+var ROSTER_DAYS = 31;
+
+/** yyyy-MM-dd 加幾天 */
+function addDaysStr_(date, n) {
+  return new Date(Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)) + n)).toISOString().slice(0, 10);
+}
+
+function adminRoster_() {
+  var today = todayString_();
+  var to = addDaysStr_(today, ROSTER_DAYS - 1);
+  var events = getEvents_({ from: today, to: to });
+  var byDuty = {};
+  events.duties.forEach(function (d) { byDuty[d.id] = d; });
+  var rows = activeSignups_().filter(function (s) { return s['日期'] >= today && s['日期'] <= to && byDuty[s['勤務ID']]; })
+    .sort(function (a, b) { return String(a['建立時間']).localeCompare(String(b['建立時間'])); });
+  var days = {};
+  rows.forEach(function (s) {
+    var date = s['日期'];
+    var d = byDuty[s['勤務ID']];
+    if (!days[date]) days[date] = {};
+    if (!days[date][d.id]) days[date][d.id] = { id: d.id, name: d.name, category: d.category, startTime: d.startTime, names: [] };
+    var list = days[date][d.id].names;
+    if (list.indexOf(s['姓名']) === -1) list.push(s['姓名']);
+  });
+  return {
+    today: today,
+    days: Object.keys(days).sort().map(function (date) {
+      return { date: date, duties: Object.keys(days[date]).map(function (k) { return days[date][k]; })
+        .sort(function (a, b) { return String(a.startTime || '').localeCompare(String(b.startTime || '')); }) };
+    })
+  };
+}
+
 /** 管理 API 分派：除了登入，都要先驗證通行碼 */
 function adminDispatch_(body) {
   if (body.action === 'adminLogin') return adminLogin_(body);
@@ -246,6 +283,7 @@ function adminRun_(body) {
     case 'adminLogs': return adminLogs_(body);
     case 'adminRestore': return adminRestore_(body);
     case 'adminDay': return adminDay_(body);
+    case 'adminRoster': return adminRoster_(body);
     case 'adminDutyList': return adminDutyList_(body);
     case 'adminDutyForEdit': return adminDutyForEdit_(body);
     case 'adminCreateDuties': return adminCreateDuties_(body);

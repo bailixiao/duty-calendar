@@ -93,6 +93,7 @@ function requestVenue_(body) {
   var phone = cleanText_(body.phone).replace(/[^\d+\-() ]/g, '');
   var purpose = cleanText_(body.purpose).slice(0, 60);
   var people = cleanText_(body.people);
+  var applicantNote = cleanText_(body.note).slice(0, 100);
   if (!dates.length) errors.push('請選日期');
   if (dates.length > VENUE_MAX_DATES) errors.push('一次最多申請 ' + VENUE_MAX_DATES + ' 天');
   if (dates.some(function (d) { return !isDateString_(d); })) errors.push('日期格式不對');
@@ -121,7 +122,7 @@ function requestVenue_(body) {
     dates.forEach(function (d, di) {
       slots.forEach(function (s) {
         out.push({ '借用ID': id + '-' + (di + 1) + '-' + (venueSlotNames_().indexOf(s) + 1), '申請ID': id, '日期': d, '時段': s, '姓名': name, '電話': phone,
-          '用途': purpose, '人數': people, '狀態': '待審核', '建立時間': now, '審核時間': '', '審核人': '', '備註': '' });
+          '用途': purpose, '人數': people, '狀態': '待審核', '建立時間': now, '審核時間': '', '審核人': '', '備註': '', '申請備註': applicantNote });
       });
     });
     appendRows_(SHEETS.VENUE, out);
@@ -195,6 +196,7 @@ function adminVenue_() {
     requests: rows.map(function (r) {
       return { id: r['借用ID'], group: r['申請ID'], date: r['日期'], slot: r['時段'], name: r['姓名'], phone: r['電話'], purpose: r['用途'],
         people: r['人數'], status: r['狀態'], createdAt: r['建立時間'], decidedAt: r['審核時間'], decidedBy: r['審核人'], note: r['備註'],
+        applicantNote: r['申請備註'] || '',
         cancelAsk: (r['狀態'] === '待審核' || r['狀態'] === '已同意') ? (r['申請取消'] || '') : '' };
     }).sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : venueSlotNames_().indexOf(a.slot) - venueSlotNames_().indexOf(b.slot); })
   };

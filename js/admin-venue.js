@@ -41,6 +41,7 @@
         <div class="vr-head"><strong>${esc(dateText(g))}<br>${g.slots.map(esc).join('、')}</strong><span class="vr-status">${esc(g.status)}${g.cancelAsk ? '・申請取消' : ''}</span></div>
         <dl class="vr-info">
           <div><dt>用途</dt><dd>${esc(g.purpose)}${g.people ? `（約 ${esc(g.people)} 人）` : ''}</dd></div>
+          ${g.applicantNote ? `<div><dt>備註</dt><dd>${esc(g.applicantNote)}</dd></div>` : ''}
           <div><dt>申請人</dt><dd>${esc(g.name)}　${tel ? `<a href="tel:${esc(tel)}">${esc(g.phone)}</a>` : ''}</dd></div>
           <div><dt>申請時間</dt><dd>${esc(g.createdAt)}</dd></div>
           ${g.cancelAsk ? `<div><dt>申請取消</dt><dd>${esc(g.cancelAsk)}</dd></div>` : ''}

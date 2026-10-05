@@ -72,7 +72,7 @@ function currentTokenKey_(account) {
 // ---------- 權限 ----------
 
 // 所有角色都能用的讀取
-var ADMIN_READ_ACTIONS = ['adminPing', 'adminLogout', 'adminMe', 'adminRecent', 'adminDuty', 'adminLogs', 'adminDay',
+var ADMIN_READ_ACTIONS = ['adminPing', 'adminLogout', 'adminMe', 'adminRecent', 'adminDuty', 'adminLogs', 'adminDay', 'adminRoster',
   'adminDutyList', 'adminDutyForEdit', 'adminStats', 'adminMembers', 'adminGroups', 'adminGoals', 'adminVenue'];
 // 依勤務類別判斷的寫入（勤務／道務／教育帳號只能動自己類別）
 var ADMIN_CATEGORY_ACTIONS = ['adminCancel', 'adminReschedule', 'adminRestore', 'adminCreateDuties', 'adminUpdateDuty',
@@ -118,9 +118,9 @@ function adminAuthorize_(session, body) {
     if (['adminPing', 'adminLogout', 'adminMe', 'adminVenue', 'adminVenueDecide'].indexOf(action) === -1) denied();
     return;
   }
-  // 唯讀不看操作紀錄、明日名單（有個資與聯絡細節）、勤務管理
-  if (role === '唯讀' && ['adminLogs', 'adminDay', 'adminDutyList', 'adminDutyForEdit'].indexOf(action) !== -1) denied();
-  // 操作紀錄、明日名單只給總管理者
+  // 唯讀不看操作紀錄、名單（有個資與聯絡細節）、勤務管理
+  if (role === '唯讀' && ['adminLogs', 'adminDay', 'adminRoster', 'adminDutyList', 'adminDutyForEdit'].indexOf(action) !== -1) denied();
+  // 操作紀錄、舊的單日名單只給總管理者（「名單」分頁的 adminRoster 勤務／道務／教育帳號也能用，只看自己類別）
   if (['adminLogs', 'adminDay'].indexOf(action) !== -1) denied();
   // 各佛堂道務目標：總管理者、道務、唯讀看得到；只有總管理者、道務能改
   if (action === 'adminGoals' && (role === '勤務' || role === '教育')) denied();
@@ -150,6 +150,10 @@ function adminScope_(session, action, result) {
   var mine = function (d) { return (d.category || '勤務') === role; };
   if ((action === 'adminRecent' || action === 'adminDutyList' || action === 'adminDay') && Array.isArray(result.duties)) {
     result.duties = result.duties.filter(mine);
+  }
+  if (action === 'adminRoster' && Array.isArray(result.days)) {
+    result.days = result.days.map(function (day) { return { date: day.date, duties: day.duties.filter(mine) }; })
+      .filter(function (day) { return day.duties.length; });
   }
   if (action === 'adminStats' && Array.isArray(result.events)) result.events = result.events.filter(mine);
   if (action === 'adminStats' && Array.isArray(result.eduSessions)) result.eduSessions = result.eduSessions.filter(mine);

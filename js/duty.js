@@ -297,10 +297,6 @@
         ? `<ul class="people">${people.map((s) => `
             <li class="person-row">
               <span class="person">${esc(s.name)}${s.accompany ? '<span class="tag">陪同</span>' : ''}</span>
-              ${canChange ? `<span class="person-actions">
-                ${d.nature === '活動' ? '' : `<button type="button" class="btn btn-small" data-reschedule="${esc(s.id)}">改期</button>`}
-                <button type="button" class="btn btn-small btn-quiet-danger" data-cancel="${esc(s.id)}">取消</button>
-              </span>` : ''}
             </li>`).join('')}</ul>`
         : '<span class="muted">還沒有人報名</span>';
       return `
@@ -316,12 +312,13 @@
     const daily = `
       ${tabs}
       <ul class="position-list">${rows}</ul>
-      <p class="hint">「陪同」不佔名額。${canChange ? '要取消或改期，請按名字旁的按鈕。' : `當天（含）之後不能自己取消或改期，${Fmt.askAdmin()}。`}</p>`;
+      <p class="hint">「陪同」不佔名額。${canChange ? '要取消或改期，請到「查我的報名」輸入自己的名字。' : `當天（含）之後不能自己取消或改期，${Fmt.askAdmin()}。`}</p>
+      ${canChange && (d.signups || []).length ? '<a class="btn btn-block roster-mine-link" href="#/mine">🔍 查我的報名（取消／改期）</a>' : ''}`;
     el.innerHTML = d.layout === '職司表' ? `
       <h2>職司表</h2>
       ${gridSection(d)}
       <details class="grid-daily"${page.dailyOpen ? ' open' : ''}>
-        <summary>每天的名單（要取消或改期點這裡）</summary>
+        <summary>每天的名單</summary>
         ${daily}
       </details>` : `
       <h2>報名名單${dates.length > 1 ? `<span class="h2-sub">${Fmt.shortDate(date)}</span>` : ''}</h2>
@@ -333,99 +330,7 @@
       page.viewDate = btn.dataset.date;
       renderRoster();
     }));
-    const findSignup = (id) => (d.signups || []).find((s) => s.id === id);
     if (d.layout === '職司表') GridPage.bindNotes(el, d);
-    el.querySelectorAll('[data-cancel]').forEach((btn) => btn.addEventListener('click', () => cancelSignup(findSignup(btn.dataset.cancel))));
-    el.querySelectorAll('[data-reschedule]').forEach((btn) => btn.addEventListener('click', () => {
-      Reschedule.open(findSignup(btn.dataset.reschedule), d, (result) => onRescheduled(findSignup(btn.dataset.reschedule), result));
-    }));
-  }
-
-  // ---------- 取消、改期 ----------
-
-  function flashBox(kind, title, text) {
-    return `<div class="notice notice-${kind}" role="${kind === 'error' ? 'alert' : 'status'}">
-      <p><strong>${esc(title)}</strong></p>${text ? `<p>${esc(text)}</p>` : ''}</div>`;
-  }
-
-  function positionName(id) {
-    const p = page.data.positions.find((x) => x.id === id);
-    return p ? p.name : '';
-  }
-
-  /** 換上新資料並顯示訊息；行事曆在背景更新 */
-  function showResult(flash) {
-    if (page.data && page.data.signups) DutyCache.set(page.data.id, page.data);
-    if (window.CalendarPage) CalendarPage.refresh();
-    render(flash);
-    const box = document.getElementById('duty-flash');
-    if (box) box.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
-
-  async function cancelSignup(s) {
-    if (!s) return;
-    const d = page.data;
-    const who = s.name + (s.accompany ? '（陪同）' : '');
-    const ok = await Confirm.open({
-      title: '確定要取消這筆報名嗎？',
-      rows: [['姓名', who], ['日期', Fmt.rocDate(s.date)], ['項目', d.name], ['了愿項目', positionName(s.positionId)]],
-      confirmText: '確定取消報名',
-      cancelText: '不要取消',
-      danger: true
-    });
-    if (!ok) return;
-
-    const doneText = `${who}・${Fmt.shortDate(s.date)}・${positionName(s.positionId)}`;
-    Busy.show('取消中，請稍候⋯', '請不要關閉畫面');
-    try {
-      const res = await Api.retryBusy(() => Api.cancel(s.id),
-        () => Busy.show('使用的人較多，正在排隊⋯', '系統會自動重試，請不要關閉畫面'));
-      Busy.hide();
-      if (!page.data || page.data.id !== d.id) return;
-      page.data.signups = page.data.signups.filter((x) => x.id !== s.id);
-      Object.assign(page.data.days, res.days);
-      showResult(flashBox('success', '已取消報名', doneText));
-    } catch (err) {
-      if (err.code === 'NETWORK' || err.code === 'ALREADY' || err.code === 'NOT_FOUND') {
-        // 沒收到回應、或已被別人取消：重新讀名單，看這筆還在不在
-        Busy.show('正在確認結果⋯', '請不要關閉畫面');
-        try {
-          const fresh = await Api.getDuty(d.id);
-          Busy.hide();
-          if (!page.data || page.data.id !== d.id) return;
-          page.data = fresh;
-          const gone = !fresh.signups.some((x) => x.id === s.id);
-          showResult(gone
-            ? flashBox('success', '已取消報名', doneText)
-            : flashBox('error', '沒有取消成功', '請再按一次「取消」。'));
-        } catch (e) {
-          Busy.hide();
-          showResult(flashBox('error', '網路不穩，無法確定是否取消成功', '請回行事曆後重新點進來，查看名單。'));
-        }
-        return;
-      }
-      Busy.hide();
-      showResult(flashBox('error', err.message || '取消失敗，請稍後再試', ''));
-    }
-  }
-
-  function onRescheduled(s, result) {
-    const d = page.data;
-    if (!d) return;
-    const who = s.name + (s.accompany ? '（陪同）' : '');
-    const text = `${who}：${Fmt.shortDate(s.date)} ${positionName(s.positionId)} → ${Fmt.shortDate(result.date)} ${result.positionName}`;
-    if (result.verified) {
-      page.data = result.verified;
-    } else {
-      const res = result.res;
-      d.signups = d.signups.filter((x) => x.id !== s.id);
-      if (res.from.dutyId === d.id) Object.assign(d.days, res.from.days);
-      if (res.to.dutyId === d.id) {
-        d.signups.push({ id: res.signupId, date: res.to.date, positionId: result.positionId, name: s.name, accompany: s.accompany });
-        Object.assign(d.days, res.to.days);
-      }
-    }
-    showResult(flashBox('success', '已改期', text));
   }
 
   // ---------- 報名表單 ----------

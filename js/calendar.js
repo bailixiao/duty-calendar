@@ -1,5 +1,5 @@
 // 行事曆首頁：年／月檢視用 FullCalendar，週檢視自製（七天直向列出，含沒有勤務的日子）。
-// 「近期」檢視：今天起 14 天有勤務的日子依序列出，最上面提醒哪幾天缺人（與管理後台的近期勤務同樣內容）。
+// 「近期」檢視：今天起一個月有勤務的日子依序列出，最上面提醒哪幾天缺人（與管理後台的近期勤務同樣內容）。
 // 格子顯示國曆、農曆與勤務色點；點日期在下方列出當天勤務卡片。格子上不顯示名字。
 (function () {
   'use strict';
@@ -8,7 +8,7 @@
   const STORAGE_KEY = 'duty-calendar:view';
   const DOTS_MAX = { year: 3, month: 4 };
   const VENUE_ORDER = { 早上: '08:00', 下午: '13:00', 晚上: '18:00' }; // 場地借用排在當天的順序
-  const RECENT_DAYS = 14;
+  const RECENT_DAYS = 31; // 近期＝今天起一個月
   // 類別篩選（勤務／道務／教育）：有道務或教育的項目時才顯示篩選列；記住上次的選擇
   const CAT_KEY = 'duty-calendar:cat';
   let catFilter = (() => { try { return localStorage.getItem(CAT_KEY) || '全部'; } catch (e) { return '全部'; } })();
@@ -100,7 +100,7 @@
     if (isList) el.pastToggle.hidden = true;
     el.week.hidden = !isList;
     el.panel.hidden = state.view !== 'month';
-    // 近期檢視固定是今天起 14 天，不需要翻頁
+    // 近期檢視固定是今天起一個月，不需要翻頁
     el.nav.forEach((b) => { b.hidden = state.view === 'recent'; });
 
     if (state.view === 'recent') {
@@ -231,7 +231,7 @@
     } else if (state.view === 'month') {
       text = `${Fmt.rocYear(a)} 年 ${Number(a.slice(5, 7))} 月`;
     } else if (state.view === 'recent') {
-      text = `近 ${RECENT_DAYS} 天的行程`;
+      text = '近一個月的行程';
     } else {
       const from = weekStart(a);
       const to = Fmt.addDays(from, 6);
@@ -587,10 +587,10 @@
     const dates = Fmt.datesBetween(state.range.from, state.range.to).filter((d) => (dayMap.get(d) || []).length);
     const shortDates = dates.filter((d) => dayMap.get(d).some((it) => it.state.kind === 'short'));
     const alert = catFilter === '場地' ? '' : shortDates.length
-      ? `<div class="notice notice-error recent-alert" role="status"><p><strong>近 ${RECENT_DAYS} 天有 ${shortDates.length} 天缺人</strong></p><p>${shortDates.map(Fmt.shortDate).join('、')}</p><p class="muted">點勤務就可以報名幫忙</p>${Share.buttonsHtml()}</div>`
-      : `<div class="notice recent-alert" role="status"><p>近 ${RECENT_DAYS} 天的勤務都不缺人</p></div>`;
+      ? `<div class="notice notice-error recent-alert" role="status"><p><strong>近一個月有 ${shortDates.length} 天缺人</strong></p><p>${Fmt.shortDateList(shortDates)}</p><p class="muted">點勤務就可以報名幫忙</p>${Share.buttonsHtml()}</div>`
+      : `<div class="notice recent-alert" role="status"><p>近一個月的勤務都不缺人</p></div>`;
     if (!dates.length) {
-      el.week.innerHTML = `<p class="panel-empty">近 ${RECENT_DAYS} 天沒有行程</p>`;
+      el.week.innerHTML = `<p class="panel-empty">近一個月沒有行程</p>`;
       return;
     }
     const rows = dates.map((date) => {

@@ -1,5 +1,5 @@
 // 管理後台（規格第 8 節）：登入、近期勤務、勤務名單管理（含組長電話、取消／改期任何日期）。
-// 操作紀錄與明日名單在 admin-pages.js。
+// 操作紀錄與名單在 admin-pages.js。
 //   #/admin           近期勤務（未登入時顯示登入）
 //   #/admin/duty/<id> 勤務名單管理
 //   #/admin/duties…   勤務管理：列表、新增、編輯（見 admin-duties.js）
@@ -7,7 +7,7 @@
 //   #/admin/members   成員名單管理、#/admin/groups 分組管理（見 admin-people.js）
 //   #/admin/stats     統計（見 admin-stats.js）、#/admin/history 匯入歷史資料（見 admin-history.js）
 //   #/admin/logs      操作紀錄與還原
-//   #/admin/day       明日名單
+//   #/admin/day       名單（今天起一個月，勾日期產生文字）
 (function () {
   'use strict';
 
@@ -70,20 +70,23 @@
   /** 進管理後台就在背景先抓各分頁的資料（同時送出），切換分頁時就不用等 */
   function prefetch() {
     if (!Api.isAdmin() || Api.adminWho().role === '場管') return;
-    const tomorrow = Fmt.addDays(Fmt.toDateStr(new Date()), 1);
-    [['recent', () => Api.admin('adminRecent', { days: 14 }, true)],
+    [['recent', () => Api.admin('adminRecent', { days: 31 }, true)],
       ['members', () => Api.admin('adminMembers', {}, true)],
       ['groups', () => Api.admin('adminGroups', {}, true)],
       ...(Api.adminWho().role === '唯讀' ? [] : [['dutyList', () => Api.admin('adminDutyList', {}, true)]]), // 唯讀帳號看不到勤務管理
-      ...(seesLogs() ? [ // 操作紀錄、明日名單：只有總管理者
-        ['logs', () => Api.admin('adminLogs', { offset: 0, limit: 50 }, true)],
-        ['day:' + tomorrow, () => Api.admin('adminDay', { date: tomorrow }, true)]] : []),
+      ...(seesLogs() ? [['logs', () => Api.admin('adminLogs', { offset: 0, limit: 50 }, true)]] : []), // 操作紀錄：只有總管理者
+      ...(seesRoster() ? [['roster', () => Api.admin('adminRoster', {}, true)]] : []),
       ['stats', () => Api.admin('adminStats', {}, true)]].forEach(([key, fetcher]) => {
       if (!memo.has(key)) fetchShared(key, fetcher).catch(() => {});
     });
   }
 
-  /** 看得到操作紀錄、明日名單的帳號：只有總管理者 */
+  /** 看得到「名單」的帳號：總管理者與勤務／道務／教育（類別帳號只看自己類別） */
+  function seesRoster() {
+    return ['總管理者', '勤務', '道務', '教育'].indexOf(Api.adminWho().role) !== -1;
+  }
+
+  /** 看得到操作紀錄的帳號：只有總管理者 */
   function seesLogs() {
     return Api.adminWho().role === '總管理者';
   }
@@ -133,7 +136,7 @@
     if (sub === 'stats') return StatsPage.show(shell('stats'), guard);
     if (sub === 'history') return HistoryPage.show(shell('stats'), guard);
     if (sub === 'logs' && seesLogs()) return AdminPages.logs(shell('logs'), guard);
-    if (sub === 'day' && seesLogs()) return AdminPages.day(shell('day'), guard);
+    if (sub === 'day' && seesRoster()) return AdminPages.day(shell('day'), guard);
     return showRecent();
   }
 
@@ -141,11 +144,12 @@
   function shell(active) {
     const who = Api.adminWho();
     const T = term();
-    const tabs = [['', '近期' + T], ['duties', T + '管理'], ['members', '成員'], ['groups', '分組'], ['stats', '統計'], ['logs', '操作紀錄'], ['day', '明日名單']];
+    const tabs = [['', '近期' + T], ['duties', T + '管理'], ['members', '成員'], ['groups', '分組'], ['stats', '統計'], ['logs', '操作紀錄'], ['day', '名單']];
     if (['總管理者', '唯讀'].indexOf(who.role) !== -1) tabs.push(['venue', '場地借用']);
     if (who.role === '總管理者') tabs.push(['accounts', '帳號']);
     if (who.role === '唯讀') tabs.splice(tabs.findIndex((t) => t[0] === 'duties'), 1); // 唯讀帳號：不顯示勤務管理
-    if (!seesLogs()) ['logs', 'day'].forEach((k) => tabs.splice(tabs.findIndex((t) => t[0] === k), 1)); // 操作紀錄、明日名單只給總管理者
+    if (!seesLogs()) tabs.splice(tabs.findIndex((t) => t[0] === 'logs'), 1); // 操作紀錄只給總管理者
+    if (!seesRoster()) tabs.splice(tabs.findIndex((t) => t[0] === 'day'), 1); // 名單：總管理者、勤務、道務、教育
     if (who.role === '場管') tabs.splice(0, tabs.length, ['venue', '場地借用']);
     root.innerHTML = `
       <div class="admin-head">
@@ -275,7 +279,7 @@
     // 行事曆已載入的資料可以先顯示（內容與 adminRecent 相同）
     const today = Fmt.toDateStr(new Date());
     const preview = window.CalendarPage && CalendarPage.peekRange(today, Fmt.addDays(today, 13));
-    swr('recent', () => Api.admin('adminRecent', { days: 14 }, true), (data, stale) => renderRecent(body, data, stale), body, preview);
+    swr('recent', () => Api.admin('adminRecent', { days: 31 }, true), (data, stale) => renderRecent(body, data, stale), body, preview);
   }
 
   function renderRecent(body, data, stale) {
@@ -296,23 +300,60 @@
       body.innerHTML = `
         ${staleNote(stale)}
         ${['道務', '教育'].indexOf(Api.adminWho().role) !== -1 ? '' : shortDates.size
-          ? `<div class="notice notice-error" role="status"><p><strong>近 14 天有 ${shortDates.size} 天缺人</strong></p><p>${[...shortDates].map(Fmt.shortDate).join('、')}</p>${Share.buttonsHtml()}</div>`
-          : '<div class="notice notice-success" role="status"><p><strong>近 14 天都不缺人</strong></p></div>'}
+          ? `<div class="notice notice-error" role="status"><p><strong>近一個月有 ${shortDates.size} 天缺人</strong></p><p>${Fmt.shortDateList(shortDates)}</p>${Share.buttonsHtml()}</div>`
+          : '<div class="notice notice-success" role="status"><p><strong>近一個月都不缺人</strong></p></div>'}
         ${[...byDate.entries()].map(([date, items]) => `
           <section class="admin-day">
             <h2 class="admin-day-title">${Fmt.shortDate(date)}${date === data.today ? '<span class="h2-sub">今天</span>' : ''}</h2>
             <div class="card-list">
               ${items.map(({ d, st }) => `
-                <a class="duty-card kind-${st.kind}" href="#/admin/duty/${encodeURIComponent(d.id)}?date=${date}">
-                  <span class="card-main">
-                    <span class="card-title">${esc(d.name)}</span>
-                    <span class="card-meta">${esc([d.location, Fmt.cardTime(d, date), d.group].filter(Boolean).join('・'))}</span>
-                  </span>
-                  <span class="badge badge-${st.kind}">${esc(st.label)}</span>
-                </a>`).join('')}
+                <div class="recent-item">
+                  <a class="duty-card kind-${st.kind}" href="#/admin/duty/${encodeURIComponent(d.id)}?date=${date}">
+                    <span class="card-main">
+                      <span class="card-title">${esc(d.name)}</span>
+                      <span class="card-meta">${esc([d.location, Fmt.cardTime(d, date), d.group].filter(Boolean).join('・'))}</span>
+                    </span>
+                    <span class="badge badge-${st.kind}">${esc(st.label)}</span>
+                  </a>
+                  ${d.mode === '公告型' ? '' : `<div class="recent-tools">
+                    <label class="check"><input type="checkbox" data-invite-pick="${esc(d.id)}|${date}"> 勾選</label>
+                    <button type="button" class="link-btn" data-invite="${esc(d.id)}|${date}">📋 複製通知</button>
+                  </div>`}
+                </div>`).join('')}
             </div>
-          </section>`).join('') || `<p class="panel-empty">近 14 天沒有${term()}</p>`}`;
+          </section>`).join('') || `<p class="panel-empty">近一個月沒有${term()}</p>`}
+        ${rows.some((r) => r.d.mode !== '公告型') ? `<div class="invite-bar" data-invite-bar hidden>
+          <span data-invite-count></span>
+          <button type="button" class="btn btn-primary" data-invite-copy>複製勾選的通知</button>
+          <button type="button" class="btn btn-line" data-invite-line>傳到 LINE</button>
+        </div>` : ''}`;
       Share.bind(body, () => Share.shortageText(rows.map((r) => ({ duty: r.d, date: r.date, state: r.st }))));
+      // 邀請通知：一筆直接複製；勾好幾筆合成一則
+      const rowOf = (key) => {
+        const [id, date] = key.split('|');
+        const r = rows.find((x) => x.d.id === id && x.date === date);
+        return r ? { duty: r.d, date } : null;
+      };
+      const flashBtn = (btn, text, back) => { btn.textContent = text; setTimeout(() => { btn.textContent = back; }, 2500); };
+      body.querySelectorAll('[data-invite]').forEach((btn) => btn.addEventListener('click', async () => {
+        const r = rowOf(btn.dataset.invite);
+        if (!r) return;
+        flashBtn(btn, (await Share.copyText(Share.inviteText([r]))) ? '已複製 ✓' : '複製失敗', '📋 複製通知');
+      }));
+      const bar = body.querySelector('[data-invite-bar]');
+      const picked = () => [...body.querySelectorAll('[data-invite-pick]:checked')].map((c) => rowOf(c.dataset.invitePick)).filter(Boolean);
+      body.querySelectorAll('[data-invite-pick]').forEach((c) => c.addEventListener('change', () => {
+        const n = picked().length;
+        bar.hidden = !n;
+        bar.querySelector('[data-invite-count]').textContent = `已勾 ${n} 筆`;
+      }));
+      if (bar) {
+        const copyBtn = bar.querySelector('[data-invite-copy]');
+        copyBtn.addEventListener('click', async () => flashBtn(copyBtn, (await Share.copyText(Share.inviteText(picked()))) ? '已複製 ✓' : '複製失敗', '複製勾選的通知'));
+        bar.querySelector('[data-invite-line]').addEventListener('click', () => {
+          window.open('https://line.me/R/msg/text/?' + encodeURIComponent(Share.inviteText(picked())), '_blank', 'noopener');
+        });
+      }
     }
   }
 

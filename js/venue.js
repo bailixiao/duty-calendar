@@ -6,7 +6,7 @@
 
   const esc = Fmt.esc;
   const NAME_KEY = 'duty-calendar:venue-name';
-  const PROFILE_KEY = 'duty-calendar:venue-profiles'; // { 姓名: { phone, purpose, people } }
+  const PROFILE_KEY = 'duty-calendar:venue-profiles'; // { 姓名: { phone, purpose, people, note } }
   const SLOT_NAMES = ['早上', '下午', '晚上'];
   let root = null;
   let token = 0;
@@ -57,6 +57,7 @@
           <label class="form-row"><span>聯絡電話（只有管理者看得到）</span><input class="input" name="phone" type="tel" inputmode="tel" autocomplete="tel" value="${esc(mine.phone || '')}" placeholder="例：0912-345678"></label>
           <label class="form-row"><span>用途</span><input class="input" name="purpose" maxlength="60" value="${esc(mine.purpose || '')}" placeholder="例：讀書會、家族聚會、練唱"></label>
           <label class="form-row"><span>人數（大約）</span><input class="input" name="people" inputmode="numeric" value="${esc(mine.people || '')}" placeholder="例：15"></label>
+          <label class="form-row"><span>備註（選填，只有管理者看得到）</span><textarea class="input" name="note" rows="2" maxlength="100" placeholder="例：要用投影機、會提早半小時到布置">${esc(mine.note || '')}</textarea></label>
           <p class="hint" data-remember>${mine.phone ? '✓ 已帶入上次填的資料，可以直接改。' : '送出後會記在這台手機，下次選名字就自動帶入。'}</p>
           <div class="form-error" data-error hidden></div>
           <button type="submit" class="btn btn-primary btn-block" data-submit>送出申請</button>
@@ -86,6 +87,7 @@
       form.elements.phone.value = p.phone || '';
       form.elements.purpose.value = p.purpose || '';
       form.elements.people.value = p.people || '';
+      form.elements.note.value = p.note || '';
       root.querySelector('[data-remember]').textContent = '✓ 已帶入上次填的資料，可以直接改。';
     };
     suggest(form.elements.name, root.querySelector('[data-sug-name]'), fill);
@@ -126,7 +128,8 @@
           <label><span>到</span><input class="input" type="date" min="${state.tomorrow}" max="${state.last}" data-r="to" value="${esc(r.to)}"></label>
         </div>
         <label class="form-row"><span>頻率</span><select class="input" data-r="freq">${[['w1', '每週'], ['w2', '每兩週'], ['w3', '每三週'], ['w4', '每四週'], ['m1', '每月第一個'], ['m2', '每月第二個'], ['m3', '每月第三個'], ['m4', '每月第四個'], ['mL', '每月最後一個'], ['day', '每月固定幾號']].map(([v, l]) => `<option value="${v}"${r.freq === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
-        ${r.freq === 'day' ? `<label class="form-row"><span>每月幾號</span><input class="input" inputmode="numeric" data-r="dom" value="${esc(r.dom)}" placeholder="例：15"></label>`
+        ${r.freq === 'day' ? `<label class="form-row"><span>每月幾號</span><input class="input" inputmode="numeric" data-r="dom" value="${esc(r.dom)}" placeholder="例：15"></label>
+          <label class="form-row"><span>備註（選填，只有管理者看得到）</span><textarea class="input" name="note" rows="2" maxlength="100" placeholder="例：要用投影機、會提早半小時到布置">${esc(mine.note || '')}</textarea></label>`
           : `<div class="multi-weekdays">${DateList.WEEK.map((w, i) => `<label class="check"><input type="checkbox" data-wd="${i}"${r.weekdays.indexOf(i) !== -1 ? ' checked' : ''}> 星期${w}</label>`).join('')}</div>`}
         <button type="button" class="btn btn-block" data-rule-add>加入這些日期</button>
       </div>
@@ -267,7 +270,8 @@
       name: f.elements.name.value.trim(),
       phone: f.elements.phone.value.trim(),
       purpose: f.elements.purpose.value.trim(),
-      people: f.elements.people.value.trim()
+      people: f.elements.people.value.trim(),
+      note: f.elements.note.value.trim()
     };
     box.hidden = true;
     if (!dates.length) { box.textContent = state.mode === 'multi' && state.dates.size ? '選的日子都已經借出了，請換日期或時段' : '請在上面選日期'; box.hidden = false; return; }
@@ -277,7 +281,7 @@
     try {
       const res = await Api.requestVenue(body);
       saveName(body.name);
-      saveProfile(body.name, { phone: body.phone, purpose: body.purpose, people: body.people });
+      saveProfile(body.name, { phone: body.phone, purpose: body.purpose, people: body.people, note: body.note });
       const n = res.dates.length;
       root.querySelector('[data-flash]').innerHTML = `<div class="notice notice-success notice-big" role="status">
         <p><strong>🎉 已收到您的申請，感恩您！</strong></p>
@@ -358,9 +362,15 @@
           <span class="vm-status">${r.cancelPending ? '⏳ 取消審核中' : r.status === '待審核' ? '⏳ 審核中' : r.status === '已同意' ? '✅ 已借到' : r.status === '不同意' ? '❌ 沒有借到' : '已取消'}${r.note ? `<small>${esc(r.note)}</small>` : ''}</span>
         </li>`).join('')}</ul>
         ${can.length ? `<div class="vm-cancel">
+          <div class="vm-quick"><button type="button" class="link-btn" data-vm-all>全選</button><button type="button" class="link-btn" data-vm-none>都不選</button></div>
           <p class="hint">臨時不借了？勾要取消的日期時段，按下面的按鈕申請取消（要輸入申請時留的電話）。<strong>管理者同意後才算取消</strong>，之前還是幫您留著。當天（含）之後要取消，請聯絡管理者。</p>
           <button type="button" class="btn btn-quiet-danger btn-block" data-cancel-go>申請取消勾選的時段</button>
         </div>` : ''}` : '<p class="muted">查不到今天以後的申請（姓名要和申請時一樣）。</p>');
+    const boxes = () => [...out.querySelectorAll('[data-cancel-id]')];
+    const all = out.querySelector('[data-vm-all]');
+    if (all) all.addEventListener('click', () => boxes().forEach((c) => { c.checked = true; }));
+    const none = out.querySelector('[data-vm-none]');
+    if (none) none.addEventListener('click', () => boxes().forEach((c) => { c.checked = false; }));
     const go = out.querySelector('[data-cancel-go]');
     if (go) go.addEventListener('click', () => {
       const ids = [...out.querySelectorAll('[data-cancel-id]:checked')].map((c) => c.dataset.cancelId);

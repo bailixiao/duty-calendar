@@ -46,6 +46,41 @@
     return lines.join('\n');
   }
 
+  /** 需要人數：勤務寫還缺幾位（共需幾位）；道務、教育寫名額還有幾位，不限名額寫歡迎參加 */
+  function needText(duty, day) {
+    const d = day || { total: 0, counts: {}, full: false };
+    const counts = d.counts || {};
+    if (d.full) return '已額滿，感恩大家 🙏';
+    if (duty.category === '道務' || duty.category === '教育') {
+      if (duty.positions.some((p) => p.max === null)) return '不限名額，歡迎參加';
+      const left = duty.positions.reduce((sum, p) => sum + Math.max(p.max - (counts[p.id] || 0), 0), 0);
+      return `名額還有 ${left} 位`;
+    }
+    const need = duty.positions.reduce((sum, p) => sum + Fmt.effectiveMin(p), 0);
+    const short = duty.positions.reduce((sum, p) => sum + Math.max(Fmt.effectiveMin(p) - (counts[p.id] || 0), 0), 0);
+    if (short > 0) return `還缺 ${short} 位（共需 ${need} 位）`;
+    return need ? `已有 ${d.total} 位（共需 ${need} 位），還可以報名` : `已報 ${d.total} 位，歡迎參加`;
+  }
+
+  /**
+   * 邀請通知（後台近期勤務「複製通知」）：rows = [{ duty, date }]，一筆或好幾筆合成一則。
+   * 只有名稱、日期、時段、地點、需要人數、報名連結（公開資料）。
+   */
+  function inviteText(rows) {
+    const list = rows.slice().sort((a, b) => a.date.localeCompare(b.date) || (a.duty.startTime || '').localeCompare(b.duty.startTime || ''));
+    const block = ({ duty, date }) => {
+      const out = [`【${duty.name}】`, `📅 日期：${Fmt.rocDate(date)}`];
+      const time = Fmt.cardTime(duty, date);
+      if (time) out.push(`⏰ 時段：${time}`);
+      if (duty.location) out.push(`📍 地點：${duty.location}`);
+      out.push(`🙋 需要人數：${needText(duty, (duty.days || {})[date])}`);
+      out.push(`👉 報名：${siteUrl()}#/duty/${encodeURIComponent(duty.id)}?date=${date}`);
+      return out.join('\n');
+    };
+    if (list.length === 1) return block(list[0]) + '\n\n歡迎家人們踴躍成全 🙏';
+    return ['🙏【教全區 成全邀請】🙏', '', list.map(block).join('\n\n'), '', '歡迎家人們踴躍成全，感謝慈悲 🙏😊'].join('\n');
+  }
+
   async function copyText(text) {
     try {
       await navigator.clipboard.writeText(text);
@@ -93,5 +128,5 @@
     }
   }
 
-  window.Share = { shortageText, copyText, buttonsHtml, bind };
+  window.Share = { shortageText, inviteText, copyText, buttonsHtml, bind };
 })();
