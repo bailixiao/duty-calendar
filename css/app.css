@@ -2005,3 +2005,4 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 .venue-check li.is-taken { background: var(--full-soft); color: var(--full); }
 .venue-check small { display: block; color: #8a5a00; }
 .venue-intro { margin: 0 0 12px; padding: 12px 14px; border-radius: 14px; background: #fff6e0; border: 1px solid #f0dca8; font-size: 17px; line-height: 1.8; color: var(--ink); }
+.venue-mine-who { margin: 10px 0 4px; color: var(--ink-2); }

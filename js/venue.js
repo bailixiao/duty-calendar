@@ -90,7 +90,9 @@
     };
     suggest(form.elements.name, root.querySelector('[data-sug-name]'), fill);
     form.elements.name.addEventListener('change', () => fill(form.elements.name.value));
-    suggest(root.querySelector('[data-mine]').elements.mname, root.querySelector('[data-sug-mine]'), (n) => mine2(n));
+    const mname = root.querySelector('[data-mine]').elements.mname;
+    suggest(mname, root.querySelector('[data-sug-mine]'), (n) => mine2(n));
+    mname.addEventListener('input', () => { if (!mname.value.trim()) root.querySelector('[data-mine-result]').innerHTML = ''; }); // 清空就不顯示結果
     drawPick();
   }
 
@@ -336,14 +338,16 @@
     name = String(name || '').replace(/[\s　]+/g, '');
     if (!name) { out.innerHTML = ''; return; }
     if (name.length < 2) { out.innerHTML = '<p class="muted">請輸入完整的名字（至少 2 個字），或從提示點名字</p>'; return; }
+    const mi = root.querySelector('[data-mine]').elements.mname;
+    if (mi.value.replace(/[\s　]+/g, '') !== name) mi.value = name; // 自動查的時候，把名字填進查詢欄
     out.innerHTML = '<p class="muted">查詢中⋯</p>';
     try {
       const res = await Api.myVenue(name);
-      out.innerHTML = res.requests.length ? `<ul class="venue-mine">${res.requests.map((r) => `
+      out.innerHTML = `<p class="venue-mine-who"><strong>${esc(name)}</strong> 的申請</p>` + (res.requests.length ? `<ul class="venue-mine">${res.requests.map((r) => `
         <li class="is-${r.status === '已同意' ? 'ok' : r.status === '待審核' ? 'wait' : 'no'}">
           <span><strong>${esc(Fmt.shortDate(r.date))} ${esc(r.slot)}</strong>　${esc(r.purpose)}</span>
           <span class="vm-status">${r.status === '待審核' ? '⏳ 審核中' : r.status === '已同意' ? '✅ 已借到' : r.status === '不同意' ? '❌ 沒有借到' : '已取消'}${r.note ? `<small>${esc(r.note)}</small>` : ''}</span>
-        </li>`).join('')}</ul>` : '<p class="muted">查不到今天以後的申請（姓名要和申請時一樣）。</p>';
+        </li>`).join('')}</ul>` : '<p class="muted">查不到今天以後的申請（姓名要和申請時一樣）。</p>');
     } catch (err) {
       out.innerHTML = `<p class="muted">${esc(err.message || '查詢失敗')}</p>`;
     }
