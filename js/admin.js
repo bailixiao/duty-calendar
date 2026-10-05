@@ -69,7 +69,7 @@
 
   /** 進管理後台就在背景先抓各分頁的資料（同時送出），切換分頁時就不用等 */
   function prefetch() {
-    if (!Api.isAdmin()) return;
+    if (!Api.isAdmin() || Api.adminWho().role === '場管') return;
     const tomorrow = Fmt.addDays(Fmt.toDateStr(new Date()), 1);
     [['recent', () => Api.admin('adminRecent', { days: 14 }, true)],
       ['members', () => Api.admin('adminMembers', {}, true)],
@@ -122,6 +122,7 @@
     applyRole();
     if (!Api.isAdmin()) return renderLogin();
     prefetch();
+    if (Api.adminWho().role === '場管' || sub === 'venue') return VenueAdminPage.show(shell('venue'), guard); // 場管帳號只有場地借用
     if (sub === 'accounts') return AccountsPage.show(shell('accounts'), guard);
     const m = sub.match(/^duty\/([^?]+)(?:\?date=(\d{4}-\d{2}-\d{2}))?/);
     if (m) return showDuty(decodeURIComponent(m[1]), m[2] || '');
@@ -141,9 +142,11 @@
     const who = Api.adminWho();
     const T = term();
     const tabs = [['', '近期' + T], ['duties', T + '管理'], ['members', '成員'], ['groups', '分組'], ['stats', '統計'], ['logs', '操作紀錄'], ['day', '明日名單']];
+    if (['總管理者', '唯讀'].indexOf(who.role) !== -1) tabs.push(['venue', '場地借用']);
     if (who.role === '總管理者') tabs.push(['accounts', '帳號']);
     if (who.role === '唯讀') tabs.splice(tabs.findIndex((t) => t[0] === 'duties'), 1); // 唯讀帳號：不顯示勤務管理
     if (!seesLogs()) ['logs', 'day'].forEach((k) => tabs.splice(tabs.findIndex((t) => t[0] === k), 1)); // 操作紀錄、明日名單只給總管理者
+    if (who.role === '場管') tabs.splice(0, tabs.length, ['venue', '場地借用']);
     root.innerHTML = `
       <div class="admin-head">
         <h1 class="admin-title">管理後台</h1>
@@ -166,6 +169,7 @@
   /** 角色說明（勤務／道務／教育／唯讀帳號在每頁上方看到） */
   function roleNote(role) {
     if (role === '唯讀') return '<p class="role-note">👀 唯讀帳號：可以查看所有資料，不能修改。</p>';
+    if (role === '場管') return '<p class="role-note">🏠 區中心場管帳號：審核家人們的場地借用申請。</p>';
     if (role === '勤務') return '<p class="role-note">這個帳號管理「勤務」類的勤務；成員、分組只能查看。</p>';
     if (['道務', '教育'].indexOf(role) !== -1) return `<p class="role-note">這個帳號管理「${esc(role)}」類的活動、課程與布達；成員、分組只能查看。</p>`;
     return '';

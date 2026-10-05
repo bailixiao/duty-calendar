@@ -7,11 +7,12 @@
   const FC_VIEWS = { year: 'multiMonthYear', month: 'dayGridMonth' };
   const STORAGE_KEY = 'duty-calendar:view';
   const DOTS_MAX = { year: 3, month: 4 };
+  const VENUE_ORDER = { 早上: '08:00', 下午: '13:00', 晚上: '18:00' }; // 場地借用排在當天的順序
   const RECENT_DAYS = 14;
   // 類別篩選（勤務／道務／教育）：有道務或教育的項目時才顯示篩選列；記住上次的選擇
   const CAT_KEY = 'duty-calendar:cat';
   let catFilter = (() => { try { return localStorage.getItem(CAT_KEY) || '全部'; } catch (e) { return '全部'; } })();
-  const KIND_ORDER = { short: 0, full: 1, ok: 2, notice: 3 };
+  const KIND_ORDER = { short: 0, full: 1, ok: 2, notice: 3, venue: 4 };
 
   const el = {};
   const state = {
@@ -374,6 +375,12 @@
         dayMap.get(date).push(item);
       });
     });
+    // 區中心場地已借出（姓名、用途）：只在「全部」時顯示
+    if (catFilter === '全部') (data.venue || []).forEach((v) => {
+      if (v.date < from || v.date > to) return;
+      if (!dayMap.has(v.date)) dayMap.set(v.date, []);
+      dayMap.get(v.date).push({ venue: v, duty: { name: '', startTime: VENUE_ORDER[v.slot] || '' }, state: { kind: 'venue', label: '已借出' } });
+    });
     // 合併顯示：同一天有「名稱含 merge 文字」的項目（例：拜香輪值），把這筆接在它後面，變成一張卡片
     dayMap.forEach((items, date) => {
       for (let i = items.length - 1; i >= 0; i--) {
@@ -501,6 +508,14 @@
   }
 
   function cardHtml(item, date, compact) {
+    if (item.venue) return `
+      <a class="duty-card kind-venue${compact ? ' is-compact' : ''}" href="#/venue?date=${date}">
+        <span class="card-main">
+          <span class="card-title"><span class="cat-tag cat-venue">場地</span>🏠 區中心 ${Fmt.esc(item.venue.slot)}</span>
+          <span class="card-meta">${Fmt.esc(item.venue.purpose)}（${Fmt.esc(item.venue.name)}）</span>
+        </span>
+        <span class="badge badge-venue">已借出</span>
+      </a>`;
     if (item.follow) return mergedCardHtml(item, date, compact);
     const { duty, state: st } = item;
     const meta = [duty.location, Fmt.cardTime(duty, date)].filter(Boolean);
@@ -592,7 +607,7 @@
     });
     el.week.innerHTML = alert + `<ol class="week-list">${rows.join('')}</ol>`;
     const all = [];
-    dates.forEach((date) => dayMap.get(date).forEach((it) => all.push({ duty: it.duty, date, state: it.state })));
+    dates.forEach((date) => dayMap.get(date).forEach((it) => { if (!it.venue) all.push({ duty: it.duty, date, state: it.state }); }));
     Share.bind(el.week, () => Share.shortageText(all));
   }
 

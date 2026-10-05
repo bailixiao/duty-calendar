@@ -48,6 +48,7 @@ function getEvents_(params) {
     to: to,
     today: todayString_(),
     contact: adminContact_(),
+    venue: venueApproved_(from, to), // 區中心場地已借出的時段（姓名、用途；不含電話）
     duties: duties.map(function (d) {
       var positions = positionsByDuty[d['勤務ID']] || [];
       var signups = signupsByDuty[d['勤務ID']] || [];

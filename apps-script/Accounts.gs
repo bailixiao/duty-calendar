@@ -7,7 +7,7 @@
  *   - 每個帳號各自只能一台裝置登入。
  */
 
-var ROLES = ['總管理者', '勤務', '道務', '教育', '唯讀'];
+var ROLES = ['總管理者', '勤務', '道務', '教育', '唯讀', '場管']; // 場管＝區中心場管：只審核場地借用
 var CATEGORIES = ['勤務', '道務', '教育'];
 var SUPER_ACCOUNT = '總管理者';
 var PASSWORD_MIN = 6;
@@ -73,10 +73,10 @@ function currentTokenKey_(account) {
 
 // 所有角色都能用的讀取
 var ADMIN_READ_ACTIONS = ['adminPing', 'adminLogout', 'adminMe', 'adminRecent', 'adminDuty', 'adminLogs', 'adminDay',
-  'adminDutyList', 'adminDutyForEdit', 'adminStats', 'adminMembers', 'adminGroups', 'adminGoals'];
+  'adminDutyList', 'adminDutyForEdit', 'adminStats', 'adminMembers', 'adminGroups', 'adminGoals', 'adminVenue'];
 // 依勤務類別判斷的寫入（勤務／道務／教育帳號只能動自己類別）
 var ADMIN_CATEGORY_ACTIONS = ['adminCancel', 'adminReschedule', 'adminRestore', 'adminCreateDuties', 'adminUpdateDuty',
-  'adminDeleteDuty', 'adminSetAttendance', 'adminAddAttendee', 'adminDraftFromImages', 'adminUpdateStatsSheet', 'adminSetTeachers', 'adminSaveGoals'];
+  'adminDeleteDuty', 'adminSetAttendance', 'adminAddAttendee', 'adminDraftFromImages', 'adminUpdateStatsSheet', 'adminSetTeachers', 'adminSaveGoals', 'adminVenueDecide'];
 
 function findDutyById_(id) {
   return findById_(readTableCached_(SHEETS.DUTIES), '勤務ID', id) || null;
@@ -113,6 +113,11 @@ function adminAuthorize_(session, body) {
   var action = body.action;
   if (role === SUPER_ACCOUNT) return;
   var denied = function () { throw new ApiError_('FORBIDDEN', '這個帳號沒有權限做這件事'); };
+  // 區中心場管：只看、只審核場地借用
+  if (role === '場管') {
+    if (['adminPing', 'adminLogout', 'adminMe', 'adminVenue', 'adminVenueDecide'].indexOf(action) === -1) denied();
+    return;
+  }
   // 唯讀不看操作紀錄、明日名單（有個資與聯絡細節）、勤務管理
   if (role === '唯讀' && ['adminLogs', 'adminDay', 'adminDutyList', 'adminDutyForEdit'].indexOf(action) !== -1) denied();
   // 操作紀錄、明日名單只給總管理者
@@ -120,6 +125,8 @@ function adminAuthorize_(session, body) {
   // 各佛堂道務目標：總管理者、道務、唯讀看得到；只有總管理者、道務能改
   if (action === 'adminGoals' && (role === '勤務' || role === '教育')) denied();
   if (action === 'adminSaveGoals' && role !== '道務') denied();
+  // 場地借用：總管理者、場管審核；其他帳號只能看
+  if (action === 'adminVenueDecide') denied();
   if (ADMIN_READ_ACTIONS.indexOf(action) !== -1) {
     if (CATEGORIES.indexOf(role) !== -1 && (action === 'adminDuty' || action === 'adminDutyForEdit')) {
       var d = targetDuties_(body)[0];
@@ -184,7 +191,7 @@ function adminSaveAccount_(body) {
   if (!account) errors.push('請填帳號');
   if (account === SUPER_ACCOUNT) errors.push('「總管理者」是保留的名稱，請換一個');
   if (account && !/^[^\s]{2,20}$/.test(account)) errors.push('帳號要 2～20 個字，不能有空白');
-  if (ROLES.indexOf(a.role) <= 0) errors.push('請選角色（勤務、道務、教育或唯讀）');
+  if (ROLES.indexOf(a.role) <= 0) errors.push('請選角色（勤務、道務、教育、唯讀或場管）');
   var password = String(a.password || '');
   if (password && password.length < PASSWORD_MIN) errors.push('密碼至少 ' + PASSWORD_MIN + ' 個字');
   return withSignupLock_(function () {

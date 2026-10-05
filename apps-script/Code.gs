@@ -25,6 +25,7 @@ function doGet(e) {
       case 'pushKey': return pushKey_();
       case 'loginAccounts': return loginAccounts_();
       case 'pushSummary': return pushSummary_(p);
+      case 'getVenue': return getVenue_(p);
       default: throw new ApiError_('BAD_REQUEST', '未知的 action：' + (p.action || '（空白）'));
     }
   });
@@ -48,6 +49,8 @@ function doPost(e) {
       case 'cancel': return cancelSignup_(body);
       case 'reschedule': return rescheduleSignup_(body);
       case 'mySignups': return mySignups_(body);
+      case 'requestVenue': return requestVenue_(body);
+      case 'myVenue': return myVenue_(body);
       case 'pushSubscribe': return pushSubscribe_(body);
       case 'pushUnsubscribe': return pushUnsubscribe_(body);
       case 'pushTest': return pushTest_(body);

@@ -206,6 +206,10 @@
     // 先叫醒伺服器（點名字欄時呼叫），之後的名字搜尋比較不會遇到冷啟動
     warmUp: () => get('ping', {}, []).catch(() => {}),
     getDuty: (id) => get('getDuty', { id }),
+    // 區中心場地借用
+    getVenue: (from, to) => get('getVenue', { from, to }),
+    requestVenue: (payload) => post(Object.assign({ action: 'requestVenue' }, payload)),
+    myVenue: (name) => post({ action: 'myVenue', name }),
     loginAccounts: () => get('loginAccounts', {}),
     // DM 檔案（照片、PDF）的網址
     fileUrl: (id) => window.APP_CONFIG.API_URL + (window.APP_CONFIG.API_URL.indexOf('?') === -1 ? '?' : '&') + 'action=file&id=' + encodeURIComponent(id),

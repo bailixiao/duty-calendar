@@ -1940,3 +1940,49 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 .gc-note { grid-template-columns: 5em 1fr; color: var(--muted); font-size: 15px; }
 .gc-empty { margin: 0; }
 @media (min-width: 720px) { .goal-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* 借區中心場地 */
+.venue-link { margin-top: 0; }
+.venue-step { margin: 16px 0; padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
+.venue-h { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 20px; }
+.venue-date { max-width: 260px; font-size: 18px; }
+.venue-day { margin: 12px 0 8px; font-weight: 800; font-size: 18px; }
+.venue-slots { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.venue-slot { position: relative; display: grid; grid-template-columns: auto 1fr; grid-template-areas: 'main state' 'act act'; align-items: center; gap: 4px 12px; min-height: 64px; padding: 10px 14px; border: 2px solid var(--line); border-radius: 14px; background: #fff; cursor: pointer; }
+.venue-slot input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.venue-slot input:disabled { cursor: not-allowed; }
+.vs-main { grid-area: main; display: grid; }
+.vs-main strong { font-size: 20px; }
+.vs-main small { color: var(--muted); }
+.vs-state { grid-area: state; justify-self: end; text-align: right; font-weight: 800; color: var(--ok); }
+.vs-state small { display: block; font-weight: 400; color: var(--ink-2); font-size: 14px; }
+.vs-act { grid-area: act; font-size: 14px; color: #8a5a00; }
+.venue-slot.is-on { border-color: var(--accent); background: var(--accent-soft); }
+.venue-slot.is-on .vs-main strong::before { content: '✓ '; color: var(--accent); }
+.venue-slot.is-pending .vs-state { color: #8a5a00; }
+.venue-slot.is-taken { background: var(--full-soft); cursor: not-allowed; }
+.venue-slot.is-taken .vs-state { color: var(--full); }
+.venue-mine { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.venue-mine li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.venue-mine .vm-status { font-weight: 800; }
+.venue-mine .vm-status small { display: block; font-weight: 400; color: var(--ink-2); }
+.cat-venue { background: #5a6b7d; }
+.badge-venue { background: #e3e8ee; color: #3d4b5a; }
+.duty-card.kind-venue { border-left-color: #8fa0b2; }
+.dot-venue { background: #8fa0b2; border-radius: 2px; }
+/* 後台：場地借用 */
+.venue-reqs { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 10px; }
+.venue-req { padding: 12px 14px; border: 1px solid var(--line); border-left: 5px solid var(--line); border-radius: 12px; background: var(--card); }
+.venue-req.is-wait { border-left-color: #e2a92b; }
+.venue-req.is-ok { border-left-color: var(--ok); }
+.venue-req.is-no { opacity: .8; }
+.vr-head { display: flex; justify-content: space-between; gap: 8px; font-size: 18px; margin-bottom: 6px; }
+.vr-status { font-weight: 800; color: var(--ink-2); }
+.vr-info { margin: 0; display: grid; gap: 2px; }
+.vr-info div { display: grid; grid-template-columns: 5em 1fr; gap: 8px; }
+.vr-info dt { color: var(--muted); }
+.vr-info dd { margin: 0; }
+.vr-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.vr-actions .btn { min-width: 110px; }
+.vr-warn { flex-basis: 100%; margin: 0; color: var(--accent); font-weight: 700; }
+.venue-others > summary { cursor: pointer; padding: 10px 0; font-weight: 700; color: var(--ink-2); }
