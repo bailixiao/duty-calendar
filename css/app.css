@@ -1863,3 +1863,9 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 .merge-next { margin: 10px 0 6px; font-size: 18px; }
 /* 卡片標題的類別標籤：自己一行放在標題上方，標題不會被擠得斷行 */
 .card-title .cat-tag { display: table; margin: 0 0 4px; }
+
+/* 教育統計：選課程 */
+.edu-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 12px; }
+.edu-pick-label { font-weight: 700; color: var(--ink-2); }
+.edu-pick-btn { min-height: 40px; padding: 0 14px; border: 1.5px solid var(--line); border-radius: 20px; background: var(--card); color: var(--ink); font-size: 16px; cursor: pointer; white-space: nowrap; }
+.edu-pick-btn.is-on { background: #1f6f8b; border-color: #1f6f8b; color: #fff; font-weight: 700; }

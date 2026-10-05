@@ -67,19 +67,22 @@
       };
     }).sort((a, b) => b.students.length - a.students.length || strokeCompare(a.name, b.name));
 
+    return { courses, teachers: teachersOf(courses) };
+  }
+
+  /** 各課程負責師資：[{ name, total, courses: [{ name, count }] }]（只算給的這些課程） */
+  function teachersOf(courses) {
     const tmap = new Map();
     courses.forEach((c) => c.sessions.forEach((s) => s.teachers.forEach((t) => {
       if (!tmap.has(t)) tmap.set(t, new Map());
       const m = tmap.get(t);
       m.set(c.name, (m.get(c.name) || 0) + 1);
     })));
-    const teachers = [...tmap.entries()].map(([name, m]) => ({
+    return [...tmap.entries()].map(([name, m]) => ({
       name,
       total: [...m.values()].reduce((a, b) => a + b, 0),
       courses: [...m.entries()].map(([n, count]) => ({ name: n, count }))
     })).sort((a, b) => b.total - a.total || strokeCompare(a.name, b.name));
-
-    return { courses, teachers };
   }
 
   /**
@@ -111,7 +114,7 @@
     return [`【${c.name}】出缺勤表（✓出席 ✗未到）`, head, ...rows, foot].join('\n');
   }
 
-  const api = { summarize, gridText, splitTeachers, ranking };
+  const api = { summarize, gridText, splitTeachers, ranking, teachersOf };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.EduStats = api;
 })();

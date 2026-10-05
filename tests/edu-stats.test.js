@@ -53,3 +53,10 @@ test('學生出席排行：全部課程加總、只看一個課程；出席多�
   assert.deepEqual(all[1].byCourse.map((c) => c.name + c.count).sort(), ['書法課1', '讀經班1']);
   assert.deepEqual(E.ranking(r.courses, '書法課').map((x) => x.name), ['李小華', '測試甲']);
 });
+
+test('只看幾個課程時，師資也只算那幾個課程', () => {
+  const sessions = [sess('2026-10-07', 'D1', '測試甲'), sess('2026-10-08', 'D9', '測試乙', '書法課')];
+  const r = E.summarize(sessions, [], () => true);
+  assert.deepEqual(E.teachersOf(r.courses.filter((c) => c.name === '書法課')).map((t) => t.name), ['測試乙']);
+  assert.equal(E.teachersOf(r.courses).length, 2);
+});

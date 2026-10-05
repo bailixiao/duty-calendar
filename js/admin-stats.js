@@ -7,7 +7,7 @@
   const esc = Fmt.esc;
   const C = window.StatsCalc;
   const TREND_COUNT = { month: 12, quarter: 8, year: 5 };
-  const state = { unit: 'month', period: null, rankKind: 'all', rankAll: false, category: '全部', eduCourse: '', eduRankAll: false };
+  const state = { unit: 'month', period: null, rankKind: 'all', rankAll: false, category: '全部', eduCourse: '', eduRankAll: false, eduPick: [] };
 
   function show(body, guard) {
     AdminPage.swr('stats', () => Api.admin('adminStats', {}, true), (data, stale) => {
@@ -211,7 +211,11 @@
     const nowP = C.periodOf(p.unit, data.today);
     const atLatest = p.year === nowP.year && p.n === nowP.n;
     const r = EduStats.summarize(data.eduSessions || [], data.events, (d) => C.contains(p, d));
-    const courses = r.courses;
+    const allCourses = r.courses;
+    // 選課程：沒勾＝全部；勾了就只算勾的（卡片、學生量、出缺勤、排行、師資都跟著）
+    const picked = state.eduPick.filter((n) => allCourses.some((c) => c.name === n));
+    const courses = picked.length ? allCourses.filter((c) => picked.indexOf(c.name) !== -1) : allCourses;
+    const teacherList = EduStats.teachersOf(courses);
     const cur = courses.find((c) => c.name === state.eduCourse) || courses[0];
     const students = new Set(courses.flatMap((c) => c.students));
     const present = courses.reduce((n, c) => n + c.present, 0);
@@ -233,6 +237,12 @@
           <button type="button" class="btn btn-icon no-print" data-move="1" aria-label="下一${C.UNIT_NAME[p.unit]}"${atLatest ? ' disabled' : ''}>›</button>
         </div>
         ${atLatest ? '' : `<p class="no-print stats-back"><button type="button" class="btn btn-small" data-latest>回到本${C.UNIT_NAME[p.unit]}</button></p>`}
+
+        ${allCourses.length > 1 ? `<div class="edu-pick no-print">
+          <span class="edu-pick-label">選課程：</span>
+          <button type="button" class="edu-pick-btn${picked.length ? '' : ' is-on'}" data-pick-all>全部</button>
+          ${allCourses.map((c) => `<button type="button" class="edu-pick-btn${picked.indexOf(c.name) !== -1 ? ' is-on' : ''}" data-pick="${esc(c.name)}">${picked.indexOf(c.name) !== -1 ? '✓ ' : ''}${esc(c.name)}</button>`).join('')}
+        </div>${picked.length ? `<p class="stats-note">只看：${picked.map(esc).join('、')}</p>` : ''}` : ''}
 
         <div class="stat-cards">
           <div class="stat-card"><span class="stat-label">課程</span><span class="stat-num">${courses.length}</span><span class="stat-hint">同名的課算同一個課程</span></div>
@@ -285,7 +295,7 @@
 
         <section class="stats-section">
           <h3 class="admin-sub">各課程負責師資</h3>
-          ${r.teachers.length ? `<ul class="edu-teacher-list">${r.teachers.map((t) => `
+          ${teacherList.length ? `<ul class="edu-teacher-list">${teacherList.map((t) => `
             <li><span class="edu-teacher-name">${esc(t.name)}</span><span class="edu-teacher-total">共 ${t.total} 堂</span>
               <span class="edu-teacher-courses">${t.courses.map((c) => `${esc(c.name)} ${c.count} 堂`).join('、')}</span></li>`).join('')}</ul>`
             : '<p class="muted">還沒有填師資。新增或編輯教育的課程時，在「師資」欄填上負責的師資。</p>'}
@@ -301,6 +311,15 @@
     }));
     const ea = body.querySelector('[data-erank-all]');
     if (ea) ea.addEventListener('click', () => { state.eduRankAll = !state.eduRankAll; render(body, guard, data, false); });
+    body.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => {
+      const n = b.dataset.pick;
+      const set = new Set(state.eduPick);
+      if (set.has(n)) set.delete(n); else set.add(n);
+      state.eduPick = [...set];
+      render(body, guard, data, false);
+    }));
+    const pa = body.querySelector('[data-pick-all]');
+    if (pa) pa.addEventListener('click', () => { state.eduPick = []; render(body, guard, data, false); });
     const cp = body.querySelector('[data-copy-grid]');
     if (cp) cp.addEventListener('click', () => copyReport(EduStats.gridText(cur)));
   }
