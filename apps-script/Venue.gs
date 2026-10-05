@@ -139,9 +139,44 @@ function myVenue_(body) {
   var today = todayString_();
   return {
     requests: venueRows_().filter(function (r) { return normalizeName_(r['姓名']) === name && r['日期'] >= today; })
-      .map(function (r) { return { date: r['日期'], slot: r['時段'], purpose: r['用途'], status: r['狀態'], note: r['狀態'] === '不同意' ? r['備註'] : '' }; })
+      .map(function (r) {
+        return { id: r['借用ID'], date: r['日期'], slot: r['時段'], purpose: r['用途'], status: r['狀態'],
+          note: r['狀態'] === '不同意' || r['狀態'] === '已取消' ? r['備註'] : '',
+          canCancel: (r['狀態'] === '待審核' || r['狀態'] === '已同意') && r['日期'] > today };
+      })
       .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : venueSlotNames_().indexOf(a.slot) - venueSlotNames_().indexOf(b.slot); })
   };
+}
+
+/**
+ * body = { ids: [...], name, phone }：申請人自己取消（待審核或已同意、明天以後）。
+ * 要對得上申請時的姓名和電話，別人打名字查得到也取消不了。
+ */
+function cancelVenue_(body) {
+  var name = normalizeName_(body.name);
+  var digits = String(body.phone || '').replace(/\D/g, '');
+  var ids = Array.isArray(body.ids) ? body.ids : [];
+  if (!ids.length) throw new ApiError_('BAD_REQUEST', '請勾要取消的日期時段');
+  if (!name || digits.length < 8) throw new ApiError_('BAD_REQUEST', '請輸入申請時留的電話');
+  var today = todayString_();
+  return withSignupLock_(function () {
+    var rows = venueRows_();
+    var targets = ids.map(function (id) {
+      var r = rows.filter(function (x) { return x['借用ID'] === id; })[0];
+      if (!r) throw new ApiError_('NOT_FOUND', '找不到這筆申請，請重新查詢');
+      return r;
+    });
+    var mismatch = targets.some(function (r) { return normalizeName_(r['姓名']) !== name || String(r['電話']).replace(/\D/g, '') !== digits; });
+    if (mismatch) throw new ApiError_('FORBIDDEN', '電話和申請時留的不一樣，沒有取消。忘記的話請聯絡管理者。');
+    var bad = targets.filter(function (r) { return ['待審核', '已同意'].indexOf(r['狀態']) === -1 || r['日期'] <= today; });
+    if (bad.length) throw new ApiError_('VALIDATION', '沒有取消', bad.map(function (r) { return { message: r['日期'] + ' ' + r['時段'] + '：' + (r['日期'] <= today ? '當天（含）之後不能自己取消，請聯絡管理者' : '這筆已經是「' + r['狀態'] + '」') }; }));
+    var now = nowString_();
+    targets.forEach(function (r) { updateRow_(SHEETS.VENUE, r, { '狀態': '已取消', '審核時間': now, '審核人': '申請人', '備註': '申請人自己取消' }); });
+    appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '場地取消', '報名ID': '', '內容摘要': name + '｜' + targets.map(function (r) { return r['日期'] + ' ' + r['時段']; }).join('、') + '｜申請人自己取消', '還原用的前一版資料': '' }]);
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.VENUE);
+    return myVenue_({ name: name });
+  });
 }
 
 /** 後台：所有申請（含電話）：今天以後的全部＋最近 30 天內過去的 */

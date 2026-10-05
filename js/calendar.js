@@ -365,7 +365,7 @@
     dayMap.clear();
     updateCatFilter(data);
     data.duties.forEach((duty) => {
-      if (catFilter !== '全部' && (duty.category || '勤務') !== catFilter) return;
+      if (catFilter === '場地' || (catFilter !== '全部' && (duty.category || '勤務') !== catFilter)) return; // 「借場地」只看場地借用
       const start = duty.start > from ? duty.start : from;
       const end = duty.end < to ? duty.end : to;
       Fmt.datesBetween(start, end).forEach((date) => {
@@ -375,8 +375,8 @@
         dayMap.get(date).push(item);
       });
     });
-    // 區中心場地已借出（姓名、用途）：只在「全部」時顯示
-    if (catFilter === '全部') (data.venue || []).forEach((v) => {
+    // 區中心場地已借出（姓名、用途）：「全部」與「借場地」時顯示
+    if (catFilter === '全部' || catFilter === '場地') (data.venue || []).forEach((v) => {
       if (v.date < from || v.date > to) return;
       if (!dayMap.has(v.date)) dayMap.set(v.date, []);
       dayMap.get(v.date).push({ venue: v, duty: { name: '', startTime: VENUE_ORDER[v.slot] || '' }, state: { kind: 'venue', label: '已借出' } });
@@ -404,7 +404,7 @@
   function updateCatFilter(data) {
     const box = document.getElementById('cat-filter');
     if (!box) return;
-    const hasOther = data.duties.some((d) => d.category && d.category !== '勤務');
+    const hasOther = data.duties.some((d) => d.category && d.category !== '勤務') || (data.venue || []).length > 0;
     box.hidden = !hasOther;
     if (!hasOther) catFilter = '全部';
     box.querySelectorAll('[data-cat]').forEach((b) => b.classList.toggle('is-active', b.dataset.cat === catFilter));
@@ -509,13 +509,13 @@
 
   function cardHtml(item, date, compact) {
     if (item.venue) return `
-      <a class="duty-card kind-venue${compact ? ' is-compact' : ''}" href="#/venue?date=${date}">
+      <div class="duty-card kind-venue${compact ? ' is-compact' : ''}" role="note">
         <span class="card-main">
           <span class="card-title"><span class="cat-tag cat-venue">場地</span>🏠 區中心 ${Fmt.esc(item.venue.slot)}</span>
           <span class="card-meta">${Fmt.esc(item.venue.purpose)}（${Fmt.esc(item.venue.name)}）</span>
         </span>
         <span class="badge badge-venue">已借出</span>
-      </a>`;
+      </div>`;
     if (item.follow) return mergedCardHtml(item, date, compact);
     const { duty, state: st } = item;
     const meta = [duty.location, Fmt.cardTime(duty, date)].filter(Boolean);
@@ -586,7 +586,7 @@
     }
     const dates = Fmt.datesBetween(state.range.from, state.range.to).filter((d) => (dayMap.get(d) || []).length);
     const shortDates = dates.filter((d) => dayMap.get(d).some((it) => it.state.kind === 'short'));
-    const alert = shortDates.length
+    const alert = catFilter === '場地' ? '' : shortDates.length
       ? `<div class="notice notice-error recent-alert" role="status"><p><strong>近 ${RECENT_DAYS} 天有 ${shortDates.length} 天缺人</strong></p><p>${shortDates.map(Fmt.shortDate).join('、')}</p><p class="muted">點勤務就可以報名幫忙</p>${Share.buttonsHtml()}</div>`
       : `<div class="notice recent-alert" role="status"><p>近 ${RECENT_DAYS} 天的勤務都不缺人</p></div>`;
     if (!dates.length) {

@@ -343,14 +343,67 @@
     out.innerHTML = '<p class="muted">查詢中⋯</p>';
     try {
       const res = await Api.myVenue(name);
-      out.innerHTML = `<p class="venue-mine-who"><strong>${esc(name)}</strong> 的申請</p>` + (res.requests.length ? `<ul class="venue-mine">${res.requests.map((r) => `
-        <li class="is-${r.status === '已同意' ? 'ok' : r.status === '待審核' ? 'wait' : 'no'}">
-          <span><strong>${esc(Fmt.shortDate(r.date))} ${esc(r.slot)}</strong>　${esc(r.purpose)}</span>
-          <span class="vm-status">${r.status === '待審核' ? '⏳ 審核中' : r.status === '已同意' ? '✅ 已借到' : r.status === '不同意' ? '❌ 沒有借到' : '已取消'}${r.note ? `<small>${esc(r.note)}</small>` : ''}</span>
-        </li>`).join('')}</ul>` : '<p class="muted">查不到今天以後的申請（姓名要和申請時一樣）。</p>');
+      drawMine(out, name, res.requests);
     } catch (err) {
       out.innerHTML = `<p class="muted">${esc(err.message || '查詢失敗')}</p>`;
     }
+  }
+
+  /** 查我的申請的結果：還沒到的（審核中、已借到）可以勾起來取消 */
+  function drawMine(out, name, list) {
+    const can = list.filter((r) => r.canCancel);
+    out.innerHTML = `<p class="venue-mine-who"><strong>${esc(name)}</strong> 的申請</p>` + (list.length ? `<ul class="venue-mine">${list.map((r) => `
+        <li class="is-${r.status === '已同意' ? 'ok' : r.status === '待審核' ? 'wait' : 'no'}">
+          <span>${r.canCancel ? `<label class="check vm-pick"><input type="checkbox" data-cancel-id="${esc(r.id)}"> ` : ''}<strong>${esc(Fmt.shortDate(r.date))} ${esc(r.slot)}</strong>　${esc(r.purpose)}${r.canCancel ? '</label>' : ''}</span>
+          <span class="vm-status">${r.status === '待審核' ? '⏳ 審核中' : r.status === '已同意' ? '✅ 已借到' : r.status === '不同意' ? '❌ 沒有借到' : '已取消'}${r.note ? `<small>${esc(r.note)}</small>` : ''}</span>
+        </li>`).join('')}</ul>
+        ${can.length ? `<div class="vm-cancel">
+          <p class="hint">臨時不借了？勾要取消的日期時段，按下面的按鈕（要輸入申請時留的電話）。當天（含）之後要取消，請聯絡管理者。</p>
+          <button type="button" class="btn btn-quiet-danger btn-block" data-cancel-go>取消勾選的申請</button>
+        </div>` : ''}` : '<p class="muted">查不到今天以後的申請（姓名要和申請時一樣）。</p>');
+    const go = out.querySelector('[data-cancel-go]');
+    if (go) go.addEventListener('click', () => {
+      const ids = [...out.querySelectorAll('[data-cancel-id]:checked')].map((c) => c.dataset.cancelId);
+      if (!ids.length) { alert('請先勾要取消的日期時段'); return; }
+      askPhone(name, ids, out);
+    });
+  }
+
+  function askPhone(name, ids, out) {
+    const known = (profiles()[name] || {}).phone || '';
+    const m = Modal.open(`
+      <form class="modal-form" novalidate>
+        <h2 class="modal-title">取消 ${ids.length} 個時段的申請</h2>
+        <p class="modal-note">為了確認是本人，請輸入申請時留的電話。</p>
+        <label class="form-row"><span>電話</span><input class="input" name="phone" type="tel" inputmode="tel" value="${esc(known)}" placeholder="例：0912-345678"></label>
+        <div class="form-error" data-err hidden></div>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-block btn-danger">確定取消</button>
+          <button type="button" class="btn btn-block" data-close>不要取消</button>
+        </div>
+      </form>`);
+    const f = m.el.querySelector('form');
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    f.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const box = f.querySelector('[data-err]');
+      box.hidden = true;
+      Busy.show('取消中⋯');
+      try {
+        const res = await Api.cancelVenue({ ids, name, phone: f.elements.phone.value.trim() });
+        Busy.hide();
+        m.close();
+        drawMine(out, name, res.requests);
+        out.insertAdjacentHTML('afterbegin', '<div class="notice notice-success" role="status"><p><strong>已幫您取消</strong>，感恩您告訴我們 🙏</p></div>');
+        state.status = {};
+        drawPick();
+        if (window.CalendarPage) CalendarPage.refresh();
+      } catch (err) {
+        Busy.hide();
+        box.innerHTML = `<strong>${esc(err.message || '取消失敗')}</strong>${(err.details || []).map((x) => '<br>' + esc(x.message)).join('')}`;
+        box.hidden = false;
+      }
+    });
   }
 
   window.VenuePage = { show };

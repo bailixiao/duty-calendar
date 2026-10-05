@@ -2013,3 +2013,8 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 .vr-each-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 12px; margin: 6px 0; }
 .vr-each-list .is-taken { color: var(--muted); }
 .vr-each-quick { display: flex; gap: 16px; margin-bottom: 6px; }
+.duty-card.kind-venue { cursor: default; }
+.duty-card.kind-venue:hover { transform: none; box-shadow: none; }
+.vm-pick { display: inline-flex; align-items: center; gap: 6px; }
+.vm-cancel { margin-top: 10px; }
+@media (max-width: 560px) { .cat-filter { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); } .cat-filter button { padding: 0 4px; font-size: .95rem; } }
