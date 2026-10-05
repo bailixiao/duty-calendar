@@ -1898,3 +1898,24 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 .goal-num { width: 56px; text-align: center; }
 .goal-name { min-width: 120px; }
 .goal-group { width: 80px; }
+
+/* 各佛堂道務目標：全區進度條、合併格 */
+.goal-bars { list-style: none; margin: 0 0 12px; padding: 12px 14px; display: grid; gap: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+.goal-bar { display: grid; grid-template-columns: 5.5em 1fr; grid-template-areas: 'name track' 'name num'; align-items: center; gap: 4px 12px; }
+.goal-bar-name { grid-area: name; font-size: 18px; font-weight: 800; color: var(--ink); }
+.goal-bar-track { grid-area: track; display: block; height: 16px; border-radius: 999px; background: #ece9e3; overflow: hidden; }
+.goal-bar-fill { display: block; height: 100%; border-radius: 999px; background: #6b4fa0; }
+.goal-bar.is-done .goal-bar-fill { background: var(--ok); }
+.goal-bar-num { grid-area: num; font-size: 16px; color: var(--ink-2); }
+.goal-bar-num strong { font-size: 19px; color: var(--ink); }
+.goal-bar-left { grid-column: 2; margin-top: -4px; font-size: 15px; font-weight: 700; color: var(--accent); }
+.goal-bar.is-done .goal-bar-left { color: var(--ok); }
+.goal-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 8px; font-size: 14px; }
+.goal-key { padding: 2px 10px; border-radius: 999px; border: 1px solid var(--line); }
+.goal-key.is-zero, .goal-view .goal-cell.is-zero { background: #fff; }
+.goal-key.is-part, .goal-view .goal-cell.is-part { background: #fff3c4; }
+.goal-key.is-done, .goal-view .goal-cell.is-done { background: var(--ok-soft); color: var(--ok); font-weight: 800; }
+.goal-view .goal-cell { font-size: 18px; font-weight: 700; min-width: 64px; }
+.goal-view .goal-of { font-size: 14px; font-weight: 400; color: var(--muted); }
+.goal-view .goal-cell.is-done .goal-of { color: var(--ok); }
+.goal-merged { color: var(--muted); font-size: 14px; }
