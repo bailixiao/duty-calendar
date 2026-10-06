@@ -147,7 +147,7 @@ function searchMembers_(params) {
   if (!q) return { members: [] };
 
   var matched = readTableCached_(SHEETS.MEMBERS)
-    .filter(function (m) { return m['姓名'] && m['啟用中'] !== '否'; })
+    .filter(function (m) { return m['姓名'] && m['啟用中'] !== '否' && m['待確認'] !== '是'; }) // 待確認的新名字不提示
     .map(function (m) {
       return {
         name: normalizeName_(m['姓名']),

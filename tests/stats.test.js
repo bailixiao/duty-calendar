@@ -129,7 +129,7 @@ test('重新匯入歷史資料：之前匯入的場次補上漏掉的人；不�
   assert.deepEqual([e.tan, e.unknown, e.accompany], [['測試甲'], ['測試乙'], ['測試丙']]);
 });
 
-test('未求道算進道親；從出勤紀錄加入成員時身分可推斷為未求道', () => {
+test('未求道算進道親；報名的新名字自動加入成員（待確認），身分用報名時選的', () => {
   const { env, call, ev } = setup();
   const vol = ev.find((d) => d.name === '彌勒山志工輪值' && d.start === '2026-10-13');
   const s = env.post({ action: 'signup', dutyId: vol.id, positionId: vol.positions[0].id, dates: ['2026-10-13'], entries: [{ name: '測試甲', identity: '未求道' }, { name: '測試乙', identity: '壇辦' }] });
@@ -137,9 +137,10 @@ test('未求道算進道親；從出勤紀錄加入成員時身分可推斷為�
   env.clock.now = Date.UTC(2026, 9, 20, 2);
   const e = call('adminStats').data.events[0];
   assert.deepEqual([e.dao, e.tan], [['測試甲'], ['測試乙']]);
-  const c = call('adminMemberCandidates').data.candidates.find((x) => x.name === '測試甲');
-  assert.equal(c.identity, '未求道');
-  assert.equal(call('adminSaveMember', { member: { name: '測試甲', identity: '未求道' } }).ok, true);
+  const m = call('adminMembers').data.members.find((x) => x.name === '測試甲');
+  assert.deepEqual([m.identity, m.pending], ['未求道', true]);
+  assert.equal(call('adminConfirmMembers', { rows: [{ row: m.row, original: m.name }] }).data.confirmed, 1);
+  assert.equal(call('adminMembers').data.members.find((x) => x.name === '測試甲').pending, false);
 });
 
 test('教育：師資欄（只有教育存）、報名頁看得到；統計的課程堂次含沒人報名的課、未到的名字', () => {

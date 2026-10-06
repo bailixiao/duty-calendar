@@ -79,6 +79,7 @@ function adminAddAttendee_(body) {
     };
     if (duty['版面'] === '職司表' && body.note) row['註記'] = cleanText_(body.note).slice(0, 100);
     appendRows_(SHEETS.SIGNUPS, [row]);
+    addPendingMembers_([row], duty['名稱']);
     appendRows_(SHEETS.LOGS, [{
       '時間': now, '動作': '修正', '報名ID': row['報名ID'],
       '內容摘要': signupSummary_(row, duty, position) + (body.date > todayString_() ? '｜管理者幫人報名' : '｜補登') + (warnings.length ? '（警告：' + warnings.join('；') + '）' : ''),
@@ -144,6 +145,7 @@ function adminImportAttendance_(body) {
       });
       if (rows.length) {
         appendRows_(SHEETS.SIGNUPS, rows);
+        addPendingMembers_(rows, duty['名稱']);
         appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '修正', '報名ID': '', '內容摘要': duty['名稱'] + '｜' + date + '｜匯入出勤名單 ' + rows.length + ' 位：' + rows.map(function (r) { return r['姓名']; }).join('、'), '還原用的前一版資料': '' }]);
         SpreadsheetApp.flush();
         invalidateTable_(SHEETS.SIGNUPS);

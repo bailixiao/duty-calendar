@@ -70,12 +70,17 @@
   function renderMembers(body, guard, data, stale, reload) {
     const counts = { active: data.members.filter((m) => m.active).length };
     counts.inactive = data.members.length - counts.active;
+    const pendingList = data.members.filter((m) => m.pending);
+    const isSuper = Api.adminWho().role === '總管理者';
+    if (memberState.filter === 'pending' && !pendingList.length) memberState.filter = 'active';
     body.innerHTML = `
       ${AdminPage.staleNote(stale)}
       ${flash}
+      ${pendingList.length ? `<div class="notice pending-banner" role="status"><p>🆕 <strong>有 ${pendingList.length} 位新成員待確認</strong>（報名時自動加入的新名字）</p>${memberState.filter === 'pending' ? '<p class="muted">確認每一位：沒問題按「保留」；其實是名單上的某人（寫法不同）按「合併到⋯」；打錯或不需要的按「刪除」。</p>' : '<button type="button" class="btn btn-primary" data-show-pending>查看待確認的人</button>'}</div>` : ''}
       <div class="admin-actions"><button type="button" class="btn btn-primary" data-add>＋ 新增成員</button><button type="button" class="btn" data-from-signups>從出勤紀錄加入成員</button></div>
       <div class="list-filter">
         <select class="input" data-filter aria-label="狀態">
+          ${pendingList.length ? `<option value="pending"${memberState.filter === 'pending' ? ' selected' : ''}>🆕 待確認（${pendingList.length}）</option>` : ''}
           <option value="active"${memberState.filter === 'active' ? ' selected' : ''}>啟用中（${counts.active}）</option>
           <option value="inactive"${memberState.filter === 'inactive' ? ' selected' : ''}>已停用（${counts.inactive}）</option>
           <option value="all"${memberState.filter === 'all' ? ' selected' : ''}>全部（${data.members.length}）</option>
@@ -91,11 +96,12 @@
           <li><button type="button" class="person-card${m.active ? '' : ' is-inactive'}" data-row="${m.row}">
             <span class="person-card-name">${esc(m.name)}
               ${m.identity ? `<span class="tag">${esc(m.identity)}</span>` : '<span class="tag tag-warn">未填身分</span>'}
-              ${m.active ? '' : '<span class="tag">已停用</span>'}</span>
+              ${m.active ? '' : '<span class="tag">已停用</span>'}${m.pending ? '<span class="tag tag-warn">待確認</span>' : ''}</span>
             <span class="person-card-meta">${esc(GROUP_TYPES.filter((t) => m.groups[t]).map((t) => `${t.replace('組', '')}：${m.groups[t]}`).join('・') || '未分組')}${m.note ? '・' + esc(m.note) : ''}</span>
           </button></li>`;
     function draw() {
       const q = memberState.q.trim();
+      if (memberState.filter === 'pending') { drawPending(q); return; }
       const base = data.members.filter((m) => {
         if (memberState.filter === 'active' && !m.active) return false;
         if (memberState.filter === 'inactive' && m.active) return false;
@@ -122,8 +128,74 @@
         <p class="muted">共 ${items.length} 人</p>
         <ul class="people-list">${items.map(card).join('')}</ul>` : '<p class="panel-empty">沒有符合的成員</p>';
     }
+    // 待確認：每人「保留」「合併到⋯」「刪除」，上面有「全部保留」
+    function drawPending(q) {
+      body.querySelector('[data-identity-filter]').innerHTML = '';
+      const list = pendingList.filter((m) => !q || m.name.indexOf(q) !== -1).sort((a, b) => Fmt.byStroke(a.name, b.name));
+      const sure = data.members.filter((m) => !m.pending);
+      rows.innerHTML = list.length ? `
+        ${isSuper ? '<div class="admin-actions"><button type="button" class="btn" data-confirm-all>✅ 全部保留（' + list.length + ' 位）</button></div>' : ''}
+        <ul class="pending-list">${list.map((m) => {
+          const near = sure.filter((x) => Fmt.sameName(x.name, m.name)).slice(0, 3);
+          return `<li class="pending-item">
+            <div><strong>${esc(m.name)}</strong> ${m.identity ? `<span class="tag">${esc(m.identity)}</span>` : '<span class="tag tag-warn">未填身分</span>'}
+              <span class="muted">${esc(m.note || '')}</span>
+              ${near.length ? `<p class="pending-near">名單上相近的名字：${near.map((x) => esc(x.name)).join('、')}</p>` : ''}</div>
+            ${isSuper ? `<div class="pending-actions">
+              <button type="button" class="btn btn-small btn-primary" data-keep="${m.row}">✅ 保留</button>
+              <button type="button" class="btn btn-small" data-merge="${m.row}">🔀 合併到⋯</button>
+              <button type="button" class="btn btn-small btn-quiet-danger" data-drop="${m.row}">🗑 刪除</button>
+            </div>` : ''}
+          </li>`;
+        }).join('')}</ul>` : '<p class="panel-empty">沒有符合的人</p>';
+      const find = (row) => data.members.find((m) => m.row === Number(row));
+      const all = rows.querySelector('[data-confirm-all]');
+      if (all) all.addEventListener('click', () => run('adminConfirmMembers', { rows: list.map((m) => ({ row: m.row, original: m.name })) }, `已保留 ${list.length} 位`));
+      rows.querySelectorAll('[data-keep]').forEach((b) => b.addEventListener('click', () => editMember(find(b.dataset.keep), data.groups, guard, reload)));
+      rows.querySelectorAll('[data-drop]').forEach((b) => b.addEventListener('click', async () => {
+        const m = find(b.dataset.drop);
+        if (!(await Confirm.open({ title: '確定刪除「' + m.name + '」嗎？', rows: [['姓名', m.name]], note: '只從成員名單移除，出勤紀錄保留。', confirmText: '刪除', danger: true }))) return;
+        run('adminDeleteMember', { row: m.row, original: m.name }, '已刪除「' + m.name + '」');
+      }));
+      rows.querySelectorAll('[data-merge]').forEach((b) => b.addEventListener('click', () => mergePending(find(b.dataset.merge), sure)));
+    }
+    async function run(action, payload, okText) {
+      Busy.show('處理中⋯');
+      try {
+        await Api.admin(action, payload);
+        Busy.hide();
+        notice(AdminPage.notice('success', okText, ''));
+        afterWrite(reload);
+      } catch (err) {
+        Busy.hide();
+        if (!guard(err)) { notice(`<div class="notice notice-error" role="alert"><p>${errorHtml(err)}</p></div>`); reload(); }
+      }
+    }
+    function mergePending(m, sure) {
+      const near = sure.filter((x) => Fmt.sameName(x.name, m.name)).slice(0, 6);
+      const md = Modal.open(`
+        <h2 class="modal-title">「${esc(m.name)}」合併到⋯</h2>
+        <p class="modal-note">選成員名單上的正確寫法。${esc(m.name)} 的報名紀錄會改成那個名字，然後從名單刪掉「${esc(m.name)}」。</p>
+        ${near.length ? `<p>相近的名字：</p><div class="suggestions">${near.map((x) => `<button type="button" class="suggestion" data-to="${esc(x.name)}">${esc(x.name)}${x.identity ? '（' + esc(x.identity) + '）' : ''}</button>`).join('')}</div>` : ''}
+        <label class="form-row"><span>或打名字找</span><input class="input" data-q-to placeholder="打名單上的名字"></label>
+        <div class="suggestions" data-to-list></div>
+        <div class="modal-actions"><button type="button" class="btn btn-block" data-close>返回</button></div>`);
+      md.el.querySelector('[data-close]').addEventListener('click', () => md.close());
+      const pick = async (to) => {
+        md.close();
+        if (!(await Confirm.open({ title: '確定合併嗎？', rows: [['新名字', m.name], ['合併到', to]], confirmText: '確定合併' }))) return;
+        run('adminMergePendingMember', { row: m.row, original: m.name, to }, `已把「${m.name}」合併到「${to}」`);
+      };
+      md.el.addEventListener('click', (ev) => { const t = ev.target.closest('[data-to]'); if (t) pick(t.dataset.to); });
+      md.el.querySelector('[data-q-to]').addEventListener('input', (ev) => {
+        const v = ev.target.value.replace(/[\s　]+/g, '');
+        md.el.querySelector('[data-to-list]').innerHTML = v ? sure.filter((x) => x.name.indexOf(v) !== -1).slice(0, 10).map((x) => `<button type="button" class="suggestion" data-to="${esc(x.name)}">${esc(x.name)}</button>`).join('') : '';
+      });
+    }
     draw();
-    body.querySelector('[data-filter]').addEventListener('change', (ev) => { memberState.filter = ev.target.value; draw(); });
+    const sp = body.querySelector('[data-show-pending]');
+    if (sp) sp.addEventListener('click', () => { memberState.filter = 'pending'; renderMembers(body, guard, data, false, reload); });
+    body.querySelector('[data-filter]').addEventListener('change', (ev) => { memberState.filter = ev.target.value; renderMembers(body, guard, data, false, reload); });
     body.querySelector('[data-q]').addEventListener('input', (ev) => { memberState.q = ev.target.value; draw(); });
     body.querySelector('[data-add]').addEventListener('click', () => editMember(null, data.groups, guard, reload));
     body.querySelector('[data-from-signups]').addEventListener('click', () => fromSignups(guard, reload));

@@ -22,7 +22,7 @@ test('成員：新增、修改、停用；重複姓名與不存在的組被擋�
   let list = call('adminMembers').data;
   assert.equal(list.members.length, 1);
   assert.deepEqual(list.members[0], {
-    row: 2, name: '測試甲', identity: '道親', note: '', active: true,
+    row: 2, name: '測試甲', identity: '道親', note: '', active: true, pending: false,
     groups: { '勤務了愿組': '', '打掃組': '第1組', '拜香輪值組': '' }
   });
   assert.ok(list.groups.length > 0);
@@ -163,4 +163,32 @@ test('刪除成員：只能刪已停用的；報名紀錄不受影響', () => {
   assert.equal(call('adminDeleteMember', { row: 2, original: '測試甲' }).ok, true);
   assert.deepEqual(call('adminMembers').data.members, []);
   assert.deepEqual(call('adminStats').data.events[0].dao, ['測試甲']);
+});
+
+test('新名字自動加入成員（待確認）：不出現在名字提示；可以合併到名單上的正確寫法；待確認的可以直接刪', () => {
+  const { createEnv } = require('./env');
+  const env = createEnv(Date.UTC(2026, 9, 1, 2, 0, 0));
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const call = (action, body) => env.post(Object.assign({ action, token }, body));
+  call('adminSaveMember', { member: { name: '王小明', identity: '壇辦' } });
+  const ev = env.get({ action: 'getEvents', from: '2026-10-13', to: '2026-10-13' }).data.duties.find((d) => d.name === '彌勒山志工輪值');
+  const r = env.post({ action: 'signup', dutyId: ev.id, positionId: ev.positions[0].id, dates: ['2026-10-13'], entries: [{ name: '小明', identity: '道親' }, { name: '測試新人', identity: '道親' }] });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  let list = call('adminMembers').data.members;
+  const p1 = list.find((m) => m.name === '小明');
+  const p2 = list.find((m) => m.name === '測試新人');
+  assert.deepEqual([p1.pending, p2.pending, list.find((m) => m.name === '王小明').pending], [true, true, false]);
+  assert.match(p1.note, /自動加入：2026-10-13/);
+  assert.deepEqual(env.get({ action: 'searchMembers', q: '測試新' }).data.members, [], '待確認的不提示');
+  const merged = call('adminMergePendingMember', { row: p1.row, original: '小明', to: '王小明' });
+  assert.equal(merged.ok, true, JSON.stringify(merged.error));
+  list = call('adminMembers').data.members;
+  assert.ok(!list.find((m) => m.name === '小明'), '合併後刪掉那一列');
+  const mine = env.post({ action: 'mySignups', name: '王小明' }).data.items;
+  assert.equal(mine.length, 1, '報名紀錄改成正確寫法');
+  const p2b = list.find((m) => m.name === '測試新人');
+  assert.equal(call('adminDeleteMember', { row: p2b.row, original: '測試新人' }).ok, true, '待確認的可以直接刪');
+  // 再報一次：名單上已經沒有 → 又會自動加回待確認（出勤紀錄還在）
+  assert.equal(call('adminImportAttendance', { sessions: [{ dutyId: ev.id, date: '2026-10-13', entries: [{ name: '測試第三人', identity: '未求道' }] }] }).ok, true);
+  assert.equal(call('adminMembers').data.members.find((m) => m.name === '測試第三人').pending, true, '匯入的也會加入');
 });

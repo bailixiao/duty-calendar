@@ -41,7 +41,7 @@ function adminSaveMember_(body) {
     var dup = rows.filter(function (m) { return m !== row && normalizeName_(m['姓名']) === name; })[0];
     if (dup) throw new ApiError_('VALIDATION', '成員資料有錯，沒有存檔', [{ message: '已經有「' + name + '」這個人了' }]);
 
-    var values = { '姓名': name, '身分': identity, '備註': cleanText_(input.note), '啟用中': input.active === false ? '否' : '是' };
+    var values = { '姓名': name, '身分': identity, '備註': cleanText_(input.note), '啟用中': input.active === false ? '否' : '是', '待確認': '' }; // 存檔＝確認過
     MEMBER_GROUP_COLUMNS.forEach(function (type) { values[type] = groups[type]; });
     var summary;
     if (row) {
@@ -149,7 +149,7 @@ function adminDeleteGroup_(body) {
 function memberToJson_(m) {
   var groups = {};
   MEMBER_GROUP_COLUMNS.forEach(function (t) { groups[t] = m[t]; });
-  return { row: m._row, name: m['姓名'], identity: m['身分'], groups: groups, note: m['備註'], active: m['啟用中'] !== '否' };
+  return { row: m._row, name: m['姓名'], identity: m['身分'], groups: groups, note: m['備註'], active: m['啟用中'] !== '否', pending: m['待確認'] === '是' };
 }
 
 /** 以列號找資料並核對原本的值（姓名或組名），不符代表資料已被移動或修改 */
@@ -332,11 +332,70 @@ function adminClearCandidates_(body) {
 function adminDeleteMember_(body) {
   return withSignupLock_(function () {
     var row = findRowChecked_(readTable_(SHEETS.MEMBERS), body.row, '姓名', body.original, '成員');
-    if (row['啟用中'] !== '否') throw new ApiError_('FORBIDDEN', '只能刪除已停用的成員，請先停用');
+    if (row['啟用中'] !== '否' && row['待確認'] !== '是') throw new ApiError_('FORBIDDEN', '只能刪除已停用的成員，請先停用'); // 待確認的可以直接刪
     deleteRows_(SHEETS.MEMBERS, [row._row]);
     writeDutyLog_('成員', '刪除｜' + row['姓名'], rowSnapshot_(SHEETS.MEMBERS, row));
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.MEMBERS);
     return {};
   });
+}
+
+// ---------- 新名字自動加入（待確認） ----------
+
+/** 報名、補登、匯入後呼叫（已在鎖定內）：名單上沒有的名字加一列「待確認」 */
+function addPendingMembers_(signupRows, dutyName) {
+  if (!signupRows || !signupRows.length) return 0;
+  var has = {};
+  readTable_(SHEETS.MEMBERS).forEach(function (m) { if (m['姓名']) has[normalizeName_(m['姓名'])] = true; });
+  var add = [];
+  signupRows.forEach(function (r) {
+    var name = normalizeName_(r['姓名']);
+    if (!name || has[name]) return;
+    has[name] = true;
+    add.push({ '姓名': name, '身分': OPTIONS.identity.indexOf(r['身分']) !== -1 ? r['身分'] : '', '備註': '自動加入：' + r['日期'] + ' ' + (dutyName || ''), '啟用中': '是', '待確認': '是' });
+  });
+  if (!add.length) return 0;
+  appendRows_(SHEETS.MEMBERS, add);
+  invalidateTable_(SHEETS.MEMBERS);
+  return add.length;
+}
+
+/** body = { rows: [{ row, original }] }：待確認的人一次保留 */
+function adminConfirmMembers_(body) {
+  var list = Array.isArray(body.rows) ? body.rows : [];
+  if (!list.length) throw new ApiError_('BAD_REQUEST', '沒有要保留的人');
+  return withSignupLock_(function () {
+    var rows = readTable_(SHEETS.MEMBERS);
+    var names = [];
+    list.forEach(function (x) {
+      var row = findRowChecked_(rows, x.row, '姓名', x.original, '成員');
+      if (row['待確認'] === '是') { updateRow_(SHEETS.MEMBERS, row, { '待確認': '' }); names.push(row['姓名']); }
+    });
+    if (names.length) writeDutyLog_('成員', '確認新成員 ' + names.length + ' 位：' + names.join('、'));
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.MEMBERS);
+    return { confirmed: names.length };
+  });
+}
+
+/** body = { row, original, to }：待確認的名字其實是名單上的 to：報名紀錄改成 to，再刪掉這一列 */
+function adminMergePendingMember_(body) {
+  var to = normalizeName_(body.to);
+  if (!to) throw new ApiError_('BAD_REQUEST', '請選要合併到哪一位');
+  var rows = readTable_(SHEETS.MEMBERS);
+  var row = findRowChecked_(rows, body.row, '姓名', body.original, '成員');
+  if (row['待確認'] !== '是') throw new ApiError_('BAD_REQUEST', '這位不是待確認的新成員');
+  var target = rows.filter(function (m) { return normalizeName_(m['姓名']) === to && m !== row; })[0];
+  if (!target) throw new ApiError_('NOT_FOUND', '成員名單上沒有「' + to + '」');
+  var from = normalizeName_(row['姓名']);
+  var res = adminMergeNames_({ merges: [{ from: [from], to: to }] });
+  withSignupLock_(function () {
+    var fresh = findRowChecked_(readTable_(SHEETS.MEMBERS), body.row, '姓名', body.original, '成員');
+    deleteRows_(SHEETS.MEMBERS, [fresh._row]);
+    writeDutyLog_('成員', '待確認的「' + from + '」合併到「' + to + '」');
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.MEMBERS);
+  });
+  return res;
 }

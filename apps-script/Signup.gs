@@ -111,6 +111,7 @@ function signup_(body) {
 
     appendRows_(SHEETS.SIGNUPS, signupRows);
     appendRows_(SHEETS.LOGS, logRows);
+    addPendingMembers_(signupRows, duty['名稱']);
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.SIGNUPS);
 
@@ -137,7 +138,7 @@ function uniqueList_(list) {
 function withMemberIdentity_(entries) {
   var map = {};
   readTableCached_(SHEETS.MEMBERS).forEach(function (m) {
-    if (m['啟用中'] !== '否' && OPTIONS.identity.indexOf(m['身分']) !== -1) map[normalizeName_(m['姓名'])] = m['身分'];
+    if (m['啟用中'] !== '否' && m['待確認'] !== '是' && OPTIONS.identity.indexOf(m['身分']) !== -1) map[normalizeName_(m['姓名'])] = m['身分'];
   });
   return entries.map(function (e) {
     var fixed = map[normalizeName_(e && e.name)];

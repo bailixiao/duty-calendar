@@ -2147,3 +2147,9 @@ body.splash-on .text-size-btn { visibility: hidden; }
 .rc-big-code { font-size: 1.3rem; }
 .rc-big-code strong { font-size: 2rem; letter-spacing: .2em; color: var(--accent); }
 .att-preview { margin: 8px 0; padding-left: 1.2em; display: grid; gap: 4px; }
+.pending-banner { border-color: #c58a1b; }
+.pending-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.pending-item { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); display: grid; gap: 8px; }
+.pending-item .muted { font-size: .9rem; margin-left: 4px; }
+.pending-near { margin: 4px 0 0; color: var(--accent); font-size: .95rem; }
+.pending-actions { display: flex; flex-wrap: wrap; gap: 6px; }
