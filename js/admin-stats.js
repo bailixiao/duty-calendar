@@ -185,6 +185,7 @@
 
         <div class="stats-actions no-print">
           <button type="button" class="btn btn-primary" data-copy>複製文字報告（貼 LINE）</button>
+          <button type="button" class="btn" data-xlsx>⬇ 匯出 Excel</button>
           <button type="button" class="btn" data-print>列印</button>
           <button type="button" class="btn" data-sheet>更新試算表「統計」分頁</button>
           <a class="btn" href="#/admin/history">匯入歷史資料（舊 Excel）</a>
@@ -204,6 +205,7 @@
     if (all) all.addEventListener('click', () => { state.rankAll = !state.rankAll; rerender(); });
     body.querySelector('[data-print]').addEventListener('click', () => window.print());
     body.querySelector('[data-copy]').addEventListener('click', () => copyReport(C.textReport(ev, p)));
+    body.querySelector('[data-xlsx]').addEventListener('click', () => exportXlsx(body, () => StatsExport.general(ev, p, Fmt.catLabel(canPick ? state.category : Api.adminWho().role))));
     body.querySelector('[data-sheet]').addEventListener('click', () => updateSheet(body, guard, p.year));
   }
 
@@ -315,6 +317,7 @@
               <span class="edu-teacher-courses">${t.courses.map((c) => `${esc(c.name)} ${c.count} ${L.unit}`).join('、')}</span></li>`).join('')}</ul>`
             : `<p class="muted">${L.noStaff}</p>`}
         </section>
+        <div class="stats-actions no-print"><button type="button" class="btn btn-primary" data-xlsx>⬇ 匯出 Excel（${L.item}總覽＋每個${L.item}的出缺勤表）</button></div>
         ${cat === '道務' ? '<section class="stats-section" data-goals></section>' : ''}
       </div>`;
 
@@ -338,9 +341,26 @@
     if (pa) pa.addEventListener('click', () => { state.eduPick[cat] = []; render(body, guard, data, false); });
     const cp = body.querySelector('[data-copy-grid]');
     if (cp) cp.addEventListener('click', () => copyReport(EduStats.gridText(cur)));
+    body.querySelector('[data-xlsx]').addEventListener('click', () => exportXlsx(body, () => StatsExport.edu(courses, teacherList, L, cat, p)));
     // 各佛堂道務目標（年度跟著上面選的期間）
     const goals = body.querySelector('[data-goals]');
     if (goals) GoalsPage.mount(goals, p.year, { canEdit: ['總管理者', '道務'].indexOf(Api.adminWho().role) !== -1, guard });
+  }
+
+  /** 匯出 Excel：按鈕顯示處理中，失敗時提示 */
+  async function exportXlsx(body, run) {
+    const btn = body.querySelector('[data-xlsx]');
+    const text = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '產生中⋯';
+    try {
+      await run();
+      btn.textContent = '已下載 ✓';
+    } catch (e) {
+      alert(e.message || '匯出失敗，請再試一次');
+      btn.textContent = text;
+    }
+    setTimeout(() => { btn.disabled = false; btn.textContent = text; }, 2500);
   }
 
   /** 類別、月季年、上一期下一期的按鈕（一般統計與教育統計共用） */
