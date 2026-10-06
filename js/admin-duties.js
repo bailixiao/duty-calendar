@@ -283,6 +283,7 @@
         <a class="btn btn-primary" href="#/admin/duties/new">＋ 新增${T()}</a>
         <a class="btn" href="#/admin/import">批次匯入</a>
         <button type="button" class="btn" data-draft-open>📷 從照片新增</button>
+        ${Api.adminWho().role === '唯讀' ? '' : '<button type="button" class="btn" data-att-import>📋 匯入出勤名單</button>'}
       </div>
       <div class="list-filter">
         <select class="input" data-filter aria-label="月份">
@@ -382,7 +383,66 @@
     draw();
     body.querySelector('[data-filter]').addEventListener('change', (ev) => { listState.filter = ev.target.value; draw(); });
     body.querySelector('[data-draft-open]').addEventListener('click', openDraft);
+    const ai = body.querySelector('[data-att-import]');
+    if (ai) ai.addEventListener('click', () => openAttendanceImport(data));
     body.querySelector('[data-q]').addEventListener('input', (ev) => { listState.q = ev.target.value; draw(); });
+  }
+
+  // ---------- 匯入出勤名單（一次補登好幾場，見 Attendance.gs adminImportAttendance_） ----------
+
+  function openAttendanceImport(data) {
+    const m = Modal.open(`
+      <h2 class="modal-title">📋 匯入出勤名單</h2>
+      <p class="modal-note">貼上整理好的出勤名單（Claude 整理的文字），先按「檢查」看每一場要加幾位，沒問題再匯入。已經在名單上的人會跳過，重複匯入不會重複。</p>
+      <textarea class="input day-text" rows="8" data-att-text placeholder='{"type":"出勤名單","sessions":[...]}'></textarea>
+      <div data-att-preview></div>
+      <div class="form-error" data-att-err hidden></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-block" data-att-check>檢查</button>
+        <button type="button" class="btn btn-primary btn-block" data-att-go disabled>確定匯入</button>
+        <button type="button" class="btn btn-block" data-close>返回</button>
+      </div>`);
+    const el = m.el;
+    const err = el.querySelector('[data-att-err]');
+    let parsed = null;
+    el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    el.querySelector('[data-att-text]').addEventListener('input', () => { parsed = null; el.querySelector('[data-att-go]').disabled = true; });
+    el.querySelector('[data-att-check]').addEventListener('click', () => {
+      err.hidden = true;
+      try {
+        const j = JSON.parse(el.querySelector('[data-att-text]').value);
+        if (!j || !Array.isArray(j.sessions) || !j.sessions.length) throw new Error('格式不對：找不到 sessions');
+        parsed = j;
+      } catch (e) {
+        err.textContent = '看不懂這段文字：' + (e.message || '') + '。請確認整段都有貼上。';
+        err.hidden = false;
+        return;
+      }
+      const ids = ['壇辦', '道親', '未求道'];
+      el.querySelector('[data-att-preview]').innerHTML = `<ul class="att-preview">${parsed.sessions.map((s) => {
+        const d = s.dutyId ? data.duties.find((x) => x.id === s.dutyId) : null;
+        const name = d ? d.name : s.create ? s.create.name + '（新增）' : '⚠️ 找不到勤務';
+        const noId = (s.entries || []).filter((e) => ids.indexOf(e.identity) === -1).length;
+        return `<li><strong>${esc(Fmt.shortDate(s.date))} ${esc(name)}</strong>：${(s.entries || []).length} 位${noId ? `<span class="tag tag-warn">${noId} 位沒填身分（名單上有的照名單）</span>` : ''}</li>`;
+      }).join('')}</ul>`;
+      el.querySelector('[data-att-go]').disabled = false;
+    });
+    el.querySelector('[data-att-go]').addEventListener('click', async () => {
+      if (!parsed) return;
+      err.hidden = true;
+      Busy.show('匯入中⋯', '請不要關閉畫面');
+      try {
+        const res = await Api.admin('adminImportAttendance', { sessions: parsed.sessions });
+        Busy.hide();
+        AdminPage.clearMemo();
+        el.querySelector('[data-att-preview]').innerHTML = `<div class="notice notice-success" role="status"><p><strong>✅ 匯入完成</strong></p>${res.results.map((r) => `<p>${esc(Fmt.shortDate(r.date))} ${esc(r.name)}：加了 ${r.added} 位${r.skipped.length ? `，已經有的 ${r.skipped.length} 位跳過` : ''}</p>`).join('')}</div>`;
+        el.querySelector('[data-att-go]').disabled = true;
+      } catch (e) {
+        Busy.hide();
+        err.innerHTML = `<strong>${esc(e.message || '匯入失敗')}</strong>${(e.details || []).map((x) => '<br>' + esc(x.message)).join('')}<br>前面已經成功的場次不用擔心，改好後整段再匯入一次，已經有的會跳過。`;
+        err.hidden = false;
+      }
+    });
   }
 
   // ---------- 表單 ----------

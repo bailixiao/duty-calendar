@@ -2146,3 +2146,4 @@ body.splash-on .text-size-btn { visibility: hidden; }
 .rc-out.is-on { border-color: var(--accent); background: #fff; color: var(--accent); }
 .rc-big-code { font-size: 1.3rem; }
 .rc-big-code strong { font-size: 2rem; letter-spacing: .2em; color: var(--accent); }
+.att-preview { margin: 8px 0; padding-left: 1.2em; display: grid; gap: 4px; }

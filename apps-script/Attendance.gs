@@ -89,3 +89,67 @@ function adminAddAttendee_(body) {
     return { signupId: row['報名ID'], warnings: warnings };
   });
 }
+
+/**
+ * 匯入出勤名單（後台「📋 匯入出勤名單」）：一次補登好幾場的出席名單，可順便新增還沒有的場次。
+ * body = { sessions: [{ dutyId? , create?: { name, category, nature, startTime, location }, date, entries: [{ name, identity, note }] }] }
+ *   - dutyId：已經有的勤務；create：沒有就新增（同名、同一天、同類別已經有的就直接用）。
+ *   - 同一場已經有的名字跳過（可以重複匯入不會重複）；身分照成員名單為準（同補登）；名額、重複只警告。
+ *   - 每個名字記為出席，寫入操作紀錄（動作「修正」，內容「匯入出勤名單」）。
+ */
+function adminImportAttendance_(body) {
+  var sessions = Array.isArray(body.sessions) ? body.sessions : [];
+  if (!sessions.length) throw new ApiError_('BAD_REQUEST', '沒有要匯入的場次');
+  if (sessions.length > 60) throw new ApiError_('BAD_REQUEST', '一次最多 60 場');
+  var results = [];
+  sessions.forEach(function (s, i) {
+    var label = '第 ' + (i + 1) + ' 場';
+    var date = cleanText_(s.date);
+    if (!isDateString_(date)) throw new ApiError_('VALIDATION', label + '的日期格式不對');
+    var duty = s.dutyId ? findDutyById_(s.dutyId) : null;
+    if (!duty && s.create) {
+      var c = s.create;
+      var cat = ADMIN_SESSION_.role === SUPER_ACCOUNT ? (c.category || '勤務') : ADMIN_SESSION_.role;
+      duty = readTable_(SHEETS.DUTIES).filter(function (d) { return d['勤務ID'] && d['名稱'] === c.name && d['開始日'] === date && dutyCategory_(d) === cat; })[0] || null;
+      if (!duty) {
+        adminCreateDuties_({ duties: [{ name: c.name, category: cat, nature: c.nature || '課程', mode: '報名型', start: date, startTime: c.startTime || '', location: c.location || '',
+          positions: [{ name: cat === '勤務' ? '出勤' : '參加', min: 0, max: null }] }] });
+        duty = readTable_(SHEETS.DUTIES).filter(function (d) { return d['勤務ID'] && d['名稱'] === c.name && d['開始日'] === date && dutyCategory_(d) === cat; })[0];
+      }
+    }
+    if (!duty) throw new ApiError_('NOT_FOUND', label + '找不到勤務（' + date + '）');
+    if (ADMIN_SESSION_.role !== SUPER_ACCOUNT && dutyCategory_(duty) !== ADMIN_SESSION_.role) throw new ApiError_('FORBIDDEN', label + '是「' + dutyCategory_(duty) + '」的，這個帳號不能匯入');
+    if (date < duty['開始日'] || date > (duty['結束日'] || duty['開始日'])) throw new ApiError_('VALIDATION', label + '的日期不在「' + duty['名稱'] + '」期間');
+    var positions = readTable_(SHEETS.POSITIONS).filter(function (p) { return p['勤務ID'] === duty['勤務ID']; });
+    if (!positions.length) throw new ApiError_('VALIDATION', label + '「' + duty['名稱'] + '」沒有了愿項目');
+    var position = positions[0];
+    results.push(withSignupLock_(function () {
+      var signups = readTable_(SHEETS.SIGNUPS).filter(function (r) { return r['勤務ID'] === duty['勤務ID'] && r['狀態'] === '有效' && r['日期'] === date; });
+      var have = signups.map(function (r) { return normalizeName_(r['姓名']); });
+      var raw = (Array.isArray(s.entries) ? s.entries : []).filter(function (e) { return e && cleanText_(e.name); });
+      var skipped = [];
+      var fresh = raw.filter(function (e) {
+        var n = normalizeName_(e.name);
+        if (have.indexOf(n) !== -1) { skipped.push(n); return false; }
+        have.push(n);
+        return true;
+      });
+      var entries = withMemberIdentity_(fresh.map(function (e) { return { name: e.name, identity: e.identity, accompany: false }; }));
+      var bad = entries.filter(function (e) { return OPTIONS.identity.indexOf(e.identity) === -1; });
+      if (bad.length) throw new ApiError_('VALIDATION', label + '（' + duty['名稱'] + ' ' + date + '）有人沒有身分', bad.map(function (e) { return { message: e.name + '：請填道親、壇辦或未求道' }; }));
+      var now = nowString_();
+      var rows = entries.map(function (e, k) {
+        return { '報名ID': newId_('S'), '勤務ID': duty['勤務ID'], '日期': date, '了愿項目ID': position['了愿項目ID'], '姓名': normalizeName_(e.name), '身分': e.identity,
+          '陪同': '否', '出席': '出席', '狀態': '有效', '建立時間': now, '更新時間': now, '註記': cleanText_(fresh[k].note || '').slice(0, 100) };
+      });
+      if (rows.length) {
+        appendRows_(SHEETS.SIGNUPS, rows);
+        appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '修正', '報名ID': '', '內容摘要': duty['名稱'] + '｜' + date + '｜匯入出勤名單 ' + rows.length + ' 位：' + rows.map(function (r) { return r['姓名']; }).join('、'), '還原用的前一版資料': '' }]);
+        SpreadsheetApp.flush();
+        invalidateTable_(SHEETS.SIGNUPS);
+      }
+      return { dutyId: duty['勤務ID'], name: duty['名稱'], date: date, added: rows.length, skipped: skipped };
+    }));
+  });
+  return { results: results };
+}
