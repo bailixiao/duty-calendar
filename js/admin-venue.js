@@ -146,6 +146,7 @@
   const offByUser = () => { try { return localStorage.getItem(OFF_KEY) === '1'; } catch (e) { return false; } };
   const setOffByUser = (v) => { try { if (v) localStorage.setItem(OFF_KEY, '1'); else localStorage.removeItem(OFF_KEY); } catch (e) { /* 無痕模式 */ } };
   let watchOn = null; // 記住上次查到的狀態，重畫時不閃
+  const sysOffByUser = () => { try { return localStorage.getItem('duty-calendar:system-watch-off') === '1'; } catch (e) { return false; } };
   let autoTried = false;
 
   /** 登入後台時呼叫：允許過通知、沒自己關掉的審核手機，自動開啟（每次開網頁做一次） */
@@ -156,6 +157,7 @@
     const sub = await PushPage.currentSub();
     if (!sub) return;
     try { watchOn = (await Api.admin('adminVenueWatch', { endpoint: sub.endpoint, on: true }, true)).on; } catch (e) { autoTried = false; }
+    if (Api.adminWho().role === '總管理者' && !sysOffByUser()) Api.admin('adminSystemWatch', { endpoint: sub.endpoint, on: true }, true).catch(() => {});
   }
 
   async function drawWatch(box, guard) {

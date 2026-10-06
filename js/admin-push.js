@@ -44,7 +44,9 @@
     body.innerHTML = `
       ${AdminPage.staleNote(stale)}
       <p class="hint">推播會送給所有開啟「🔔 手機提醒」的手機（目前 <strong>${data.devices}</strong> 支），點通知會打開活動的報名頁。</p>
-      <form class="push-form" novalidate>
+      ${autoHtml(data.auto)}
+      ${Api.adminWho().role === '總管理者' ? '<div class="venue-watch" data-sys></div>' : ''}
+      <form class="push-form" data-push-form novalidate>
         <h2 class="admin-sub">${form.id ? '修改排定的推播' : '新增推播'}</h2>
         <label class="form-row"><span>要推播的活動</span>
           <select class="input" name="duty">
@@ -85,7 +87,10 @@
       <h2 class="admin-sub">已送出</h2>
       ${done.length ? `<ul class="push-plans">${done.map((p) => planHtml(p, false)).join('')}</ul>` : '<p class="muted">還沒有送過。</p>'}`;
 
-    const f = body.querySelector('form');
+    bindAuto(body, guard, data);
+    const sys = body.querySelector('[data-sys]');
+    if (sys) drawSystemWatch(sys, guard);
+    const f = body.querySelector("[data-push-form]");
     const keep = () => {
       form.title = f.elements.title.value;
       form.body = f.elements.body.value;
@@ -164,7 +169,7 @@
       if (!p) return;
       Object.assign(form, { id: p.id, key: p.dutyId ? p.dutyId + '|' + p.date : '', title: p.title, body: p.body, mode: 'later', times: [p.at.replace(' ', 'T')] });
       render(body, guard, data, false);
-      body.querySelector('form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      body.querySelector("[data-push-form]").scrollIntoView({ behavior: 'smooth', block: 'start' });
     }));
     body.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
       if (!(await Confirm.open({ title: '確定刪除這則排定的推播嗎？', rows: [], confirmText: '刪除', danger: true }))) return;
@@ -189,9 +194,84 @@
       <li class="push-plan is-${p.status === '排定' ? 'wait' : p.status === '已送出' ? 'ok' : 'no'}">
         <div class="push-plan-head"><strong>${esc(p.title)}</strong><span class="muted">${esc(p.category === "全部" ? "公告" : Fmt.catLabel(p.category))}｜${esc(p.by)}</span></div>
         <p class="push-plan-body">${esc(p.body).replace(/\n/g, '<br>')}</p>
-        <p class="push-plan-status">${esc(statusText(p))}</p>
+        <p class="push-plan-status">${esc(statusText(p))}${p.status === '已送出' ? `<span class="push-stat">📱 收到 ${p.received}・👆 點開 ${p.clicks}</span>` : ''}</p>
         ${editable ? `<div class="push-plan-actions"><button type="button" class="btn btn-small" data-edit="${esc(p.id)}">修改</button><button type="button" class="btn btn-small btn-quiet-danger" data-del="${esc(p.id)}">刪除</button></div>` : ''}
       </li>`;
+  }
+
+  // ---------- 缺人自動推播（總管理者、勤務帳號） ----------
+
+  const AUTO_DAYS = [[0, '當天'], [1, '前 1 天'], [2, '前 2 天'], [3, '前 3 天'], [5, '前 5 天'], [7, '前 7 天']];
+  const canAuto = () => ['總管理者', '勤務'].indexOf(Api.adminWho().role) !== -1;
+
+  function autoHtml(a) {
+    if (!a || !canAuto()) return '';
+    return `<form class="push-form push-auto" data-auto novalidate>
+      <h2 class="admin-sub">🙋 缺人自動推播 <span class="badge ${a.on ? 'badge-ok' : 'badge-full'}">${a.on ? '開啟中' : '關閉'}</span></h2>
+      <p class="hint">開啟後，每天到設定的時間，系統會找「勤務前幾天」還缺人的總務・勤務，自動推播給大家（道務、教育不算）。沒有缺人就不送。</p>
+      <label class="check"><input type="checkbox" name="on"${a.on ? ' checked' : ''}> 開啟缺人自動推播</label>
+      <div class="push-auto-days"><span class="field-label">勤務前幾天推播（可以多選）</span>
+        ${AUTO_DAYS.map(([n, label]) => `<label class="check"><input type="checkbox" name="day" value="${n}"${a.days.indexOf(n) !== -1 ? ' checked' : ''}> ${label}</label>`).join('')}
+      </div>
+      <label class="form-row push-auto-time"><span>每天幾點送</span><input class="input" type="time" name="time" value="${esc(a.time)}"></label>
+      <p class="hint">例如勾「前 3 天」「前 1 天」、時間 19:00：每天晚上 7 點，推播 3 天後和明天還缺人的勤務。每天晚上 8 點的手機提醒照常。${a.last ? `（上次檢查：${esc(a.last)}）` : ''}</p>
+      <div class="form-error" data-auto-err hidden></div>
+      <button type="submit" class="btn btn-primary">儲存設定</button>
+    </form>`;
+  }
+
+  function bindAuto(body, guard) {
+    const f = body.querySelector('[data-auto]');
+    if (!f) return;
+    f.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const err = f.querySelector('[data-auto-err]');
+      err.hidden = true;
+      const auto = { on: f.elements.on.checked, days: [...f.querySelectorAll('[name=day]:checked')].map((c) => Number(c.value)), time: f.elements.time.value };
+      Busy.show('儲存中⋯');
+      try {
+        const res = await Api.admin('adminAutoPushSave', { auto });
+        Busy.hide();
+        AdminPage.clearMemo();
+        render(body, guard, res, false);
+        body.insertAdjacentHTML('afterbegin', `<div class="notice notice-success" role="status"><p><strong>${auto.on ? '已開啟缺人自動推播 🙋' : '已關閉缺人自動推播'}</strong></p></div>`);
+      } catch (e) {
+        Busy.hide();
+        if (guard(e)) return;
+        err.textContent = e.message || '沒有存起來';
+        err.hidden = false;
+      }
+    });
+  }
+
+  // ---------- 系統通知（總管理者）：試算表同步停了會通知 ----------
+
+  async function drawSystemWatch(box, guard) {
+    const st = window.PushPage ? PushPage.canNotify() : 'unsupported';
+    if (st !== 'ok') { box.innerHTML = '<p class="hint">⚙️ 系統通知：這支手機還不能收通知（iPhone 要先加到主畫面；或通知被封鎖）。</p>'; return; }
+    const paint = (on) => {
+      box.classList.toggle('is-on', !!on);
+      box.innerHTML = on
+        ? '<p class="venue-watch-on">⚙️ 這支手機會收到系統通知（試算表同步停了會通知您） <button type="button" class="link-btn" data-off>關閉</button></p>'
+        : '<p>⚙️ 系統通知：Google 試算表超過 45 分鐘沒有同步時通知您。</p><button type="button" class="btn" data-on>開啟系統通知</button>';
+      const on2 = box.querySelector('[data-on]');
+      const off = box.querySelector('[data-off]');
+      if (on2) on2.addEventListener('click', () => set(true));
+      if (off) off.addEventListener('click', () => set(false));
+    };
+    const set = async (value) => {
+      try {
+        const endpoint = await PushPage.ensureSub();
+        paint((await Api.admin('adminSystemWatch', { endpoint, on: value })).on);
+        try { if (value) localStorage.removeItem('duty-calendar:system-watch-off'); else localStorage.setItem('duty-calendar:system-watch-off', '1'); } catch (e) { /* 無痕模式 */ }
+      } catch (e) {
+        if (guard(e)) return;
+        box.insertAdjacentHTML('beforeend', `<p class="form-error">${esc(e.message || '設定失敗')}</p>`);
+      }
+    };
+    const sub = await PushPage.currentSub();
+    if (!sub) { paint(false); return; }
+    try { paint((await Api.admin('adminSystemWatch', { endpoint: sub.endpoint }, true)).on); } catch (e) { paint(false); }
   }
 
   window.PushAdminPage = { show };

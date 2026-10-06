@@ -142,3 +142,50 @@ test('只提醒我報名的：填了名字的手機只列他報名的＋缺人�
   assert.equal(env.post({ action: 'pushSetName', endpoint: A, name: '' }).data.name, '');
   assert.equal(env.get({ action: 'pushSummary', id: idA }).data.mine, undefined);
 });
+
+test('缺人自動推播：時間到、有缺人才送，一天一次；只有總管理者、勤務帳號能設定', () => {
+  const OCT_10_1830 = Date.UTC(2026, 9, 10, 10, 30, 0); // 台北 10/10 18:30；10/13 彌勒山志工輪值缺人
+  const { env, token, take, summary } = (() => { const e = createEnv(OCT_10_1830); e.fn('ensurePushKeys_')(); const t = e.post({ action: 'adminLogin', password: 'test-pass' }).data.token; return { env: e, token: t, take: () => e.fn('takePendingPush_')(), summary: (ep) => e.get({ action: 'pushSummary', id: e.fn('pushIdOf_')(ep) }).data }; })();
+  env.post({ action: 'pushSubscribe', endpoint: USER_EP });
+  env.post({ action: 'adminSaveAccount', token, account: { account: '教育組', role: '教育', password: 'abc12345' } });
+  const edu = env.post({ action: 'adminLogin', account: '教育組', password: 'abc12345' }).data.token;
+  assert.equal(env.post({ action: 'adminAutoPushSave', token: edu, auto: { on: true, days: [3], time: '19:00' } }).error.code, 'FORBIDDEN');
+  const saved = env.post({ action: 'adminAutoPushSave', token, auto: { on: true, days: [3, 1], time: '19:00' } });
+  assert.equal(saved.ok, true, JSON.stringify(saved.error));
+  assert.deepEqual([saved.data.auto.on, saved.data.auto.days, saved.data.auto.time], [true, [3, 1], '19:00']);
+  take();
+  env.fn('runDuePushPlans_')();
+  assert.deepEqual(take(), [], '還沒到 19:00');
+  env.clock.now = Date.UTC(2026, 9, 10, 11, 2, 0); // 19:02
+  env.fn('runDuePushPlans_')();
+  assert.deepEqual(take(), [USER_EP]);
+  const m = summary(USER_EP).message;
+  assert.equal(m.title, '🙋 還缺人，歡迎發心');
+  assert.match(m.body, /10\/13.*彌勒山志工輪值.*缺/);
+  env.fn('runDuePushPlans_')();
+  assert.deepEqual(take(), [], '一天只送一次');
+  const plan = env.post({ action: 'adminPushList', token }).data.plans.find((p) => p.by === '自動');
+  assert.equal(plan.received, 1, '收到數');
+  env.get({ action: 'pushClick', id: plan.id, dev: 'abc' });
+  env.get({ action: 'pushClick', id: plan.id, dev: 'abc' });
+  assert.equal(env.post({ action: 'adminPushList', token }).data.plans.find((p) => p.id === plan.id).clicks, 1, '同一支手機只算一次點開');
+});
+
+test('同步停了：超過 45 分鐘通知開啟系統通知的總管理者手機，恢復後再通知', () => {
+  const env = createEnv(OCT_1);
+  env.fn('ensurePushKeys_')();
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  assert.equal(env.post({ action: 'adminSystemWatch', token, endpoint: ADMIN_EP, on: true }).data.on, true);
+  const take = () => env.fn('takePendingPush_')();
+  const props = env.fn('PropertiesService').getScriptProperties();
+  take();
+  assert.deepEqual(env.fn('checkSyncHealth_')(), { skipped: 'never-synced' });
+  props.setProperty('LAST_SYNC_AT', '2026-10-01 09:00:00');
+  env.fn('checkSyncHealth_')();
+  assert.deepEqual(take(), [ADMIN_EP]);
+  env.fn('checkSyncHealth_')();
+  assert.deepEqual(take(), [], '不重複通知');
+  props.setProperty('LAST_SYNC_AT', '2026-10-01 09:58:00');
+  assert.deepEqual(env.fn('checkSyncHealth_')(), { recovered: true });
+  assert.deepEqual(take(), [ADMIN_EP]);
+});

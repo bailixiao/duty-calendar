@@ -2123,3 +2123,8 @@ html.text-xl { font-size: 125%; }
 .text-size-btn { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); min-height: 40px; min-width: 52px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--ink); font: inherit; font-weight: 700; font-size: 1rem; cursor: pointer; }
 .app-header { position: relative; }
 body.splash-on .text-size-btn { visibility: hidden; }
+.push-auto { border-color: #c58a1b; }
+.push-auto-days { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 8px 0; }
+.push-auto-days .field-label { flex-basis: 100%; }
+.push-auto-time .input { max-width: 180px; }
+.push-stat { display: inline-block; margin-left: 10px; color: var(--ink-2); font-size: .92rem; }

@@ -63,6 +63,7 @@ export function createApp(store, opts) {
     syncExport(body) {
       checkPassword(body.password, false);
       if (body.statsUpdatedAt) store.setProp('STATS_UPDATED_AT', String(body.statsUpdatedAt));
+      store.setProp('LAST_SYNC_AT', gs.nowString_()); // 同步停太久會通知總管理者（PushMore.gs checkSyncHealth_）
       const sheets = {};
       // 帳號（含密碼雜湊）不同步到 Google 試算表
       Object.values(gs.SHEETS).forEach((def) => { if (def.headers.length && def !== gs.SHEETS.ACCOUNTS) sheets[def.name] = store.sheets[def.name] || []; });

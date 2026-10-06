@@ -123,7 +123,8 @@ function pushPlanRows_() {
 
 function pushPlanOut_(r) {
   return { id: r['推播ID'], category: r['類別'], dutyId: r['勤務ID'], date: r['日期'], title: r['標題'], body: r['內容'], url: r['網址'],
-    at: r['預定時間'], status: r['狀態'], sentAt: r['送出時間'], devices: r['手機數'], by: r['建立帳號'], createdAt: r['建立時間'], note: r['備註'] };
+    at: r['預定時間'], status: r['狀態'], sentAt: r['送出時間'], devices: r['手機數'], by: r['建立帳號'], createdAt: r['建立時間'], note: r['備註'],
+    received: Number(r['收到數']) || 0, clicks: Number(r['點開數']) || 0 };
 }
 
 function pushPlanCategory_(session) {
@@ -148,7 +149,7 @@ function adminPushList_() {
   duties.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : String(a.startTime || '').localeCompare(String(b.startTime || '')); });
   var plans = pushPlanRows_().filter(function (r) { return !cat || r['類別'] === cat; }).map(pushPlanOut_);
   var devices = readTable_(SHEETS.PUSH).filter(function (r) { return r['啟用'] !== '否' && r['端點']; }).length;
-  return { today: today, now: nowString_(), devices: devices, duties: duties, plans: plans.sort(function (a, b) { return String(b.at).localeCompare(String(a.at)); }).slice(0, 80) };
+  return { today: today, now: nowString_(), devices: devices, duties: duties, auto: autoShortSettings_(), plans: plans.sort(function (a, b) { return String(b.at).localeCompare(String(a.at)); }).slice(0, 80) };
 }
 
 /**
@@ -223,6 +224,8 @@ function sendPushPlan_(row) {
 
 /** 每 5 分鐘：送出時間到了的排定推播；活動刪除或日期已過的不送 */
 function runDuePushPlans_() {
+  runAutoShortPush_();
+  checkSyncHealth_();
   var now = nowString_().slice(0, 16);
   var today = todayString_();
   var sent = 0;
@@ -266,5 +269,148 @@ function pushMessageFor_(id) {
     .filter(function (r) { return !cache.get('pushseen:' + r['推播ID'] + ':' + id); })[0];
   if (!plan) return null;
   cache.put('pushseen:' + plan['推播ID'] + ':' + id, '1', PUSH_BROADCAST_WINDOW_MIN * 60 + 600);
-  return { id: plan['推播ID'], title: plan['標題'], body: plan['內容'], url: plan['網址'] };
+  bumpPlanCount_(plan['推播ID'], '收到數');
+  return { id: plan['推播ID'], title: plan['標題'], body: plan['內容'], url: plan['網址'], plan: true };
+}
+
+// ---------- 推播成效 ----------
+
+/** 後台推播的收到數、點開數加一 */
+function bumpPlanCount_(planId, field) {
+  withSignupLock_(function () {
+    var row = pushPlanRows_().filter(function (r) { return r['推播ID'] === planId; })[0];
+    if (row) updateRow_(SHEETS.PUSH_PLANS, row, (function () { var o = {}; o[field] = String((Number(row[field]) || 0) + 1); return o; })());
+  });
+}
+
+/** params = { id: 推播ID, dev: 裝置代號 }：點了後台推播的通知（同一支手機只算一次） */
+function pushClick_(params) {
+  var id = String(params.id || '');
+  var dev = String(params.dev || '').slice(0, 40);
+  if (!/^P-[\w-]+$/.test(id) || !dev) return {};
+  var cache = CacheService.getScriptCache();
+  var key = 'pushclick:' + id + ':' + dev;
+  if (cache.get(key)) return {};
+  cache.put(key, '1', 21600);
+  bumpPlanCount_(id, '點開數');
+  return {};
+}
+
+// ---------- 缺人自動推播 ----------
+
+var AUTO_SHORT_KEY = 'AUTO_SHORT_PUSH';
+var AUTO_SHORT_DAYS = [0, 1, 2, 3, 5, 7];
+
+/** 設定：{ on, days: [勤務前幾天], time: 'HH:mm', last } */
+function autoShortSettings_() {
+  var raw = PropertiesService.getScriptProperties().getProperty(AUTO_SHORT_KEY);
+  var s = {};
+  try { s = raw ? JSON.parse(raw) : {}; } catch (e) { s = {}; }
+  return { on: !!s.on, days: Array.isArray(s.days) && s.days.length ? s.days : [3, 1], time: /^\d{2}:\d{2}$/.test(s.time || '') ? s.time : '19:00', last: s.last || '' };
+}
+
+/** body = { auto: { on, days, time } }：總管理者、勤務帳號設定缺人自動推播 */
+function adminAutoPushSave_(body) {
+  var role = ADMIN_SESSION_.role;
+  if (role !== SUPER_ACCOUNT && role !== '勤務') throw new ApiError_('FORBIDDEN', '只有總管理者、總務・勤務帳號能設定缺人自動推播');
+  var a = body.auto || {};
+  var days = (Array.isArray(a.days) ? a.days : []).map(Number).filter(function (d, i, arr) { return AUTO_SHORT_DAYS.indexOf(d) !== -1 && arr.indexOf(d) === i; }).sort(function (x, y) { return y - x; });
+  var time = cleanText_(a.time);
+  if (a.on && !days.length) throw new ApiError_('VALIDATION', '請勾勤務前幾天要推播');
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new ApiError_('VALIDATION', '請選推播的時間');
+  var old = autoShortSettings_();
+  PropertiesService.getScriptProperties().setProperty(AUTO_SHORT_KEY, JSON.stringify({ on: !!a.on, days: days, time: time, last: old.last }));
+  var who = role === SUPER_ACCOUNT ? '總管理者' : ADMIN_SESSION_.account;
+  withSignupLock_(function () {
+    appendRows_(SHEETS.LOGS, [{ '時間': nowString_(), '動作': '缺人自動推播設定', '報名ID': '', '內容摘要': who + '｜' + (a.on ? '開啟：勤務前 ' + days.join('、') + ' 天 ' + time : '關閉'), '還原用的前一版資料': '' }]);
+  });
+  return adminPushList_();
+}
+
+/** 那幾天還缺人的總務・勤務（不含道務、教育、公告型）：[{ duty, date, shortage }] */
+function shortageDuties_(dates) {
+  var out = [];
+  dates.forEach(function (date) {
+    getEvents_({ from: date, to: date }).duties.forEach(function (d) {
+      var cat = d.category || '勤務';
+      var day = d.days[date];
+      if (cat !== '勤務' || d.mode === '公告型' || !day || !(day.shortage > 0)) return;
+      out.push({ duty: d, date: date, shortage: day.shortage });
+    });
+  });
+  return out;
+}
+
+/** 每 5 分鐘檢查：設定的時間到了、今天還沒送過，就送一則缺人推播 */
+function runAutoShortPush_() {
+  var s = autoShortSettings_();
+  var today = todayString_();
+  if (!s.on || s.last === today || nowString_().slice(11, 16) < s.time) return { sent: false };
+  s.last = today;
+  PropertiesService.getScriptProperties().setProperty(AUTO_SHORT_KEY, JSON.stringify(s));
+  var list = shortageDuties_(s.days.map(function (n) { return addDaysStr_(today, n); }));
+  if (!list.length) return { sent: false, skipped: 'no-shortage' };
+  list.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : String(a.duty.startTime || '').localeCompare(String(b.duty.startTime || '')); });
+  var lines = list.slice(0, 4).map(function (x) { return shortDate_(x.date) + ' ' + x.duty.name + '　缺 ' + x.shortage + ' 人'; });
+  if (list.length > 4) lines.push('⋯還有 ' + (list.length - 4) + ' 項');
+  lines.push('點我看看，歡迎發心了愿 🙏');
+  var one = list.length === 1 ? list[0] : null;
+  var now = nowString_();
+  return withSignupLock_(function () {
+    var row = { '推播ID': newId_('P'), '類別': '勤務', '勤務ID': one ? one.duty.id : '', '日期': one ? one.date : '', '標題': '🙋 還缺人，歡迎發心', '內容': lines.join('\n'),
+      '網址': one ? '#/duty/' + encodeURIComponent(one.duty.id) + '?date=' + one.date + '&go=signup' : '#/recent', '預定時間': now.slice(0, 16), '狀態': '排定', '送出時間': '', '手機數': '',
+      '建立帳號': '自動', '建立時間': now, '備註': '缺人自動推播' };
+    appendRows_(SHEETS.PUSH_PLANS, [row]);
+    var saved = pushPlanRows_().filter(function (r) { return r['推播ID'] === row['推播ID']; })[0];
+    sendPushPlan_(saved);
+    return { sent: true, count: list.length };
+  });
+}
+
+// ---------- 系統通知（同步停了） ----------
+
+var SYNC_ALERT_MIN = 45;
+
+/** 總管理者：body = { endpoint, on }：這支手機要不要收系統通知；on 省略＝只查狀態 */
+function adminSystemWatch_(body) {
+  if (ADMIN_SESSION_.role !== SUPER_ACCOUNT) throw new ApiError_('FORBIDDEN', '只有總管理者能設定系統通知');
+  if (!validEndpoint_(body.endpoint)) throw new ApiError_('BAD_REQUEST', '推播網址格式不對');
+  return withSignupLock_(function () {
+    if (body.on === true) addPushTarget_(body.endpoint, '系統通知', '');
+    if (body.on === false) {
+      var mine = readTable_(SHEETS.PUSH_TARGETS).filter(function (r) { return r['端點'] === body.endpoint && r['類型'] === '系統通知'; });
+      if (mine.length) deleteRows_(SHEETS.PUSH_TARGETS, mine.map(function (r) { return r._row; }));
+    }
+    return { on: pushTargets_('系統通知').some(function (r) { return r['端點'] === body.endpoint; }) };
+  });
+}
+
+/** 兩個「yyyy-MM-dd HH:mm:ss」相差幾分鐘 */
+function minutesBetween_(a, b) {
+  var t = function (s) { return Date.UTC(Number(s.slice(0, 4)), Number(s.slice(5, 7)) - 1, Number(s.slice(8, 10)), Number(s.slice(11, 13)), Number(s.slice(14, 16)), Number(s.slice(17, 19)) || 0); };
+  return (t(b) - t(a)) / 60000;
+}
+
+/** Google 試算表超過 45 分鐘沒同步：通知總管理者一次；恢復後再通知一次 */
+function checkSyncHealth_() {
+  var props = PropertiesService.getScriptProperties();
+  var last = props.getProperty('LAST_SYNC_AT');
+  if (!last) return { skipped: 'never-synced' };
+  var late = minutesBetween_(last, nowString_()) > SYNC_ALERT_MIN;
+  var alerted = props.getProperty('SYNC_ALERTED') === '1';
+  if (late && !alerted) {
+    props.setProperty('SYNC_ALERTED', '1');
+    withSignupLock_(function () {
+      pushMessageTo_(pushTargets_('系統通知'), '⚠️ 試算表同步停了', '上次同步：' + last.slice(5, 16) + '\n網站和報名都正常，只是 Google 試算表沒有更新。請到 Apps Script 看看同步排程。', '#/admin');
+    });
+    return { alerted: true };
+  }
+  if (!late && alerted) {
+    props.setProperty('SYNC_ALERTED', '');
+    withSignupLock_(function () {
+      pushMessageTo_(pushTargets_('系統通知'), '✅ 試算表同步恢復了', '剛剛已經同步成功，謝謝 🙏', '#/admin');
+    });
+    return { recovered: true };
+  }
+  return { ok: !late };
 }

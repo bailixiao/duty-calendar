@@ -130,7 +130,7 @@ async function buildNotification() {
     const json = await res.json();
     if (!json.ok) return fallback;
     const d = json.data;
-    if (d.message) return { title: d.message.title, body: d.message.body, url: d.message.url || '#/', tag: 'msg-' + d.message.id }; // 借場地通知、後台推播
+    if (d.message) return { title: d.message.title, body: d.message.body, url: d.message.url || '#/', tag: 'msg-' + d.message.id, plan: d.message.plan ? d.message.id : '', dev: await pushId(sub.endpoint) }; // 借場地通知、後台推播
     if (d.test) return { title: '🔔 測試通知', body: '您好！已順利收到通知 😊\n有勤務時，前一天晚上 8 點、當天早上 7 點會溫馨提醒您 🙏', url: '#/recent' };
     if (!d.items.length) return fallback;
     const p = d.date.split('-').map(Number);
@@ -176,14 +176,18 @@ self.addEventListener('push', (ev) => {
     badge: 'icons/favicon-32.png',
     tag: n.tag || 'duty-reminder',
     renotify: true,
-    data: { url: n.url }
+    data: { url: n.url, plan: n.plan || '', dev: n.dev || '' }
   })));
 });
 
 self.addEventListener('notificationclick', (ev) => {
   ev.notification.close();
-  const url = new URL((ev.notification.data && ev.notification.data.url) || '#/recent', self.registration.scope).href;
+  const data = ev.notification.data || {};
+  const url = new URL(data.url || '#/recent', self.registration.scope).href;
   ev.waitUntil((async () => {
+    // 後台推播：記一次「點開」（推播成效）
+    const api = self.APP_CONFIG && self.APP_CONFIG.API_URL;
+    if (data.plan && api) fetch(api + '?action=pushClick&id=' + encodeURIComponent(data.plan) + '&dev=' + encodeURIComponent(data.dev)).catch(() => {});
     const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const win = wins.find((w) => w.url.startsWith(self.registration.scope));
     if (win) {
