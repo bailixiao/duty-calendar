@@ -145,6 +145,7 @@
           ${list.map((it) => itemHtml(it)).join('')}
         </section>`).join('')}
       ${canAny ? '<button type="button" class="btn btn-quiet-danger btn-block mine-bulk-go" data-cancel-picked>取消勾選的報名</button>' : ''}`;
+    offerPushMe(box, name);
     const find = (id) => current.items.find((x) => x.signupId === id);
     box.querySelectorAll('[data-cancel]').forEach((btn) => btn.addEventListener('click', () => cancel(find(btn.dataset.cancel))));
     box.querySelectorAll('[data-reschedule]').forEach((btn) => btn.addEventListener('click', () => reschedule(find(btn.dataset.reschedule))));
@@ -214,6 +215,27 @@
       }
       render(flash('error', err.message || '取消失敗，請稍後再試', ''));
     }
+  }
+
+  /** 開了手機提醒、還沒填「我是誰」：問要不要只提醒這個人的勤務 */
+  async function offerPushMe(box, name) {
+    if (!window.PushPage || PushPage.myName()) return;
+    if ((await PushPage.state()) !== 'on' || !box.isConnected) return;
+    const card = document.createElement('div');
+    card.className = 'notice push-me-offer';
+    card.innerHTML = `<p>🔔 要讓手機提醒<strong>只通知「${esc(name)}」報名的勤務</strong>嗎？（還缺人的也會告訴您）</p>
+      <div class="push-card-actions"><button type="button" class="btn btn-primary" data-yes>好的</button><button type="button" class="btn" data-no>不用，全部都提醒</button></div>`;
+    box.insertBefore(card, box.querySelector('.mine-title') ? box.querySelector('.mine-title').nextSibling : box.firstChild);
+    card.querySelector('[data-no]').addEventListener('click', () => card.remove());
+    card.querySelector('[data-yes]').addEventListener('click', async (ev) => {
+      ev.target.disabled = true;
+      try {
+        await PushPage.setMe(name);
+        card.innerHTML = `<p>✅ 好的，之後只提醒「${esc(name)}」報名的勤務 😊（可以在「🔔 手機提醒」改）</p>`;
+      } catch (e) {
+        card.innerHTML = `<p class="form-error">${esc(e.message || '沒有設定成功')}</p>`;
+      }
+    });
   }
 
   /** 勾選的好幾筆一起取消：確認一次，逐筆送出，最後重新查詢 */

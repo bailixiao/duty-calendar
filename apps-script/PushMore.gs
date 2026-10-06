@@ -176,7 +176,7 @@ function adminPushSave_(body) {
     else if (at <= nowString_().slice(0, 16)) errors.push('推播時間要在現在之後（要馬上送請按「現在推播」）');
   }
   if (errors.length) throw new ApiError_('VALIDATION', '推播沒有存起來', errors.map(function (m) { return { message: m }; }));
-  var url = duty ? '#/duty/' + encodeURIComponent(duty['勤務ID']) + (p.date ? '?date=' + p.date : '') : '#/';
+  var url = duty ? '#/duty/' + encodeURIComponent(duty['勤務ID']) + (p.date ? '?date=' + p.date + '&go=signup' : '') : '#/';
   return withSignupLock_(function () {
     var now = nowString_();
     var who = ADMIN_SESSION_.role === SUPER_ACCOUNT ? '總管理者' : ADMIN_SESSION_.account;

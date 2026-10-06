@@ -179,7 +179,33 @@
   // 捲動位置由本程式自行管理（回到行事曆時還原、年檢視捲到目前月份）
   if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 
+  // ---------- 字體大小（頁首 A＋）：標準 → 大 → 特大 → 標準，記在這支手機 ----------
+  const TEXT_KEY = 'duty-calendar:text-size';
+  const TEXT_STEPS = [['', 'A＋'], ['l', 'A＋＋'], ['xl', 'A 原本']];
+  function initTextSize() {
+    const btn = document.getElementById('text-size');
+    if (!btn) return;
+    const root = document.documentElement;
+    const now = () => (root.classList.contains('text-xl') ? 'xl' : root.classList.contains('text-l') ? 'l' : '');
+    const paint = () => {
+      const i = TEXT_STEPS.findIndex((s) => s[0] === now());
+      btn.textContent = TEXT_STEPS[i][1];
+      btn.setAttribute('aria-label', '字體大小：' + ['標準', '大', '特大'][i] + '，按一下換');
+    };
+    btn.addEventListener('click', () => {
+      const i = TEXT_STEPS.findIndex((s) => s[0] === now());
+      const next = TEXT_STEPS[(i + 1) % TEXT_STEPS.length][0];
+      root.classList.remove('text-l', 'text-xl');
+      if (next) root.classList.add('text-' + next);
+      try { localStorage.setItem(TEXT_KEY, next); } catch (e) { /* 無痕模式 */ }
+      paint();
+      window.dispatchEvent(new Event('resize')); // 讓月曆重新排版
+    });
+    paint();
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
+    initTextSize();
     views.calendar = document.getElementById('view-calendar');
     views.duty = document.getElementById('view-duty');
     views.mine = document.getElementById('view-mine');

@@ -40,7 +40,7 @@
       }
       const meta = [Fmt.cardTime(duty, date), duty.location].filter(Boolean).join('・');
       lines.push(`${dutyEmoji(duty)} ${duty.name}　🙋 ${state.label}${meta ? `（📍${meta}）` : ''}`);
-      lines.push(`👉 ${siteUrl()}#/duty/${encodeURIComponent(duty.id)}?date=${date}`);
+      lines.push(`👉 ${siteUrl()}#/duty/${encodeURIComponent(duty.id)}?date=${date}&go=signup`);
     });
     lines.push('', `🗓️ 行事曆：${siteUrl()}`, '', '感謝大家歡喜了愿，感謝慈悲 🙏😊');
     return lines.join('\n');
@@ -74,7 +74,7 @@
       if (time) out.push(`⏰ 時段：${time}`);
       if (duty.location) out.push(`📍 地點：${duty.location}`);
       out.push(`🙋 需要人數：${needText(duty, (duty.days || {})[date])}`);
-      out.push(`👉 報名：${siteUrl()}#/duty/${encodeURIComponent(duty.id)}?date=${date}`);
+      out.push(`👉 報名：${siteUrl()}#/duty/${encodeURIComponent(duty.id)}?date=${date}&go=signup`);
       return out.join('\n');
     };
     if (list.length === 1) return block(list[0]) + '\n\n歡迎家人們踴躍成全 🙏';

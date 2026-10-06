@@ -12,6 +12,10 @@
   // 只為了借場地結果、管理者通知而建立的訂閱，不算「開啟每日提醒」（'0'）；按了開啟提醒是 '1'
   const DAILY_KEY = 'duty-calendar:push-daily';
   const setDaily = (v) => { try { localStorage.setItem(DAILY_KEY, v); } catch (e) { /* 無痕模式 */ } };
+  // 手機提醒的「我是誰」（伺服器的「推播」分頁也有記，這裡記一份給畫面顯示）
+  const ME_KEY = 'duty-calendar:push-name';
+  const myName = () => { try { return localStorage.getItem(ME_KEY) || ''; } catch (e) { return ''; } };
+  const setMyName = (v) => { try { if (v) localStorage.setItem(ME_KEY, v); else localStorage.removeItem(ME_KEY); } catch (e) { /* 無痕模式 */ } };
   const dailyOff = () => { try { return localStorage.getItem(DAILY_KEY) === '0'; } catch (e) { return false; } };
 
   const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -112,7 +116,14 @@
       } else if (st === 'denied') {
         body.innerHTML = `${note}<p>通知目前被封鎖了。麻煩您到手機的 <strong>設定 → 通知</strong>（或瀏覽器的網站設定），允許本網站傳送通知，再回來開啟，謝謝您 🙏</p><div class="modal-actions">${close}</div>`;
       } else if (st === 'on') {
+        const me = myName();
         body.innerHTML = `${note}<p>✅ <strong>已為您開啟提醒</strong>。有勤務或活動時，會在<strong>前一天晚上 8 點</strong>、<strong>當天早上 7 點</strong>溫馨提醒您。感恩您的發心 🙏</p>
+          <div class="push-me">
+            <p><strong>👤 我是誰（選填）</strong><br>${me ? `目前只提醒 <strong>${esc(me)}</strong> 報名的勤務，另外告訴您還缺人的。` : '填了名字，就只提醒您報名的勤務，另外告訴您還缺人的；不填就提醒全部。'}</p>
+            <div class="name-row"><input class="input" data-me type="text" autocomplete="name" placeholder="例如：王小明" value="${esc(me)}"><button type="button" class="btn" data-me-save>儲存</button></div>
+            <div class="suggestions" data-me-sug></div>
+            ${me ? '<button type="button" class="link-btn" data-me-clear>不要只提醒我的，全部都提醒</button>' : ''}
+          </div>
           <div class="modal-actions">
             <button type="button" class="btn btn-block btn-primary" data-test>傳一則測試通知給我</button>
             <button type="button" class="btn btn-block" data-off>關閉提醒</button>
@@ -144,6 +155,39 @@
       body.querySelectorAll('a[href^="#/help"]').forEach((a) => a.addEventListener('click', () => m.close()));
       if (q('[data-on]')) q('[data-on]').addEventListener('click', (ev) => run(ev.target, '正在為您開啟⋯', enable, '已為您開啟提醒 🎉 可以按「傳一則測試通知給我」試試看喔'));
       if (q('[data-off]')) q('[data-off]').addEventListener('click', (ev) => run(ev.target, '正在關閉⋯', disable, '已為您關閉提醒，隨時歡迎再開啟 😊'));
+      const saveMe = (name, btn) => run(btn, '儲存中⋯', async () => {
+        const sub = await currentSub();
+        if (!sub) throw new Error('提醒目前沒有開啟喔');
+        const res = await Api.pushSetName(sub.endpoint, name);
+        setMyName(res.name);
+      }, name ? `好的，之後只提醒「${name.replace(/[\s　]+/g, '')}」報名的勤務 😊` : '好的，之後全部的勤務都會提醒您 😊');
+      if (q('[data-me-save]')) q('[data-me-save]').addEventListener('click', (ev) => {
+        const v = q('[data-me]').value.trim();
+        if (v.replace(/[\s　]+/g, '').length < 2) { q('[data-me]').focus(); return; }
+        saveMe(v, ev.target);
+      });
+      if (q('[data-me-clear]')) q('[data-me-clear]').addEventListener('click', (ev) => saveMe('', ev.target));
+      if (q('[data-me]')) {
+        let t = null;
+        q('[data-me]').addEventListener('input', () => {
+          clearTimeout(t);
+          const v = q('[data-me]').value.replace(/[\s　]+/g, '');
+          const box = q('[data-me-sug]');
+          if (!v) { box.innerHTML = ''; return; }
+          t = setTimeout(async () => {
+            try {
+              const res = await Api.searchMembers(v);
+              box.innerHTML = res.members.slice(0, 8).map((m) => `<button type="button" class="suggestion" data-pick="${esc(m.name)}">${esc(m.name)}</button>`).join('');
+            } catch (e) { box.innerHTML = ''; }
+          }, 250);
+        });
+        q('[data-me-sug]').addEventListener('click', (ev) => {
+          const b = ev.target.closest('[data-pick]');
+          if (!b) return;
+          q('[data-me]').value = b.dataset.pick;
+          q('[data-me-sug]').innerHTML = '';
+        });
+      }
       if (q('[data-test]')) q('[data-test]').addEventListener('click', (ev) => run(ev.target, '正在傳送⋯', async () => {
         const sub = await currentSub();
         if (!sub) throw new Error('提醒目前沒有開啟喔');
@@ -201,5 +245,14 @@
     });
   }
 
-  window.PushPage = { openPanel, showCardIfNeeded, ensureSub, canNotify, currentSub };
+  /** 設定「我是誰」（查我的報名那邊用） */
+  async function setMe(name) {
+    const sub = await currentSub();
+    if (!sub) throw new Error('提醒目前沒有開啟喔');
+    const res = await Api.pushSetName(sub.endpoint, name);
+    setMyName(res.name);
+    return res.name;
+  }
+
+  window.PushPage = { openPanel, showCardIfNeeded, ensureSub, canNotify, currentSub, state, myName, setMe };
 })();

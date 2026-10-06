@@ -4,6 +4,7 @@
   'use strict';
 
   const esc = Fmt.esc;
+  const LAST_NAME_KEY = 'duty-calendar:last-name'; // 上次報名用的名字（從報名連結進來時帶入）
   let root = null;
   let token = 0;
   const page = { id: null, data: null, viewDate: null, revalidate: false };
@@ -13,6 +14,7 @@
     token += 1;
     page.id = id;
     page.data = null;
+    page.goDone = null;
     page.viewDate = date || null;
     page.revalidate = false;
     // 快取裡有完整詳情（開網站時打包拿回的、或看過的）：連名單一起立刻顯示，舊的話在背景更新
@@ -352,6 +354,25 @@
       return;
     }
     SignupForm.mount(el, d, page.viewDate, onSignedUp);
+    goSignup(el);
+  }
+
+  /** 從通知、LINE 的報名連結（&go=signup）進來：捲到報名表，名字帶入這支手機上次報名用的（只填入，按「加入」才算） */
+  function goSignup(el) {
+    if (location.hash.indexOf('go=signup') === -1 || page.goDone === page.data.id) return;
+    page.goDone = page.data.id;
+    let last = '';
+    try { last = localStorage.getItem(LAST_NAME_KEY) || ''; } catch (e) { /* 無痕模式 */ }
+    const input = el.querySelector('[data-name-input]');
+    if (input && last && !input.value) {
+      input.value = last;
+      const hint = document.createElement('p');
+      hint.className = 'hint go-hint';
+      hint.textContent = `已帶入上次的名字「${last}」，是您的話按「加入」；不是的話改掉就好 😊`;
+      const row = input.closest('.name-row') || input.parentElement;
+      row.insertAdjacentElement('afterend', hint);
+    }
+    setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
   }
 
   /** 報名成功：用伺服器回傳的新報名與人數直接更新畫面（不用再等一次讀取），行事曆在背景更新 */
@@ -366,6 +387,7 @@
   }
 
   function onSignedUp(result, res) {
+    try { if (result.entries[0]) localStorage.setItem(LAST_NAME_KEY, result.entries[0].name); } catch (e) { /* 無痕模式 */ }
     const who = (e) => `${e.name}（${e.identity}${e.accompany ? '・陪同' : ''}）`;
     const dates = result.dates.map(Fmt.shortDate).join('、');
     // 大家報同樣的項目：一行名字＋項目；各報各的：逐人列出

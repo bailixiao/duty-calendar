@@ -234,13 +234,68 @@ function pushSummary_(params) {
   }
   // 給這支手機的訊息（借場地通知）或剛送出的後台推播（見 PushMore.gs）
   var msg = pushMessageFor_(params.id);
-  if (msg) data.message = msg;
+  if (msg) {
+    data.message = msg;
+    return data;
+  }
+  // 填了「我是誰」的手機：只列他報名的，另外附缺人數
+  var dev = params.id ? readTable_(SHEETS.PUSH).filter(function (r) { return r['裝置ID'] === params.id && r['啟用'] !== '否'; })[0] : null;
+  if (dev && dev['名字']) {
+    data.mine = pushMine_(dev['名字'], data.date);
+    data.shortItems = data.items.filter(function (it) { return it.short; });
+  }
   return data;
+}
+
+/** 某人某天報名的勤務：[{ id, name, position, time, location }]（比對完全同名，不含陪同以外的差別） */
+function pushMine_(name, date) {
+  var who = normalizeName_(name);
+  var duties = {};
+  readTableCached_(SHEETS.DUTIES).forEach(function (d) { duties[d['勤務ID']] = d; });
+  var positions = {};
+  readTableCached_(SHEETS.POSITIONS).forEach(function (p) { positions[p['了愿項目ID']] = p; });
+  return activeSignups_().filter(function (s) { return s['日期'] === date && normalizeName_(s['姓名']) === who && duties[s['勤務ID']]; })
+    .map(function (s) {
+      var d = duties[s['勤務ID']];
+      var p = positions[s['了愿項目ID']];
+      return { id: d['勤務ID'], name: d['名稱'], position: p ? p['了愿項目名稱'] : '', time: d['開始時間'] || '', location: d['地點'] || '' };
+    })
+    .sort(function (a, b) { return (a.time || '99').localeCompare(b.time || '99'); });
+}
+
+/** body = { endpoint, name }：手機提醒的「我是誰」（空白＝清掉，收全部） */
+function pushSetName_(body) {
+  if (!validEndpoint_(body.endpoint)) throw new ApiError_('BAD_REQUEST', '推播網址格式不對');
+  var name = normalizeName_(String(body.name || '').replace(/[\s　]+/g, ''));
+  if (name && name.length < 2) throw new ApiError_('BAD_REQUEST', '請輸入完整的名字');
+  return withSignupLock_(function () {
+    var row = readTable_(SHEETS.PUSH).filter(function (r) { return r['端點'] === body.endpoint && r['啟用'] !== '否'; })[0];
+    if (!row) throw new ApiError_('NOT_FOUND', '這支手機還沒開啟提醒，請先開啟');
+    updateRow_(SHEETS.PUSH, row, { '名字': name });
+    return { name: name };
+  });
+}
+
+/**
+ * 每日提醒要送給哪些手機：沒填名字的，那天有勤務就送；填了名字的，有他報名的或有缺人才送。
+ */
+function dailyPushEndpoints_(when) {
+  var info = pushItems_(when);
+  if (!info.items.length) return [];
+  var shortCount = info.items.filter(function (it) { return it.short; }).length;
+  var mineCache = {};
+  return readTable_(SHEETS.PUSH).filter(function (r) {
+    if (r['啟用'] === '否' || !r['端點']) return false;
+    if (!r['名字']) return true;
+    if (shortCount) return true;
+    if (mineCache[r['名字']] === undefined) mineCache[r['名字']] = pushMine_(r['名字'], info.date).length;
+    return mineCache[r['名字']] > 0;
+  }).map(function (r) { return r['端點']; });
 }
 
 /** 今天或明天的勤務清單（只有行事曆上公開的資料） */
 function pushItems_(when) {
-  var date = when === 'today' ? todayString_() : datesInRange_(todayString_(), '9999-12-31')[1];
+  var date = when === 'today' ? todayString_() : addDaysStr_(todayString_(), 1);
   var events = getEvents_({ from: date, to: date });
   var items = events.duties.map(function (d) {
     var day = d.days[date];
@@ -264,9 +319,9 @@ function sendPushTomorrow() { sendPushAll_('tomorrow'); }
 /** 有勤務才送；送給所有啟用中的手機，失效的（404／410）自動停用 */
 function sendPushAll_(when) {
   if (!pushItems_(when).items.length) return { sent: 0, skipped: 'no-duty' };
-  var rows = readTable_(SHEETS.PUSH).filter(function (r) { return r['啟用'] !== '否' && r['端點']; });
-  if (!rows.length) return { sent: 0 };
-  var results = sendPushTo_(rows.map(function (r) { return r['端點']; }));
+  var eps = dailyPushEndpoints_(when);
+  if (!eps.length) return { sent: 0 };
+  var results = sendPushTo_(eps);
   var now = nowString_();
   withSignupLock_(function () {
     var fresh = readTable_(SHEETS.PUSH);

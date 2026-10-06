@@ -75,7 +75,7 @@ test('後台推播：現在推播送給所有開啟提醒的手機；排定的�
   assert.deepEqual(take(), [USER_EP]);
   const msg = summary(USER_EP).message;
   assert.equal(msg.title, '📣 志工輪值');
-  assert.equal(msg.url, '#/duty/' + encodeURIComponent(d.id) + '?date=' + d.date);
+  assert.equal(msg.url, '#/duty/' + encodeURIComponent(d.id) + '?date=' + d.date + '&go=signup');
   assert.equal(summary(USER_EP).message, undefined, '同一支手機只拿一次');
   assert.equal(now.data.plans[0].status, '已送出');
   assert.equal(now.data.plans[0].devices, '1');
@@ -115,4 +115,30 @@ test('排定的推播：活動刪除了就不送，標示原因', () => {
   assert.deepEqual(take(), []);
   const p = env.post({ action: 'adminPushList', token }).data.plans[0];
   assert.deepEqual([p.status, p.note], ['沒有送出', '活動已經刪除']);
+});
+
+test('只提醒我報名的：填了名字的手機只列他報名的＋缺人數；沒報名也沒缺人就不送', () => {
+  const OCT_12_EVENING = Date.UTC(2026, 9, 12, 12, 0, 0); // 台北 10/12 20:00，明天 10/13 有彌勒山志工輪值
+  const env = createEnv(OCT_12_EVENING);
+  env.fn('ensurePushKeys_')();
+  const A = 'https://fcm.googleapis.com/fcm/send/me-device-1';
+  const B = 'https://fcm.googleapis.com/fcm/send/all-device-2';
+  env.post({ action: 'pushSubscribe', endpoint: A });
+  env.post({ action: 'pushSubscribe', endpoint: B });
+  assert.equal(env.post({ action: 'pushSetName', endpoint: A, name: '測 試甲' }).data.name, '測試甲');
+  assert.equal(env.post({ action: 'pushSetName', endpoint: 'https://fcm.googleapis.com/fcm/send/none-0000', name: '測試甲' }).error.code, 'NOT_FOUND');
+  const ev = env.get({ action: 'getEvents', from: '2026-10-13', to: '2026-10-13' }).data.duties.find((d) => d.name === '彌勒山志工輪值');
+  // 還沒報名、有缺人：兩支都送；填名字的那支 mine 是空的，shortItems 有
+  assert.deepEqual(env.fn('dailyPushEndpoints_')('tomorrow').sort(), [A, B].sort());
+  const idA = env.fn('pushIdOf_')(A);
+  let s = env.get({ action: 'pushSummary', id: idA }).data;
+  assert.deepEqual(s.mine, []);
+  assert.ok(s.shortItems.length >= 1);
+  env.post({ action: 'signup', dutyId: ev.id, positionId: ev.positions[0].id, dates: ['2026-10-13'], entries: [{ name: '測試甲', identity: '道親' }] });
+  s = env.get({ action: 'pushSummary', id: idA }).data;
+  assert.deepEqual(s.mine.map((m) => m.name), ['彌勒山志工輪值']);
+  assert.equal(env.get({ action: 'pushSummary', id: env.fn('pushIdOf_')(B) }).data.mine, undefined, '沒填名字照舊');
+  // 清掉名字
+  assert.equal(env.post({ action: 'pushSetName', endpoint: A, name: '' }).data.name, '');
+  assert.equal(env.get({ action: 'pushSummary', id: idA }).data.mine, undefined);
 });

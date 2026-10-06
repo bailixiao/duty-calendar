@@ -135,6 +135,25 @@ async function buildNotification() {
     if (!d.items.length) return fallback;
     const p = d.date.split('-').map(Number);
     const wd = WEEKDAYS[new Date(p[0], p[1] - 1, p[2]).getDay()];
+    const day = d.when === 'today' ? '今天' : '明天';
+    const go = (id) => `#/duty/${encodeURIComponent(id)}?date=${d.date}&go=signup`;
+    // 填了「我是誰」的手機：只列他報名的，另外附缺人數
+    if (Array.isArray(d.mine)) {
+      const short = d.shortItems || [];
+      if (d.mine.length) {
+        const lines = d.mine.slice(0, 4).map((it) => `${dutyEmoji(it)} ${it.time ? it.time + ' ' : ''}${it.name}${it.position ? '・' + it.position : ''}${it.location ? '（📍' + it.location + '）' : ''}`);
+        if (short.length) lines.push(`🙋 另外還有 ${short.length} 個勤務缺人，點我看看`);
+        lines.push('感恩您的發心 🙏');
+        return { title: `🙏 ${day}您的勤務（${p[1]}/${p[2]} ${wd}）`, body: lines.join('\n'), url: short.length ? '#/recent' : `#/duty/${encodeURIComponent(d.mine[0].id)}?date=${d.date}` };
+      }
+      if (short.length) {
+        const lines = short.slice(0, 4).map((it) => `${dutyEmoji(it)} ${it.time ? it.time + ' ' : ''}${it.name}　${it.label}`);
+        if (short.length > 4) lines.push(`⋯還有 ${short.length - 4} 項`);
+        lines.push('歡迎您發心了愿 🙏');
+        return { title: `🙋 ${day}還有 ${short.length} 個勤務缺人（${p[1]}/${p[2]} ${wd}）`, body: lines.join('\n'), url: short.length === 1 ? go(short[0].id) : '#/recent' };
+      }
+      return fallback;
+    }
     const lines = d.items.slice(0, 4).map((it) => `${dutyEmoji(it)} ${it.time ? it.time + ' ' : ''}${it.name}${it.label ? '　' + it.label : ''}`);
     if (d.items.length > 4) lines.push(`⋯還有 ${d.items.length - 4} 項`);
     const shortCount = d.items.filter((it) => it.short).length;
@@ -143,7 +162,7 @@ async function buildNotification() {
     return {
       title: `🙏 ${d.when === 'today' ? '今天' : '明天'}的行程提醒（${p[1]}/${p[2]} ${wd}）`,
       body: lines.join('\n'),
-      url: d.items.length === 1 ? `#/duty/${encodeURIComponent(d.items[0].id)}?date=${d.date}` : '#/recent'
+      url: d.items.length === 1 ? (d.items[0].short ? go(d.items[0].id) : `#/duty/${encodeURIComponent(d.items[0].id)}?date=${d.date}`) : '#/recent'
     };
   } catch (e) {
     return fallback;

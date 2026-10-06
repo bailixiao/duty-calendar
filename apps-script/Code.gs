@@ -57,6 +57,7 @@ function doPost(e) {
       case 'pushSubscribe': return pushSubscribe_(body);
       case 'pushUnsubscribe': return pushUnsubscribe_(body);
       case 'pushTest': return pushTest_(body);
+      case 'pushSetName': return pushSetName_(body);
       default: throw new ApiError_('BAD_REQUEST', '未知的 action：' + (body.action || '（空白）'));
     }
   });

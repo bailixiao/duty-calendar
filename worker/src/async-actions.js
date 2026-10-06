@@ -56,9 +56,9 @@ export async function pushTest(gs, body) {
 export async function sendPushAll(gs, when) {
   if (!gs.pushItems_(when).items.length) return { sent: 0, skipped: 'no-duty' };
   const PUSH = gs.SHEETS.PUSH;
-  const rows = gs.readTable_(PUSH).filter((r) => r['啟用'] !== '否' && r['端點']);
-  if (!rows.length) return { sent: 0 };
-  const results = await sendPushTo(gs, rows.map((r) => r['端點']));
+  const eps = gs.dailyPushEndpoints_(when); // 填了「我是誰」的手機：沒報名也沒缺人就不送
+  if (!eps.length) return { sent: 0 };
+  const results = await sendPushTo(gs, eps);
   const now = gs.nowString_();
   const fresh = gs.readTable_(PUSH); // 送出期間可能有人開啟／關閉，重新讀
   results.forEach((res) => {
