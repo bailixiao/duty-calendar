@@ -138,7 +138,7 @@
         return `
         <li class="name-item${missing || posMissing ? ' is-missing' : ''}">
           <div class="name-top">
-            <span class="name-text">${esc(e.name)}</span>
+            <span class="name-text">${esc(e.name)}${e.temple ? `<small class="name-temple">${esc(e.temple)}</small>` : ''}</span>
             <button type="button" class="btn-remove" data-remove="${i}" aria-label="移除 ${esc(e.name)}">×</button>
           </div>
           <div class="name-options">
@@ -194,18 +194,20 @@
      * 成員名單上已登記身分的人：身分固定（locked），報名者不能改（統計以成員名單為準）。
      * 從提示點選時直接帶入；手動輸入的名字到成員名單查一次，完全同名且有身分就帶入並固定。
      */
-    function addName(raw, identity) {
+    function addName(raw, identity, temple) {
       const name = normalize(raw);
       if (!name) return false;
-      const same = state.entries.find((e) => Fmt.sameName(e.name, name));
+      temple = temple || '';
+      // 同一人：名字相近，且佛堂沒有不同（兩邊都有佛堂又不同就是兩個人）
+      const same = state.entries.find((e) => Fmt.sameName(e.name, name) && !(e.temple && temple && e.temple !== temple));
       if (same) {
         showError(same.name === name ? `「${name}」已經在名單裡了` : `「${name}」與「${same.name}」視為同一人，已經在名單裡了`);
         return false;
       }
-      const known = identity !== undefined ? identity : knownIdentity.get(name);
+      const known = identity !== undefined ? identity : knownIdentity.get(name + '|');
       const fixed = KNOWN_IDENTITIES.indexOf(known) !== -1 ? known : '';
       // 項目先用上面選的；之後可以在名字卡各自改（custom＝改過，上面再改就不跟著變）
-      const entry = { name, identity: fixed, accompany: false, locked: !!fixed, positionIds: perPerson ? new Set() : new Set(state.positionIds), custom: perPerson };
+      const entry = { name, temple, identity: fixed, accompany: false, locked: !!fixed, positionIds: perPerson ? new Set() : new Set(state.positionIds), custom: perPerson };
       state.entries.push(entry);
       hideError();
       renderNames();
@@ -241,7 +243,9 @@
     async function lookupIdentity(entry) {
       try {
         const res = await Api.searchMembers(entry.name, duty.groupType, duty.group);
-        const m = res.members.find((x) => x.name === entry.name);
+        const same = res.members.filter((x) => x.name === entry.name);
+        if (same.length > 1 && !entry.temple) { showError(`名單上有 ${same.length} 位「${entry.name}」（${same.map((x) => x.temple || '未填佛堂').join('、')}），請移除後從名字提示點選是哪一位`); return; }
+        const m = same[0];
         if (!m || KNOWN_IDENTITIES.indexOf(m.identity) === -1 || state.entries.indexOf(entry) === -1) return;
         entry.identity = m.identity;
         entry.locked = true;
@@ -276,12 +280,12 @@
 
     /** pending：伺服器還沒回來，先顯示查過的結果，後面加「搜尋中」 */
     function renderSuggestions(list, pending) {
-      const taken = new Set(state.entries.map((e) => e.name));
-      const items = list.filter((m) => !taken.has(m.name));
-      items.forEach((m) => knownIdentity.set(m.name, m.identity || ''));
+      const taken = new Set(state.entries.map((e) => e.name + '|' + (e.temple || '')));
+      const items = list.filter((m) => !taken.has(m.name + '|' + (m.temple || '')));
+      items.forEach((m) => { knownIdentity.set(m.name + '|' + (m.temple || ''), m.identity || ''); if (!m.dup) knownIdentity.set(m.name + '|', m.identity || ''); });
       const inGroup = (m) => duty.groupType && duty.group && m.groups && m.groups[duty.groupType] === duty.group;
       $('[data-suggestions]').innerHTML = items.length
-        ? items.map((m) => `<button type="button" class="suggestion" data-suggest="${esc(m.name)}">${esc(m.name)}${inGroup(m) ? '<small>本組</small>' : ''}</button>`).join('')
+        ? items.map((m) => `<button type="button" class="suggestion" data-suggest="${esc(m.name)}" data-temple="${esc(m.temple || '')}">${esc(m.name)}${m.dup ? `<small>${esc(m.temple || '未填佛堂')}</small>` : ''}${inGroup(m) ? '<small>本組</small>' : ''}</button>`).join('')
         : '';
       if (pending) $('[data-suggestions]').insertAdjacentHTML('beforeend', '<span class="muted small">搜尋更多中⋯</span>');
     }
@@ -385,7 +389,7 @@
         positionId: chosen[0].id,
         positionIds: chosen.map((p) => p.id),
         dates: Array.from(state.dates).sort(),
-        entries: state.entries.map((e) => ({ name: e.name, identity: e.identity, accompany: e.accompany, note: duty.layout === '職司表' ? String(e.note || '').trim() : '', positionIds: duty.positions.filter((p) => e.positionIds.has(p.id)).map((p) => p.id) }))
+        entries: state.entries.map((e) => ({ name: e.name, temple: e.temple || '', identity: e.identity, accompany: e.accompany, note: duty.layout === '職司表' ? String(e.note || '').trim() : '', positionIds: duty.positions.filter((p) => e.positionIds.has(p.id)).map((p) => p.id) }))
       };
       // 每個人報的項目不一樣時，成功訊息逐人列出
       const same = payload.entries.every((e) => e.positionIds.join() === payload.entries[0].positionIds.join());
@@ -528,7 +532,7 @@
     $('[data-suggestions]').addEventListener('click', (ev) => {
       const btn = ev.target.closest('[data-suggest]');
       if (!btn) return;
-      addName(btn.dataset.suggest, knownIdentity.get(btn.dataset.suggest));
+      addName(btn.dataset.suggest, knownIdentity.get(btn.dataset.suggest + '|' + (btn.dataset.temple || '')), btn.dataset.temple || '');
       input.value = '';
       clearSuggestions();
       input.focus();

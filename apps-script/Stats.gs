@@ -15,6 +15,7 @@ function statsEvents_() {
   var positionsByDuty = groupBy_(readTableCached_(SHEETS.POSITIONS), '勤務ID');
   var byKey = {};
   var order = [];
+  var multiTemple = statsMultiTempleNames_();
   readTableCached_(SHEETS.SIGNUPS).forEach(function (s) {
     if (s['狀態'] === '已取消' || !s['日期'] || s['日期'] > today) return;
     var duty = duties[s['勤務ID']];
@@ -29,6 +30,7 @@ function statsEvents_() {
       order.push(key);
     }
     var name = normalizeName_(s['姓名']);
+    if (s['佛堂'] && multiTemple[name]) name += '（' + s['佛堂'] + '）'; // 同名不同佛堂：分開算
     // 可兼任的勤務：同一人在同一場兼好幾個了愿項目，只算一次
     var counted = ev.tan.indexOf(name) !== -1 || ev.dao.indexOf(name) !== -1 || ev.unknown.indexOf(name) !== -1;
     if (counted && s['出席'] !== '未到') return;
@@ -187,4 +189,19 @@ function writeStatsSheet_(year) {
   sheet.setFrozenRows(0);
   SpreadsheetApp.flush();
   PropertiesService.getScriptProperties().setProperty('STATS_UPDATED_AT', nowString_());
+}
+
+/** 有不同佛堂的同名者（成員名單或報名紀錄裡）：{ 名字: true }，統計時這些名字加上佛堂分開算 */
+function statsMultiTempleNames_() {
+  var seen = {};
+  var add = function (name, temple) {
+    if (!name || !temple) return;
+    var n = normalizeName_(name);
+    (seen[n] = seen[n] || {})[temple] = true;
+  };
+  readTableCached_(SHEETS.MEMBERS).forEach(function (m) { add(m['姓名'], m['佛堂']); });
+  readTableCached_(SHEETS.SIGNUPS).forEach(function (s) { if (s['狀態'] !== '已取消') add(s['姓名'], s['佛堂']); });
+  var out = {};
+  Object.keys(seen).forEach(function (n) { if (Object.keys(seen[n]).length > 1) out[n] = true; });
+  return out;
 }

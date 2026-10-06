@@ -175,7 +175,7 @@ test('searchMembers 只回相符者的姓名與組別，略過停用者', () => 
   m.push(['測試乙', '壇辦', '', '', '', '', '否']);
   m.push(['範例丙', '道親', '', '', '', '', '是']);
   const r = env.get({ action: 'searchMembers', q: '測試' });
-  assert.deepEqual(r.data.members, [{ name: '測試甲', identity: '道親', groups: { '勤務了愿組': '第1組', '打掃組': '第2組', '拜香輪值組': '第一組' } }]);
+  assert.deepEqual(r.data.members, [{ name: '測試甲', temple: '', dup: false, identity: '道親', groups: { '勤務了愿組': '第1組', '打掃組': '第2組', '拜香輪值組': '第一組' } }]);
   assert.ok(!JSON.stringify(r).includes('備註內容'));
 });
 

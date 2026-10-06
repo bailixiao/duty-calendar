@@ -72,7 +72,10 @@
     AdminPage.swr('members', () => Api.admin('adminMembers', {}, true), (data, stale) => renderMembers(body, guard, data, stale, reload), body);
   }
 
+  let templeOptions = []; // 佛堂選項（各佛堂道務目標的佛堂）
+
   function renderMembers(body, guard, data, stale, reload) {
+    templeOptions = data.temples || [];
     const counts = { active: data.members.filter((m) => m.active).length };
     counts.inactive = data.members.length - counts.active;
     const pendingList = data.members.filter((m) => m.pending);
@@ -90,7 +93,7 @@
           <option value="inactive"${memberState.filter === 'inactive' ? ' selected' : ''}>已停用（${counts.inactive}）</option>
           <option value="all"${memberState.filter === 'all' ? ' selected' : ''}>全部（${data.members.length}）</option>
         </select>
-        <input class="input" type="search" data-q placeholder="搜尋姓名或組別" value="${esc(memberState.q)}">
+        <input class="input" type="search" data-q placeholder="搜尋姓名、佛堂或組別" value="${esc(memberState.q)}">
       </div>
       <div class="seg identity-filter" data-identity-filter></div>
       <div data-rows></div>
@@ -99,7 +102,7 @@
     const rows = body.querySelector('[data-rows]');
     const card = (m) => `
           <li><button type="button" class="person-card${m.active ? '' : ' is-inactive'}" data-row="${m.row}">
-            <span class="person-card-name">${esc(m.name)}
+            <span class="person-card-name">${esc(m.name)}${m.temple ? `<span class="tag tag-temple">${esc(m.temple)}</span>` : ''}
               ${m.identity ? `<span class="tag">${esc(m.identity)}</span>` : '<span class="tag tag-warn">未填身分</span>'}
               ${m.active ? '' : '<span class="tag">已停用</span>'}${m.pending ? '<span class="tag tag-warn">待確認</span>' : ''}${m.identity === '道親' && m.vegetarian ? '<span class="tag">🥬 清口</span>' : ''}${m.age !== '' && m.age !== undefined ? `<span class="tag">${m.age} 歲</span>` : ''}</span>
             <span class="person-card-meta">${esc(GROUP_TYPES.filter((t) => m.groups[t]).map((t) => `${t.replace('組', '')}：${m.groups[t]}`).join('・') || '未分組')}${m.note ? '・' + esc(m.note) : ''}</span>
@@ -110,7 +113,7 @@
       const base = data.members.filter((m) => {
         if (memberState.filter === 'active' && !m.active) return false;
         if (memberState.filter === 'inactive' && m.active) return false;
-        return !q || m.name.indexOf(q) !== -1 || GROUP_TYPES.some((t) => (m.groups[t] || '').indexOf(q) !== -1);
+        return !q || m.name.indexOf(q) !== -1 || (m.temple || '').indexOf(q) !== -1 || GROUP_TYPES.some((t) => (m.groups[t] || '').indexOf(q) !== -1);
       });
       base.sort((a, b) => Fmt.byStroke(a.name, b.name)); // 姓的筆劃少到多
       // 身分分類：按鈕附人數；選「全部」時分段列出
@@ -221,6 +224,7 @@
     const { m: modal } = formModal(`
       <h2 class="modal-title">${m ? '編輯成員' : '新增成員'}</h2>
       <label class="form-row"><span>姓名</span><input class="input" name="name" value="${esc(v.name)}" required></label>
+      <label class="form-row"><span>佛堂（同名同姓時用來分；不知道可以空著）</span><select class="input" name="temple"><option value="">（不知道／空白）</option>${templeOptions.concat(v.temple && templeOptions.indexOf(v.temple) === -1 ? [v.temple] : []).map((t) => `<option${t === v.temple ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
       <div class="form-row"><span>身分</span>${seg('identity', [['道親', '道親'], ['壇辦', '壇辦'], ['未求道', '未求道'], ['點傳師', '點傳師'], ['', '未填']], v.identity || '')}</div>
       ${GROUP_TYPES.map((t) => `
         <label class="form-row"><span>${t}</span>
@@ -238,7 +242,7 @@
       await Api.admin('adminSaveMember', {
         row: m ? m.row : undefined, original: m ? m.name : undefined,
         member: { name: f.elements.name.value, identity: f.querySelector('input[name=identity]:checked').value, groups: g, note: f.elements.note.value, active: f.elements.active.checked,
-          age: f.elements.age.value.trim(), vegetarian: f.querySelector('input[name=identity]:checked').value === '道親' && f.elements.vegetarian.checked }
+          age: f.elements.age.value.trim(), temple: f.elements.temple.value, vegetarian: f.querySelector('input[name=identity]:checked').value === '道親' && f.elements.vegetarian.checked }
       });
       notice(AdminPage.notice('success', m ? '已存檔' : '已新增成員', f.elements.name.value.trim()));
       afterWrite(reload);
@@ -318,7 +322,7 @@
         v.identity = v.identity || (byName.get(name) || c).identity || c.identity;
         out.set(name, v);
       });
-      near.forEach((c, i) => { if (nearChoice[i] === 'new') out.set(c.name, { name: c.name, count: c.count, identity: c.identity }); });
+      near.forEach((c, i) => { if (nearChoice[i] === 'new') out.set(c.name, { name: c.name, temple: c.temple || '', count: c.count, identity: c.identity }); });
       return [...out.values()].sort((a, b) => Fmt.byStroke(a.name, b.name));
     }
 
@@ -373,7 +377,7 @@
     }
 
     function chosenMembers() {
-      return newMembers().filter((c) => !unchecked.has(c.name)).map((c) => ({ name: c.name, identity: c.identity }));
+      return newMembers().filter((c) => !unchecked.has(c.name)).map((c) => ({ name: c.name, identity: c.identity, temple: c.temple || '' }));
     }
 
     function updateButton() {

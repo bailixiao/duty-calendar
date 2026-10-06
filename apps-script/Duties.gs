@@ -86,6 +86,7 @@ function dutyDetail_(duty, positions, signups) {
       date: s['日期'],
       positionId: s['了愿項目ID'],
       name: s['姓名'],
+      temple: s['佛堂'] || '',
       accompany: s['陪同'] === '是',
       leader: s['組長'] === '是', // 職司表的組長 ★
       note: s['註記'] || ''
@@ -151,12 +152,17 @@ function searchMembers_(params) {
     .map(function (m) {
       return {
         name: normalizeName_(m['姓名']),
+        temple: m['佛堂'] || '',
         identity: OPTIONS.identity.indexOf(m['身分']) !== -1 ? m['身分'] : '',
         groups: { '勤務了愿組': m['勤務了愿組'], '打掃組': m['打掃組'], '拜香輪值組': m['拜香輪值組'] }
       };
     })
     .filter(function (m) { return m.name.indexOf(q) !== -1; });
 
+  // 同名的人：前端顯示佛堂
+  var count = {};
+  matched.forEach(function (m) { count[m.name] = (count[m.name] || 0) + 1; });
+  matched.forEach(function (m) { m.dup = count[m.name] > 1; });
   matched.sort(function (a, b) {
     return memberRank_(a, q, params) - memberRank_(b, q, params) || a.name.localeCompare(b.name, 'zh-Hant');
   });

@@ -25,6 +25,16 @@ function sameName_(a, b) {
   return nameKeys_(a).some(function (k) { return kb.indexOf(k) !== -1; });
 }
 
+function trimTemple_(t) { return String(t || '').replace(/^[\s　]+|[\s　]+$/g, ''); }
+
+/** 名字＋佛堂：兩邊都有佛堂且不同就不是同一人，其餘照名字規則（sameName_） */
+function samePerson_(nameA, templeA, nameB, templeB) {
+  var ta = trimTemple_(templeA);
+  var tb = trimTemple_(templeB);
+  if (ta && tb && ta !== tb) return false;
+  return sameName_(nameA, nameB);
+}
+
 function nameKeys_(name) {
   var n = name.length >= 3 ? name.slice(1) : name;
   var keys = [];
@@ -130,7 +140,7 @@ function validateSignup_(req) {
   if (!dates.length) return [{ message: '請選擇日期' }];
 
   var entries = (req.entries || []).map(function (e) {
-    return { name: normalizeName_(e && e.name), identity: e && e.identity, accompany: !!(e && e.accompany) };
+    return { name: normalizeName_(e && e.name), identity: e && e.identity, accompany: !!(e && e.accompany), temple: trimTemple_(e && e.temple) };
   });
   if (!entries.length) return [{ message: '請填寫名字' }];
   if (entries.some(function (e) { return e.name === ''; })) return [{ message: '名字不可空白' }];
@@ -141,7 +151,7 @@ function validateSignup_(req) {
 
   // 同一批不可重複填同一個人（名字視為同一人的規則見 sameName_）
   entries.forEach(function (e, i) {
-    var prev = entries.slice(0, i).filter(function (x) { return sameName_(x.name, e.name); })[0];
+    var prev = entries.slice(0, i).filter(function (x) { return samePerson_(x.name, x.temple, e.name, e.temple); })[0];
     if (prev) {
       errors.push({ name: e.name, message: prev.name === e.name ? '名字重複填寫' : '「' + prev.name + '」與「' + e.name + '」視為同一人，名字重複填寫' });
     }
@@ -176,7 +186,7 @@ function validateSignup_(req) {
       var dup = active.filter(function (s) {
         // 可兼任的勤務：同一人可報不同了愿項目，只擋同一個項目重複
         if (duty['可兼任'] === '是' && s['了愿項目ID'] !== req.positionId) return false;
-        return s['陪同'] !== '是' && sameName_(s['姓名'], e.name);
+        return s['陪同'] !== '是' && samePerson_(s['姓名'], s['佛堂'], e.name, e.temple);
       })[0];
       if (dup) {
         var posName = positionName_(req.positions, dup['了愿項目ID']);

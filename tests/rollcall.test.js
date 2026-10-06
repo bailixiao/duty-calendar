@@ -17,8 +17,8 @@ test('點名：後台產生點名碼；只有當天、點名碼對才能點；�
   assert.match(env.post(Object.assign({ action: 'rollcallGet' }, p)).error.message, /當天/, '還沒到當天');
 
   env.clock.now = Date.UTC(2026, 9, 13, 1, 0, 0); // 10/13 早上
-  const wrong = String((Number(link.data.code) % 9000) + 1000 === Number(link.data.code) ? Number(link.data.code) + 1 : 1000);
-  const bad = env.post({ action: 'rollcallGet', dutyId: ev.id, date: '2026-10-13', code: wrong === link.data.code ? '0000' : wrong });
+  const wrong = link.data.code === '1234' ? '5678' : '1234';
+  const bad = env.post({ action: 'rollcallGet', dutyId: ev.id, date: '2026-10-13', code: wrong });
   assert.equal(bad.error.code, 'FORBIDDEN');
   const got = env.post(Object.assign({ action: 'rollcallGet' }, p));
   assert.equal(got.ok, true, JSON.stringify(got.error));

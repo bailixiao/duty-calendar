@@ -2214,3 +2214,5 @@ body.splash-on .text-size-btn { visibility: hidden; }
 .age-fill-list { display: grid; gap: 6px; max-height: 55vh; overflow-y: auto; margin: 8px 0; }
 .age-fill-row { display: grid; grid-template-columns: 1fr 6em; align-items: center; gap: 8px; }
 .age-fill-row small { margin-left: 6px; color: var(--ink-2); }
+.name-temple { margin-left: 6px; font-size: .85rem; color: var(--ink-2); font-weight: 400; }
+.tag-temple { background: var(--notice-soft); color: var(--notice); }

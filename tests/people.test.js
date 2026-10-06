@@ -22,7 +22,7 @@ test('成員：新增、修改、停用；重複姓名與不存在的組被擋�
   let list = call('adminMembers').data;
   assert.equal(list.members.length, 1);
   assert.deepEqual(list.members[0], {
-    row: 2, name: '測試甲', identity: '道親', note: '', active: true, pending: false, vegetarian: false, birthYear: '', age: '',
+    row: 2, name: '測試甲', identity: '道親', note: '', active: true, pending: false, vegetarian: false, birthYear: '', age: '', temple: '',
     groups: { '勤務了愿組': '', '打掃組': '第1組', '拜香輪值組': '' }
   });
   assert.ok(list.groups.length > 0);
@@ -211,4 +211,29 @@ test('清口、年齡：道務帳號可以改清口和年齡（存出生年）�
   m = r.data.members.find((x) => x.name === '測試甲');
   assert.deepEqual([m.vegetarian, m.age], [false, 60]);
   assert.equal(call('adminSetMemberExtra', { items: [{ row: m.row, original: '測試甲', age: 'abc' }] }, dw).error.code, 'VALIDATION');
+});
+
+test('佛堂：同名不同佛堂可以都在名單；報名沒選佛堂會請選；選了佛堂可以同一天都報；統計分開算', () => {
+  const env = createEnv(Date.UTC(2026, 9, 1, 2, 0, 0));
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const call = (action, body) => env.post(Object.assign({ action, token }, body));
+  assert.equal(call('adminSaveMember', { member: { name: '測試甲', identity: '道親', temple: '測試佛堂A' } }).ok, true);
+  assert.equal(call('adminSaveMember', { member: { name: '測試甲', identity: '壇辦', temple: '測試佛堂B' } }).ok, true, '同名不同佛堂可以');
+  assert.equal(call('adminSaveMember', { member: { name: '測試甲', identity: '道親', temple: '測試佛堂A' } }).error.code, 'VALIDATION', '同名同佛堂擋');
+  assert.equal(call('adminSaveMember', { member: { name: '測試甲', identity: '道親' } }).error.code, 'VALIDATION', '沒填佛堂分不出來也擋');
+  const sug = env.get({ action: 'searchMembers', q: '測試甲' }).data.members;
+  assert.deepEqual(sug.map((m) => [m.temple, m.dup]).sort(), [['測試佛堂A', true], ['測試佛堂B', true]]);
+  const ev = env.get({ action: 'getEvents', from: '2026-10-13', to: '2026-10-13' }).data.duties.find((d) => d.name === '彌勒山志工輪值');
+  const base = { action: 'signup', dutyId: ev.id, positionId: ev.positions[0].id, dates: ['2026-10-13'] };
+  const amb = env.post(Object.assign({}, base, { entries: [{ name: '測試甲', identity: '道親' }] }));
+  assert.equal(amb.error.code, 'VALIDATION');
+  assert.match(amb.error.details[0].message, /2 位「測試甲」/);
+  const ok = env.post(Object.assign({}, base, { entries: [{ name: '測試甲', identity: '道親', temple: '測試佛堂A' }, { name: '測試甲', identity: '道親', temple: '測試佛堂B' }] }));
+  assert.equal(ok.ok, true, JSON.stringify(ok.error));
+  const duty = env.get({ action: 'getDuty', id: ev.id }).data;
+  assert.deepEqual(duty.signups.map((s) => [s.name, s.temple]).sort(), [['測試甲', '測試佛堂A'], ['測試甲', '測試佛堂B']]);
+  env.clock.now = Date.UTC(2026, 9, 20, 2, 0, 0);
+  const e = call('adminStats').data.events.find((x) => x.dutyId === ev.id);
+  assert.deepEqual([...e.tan, ...e.dao].sort(), ['測試甲（測試佛堂A）', '測試甲（測試佛堂B）'], '統計分開算，身分照名單（B 是壇辦）');
+  assert.deepEqual(e.tan, ['測試甲（測試佛堂B）']);
 });

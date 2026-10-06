@@ -13,8 +13,21 @@ var MEMBER_GROUP_COLUMNS = ['勤務了愿組', '打掃組', '拜香輪值組']; 
 function adminMembers_() {
   return {
     members: readTable_(SHEETS.MEMBERS).filter(function (m) { return m['姓名']; }).map(memberToJson_),
-    groups: groupList_()
+    groups: groupList_(),
+    temples: templeList_()
   };
+}
+
+/** 佛堂選項：各佛堂道務目標最新年度的佛堂（依排序）；沒有就用成員名單上已有的 */
+function templeList_() {
+  var rows = readTableCached_(SHEETS.GOALS).filter(function (r) { return r['佛堂']; });
+  var years = rows.map(function (r) { return String(r['年度']); }).sort();
+  var latest = years[years.length - 1];
+  var list = rows.filter(function (r) { return String(r['年度']) === latest; })
+    .sort(function (a, b) { return (Number(a['排序']) || 0) - (Number(b['排序']) || 0); })
+    .map(function (r) { return r['佛堂']; });
+  readTableCached_(SHEETS.MEMBERS).forEach(function (m) { if (m['佛堂'] && list.indexOf(m['佛堂']) === -1) list.push(m['佛堂']); });
+  return list;
 }
 
 /** body = { row?, original?, member: { name, identity, groups: { 分組類型: 組名 }, note, active } }；沒有 row 就是新增 */
@@ -39,12 +52,15 @@ function adminSaveMember_(body) {
   return withSignupLock_(function () {
     var rows = readTable_(SHEETS.MEMBERS);
     var row = body.row ? findRowChecked_(rows, body.row, '姓名', body.original, '成員') : null;
-    var dup = rows.filter(function (m) { return m !== row && normalizeName_(m['姓名']) === name; })[0];
-    if (dup) throw new ApiError_('VALIDATION', '成員資料有錯，沒有存檔', [{ message: '已經有「' + name + '」這個人了' }]);
+    var temple = cleanText_(input.temple || '');
+    // 同名可以，只要佛堂不同（有一位沒填佛堂就分不出來，也擋）
+    var dup = rows.filter(function (m) { return m !== row && normalizeName_(m['姓名']) === name && (!temple || !m['佛堂'] || m['佛堂'] === temple); })[0];
+    if (dup) throw new ApiError_('VALIDATION', '成員資料有錯，沒有存檔', [{ message: '已經有「' + name + '」' + (dup['佛堂'] ? '（' + dup['佛堂'] + '）' : '') + '這個人了' + (temple || dup['佛堂'] ? '' : '；同名同姓的話，請兩位都填佛堂') }]);
 
     var values = { '姓名': name, '身分': identity, '備註': cleanText_(input.note), '啟用中': input.active === false ? '否' : '是', '待確認': '' }; // 存檔＝確認過
     if (input.vegetarian !== undefined) values['清口'] = input.vegetarian ? '是' : '';
     if (input.age !== undefined) values['出生年'] = birthYearOf_(input.age);
+    if (input.temple !== undefined) values['佛堂'] = temple;
     MEMBER_GROUP_COLUMNS.forEach(function (type) { values[type] = groups[type]; });
     var summary;
     if (row) {
@@ -154,7 +170,7 @@ function memberToJson_(m) {
   MEMBER_GROUP_COLUMNS.forEach(function (t) { groups[t] = m[t]; });
   var by = Number(m['出生年']) || 0;
   return { row: m._row, name: m['姓名'], identity: m['身分'], groups: groups, note: m['備註'], active: m['啟用中'] !== '否', pending: m['待確認'] === '是',
-    vegetarian: m['清口'] === '是', birthYear: by || '', age: by ? Number(todayString_().slice(0, 4)) - by : '' };
+    vegetarian: m['清口'] === '是', birthYear: by || '', age: by ? Number(todayString_().slice(0, 4)) - by : '', temple: m['佛堂'] || '' };
 }
 
 /** 以列號找資料並核對原本的值（姓名或組名），不符代表資料已被移動或修改 */
@@ -188,13 +204,16 @@ function adminMemberCandidates_() {
   var existing = readTable_(SHEETS.MEMBERS).map(function (m) { return normalizeName_(m['姓名']); }).filter(function (n) { return n; });
   var has = {};
   existing.forEach(function (n) { has[n] = true; });
+  readTable_(SHEETS.MEMBERS).forEach(function (m) { if (m['姓名']) has[normalizeName_(m['姓名']) + '|' + (m['佛堂'] || '')] = true; });
   ignoredCandidates_().forEach(function (n) { has[n] = true; }); // 清掉過的不再列出
   var map = {};
   readTableCached_(SHEETS.SIGNUPS).forEach(function (s) {
     if (s['狀態'] === '已取消') return;
     var name = normalizeName_(s['姓名']);
-    if (!name || has[name]) return;
-    var c = map[name] || (map[name] = { name: name, count: 0, tan: 0, dao: 0, wei: 0, dian: 0, last: '' });
+    var temple = s['佛堂'] || '';
+    if (!name || has[name + '|' + temple] || (!temple && has[name])) return;
+    var key = name + '|' + temple;
+    var c = map[key] || (map[key] = { name: name, temple: temple, count: 0, tan: 0, dao: 0, wei: 0, dian: 0, last: '' });
     c.count++;
     if (s['身分'] === '壇辦') c.tan++;
     if (s['身分'] === '道親') c.dao++;
@@ -205,7 +224,7 @@ function adminMemberCandidates_() {
   var list = Object.keys(map).map(function (k) {
     var c = map[k];
     return {
-      name: c.name, count: c.count, last: c.last,
+      name: c.name, temple: c.temple, count: c.count, last: c.last,
       identity: c.dian ? '點傳師' : !(c.tan || c.dao || c.wei) ? '' : c.wei > c.dao && c.wei > c.tan ? '未求道' : c.dao > c.tan ? '道親' : '壇辦',
       similar: existing.filter(function (n) { return sameName_(n, c.name); }).slice(0, 3)
     };
@@ -221,14 +240,15 @@ function adminAddMembers_(body) {
   if (input.length > 1000) throw new ApiError_('BAD_REQUEST', '一次最多加入 1000 位');
   return withSignupLock_(function () {
     var has = {};
-    readTable_(SHEETS.MEMBERS).forEach(function (m) { has[normalizeName_(m['姓名'])] = true; });
+    readTable_(SHEETS.MEMBERS).forEach(function (m) { has[normalizeName_(m['姓名']) + '|' + (m['佛堂'] || '')] = true; });
     var rows = [];
     var skipped = 0;
     input.forEach(function (m) {
       var name = normalizeName_(m && m.name);
-      if (!name || has[name]) { skipped++; return; }
-      has[name] = true;
-      rows.push({ '姓名': name, '身分': OPTIONS.identity.indexOf(m.identity) !== -1 ? m.identity : '', '啟用中': '是' });
+      var key = name + '|' + cleanText_((m && m.temple) || '');
+      if (!name || has[key]) { skipped++; return; }
+      has[key] = true;
+      rows.push({ '姓名': name, '身分': OPTIONS.identity.indexOf(m.identity) !== -1 ? m.identity : '', '佛堂': cleanText_((m && m.temple) || ''), '啟用中': '是' });
     });
     appendRows_(SHEETS.MEMBERS, rows);
     if (rows.length) writeDutyLog_('成員', '從出勤紀錄加入 ' + rows.length + ' 位');
@@ -352,13 +372,16 @@ function adminDeleteMember_(body) {
 function addPendingMembers_(signupRows, dutyName) {
   if (!signupRows || !signupRows.length) return 0;
   var has = {};
-  readTable_(SHEETS.MEMBERS).forEach(function (m) { if (m['姓名']) has[normalizeName_(m['姓名'])] = true; });
+  readTable_(SHEETS.MEMBERS).forEach(function (m) { if (m['姓名']) { has[normalizeName_(m['姓名'])] = true; has[normalizeName_(m['姓名']) + '|' + (m['佛堂'] || '')] = true; } });
   var add = [];
   signupRows.forEach(function (r) {
     var name = normalizeName_(r['姓名']);
-    if (!name || has[name]) return;
+    var temple = r['佛堂'] || '';
+    // 名單上已經有這個名字（沒選佛堂）或同名同佛堂的，不再加
+    if (!name || has[name + '|' + temple] || (!temple && has[name])) return;
+    has[name + '|' + temple] = true;
     has[name] = true;
-    add.push({ '姓名': name, '身分': OPTIONS.identity.indexOf(r['身分']) !== -1 ? r['身分'] : '', '備註': '自動加入：' + r['日期'] + ' ' + (dutyName || ''), '啟用中': '是', '待確認': '是' });
+    add.push({ '姓名': name, '身分': OPTIONS.identity.indexOf(r['身分']) !== -1 ? r['身分'] : '', '佛堂': temple, '備註': '自動加入：' + r['日期'] + ' ' + (dutyName || ''), '啟用中': '是', '待確認': '是' });
   });
   if (!add.length) return 0;
   appendRows_(SHEETS.MEMBERS, add);

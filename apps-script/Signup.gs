@@ -24,6 +24,7 @@ function signup_(body) {
   // 勤務與了愿項目在報名過程中不會變動，在排隊前先讀，縮短每筆佔用鎖的時間（壓力測試：每筆約 0.9 秒）
   // 成員名單上已登記身分的人，一律以名單為準（報名者不能改，統計才一致）
   entries = withMemberIdentity_(entries);
+  checkAmbiguous_(entries);
 
   var duty = readTableCached_(SHEETS.DUTIES).filter(function (d) { return d['勤務ID'] === body.dutyId; })[0];
   var positions = duty ? readTableCached_(SHEETS.POSITIONS).filter(function (p) { return p['勤務ID'] === duty['勤務ID']; }) : [];
@@ -86,6 +87,7 @@ function signup_(body) {
             '了愿項目ID': position['了愿項目ID'],
             '姓名': name,
             '身分': e.identity,
+            '佛堂': e.temple || '',
             '陪同': accompany ? '是' : '否',
             '出席': '出席',
             '狀態': '有效',
@@ -136,12 +138,29 @@ function uniqueList_(list) {
 
 /** 報名的每個名字：成員名單（啟用中）上完全同名且有登記身分的，身分改用名單上的 */
 function withMemberIdentity_(entries) {
+  // 名字 → 名單上的人（同名可能好幾位，用佛堂分）
   var map = {};
   readTableCached_(SHEETS.MEMBERS).forEach(function (m) {
-    if (m['啟用中'] !== '否' && m['待確認'] !== '是' && OPTIONS.identity.indexOf(m['身分']) !== -1) map[normalizeName_(m['姓名'])] = m['身分'];
+    if (m['啟用中'] === '否' || m['待確認'] === '是' || !m['姓名']) return;
+    var n = normalizeName_(m['姓名']);
+    (map[n] = map[n] || []).push(m);
   });
   return entries.map(function (e) {
-    var fixed = map[normalizeName_(e && e.name)];
-    return fixed ? Object.assign({}, e, { identity: fixed }) : e;
+    var list = map[normalizeName_(e && e.name)] || [];
+    var temple = cleanText_((e && e.temple) || '');
+    var m = temple ? list.filter(function (x) { return x['佛堂'] === temple; })[0] : list.length === 1 ? list[0] : null;
+    var out = Object.assign({}, e, { temple: temple || (m ? m['佛堂'] || '' : '') });
+    if (m && OPTIONS.identity.indexOf(m['身分']) !== -1) out.identity = m['身分'];
+    // 名單上有好幾位同名、又沒說是哪個佛堂的：標記起來，由呼叫的地方擋下
+    if (!temple && list.length > 1) out.ambiguous = list.map(function (x) { return x['佛堂'] || '未填佛堂'; });
+    return out;
   });
+}
+
+/** 有同名又沒選佛堂的：擋下並說明 */
+function checkAmbiguous_(entries) {
+  var bad = entries.filter(function (e) { return e.ambiguous; });
+  if (bad.length) throw new ApiError_('VALIDATION', '名單上有同名的人，請選是哪一位', bad.map(function (e) {
+    return { name: normalizeName_(e.name), message: '名單上有 ' + e.ambiguous.length + ' 位「' + normalizeName_(e.name) + '」（' + e.ambiguous.join('、') + '），請從名字提示點選是哪個佛堂的' };
+  }));
 }

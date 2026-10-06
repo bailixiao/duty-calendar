@@ -171,7 +171,7 @@
         ${it.canChange ? `<label class="mine-pick"><input type="checkbox" data-pick="${esc(it.signupId)}" aria-label="勾選 ${esc(Fmt.shortDate(it.date) + ' ' + it.dutyName)}"></label>` : ''}
         <a class="mine-main" href="${href}">
           <span class="card-title">${esc(it.dutyName)}</span>
-          <span class="card-meta">${esc(it.positionName)}${it.accompany ? '（陪同）' : ''}</span>
+          <span class="card-meta">${esc(it.positionName)}${it.accompany ? '（陪同）' : ''}${it.temple ? '・' + esc(it.temple) : ''}</span>
           ${meta ? `<span class="card-meta">${esc(meta)}</span>` : ''}
         </a>
         ${it.canChange ? `

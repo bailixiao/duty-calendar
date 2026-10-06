@@ -411,7 +411,7 @@
           </div>
           ${!d.signups ? '<p class="muted">載入名單中⋯</p>' : people.length ? `<ul class="people">${people.map((s) => `
             <li class="person-row${past && s.attend === '未到' ? ' is-absent' : ''}">
-              <span class="person"><span class="person-name">${s.leader ? '<span class="grid-star" title="組長">★</span>' : ''}${esc(s.name)}</span>
+              <span class="person"><span class="person-name">${s.leader ? '<span class="grid-star" title="組長">★</span>' : ''}${esc(s.name)}</span>${s.temple ? `<span class="tag">${esc(s.temple)}</span>` : ''}
                 ${s.identity ? `<span class="tag">${esc(s.identity)}</span>` : '<span class="tag tag-warn">未填身分</span>'}
                 ${s.accompany ? '<span class="tag">陪同</span>' : ''}
                 ${past && s.attend === '未到' ? '<span class="tag tag-warn">未到</span>' : ''}
@@ -605,16 +605,19 @@
     };
     function onName() {
       const q = f.elements.name.value.trim();
-      const exact = members.find((x) => x.name === q);
+      const sameName = members.filter((x) => x.name === q);
+      const exact = sameName.find((x) => (x.temple || '') === (f.dataset.temple || '')) || (sameName.length === 1 ? sameName[0] : null);
       if (exact && exact.identity) setIdentity(exact.identity); // 名單上已登記的身分自動帶入
-      const list = q ? members.filter((x) => x.name.indexOf(q) !== -1 && x.name !== q).slice(0, 8) : [];
-      sug.innerHTML = list.map((x) => `<button type="button" class="suggestion" data-suggest="${esc(x.name)}">${esc(x.name)}${x.identity ? `<small>${esc(x.identity)}</small>` : ''}</button>`).join('');
+      if (exact && sameName.length === 1) f.dataset.temple = exact.temple || '';
+      const list = q ? members.filter((x) => x.name.indexOf(q) !== -1 && (x.name !== q || sameName.length > 1)).slice(0, 8) : [];
+      sug.innerHTML = list.map((x) => `<button type="button" class="suggestion" data-suggest="${esc(x.name)}" data-temple="${esc(x.temple || '')}">${esc(x.name)}${x.temple ? `<small>${esc(x.temple)}</small>` : ''}${x.identity ? `<small>${esc(x.identity)}</small>` : ''}</button>`).join('');
     }
-    f.elements.name.addEventListener('input', onName);
+    f.elements.name.addEventListener('input', () => { f.dataset.temple = ''; onName(); });
     sug.addEventListener('click', (ev) => {
       const b = ev.target.closest('[data-suggest]');
       if (!b) return;
       f.elements.name.value = b.dataset.suggest;
+      f.dataset.temple = b.dataset.temple || '';
       onName();
     });
     f.addEventListener('change', () => {
@@ -636,7 +639,7 @@
       m.el.setAttribute('data-locked', '');
       Busy.show(word + '中⋯');
       try {
-        const res = await Api.admin('adminAddAttendee', { dutyId: d.id, positionId: p.id, date, name, identity: identity.value, accompany: f.elements.accompany.checked, note: f.elements.note ? f.elements.note.value.trim() : '' });
+        const res = await Api.admin('adminAddAttendee', { dutyId: d.id, positionId: p.id, date, name, temple: f.dataset.temple || '', identity: identity.value, accompany: f.elements.accompany.checked, note: f.elements.note ? f.elements.note.value.trim() : '' });
         Busy.hide();
         m.close();
         dutyPage.flash = notice('success', '已' + word, `${name}・${Fmt.shortDate(date)}・${p.name}${res.warnings.length ? '（注意：' + res.warnings.join('；') + '）' : ''}`);

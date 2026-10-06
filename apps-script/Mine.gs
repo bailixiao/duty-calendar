@@ -33,6 +33,7 @@ function mySignups_(body) {
       endTime: d['結束時間'],
       location: d['地點'],
       positionId: s['了愿項目ID'],
+      temple: s['佛堂'] || '',
       positionName: p ? p['了愿項目名稱'] : '',
       accompany: s['陪同'] === '是',
       canChange: canSelfChange_(s['日期'], today)

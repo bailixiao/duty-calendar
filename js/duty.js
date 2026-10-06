@@ -298,7 +298,7 @@
       const names = !d.signups ? '<span class="muted">載入名單中⋯</span>' : people.length
         ? `<ul class="people">${people.map((s) => `
             <li class="person-row">
-              <span class="person">${esc(s.name)}${s.accompany ? '<span class="tag">陪同</span>' : ''}</span>
+              <span class="person">${esc(s.name)}${s.temple && (d.signups || []).some((o) => o !== s && o.name === s.name) ? `<span class="tag">${esc(s.temple)}</span>` : ''}${s.accompany ? '<span class="tag">陪同</span>' : ''}</span>
             </li>`).join('')}</ul>`
         : '<span class="muted">還沒有人報名</span>';
       return `

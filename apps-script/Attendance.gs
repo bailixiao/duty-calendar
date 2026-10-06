@@ -60,7 +60,8 @@ function adminAddAttendee_(body) {
   return withSignupLock_(function () {
     var signups = duty ? readTable_(SHEETS.SIGNUPS).filter(function (s) { return s['勤務ID'] === duty['勤務ID']; }) : [];
     // 成員名單上已登記身分的人，以名單為準（和一般報名相同）
-    var entry = withMemberIdentity_([{ name: body.name, identity: body.identity, accompany: !!body.accompany }])[0];
+    var entry = withMemberIdentity_([{ name: body.name, identity: body.identity, accompany: !!body.accompany, temple: body.temple }])[0];
+    checkAmbiguous_([entry]);
     var problems = validateSignup_({
       duty: duty, positions: positions, signups: signups, positionId: body.positionId,
       dates: [body.date], entries: [entry], today: '0000-00-00' // 補登不受日期限制
@@ -74,7 +75,7 @@ function adminAddAttendee_(body) {
     var now = nowString_();
     var row = {
       '報名ID': newId_('S'), '勤務ID': duty['勤務ID'], '日期': body.date, '了愿項目ID': body.positionId,
-      '姓名': normalizeName_(body.name), '身分': entry.identity, '陪同': entry.accompany ? '是' : '否',
+      '姓名': normalizeName_(body.name), '身分': entry.identity, '佛堂': entry.temple || '', '陪同': entry.accompany ? '是' : '否',
       '出席': '出席', '狀態': '有效', '建立時間': now, '更新時間': now
     };
     if (duty['版面'] === '職司表' && body.note) row['註記'] = cleanText_(body.note).slice(0, 100);
@@ -126,22 +127,24 @@ function adminImportAttendance_(body) {
     var position = positions[0];
     results.push(withSignupLock_(function () {
       var signups = readTable_(SHEETS.SIGNUPS).filter(function (r) { return r['勤務ID'] === duty['勤務ID'] && r['狀態'] === '有效' && r['日期'] === date; });
-      var have = signups.map(function (r) { return normalizeName_(r['姓名']); });
+      var have = signups.map(function (r) { return normalizeName_(r['姓名']) + '|' + (r['佛堂'] || ''); });
       var raw = (Array.isArray(s.entries) ? s.entries : []).filter(function (e) { return e && cleanText_(e.name); });
       var skipped = [];
       var fresh = raw.filter(function (e) {
         var n = normalizeName_(e.name);
-        if (have.indexOf(n) !== -1) { skipped.push(n); return false; }
-        have.push(n);
+        var k = n + '|' + cleanText_(e.temple || '');
+        if (have.indexOf(k) !== -1) { skipped.push(n); return false; }
+        have.push(k);
         return true;
       });
-      var entries = withMemberIdentity_(fresh.map(function (e) { return { name: e.name, identity: e.identity, accompany: false }; }));
+      var entries = withMemberIdentity_(fresh.map(function (e) { return { name: e.name, identity: e.identity, accompany: false, temple: e.temple }; }));
+      checkAmbiguous_(entries);
       var bad = entries.filter(function (e) { return OPTIONS.identity.indexOf(e.identity) === -1; });
       if (bad.length) throw new ApiError_('VALIDATION', label + '（' + duty['名稱'] + ' ' + date + '）有人沒有身分', bad.map(function (e) { return { message: e.name + '：請填道親、壇辦或未求道' }; }));
       var now = nowString_();
       var rows = entries.map(function (e, k) {
         return { '報名ID': newId_('S'), '勤務ID': duty['勤務ID'], '日期': date, '了愿項目ID': position['了愿項目ID'], '姓名': normalizeName_(e.name), '身分': e.identity,
-          '陪同': '否', '出席': '出席', '狀態': '有效', '建立時間': now, '更新時間': now, '註記': cleanText_(fresh[k].note || '').slice(0, 100) };
+          '佛堂': e.temple || '', '陪同': '否', '出席': '出席', '狀態': '有效', '建立時間': now, '更新時間': now, '註記': cleanText_(fresh[k].note || '').slice(0, 100) };
       });
       if (rows.length) {
         appendRows_(SHEETS.SIGNUPS, rows);
