@@ -130,6 +130,30 @@
       .sort((a, b) => (a.last < b.last ? -1 : a.last > b.last ? 1 : strokeCompare(a.name, b.name)));
   }
 
+  const AGE_BANDS = [['14 歲以下', 0, 14], ['15–29', 15, 29], ['30–44', 30, 44], ['45–64', 45, 64], ['65 歲以上', 65, 200]];
+
+  /**
+   * 年齡統計（成員名單）：members = [{ identity, age }]（age 空白＝沒填）。
+   * 回傳 [{ group, total, withAge, avg, median, min, max, bands: [{ label, count }] }]，group 依序：點傳師、壇辦、道親、未求道、全部（沒有人的身分不列）。
+   */
+  function ageStats(members) {
+    const groups = ['點傳師', '壇辦', '道親', '未求道'];
+    const one = (group, list) => {
+      const ages = list.filter((m) => m.age !== '' && m.age !== null && m.age !== undefined).map((m) => Number(m.age)).filter((a) => m0(a)).sort((a, b) => a - b);
+      const n = ages.length;
+      const median = !n ? null : n % 2 ? ages[(n - 1) / 2] : (ages[n / 2 - 1] + ages[n / 2]) / 2;
+      return {
+        group, total: list.length, withAge: n,
+        avg: n ? Math.round((ages.reduce((a, b) => a + b, 0) / n) * 10) / 10 : null,
+        median, min: n ? ages[0] : null, max: n ? ages[n - 1] : null,
+        bands: AGE_BANDS.map(([label, lo, hi]) => ({ label, count: ages.filter((a) => a >= lo && a <= hi).length }))
+      };
+    };
+    const m0 = (a) => typeof a === 'number' && !isNaN(a) && a >= 0 && a <= 120;
+    return groups.map((g) => one(g, members.filter((m) => m.identity === g))).filter((r) => r.total)
+      .concat([one('全部', members)]);
+  }
+
   /** 依勤務分類（同名勤務合併，例如各月的拜香輪值） */
   function byCategory(events, p) {
     const map = new Map();
@@ -229,7 +253,7 @@
     return { now: summarize(events, p), prevP, prev: cut(prevP), lyP, ly: cut(lyP), partial };
   }
 
-  const api = { careList, compare, startOf, addDays, UNIT_NAME, periodOf, shift, lastYear, contains, label, prevName, lastYearName, summarize, trend, ranking, byCategory, missingIdentity, delta, pct, textReport, eventsIn };
+  const api = { ageStats, careList, compare, startOf, addDays, UNIT_NAME, periodOf, shift, lastYear, contains, label, prevName, lastYearName, summarize, trend, ranking, byCategory, missingIdentity, delta, pct, textReport, eventsIn };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.StatsCalc = api;
 })();

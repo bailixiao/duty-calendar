@@ -2193,3 +2193,24 @@ body.splash-on .text-size-btn { visibility: hidden; }
 .repair-edit { display: grid; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
 .repair-warn { background: #fff4f2; }
 .repair-admin { margin-top: 18px; }
+/* ---------- 清口、年齡（member-stats.js） ---------- */
+.veg-summary { display: grid; gap: 6px; margin: 6px 0 10px; font-size: 1.05rem; }
+.veg-bar { display: block; height: 12px; border-radius: 999px; background: var(--paper-2); overflow: hidden; }
+.veg-bar span { display: block; height: 100%; background: var(--ok); }
+.veg-q { margin-bottom: 8px; }
+.veg-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; }
+.veg-cols h4 { margin: 4px 0 6px; }
+.veg-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+.veg-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+.veg-list .link-btn { font-size: .88rem; }
+.age-table td, .age-table th { text-align: center; }
+.age-band-title { margin: 12px 0 6px; }
+.age-bands { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 14px; }
+.age-band-group { display: grid; gap: 4px; }
+.age-band-row { display: grid; grid-template-columns: 6.5em 1fr 2.5em; align-items: center; gap: 6px; font-size: .95rem; }
+.age-band-bar { height: 14px; background: var(--paper-2); border-radius: 999px; overflow: hidden; }
+.age-band-bar span { display: block; height: 100%; background: var(--notice); }
+.age-band-n { text-align: right; }
+.age-fill-list { display: grid; gap: 6px; max-height: 55vh; overflow-y: auto; margin: 8px 0; }
+.age-fill-row { display: grid; grid-template-columns: 1fr 6em; align-items: center; gap: 8px; }
+.age-fill-row small { margin-left: 6px; color: var(--ink-2); }

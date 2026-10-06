@@ -314,6 +314,7 @@ function adminRun_(body) {
     case 'adminRollcallLink': return adminRollcallLink_(body);
     case 'adminImportAttendance': return adminImportAttendance_(body);
     case 'adminRepairs': return adminRepairs_(body);
+    case 'adminSetMemberExtra': return adminSetMemberExtra_(body);
     case 'adminRepairUpdate': return adminRepairUpdate_(body);
     case 'adminConfirmMembers': return adminConfirmMembers_(body);
     case 'adminMergePendingMember': return adminMergePendingMember_(body);

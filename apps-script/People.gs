@@ -25,7 +25,8 @@ function adminSaveMember_(body) {
   var groupsIn = input.groups || {};
   var errors = [];
   if (!name) errors.push('請填姓名');
-  if (identity && OPTIONS.identity.indexOf(identity) === -1) errors.push('身分只能是道親、壇辦或未求道');
+  if (identity && OPTIONS.identity.indexOf(identity) === -1) errors.push('身分只能是道親、壇辦、未求道或點傳師');
+  if (input.age !== undefined && input.age !== '' && birthYearOf_(input.age) === null) errors.push('年齡請填 0～120 的數字');
   var keys = groupKeys_();
   var groups = {};
   MEMBER_GROUP_COLUMNS.forEach(function (type) {
@@ -42,6 +43,8 @@ function adminSaveMember_(body) {
     if (dup) throw new ApiError_('VALIDATION', '成員資料有錯，沒有存檔', [{ message: '已經有「' + name + '」這個人了' }]);
 
     var values = { '姓名': name, '身分': identity, '備註': cleanText_(input.note), '啟用中': input.active === false ? '否' : '是', '待確認': '' }; // 存檔＝確認過
+    if (input.vegetarian !== undefined) values['清口'] = input.vegetarian ? '是' : '';
+    if (input.age !== undefined) values['出生年'] = birthYearOf_(input.age);
     MEMBER_GROUP_COLUMNS.forEach(function (type) { values[type] = groups[type]; });
     var summary;
     if (row) {
@@ -149,7 +152,9 @@ function adminDeleteGroup_(body) {
 function memberToJson_(m) {
   var groups = {};
   MEMBER_GROUP_COLUMNS.forEach(function (t) { groups[t] = m[t]; });
-  return { row: m._row, name: m['姓名'], identity: m['身分'], groups: groups, note: m['備註'], active: m['啟用中'] !== '否', pending: m['待確認'] === '是' };
+  var by = Number(m['出生年']) || 0;
+  return { row: m._row, name: m['姓名'], identity: m['身分'], groups: groups, note: m['備註'], active: m['啟用中'] !== '否', pending: m['待確認'] === '是',
+    vegetarian: m['清口'] === '是', birthYear: by || '', age: by ? Number(todayString_().slice(0, 4)) - by : '' };
 }
 
 /** 以列號找資料並核對原本的值（姓名或組名），不符代表資料已被移動或修改 */
@@ -398,4 +403,43 @@ function adminMergePendingMember_(body) {
     invalidateTable_(SHEETS.MEMBERS);
   });
   return res;
+}
+
+// ---------- 清口、年齡 ----------
+
+/** 年齡 → 出生年（西元）；空白回 ''，不合理回 null */
+function birthYearOf_(age) {
+  var t = String(age === undefined || age === null ? '' : age).replace(/[\s歲]/g, '');
+  if (!t) return '';
+  if (!/^\d{1,3}$/.test(t) || Number(t) > 120) return null;
+  return String(Number(todayString_().slice(0, 4)) - Number(t));
+}
+
+/**
+ * body = { items: [{ row, original, vegetarian?, age? }] }：改清口、年齡（總管理者、道務帳號；道務只能改這兩項）
+ */
+function adminSetMemberExtra_(body) {
+  var role = ADMIN_SESSION_.role;
+  if (role !== SUPER_ACCOUNT && role !== '道務') throw new ApiError_('FORBIDDEN', '只有總管理者、道務帳號能改清口和年齡');
+  var items = Array.isArray(body.items) ? body.items : [];
+  if (!items.length) throw new ApiError_('BAD_REQUEST', '沒有要修改的成員');
+  var bad = items.filter(function (x) { return x.age !== undefined && birthYearOf_(x.age) === null; });
+  if (bad.length) throw new ApiError_('VALIDATION', '年齡請填 0～120 的數字', bad.map(function (x) { return { message: (x.original || '') + '：' + x.age }; }));
+  return withSignupLock_(function () {
+    var rows = readTable_(SHEETS.MEMBERS);
+    var done = [];
+    items.forEach(function (x) {
+      var row = findRowChecked_(rows, x.row, '姓名', x.original, '成員');
+      var ch = {};
+      if (x.vegetarian !== undefined) ch['清口'] = x.vegetarian ? '是' : '';
+      if (x.age !== undefined) ch['出生年'] = birthYearOf_(x.age);
+      if (!Object.keys(ch).length) return;
+      updateRow_(SHEETS.MEMBERS, row, ch);
+      done.push(row['姓名'] + (ch['清口'] !== undefined ? (ch['清口'] ? ' 已清口' : ' 還沒清口') : '') + (ch['出生年'] !== undefined ? (ch['出生年'] ? ' ' + x.age + ' 歲' : ' 清掉年齡') : ''));
+    });
+    if (done.length) writeDutyLog_('成員', (role === SUPER_ACCOUNT ? '總管理者' : ADMIN_SESSION_.account) + '｜' + done.join('、'));
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.MEMBERS);
+    return adminMembers_();
+  });
 }

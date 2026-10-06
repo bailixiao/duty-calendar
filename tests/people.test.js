@@ -22,7 +22,7 @@ test('成員：新增、修改、停用；重複姓名與不存在的組被擋�
   let list = call('adminMembers').data;
   assert.equal(list.members.length, 1);
   assert.deepEqual(list.members[0], {
-    row: 2, name: '測試甲', identity: '道親', note: '', active: true, pending: false,
+    row: 2, name: '測試甲', identity: '道親', note: '', active: true, pending: false, vegetarian: false, birthYear: '', age: '',
     groups: { '勤務了愿組': '', '打掃組': '第1組', '拜香輪值組': '' }
   });
   assert.ok(list.groups.length > 0);
@@ -191,4 +191,24 @@ test('新名字自動加入成員（待確認）：不出現在名字提示；�
   // 再報一次：名單上已經沒有 → 又會自動加回待確認（出勤紀錄還在）
   assert.equal(call('adminImportAttendance', { sessions: [{ dutyId: ev.id, date: '2026-10-13', entries: [{ name: '測試第三人', identity: '未求道' }] }] }).ok, true);
   assert.equal(call('adminMembers').data.members.find((m) => m.name === '測試第三人').pending, true, '匯入的也會加入');
+});
+
+test('清口、年齡：道務帳號可以改清口和年齡（存出生年），勤務帳號不行；年齡不合理擋下', () => {
+  const env = createEnv(Date.UTC(2026, 9, 1, 2, 0, 0));
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const call = (action, body, tok) => env.post(Object.assign({ action, token: tok || token }, body));
+  call('adminSaveMember', { member: { name: '測試甲', identity: '道親', age: '45', vegetarian: true } });
+  let m = call('adminMembers').data.members.find((x) => x.name === '測試甲');
+  assert.deepEqual([m.vegetarian, m.birthYear, m.age], [true, 1981, 45]);
+  assert.equal(call('adminSaveMember', { member: { name: '測試乙', identity: '道親', age: '200' } }).error.code, 'VALIDATION');
+  call('adminSaveAccount', { account: { account: '道務組', role: '道務', password: 'abc12345' } });
+  call('adminSaveAccount', { account: { account: '勤務組', role: '勤務', password: 'abc12345' } });
+  const dw = env.post({ action: 'adminLogin', account: '道務組', password: 'abc12345' }).data.token;
+  const qw = env.post({ action: 'adminLogin', account: '勤務組', password: 'abc12345' }).data.token;
+  assert.equal(call('adminSetMemberExtra', { items: [{ row: m.row, original: '測試甲', vegetarian: false }] }, qw).error.code, 'FORBIDDEN');
+  const r = call('adminSetMemberExtra', { items: [{ row: m.row, original: '測試甲', vegetarian: false, age: '60' }] }, dw);
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  m = r.data.members.find((x) => x.name === '測試甲');
+  assert.deepEqual([m.vegetarian, m.age], [false, 60]);
+  assert.equal(call('adminSetMemberExtra', { items: [{ row: m.row, original: '測試甲', age: 'abc' }] }, dw).error.code, 'VALIDATION');
 });

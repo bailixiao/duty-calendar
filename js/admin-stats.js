@@ -322,7 +322,7 @@
         </section>
         ${careHtml((data.events || []).filter((e) => (e.category || '勤務') === cat), data.today)}
         <div class="stats-actions no-print"><button type="button" class="btn btn-primary" data-xlsx>⬇ 匯出 Excel（${L.item}總覽＋每個${L.item}的出缺勤表）</button></div>
-        ${cat === '道務' ? '<section class="stats-section" data-goals></section>' : ''}
+        ${cat === '道務' ? '<section class="stats-section" data-veg></section><section class="stats-section" data-ages></section><section class="stats-section" data-goals></section>' : ''}
       </div>`;
 
     bindNav(body, data, () => render(body, guard, data, false));
@@ -348,6 +348,8 @@
     body.querySelector('[data-xlsx]').addEventListener('click', () => exportXlsx(body, () => StatsExport.edu(courses, teacherList, L, cat, p)));
     bindCare(body, (data.events || []).filter((e) => (e.category || '勤務') === cat), data.today, () => render(body, guard, data, false));
     // 各佛堂道務目標（年度跟著上面選的期間）
+    const veg = body.querySelector('[data-veg]');
+    if (veg) MemberStats.mount(veg, body.querySelector('[data-ages]'), { canEdit: ['總管理者', '道務'].indexOf(Api.adminWho().role) !== -1, guard });
     const goals = body.querySelector('[data-goals]');
     if (goals) GoalsPage.mount(goals, p.year, { canEdit: ['總管理者', '道務'].indexOf(Api.adminWho().role) !== -1, guard });
   }
