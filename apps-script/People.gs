@@ -189,18 +189,19 @@ function adminMemberCandidates_() {
     if (s['狀態'] === '已取消') return;
     var name = normalizeName_(s['姓名']);
     if (!name || has[name]) return;
-    var c = map[name] || (map[name] = { name: name, count: 0, tan: 0, dao: 0, wei: 0, last: '' });
+    var c = map[name] || (map[name] = { name: name, count: 0, tan: 0, dao: 0, wei: 0, dian: 0, last: '' });
     c.count++;
     if (s['身分'] === '壇辦') c.tan++;
     if (s['身分'] === '道親') c.dao++;
     if (s['身分'] === '未求道') c.wei++;
+    if (s['身分'] === '點傳師') c.dian++;
     if (s['日期'] > c.last) c.last = s['日期'];
   });
   var list = Object.keys(map).map(function (k) {
     var c = map[k];
     return {
       name: c.name, count: c.count, last: c.last,
-      identity: !(c.tan || c.dao || c.wei) ? '' : c.wei > c.dao && c.wei > c.tan ? '未求道' : c.dao > c.tan ? '道親' : '壇辦',
+      identity: c.dian ? '點傳師' : !(c.tan || c.dao || c.wei) ? '' : c.wei > c.dao && c.wei > c.tan ? '未求道' : c.dao > c.tan ? '道親' : '壇辦',
       similar: existing.filter(function (n) { return sameName_(n, c.name); }).slice(0, 3)
     };
   });
