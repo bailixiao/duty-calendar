@@ -267,7 +267,7 @@
 
   // ---------- 列表 ----------
 
-  const listState = { filter: 'future', q: '' };
+  const listState = { filter: 'future', q: '', picked: new Set() };
 
   function list(body, guard) {
     AdminPage.swr('dutyList', () => Api.admin('adminDutyList', {}, true), (data, stale) => renderList(body, data, stale), body);
@@ -290,7 +290,13 @@
         </select>
         <input class="input" type="search" data-q placeholder="搜尋${T()}名稱" value="${esc(listState.q)}">
       </div>
-      <div data-rows></div>`;
+      <div data-rows></div>
+      <div class="invite-bar" data-invite-bar hidden>
+        <span data-invite-count></span>
+        <button type="button" class="btn btn-primary" data-invite-copy>複製勾選的通知</button>
+        <button type="button" class="btn btn-line" data-invite-line>傳到 LINE</button>
+        <button type="button" class="link-btn" data-invite-clear>都不勾</button>
+      </div>`;
     flash = '';
 
     const rows = body.querySelector('[data-rows]');
@@ -307,15 +313,72 @@
         <p class="muted">共 ${items.length} 筆${listState.filter === 'past' ? '・點進去就是報名名單，選日期後按「＋ 補登」加人' : ''}</p>
         <div class="card-list">
           ${items.map((d) => `
+            <div class="recent-item">
             <a class="duty-card${d.mode === '公告型' ? ' kind-notice' : ''}" href="${d.end < data.today && d.mode !== '公告型' ? `#/admin/duty/${encodeURIComponent(d.id)}?date=${d.end}` : `#/admin/duties/edit/${encodeURIComponent(d.id)}`}">
               <span class="card-main">
                 <span class="card-title">${esc(d.name)}</span>
                 <span class="card-meta">${esc([dateRange(d), d.startTime, d.location, d.group].filter(Boolean).join('・'))}</span>
               </span>
               <span class="badge ${d.mode === '公告型' ? 'badge-notice' : d.signups ? 'badge-ok' : 'badge-full'}">${d.mode === '公告型' ? '公告' : `${d.signups} 筆報名`}</span>
-            </a>`).join('')}
+            </a>
+            ${d.mode !== '公告型' && d.end >= data.today ? `<div class="recent-tools">
+              <label class="check"><input type="checkbox" data-invite-pick="${esc(d.id)}"${listState.picked.has(d.id) ? ' checked' : ''}> 勾選</label>
+              <button type="button" class="link-btn" data-invite="${esc(d.id)}">📋 複製通知</button>
+            </div>` : ''}
+            </div>`).join('')}
         </div>` : `<p class="panel-empty">沒有符合的${T()}</p>`;
+      bindInvite();
     }
+
+    // 複製通知（同近期勤務）：按的時候才讀那一天的名額與人數
+    const inviteBar = body.querySelector('[data-invite-bar]');
+    const dateOf = (d) => (d.start >= data.today ? d.start : data.today);
+    async function inviteRows(ids) {
+      const list = ids.map((id) => data.duties.find((d) => d.id === id)).filter(Boolean);
+      const res = await Promise.all(list.map((d) => Api.getEvents(dateOf(d), dateOf(d))));
+      return list.map((d, i) => {
+        const full = res[i].duties.find((x) => x.id === d.id);
+        return full ? { duty: full, date: dateOf(d) } : null;
+      }).filter(Boolean);
+    }
+    const flashBtn = (btn, text, back) => { btn.textContent = text; setTimeout(() => { btn.textContent = back; }, 2500); };
+    function paintBar() {
+      const n = listState.picked.size;
+      inviteBar.hidden = !n;
+      inviteBar.querySelector('[data-invite-count]').textContent = `已勾 ${n} 筆`;
+    }
+    function bindInvite() {
+      rows.querySelectorAll('[data-invite]').forEach((btn) => btn.addEventListener('click', async () => {
+        btn.textContent = '產生中⋯';
+        try {
+          const r = await inviteRows([btn.dataset.invite]);
+          flashBtn(btn, r.length && (await Share.copyText(Share.inviteText(r))) ? '已複製 ✓' : '複製失敗', '📋 複製通知');
+        } catch (e) { flashBtn(btn, '讀取失敗，請再試', '📋 複製通知'); }
+      }));
+      rows.querySelectorAll('[data-invite-pick]').forEach((c) => c.addEventListener('change', () => {
+        if (c.checked) listState.picked.add(c.dataset.invitePick); else listState.picked.delete(c.dataset.invitePick);
+        paintBar();
+      }));
+      paintBar();
+    }
+    const barCopy = inviteBar.querySelector('[data-invite-copy]');
+    barCopy.addEventListener('click', async () => {
+      barCopy.textContent = '產生中⋯';
+      try {
+        const r = await inviteRows([...listState.picked]);
+        flashBtn(barCopy, r.length && (await Share.copyText(Share.inviteText(r))) ? '已複製 ✓' : '複製失敗', '複製勾選的通知');
+      } catch (e) { flashBtn(barCopy, '讀取失敗，請再試', '複製勾選的通知'); }
+    });
+    inviteBar.querySelector('[data-invite-line]').addEventListener('click', async () => {
+      const w = window.open('', '_blank'); // 先開視窗（等資料時被擋），之後再換網址
+      if (w) w.opener = null;
+      try {
+        const r = await inviteRows([...listState.picked]);
+        const url = 'https://line.me/R/msg/text/?' + encodeURIComponent(Share.inviteText(r));
+        if (w) w.location.href = url; else location.href = url;
+      } catch (e) { if (w) w.close(); alert('讀取失敗，請再試'); }
+    });
+    inviteBar.querySelector('[data-invite-clear]').addEventListener('click', () => { listState.picked.clear(); draw(); });
     draw();
     body.querySelector('[data-filter]').addEventListener('change', (ev) => { listState.filter = ev.target.value; draw(); });
     body.querySelector('[data-draft-open]').addEventListener('click', openDraft);
