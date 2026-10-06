@@ -214,6 +214,8 @@
     cancelVenue: (payload) => post(Object.assign({ action: 'cancelVenue' }, payload)),
     venueWatch: (endpoint, id) => post({ action: 'venueWatch', endpoint, id }),
     pushSetName: (endpoint, name) => post({ action: 'pushSetName', endpoint, name }),
+    rollcallGet: (p) => post(Object.assign({ action: 'rollcallGet' }, p)),
+    rollcallSet: (p) => post(Object.assign({ action: 'rollcallSet' }, p)),
     loginAccounts: () => get('loginAccounts', {}),
     // DM 檔案（照片、PDF）的網址
     fileUrl: (id) => window.APP_CONFIG.API_URL + (window.APP_CONFIG.API_URL.indexOf('?') === -1 ? '?' : '&') + 'action=file&id=' + encodeURIComponent(id),

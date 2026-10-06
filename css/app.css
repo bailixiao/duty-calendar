@@ -2128,3 +2128,21 @@ body.splash-on .text-size-btn { visibility: hidden; }
 .push-auto-days .field-label { flex-basis: 100%; }
 .push-auto-time .input { max-width: 180px; }
 .push-stat { display: inline-block; margin-left: 10px; color: var(--ink-2); font-size: .92rem; }
+/* ---------- 當天點名（rollcall.js） ---------- */
+.rc-code { display: grid; gap: 10px; max-width: 420px; }
+.rc-code-input { font-size: 2rem; letter-spacing: .4em; text-align: center; min-height: 64px; }
+.rc-head h2 { margin: 0 0 4px; }
+.rc-head p { margin: 0 0 4px; color: var(--ink-2); }
+.rc-count { font-size: 1.15rem; color: var(--ink) !important; }
+.rc-pos h3 { margin: 16px 0 8px; font-size: 1.1rem; }
+.rc-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.rc-person { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.rc-person.is-absent { background: var(--accent-soft); border-color: var(--accent); }
+.rc-name { font-size: 1.2rem; font-weight: 700; }
+.rc-name small { margin-left: 6px; font-size: .85rem; color: var(--ink-2); font-weight: 400; }
+.rc-btns { display: flex; gap: 6px; flex: none; }
+.rc-btn { min-height: 52px; min-width: 76px; border-radius: 12px; border: 2px solid var(--line); background: var(--paper); font: inherit; font-size: 1.05rem; font-weight: 700; color: var(--ink-2); cursor: pointer; }
+.rc-in.is-on { border-color: var(--ok); background: var(--ok-soft); color: var(--ok); }
+.rc-out.is-on { border-color: var(--accent); background: #fff; color: var(--accent); }
+.rc-big-code { font-size: 1.3rem; }
+.rc-big-code strong { font-size: 2rem; letter-spacing: .2em; color: var(--accent); }

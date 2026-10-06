@@ -55,6 +55,8 @@ function doPost(e) {
       case 'myVenue': return myVenue_(body);
       case 'cancelVenue': return cancelVenue_(body);
       case 'venueWatch': return venueWatch_(body);
+      case 'rollcallGet': return rollcallGet_(body);
+      case 'rollcallSet': return rollcallSet_(body);
       case 'pushSubscribe': return pushSubscribe_(body);
       case 'pushUnsubscribe': return pushUnsubscribe_(body);
       case 'pushTest': return pushTest_(body);

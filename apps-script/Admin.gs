@@ -294,6 +294,7 @@ function adminRun_(body) {
     case 'adminPushDelete': return adminPushDelete_(body);
     case 'adminAutoPushSave': return adminAutoPushSave_(body);
     case 'adminSystemWatch': return adminSystemWatch_(body);
+    case 'adminRollcallLink': return adminRollcallLink_(body);
     case 'adminDutyList': return adminDutyList_(body);
     case 'adminDutyForEdit': return adminDutyForEdit_(body);
     case 'adminCreateDuties': return adminCreateDuties_(body);

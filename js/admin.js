@@ -452,6 +452,7 @@
       <div class="admin-links">
         <a class="btn btn-primary admin-link-btn" href="#/admin/duties/edit/${encodeURIComponent(d.id)}">✏️ 編輯${d.category && d.category !== '勤務' ? '活動' : '勤務'}</a>
         <a class="btn admin-link-btn" href="#/duty/${encodeURIComponent(d.id)}?date=${date}">👀 看家人們看到的頁面</a>
+        ${!isNotice && date >= d.today && Api.adminWho().role !== '唯讀' ? `<button type="button" class="btn admin-link-btn" data-rollcall>📋 點名連結（${esc(Fmt.shortDate(date))}）</button>` : ''}
       </div>`;
 
     body.querySelectorAll('[data-date]').forEach((b) => b.addEventListener('click', () => {
@@ -459,6 +460,8 @@
       dutyPage.flash = '';
       renderDuty();
     }));
+    const rc = body.querySelector('[data-rollcall]');
+    if (rc) rc.addEventListener('click', () => rollcallLink(d, date));
     const find = (id) => (d.signups || []).find((s) => s.id === id);
     body.querySelectorAll('[data-cancel]').forEach((b) => b.addEventListener('click', () => adminCancel(find(b.dataset.cancel))));
     body.querySelectorAll('[data-attend]').forEach((b) => b.addEventListener('click', () => {
@@ -531,6 +534,36 @@
       m.close();
       setAttendance(s, { note }, `${s.name}：${note ? '註記「' + note + '」' : '刪除註記'}`);
     });
+  }
+
+  /** 點名連結：產生（或拿回）這個勤務這一天的點名碼，複製「連結＋點名碼」傳給組長 */
+  async function rollcallLink(d, date) {
+    Busy.show('產生點名連結⋯');
+    let res;
+    try {
+      res = await Api.admin('adminRollcallLink', { dutyId: d.id, date });
+    } catch (err) {
+      Busy.hide();
+      if (guard(err)) return;
+      alert(err.message || '產生失敗');
+      return;
+    }
+    Busy.hide();
+    const url = location.origin + location.pathname + '?openExternalBrowser=1#/rollcall/' + encodeURIComponent(res.dutyId) + '?date=' + res.date;
+    const text = `📋 ${res.name}（${Fmt.shortDate(res.date)}）點名\n點名連結：${url}\n點名碼：${res.code}\n（連結只有當天能用，沒來的人按「未到」就好，感恩 🙏）`;
+    const m = Modal.open(`
+      <h2 class="modal-title">📋 點名連結</h2>
+      <p>把下面的文字傳給組長，組長打開連結、輸入點名碼就能點名。<strong>只有 ${esc(Fmt.shortDate(res.date))} 當天能用。</strong></p>
+      <p class="rc-big-code">點名碼：<strong>${esc(res.code)}</strong></p>
+      <textarea class="day-text" rows="5" readonly>${esc(text)}</textarea>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-primary btn-block" data-copy>複製文字</button>
+        <button type="button" class="btn btn-line btn-block" data-line>傳到 LINE</button>
+        <button type="button" class="btn btn-block" data-close>返回</button>
+      </div>`);
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    m.el.querySelector('[data-copy]').addEventListener('click', async (ev) => { ev.target.textContent = (await Share.copyText(text)) ? '已複製 ✓' : '請長按框內文字複製'; });
+    m.el.querySelector('[data-line]').addEventListener('click', () => window.open('https://line.me/R/msg/text/?' + encodeURIComponent(text), '_blank', 'noopener'));
   }
 
   /** 管理者加人：當天與過去叫「補登」（沒報名但有來的人，記為出席）；未來叫「幫人報名」（不受截止日限制） */
