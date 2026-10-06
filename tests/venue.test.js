@@ -100,3 +100,36 @@ test('場地借用：申請人只能申請取消（要對得上電話），管�
   assert.deepEqual(after.map((x) => [x.status, x.cancelPending, x.note]), [['已同意', false, '不同意取消：當天有活動要用'], ['已取消', false, '申請人申請取消，已同意']]);
   assert.deepEqual(env.get({ action: 'getEvents', from: '2026-10-20', to: '2026-10-20' }).data.venue, [], '同意取消後行事曆就沒有了');
 });
+
+test('修繕回報：公開列表不含回報人電話；通知管理者；處理中、已修好通知回報人；只有總管理者、場管能處理', () => {
+  const env = createEnv(OCT_1);
+  env.fn('ensurePushKeys_')();
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const ADMIN = 'https://fcm.googleapis.com/fcm/send/admin-1';
+  const USER = 'https://fcm.googleapis.com/fcm/send/user-22';
+  env.post({ action: 'adminVenueWatch', token, endpoint: ADMIN, on: true });
+  const take = () => env.fn('takePendingPush_')();
+  take();
+  assert.equal(env.post({ action: 'reportRepair', location: '不存在', problem: 'x', name: '測試甲', phone: '0912345678' }).error.code, 'VALIDATION');
+  const r = env.post({ action: 'reportRepair', location: '冷氣', detail: '教室', problem: '冷氣不冷，會滴水', urgency: '有危險', name: '測試甲', phone: '0912-345-678', photos: ['F-abcdef123456', 'bad'] });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.deepEqual(take(), [ADMIN], '通知管理者');
+  const pub = env.get({ action: 'getRepairs' }).data.items;
+  assert.equal(pub.length, 1);
+  assert.equal(JSON.stringify(pub).indexOf('0912'), -1, '公開的不含電話');
+  assert.equal(JSON.stringify(pub).indexOf('測試甲'), -1, '公開的不含回報人');
+  assert.equal(env.post({ action: 'repairWatch', endpoint: USER, id: r.data.id }).ok, true);
+  const adm = env.post({ action: 'adminRepairs', token }).data.items[0];
+  assert.deepEqual([adm.phone, adm.photos], ['0912-345-678', ['F-abcdef123456']]);
+  env.post({ action: 'adminSaveAccount', token, account: { account: '勤務組', role: '勤務', password: 'abc12345' } });
+  const duty = env.post({ action: 'adminLogin', account: '勤務組', password: 'abc12345' }).data.token;
+  assert.equal(env.post({ action: 'adminRepairUpdate', token: duty, id: adm.id, status: '處理中' }).error.code, 'FORBIDDEN');
+  take();
+  const u = env.post({ action: 'adminRepairUpdate', token, id: adm.id, status: '處理中', note: '已請師傅', vendor: '測試水電', cost: '1,500' });
+  assert.equal(u.ok, true, JSON.stringify(u.error));
+  assert.deepEqual(take(), [USER], '通知回報人');
+  env.post({ action: 'adminRepairUpdate', token, id: adm.id, status: '已修好', note: '已修好', vendor: '測試水電', cost: '1500' });
+  const after = env.post({ action: 'adminRepairs', token }).data;
+  assert.deepEqual([after.items[0].status, after.costTotal], ['已修好', 1500]);
+  assert.equal(env.get({ action: 'getRepairs' }).data.items[0].status, '已修好', '7 天內修好的還會顯示');
+});

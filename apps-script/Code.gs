@@ -27,6 +27,7 @@ function doGet(e) {
       case 'pushSummary': return pushSummary_(p);
       case 'getVenue': return getVenue_(p);
       case 'getFaq': return getFaq_(p);
+      case 'getRepairs': return getRepairs_(p);
       case 'pushClick': return pushClick_(p);
       default: throw new ApiError_('BAD_REQUEST', '未知的 action：' + (p.action || '（空白）'));
     }
@@ -56,6 +57,8 @@ function doPost(e) {
       case 'myVenue': return myVenue_(body);
       case 'cancelVenue': return cancelVenue_(body);
       case 'venueWatch': return venueWatch_(body);
+      case 'reportRepair': return reportRepair_(body);
+      case 'repairWatch': return repairWatch_(body);
       case 'rollcallGet': return rollcallGet_(body);
       case 'rollcallSet': return rollcallSet_(body);
       case 'pushSubscribe': return pushSubscribe_(body);

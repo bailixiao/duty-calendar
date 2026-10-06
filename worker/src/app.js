@@ -87,6 +87,19 @@ export function createApp(store, opts) {
     return { id };
   };
 
+  /** 修繕回報的照片：公開上傳，只收照片、最大 2MB，受防止亂報名限制；回傳檔案代號（照片只在後台顯示） */
+  special.repairUpload = (body) => {
+    gs.rateLimit_(Object.assign({}, body, { action: 'repairUpload' }));
+    const mime = String(body.mime || '');
+    if (['image/jpeg', 'image/png', 'image/webp'].indexOf(mime) === -1) throw new gs.ApiError_('BAD_REQUEST', '只能上傳照片');
+    const bytes = Uint8Array.from(Buffer.from(String(body.data || ''), 'base64'));
+    if (!bytes.length) throw new gs.ApiError_('BAD_REQUEST', '照片是空的');
+    if (bytes.length > 2 * 1024 * 1024) throw new gs.ApiError_('BAD_REQUEST', '照片太大（最大 2MB）');
+    const id = 'F-' + crypto.randomUUID().replace(/-/g, '').slice(0, 20);
+    store.putFile(id, mime, 'repair', bytes);
+    return { id };
+  };
+
   const asyncActions = {
     adminDraftFromImages: (body) => A.adminDraftFromImages(gs, body),
     pushTest: (body) => A.pushTest(gs, body)
@@ -109,6 +122,10 @@ export function createApp(store, opts) {
     let body = null;
     try { body = JSON.parse(text || '{}'); } catch (e) { /* 交給 doPost 回錯誤 */ }
     const action = body && body.action;
+    if (action === 'repairUpload' && body) { // 帶上網路位址的雜湊（防止亂報名計數）
+      const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || '';
+      if (ip) body._client = createHash('sha256').update('dc|' + ip).digest('hex').slice(0, 16);
+    }
     if (special[action]) return json(await A.respondAsync(gs, () => special[action](body)));
     if (asyncActions[action]) return json(await A.respondAsync(gs, () => asyncActions[action](body)));
     // 防止亂報名：公開的寫入動作帶上「網路位址的雜湊」給 .gs 計數（RateLimit.gs）；位址本身不存

@@ -68,6 +68,7 @@
       <ul class="venue-reqs">${cancelAsks.map((g) => card(g, (x) => `<button type="button" class="btn btn-primary" data-cok="${esc(x.ids.join(','))}">同意取消</button>
         <button type="button" class="btn btn-quiet-danger" data-cno="${esc(x.ids.join(','))}">不同意取消</button>`)).join('')}</ul>` : ''}
       <h2 class="admin-sub">待審核 <span class="badge ${pending.length ? 'badge-short' : 'badge-ok'}">${pending.length} 筆</span></h2>
+      ${pending.length ? '<div data-repair-warn></div>' : ''}
       ${pending.length ? `<ul class="venue-reqs">${pending.map((g) => card(g, (x) => {
         // 已經借給別人的時段：同意時略過，只同意其他的
         const clash = x.items.filter((r) => takenKey.has(r.date + '|' + r.slot));
@@ -95,7 +96,9 @@
 
       ${others.length ? `<details class="venue-others"><summary>其他（不同意、已取消、已過去的）${others.length} 筆</summary>
         <ul class="venue-reqs">${others.reverse().map((g) => card(g)).join('')}</ul></details>` : ''}
-      <p class="hint">同意後，家人們的行事曆會出現「區中心 已借出」（用途、借用人姓名；不顯示電話）。請記得打電話告訴申請人結果。</p>`;
+      <p class="hint">同意後，家人們的行事曆會出現「區中心 已借出」（用途、借用人姓名；不顯示電話）。請記得打電話告訴申請人結果。</p>
+      <section class="repair-admin" data-repairs><h2 class="admin-sub">🔧 修繕</h2><p class="muted">讀取中⋯</p></section>`;
+    loadRepairs(body, guard);
 
     const watchBox = body.querySelector('[data-watch]');
     if (watchBox) drawWatch(watchBox, guard);
@@ -136,6 +139,77 @@
       });
     });
     body.querySelectorAll('[data-cancel]').forEach((b) => b.addEventListener('click', () => askReason('取消這個借用', (note) => decide(b.dataset.cancel, '已取消', note))));
+  }
+
+  // ---------- 修繕（回報的問題、處理進度、費用與廠商） ----------
+
+  const REPAIR_STATUS = ['待處理', '處理中', '已修好'];
+
+  async function loadRepairs(body, guard, fresh) {
+    const box = body.querySelector('[data-repairs]');
+    if (!box) return;
+    let data;
+    try {
+      data = await Api.admin('adminRepairs', {}, !fresh);
+    } catch (err) {
+      if (guard(err)) return;
+      box.innerHTML = '<h2 class="admin-sub">🔧 修繕</h2><p class="form-error">讀不到修繕資料</p>';
+      return;
+    }
+    drawRepairs(body, guard, data);
+  }
+
+  function drawRepairs(body, guard, data) {
+    const box = body.querySelector('[data-repairs]');
+    if (!box || !box.isConnected) return;
+    const open = data.items.filter((r) => r.status !== '已修好');
+    const done = data.items.filter((r) => r.status === '已修好');
+    // 待審核上方的提醒：還沒修好的問題
+    const warn = body.querySelector('[data-repair-warn]');
+    if (warn) warn.innerHTML = open.length ? `<p class="vr-warn repair-warn">⚠️ 區中心目前有 ${open.length} 個問題還沒修好：${open.slice(0, 4).map((r) => esc(r.location + '・' + r.problem.slice(0, 16) + '（' + r.status + '）')).join('、')}${open.length > 4 ? '⋯' : ''}。同意前可以先告訴申請人。</p>` : '';
+    const edit = canDecide();
+    const card = (r) => `
+      <li class="venue-req repair-adm is-${r.status === '已修好' ? 'done' : r.urgency === '有危險' ? 'danger' : 'open'}">
+        <div class="vr-head"><strong>${r.urgency === '有危險' ? '⚠️ ' : ''}${esc(r.location)}${r.detail ? '（' + esc(r.detail) + '）' : ''}</strong><span class="vr-status">${esc(r.status)}</span></div>
+        <p class="repair-problem">${esc(r.problem).replace(/\n/g, '<br>')}</p>
+        ${r.photos.length ? `<div class="repair-photos">${r.photos.map((id) => `<a href="${esc(Api.fileUrl(id))}" target="_blank" rel="noopener" class="repair-thumb"><img src="${esc(Api.fileUrl(id))}" alt="回報的照片" loading="lazy"></a>`).join('')}</div>` : ''}
+        <dl class="vr-info">
+          <div><dt>急迫</dt><dd>${esc(r.urgency)}</dd></div>
+          <div><dt>回報人</dt><dd>${esc(r.name)}　${r.phone ? `<a href="tel:${esc(r.phone.replace(/[^\d+]/g, ''))}">${esc(r.phone)}</a>` : ''}</dd></div>
+          <div><dt>回報時間</dt><dd>${esc(r.createdAt)}</dd></div>
+          ${r.by ? `<div><dt>處理</dt><dd>${esc(r.updatedAt)}（${esc(r.by)}）${r.doneAt ? '・完成 ' + esc(r.doneAt.slice(0, 10)) : ''}</dd></div>` : ''}
+          ${!edit && (r.vendor || r.cost) ? `<div><dt>廠商／費用</dt><dd>${esc(r.vendor || '—')}／${r.cost ? esc(r.cost) + ' 元' : '—'}</dd></div>` : ''}
+          ${!edit && r.note ? `<div><dt>說明</dt><dd>${esc(r.note)}</dd></div>` : ''}
+        </dl>
+        ${edit ? `<form class="repair-edit" data-repair="${esc(r.id)}" novalidate>
+          <div class="seg">${REPAIR_STATUS.map((s) => `<label class="seg-item"><input type="radio" name="status" value="${s}"${s === r.status ? ' checked' : ''}><span>${s}</span></label>`).join('')}</div>
+          <label class="form-row"><span>處理說明（回報人會收到）</span><input class="input" name="note" maxlength="200" value="${esc(r.note || '')}" placeholder="例：已請水電師傅 10/12 來修"></label>
+          <div class="form-row-pair">
+            <label><span>廠商</span><input class="input" name="vendor" maxlength="40" value="${esc(r.vendor || '')}" placeholder="例：○○水電行"></label>
+            <label><span>費用（元）</span><input class="input" name="cost" inputmode="numeric" value="${esc(r.cost || '')}" placeholder="例：1500"></label>
+          </div>
+          <button type="submit" class="btn btn-primary">儲存</button>
+        </form>` : ''}
+      </li>`;
+    box.innerHTML = `
+      <h2 class="admin-sub">🔧 修繕 <span class="badge ${open.length ? 'badge-short' : 'badge-ok'}">${open.length} 個還沒修好</span></h2>
+      ${open.length ? `<ul class="venue-reqs">${open.map(card).join('')}</ul>` : '<p class="muted">目前沒有要修的地方 😊</p>'}
+      ${done.length ? `<details class="venue-others"><summary>最近 90 天修好的 ${done.length} 筆（費用合計 ${Number(data.costTotal || 0).toLocaleString()} 元）</summary>
+        <ul class="venue-reqs">${done.map(card).join('')}</ul></details>` : ''}
+      <p class="hint">家人們在借場地頁「🔧 回報需要修繕」回報。改成「處理中」「已修好」時，會通知回報人（他有允許通知的話）。</p>`;
+    box.querySelectorAll('[data-repair]').forEach((f) => f.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      Busy.show('儲存中⋯');
+      try {
+        const res = await Api.admin('adminRepairUpdate', { id: f.dataset.repair, status: f.querySelector('[name=status]:checked').value, note: f.elements.note.value, vendor: f.elements.vendor.value, cost: f.elements.cost.value });
+        Busy.hide();
+        drawRepairs(body, guard, res);
+      } catch (err) {
+        Busy.hide();
+        if (guard(err)) return;
+        alert((err.message || '儲存失敗') + (err.details ? '\n' + err.details.map((d) => d.message).join('\n') : ''));
+      }
+    }));
   }
 
   /**

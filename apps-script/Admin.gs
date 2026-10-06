@@ -313,6 +313,8 @@ function adminRun_(body) {
     case 'adminSystemWatch': return adminSystemWatch_(body);
     case 'adminRollcallLink': return adminRollcallLink_(body);
     case 'adminImportAttendance': return adminImportAttendance_(body);
+    case 'adminRepairs': return adminRepairs_(body);
+    case 'adminRepairUpdate': return adminRepairUpdate_(body);
     case 'adminConfirmMembers': return adminConfirmMembers_(body);
     case 'adminMergePendingMember': return adminMergePendingMember_(body);
     case 'adminDutyList': return adminDutyList_(body);

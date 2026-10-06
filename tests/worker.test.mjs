@@ -175,3 +175,12 @@ test('防止亂報名：同一個網路位址 10 分鐘內超過 20 次就暫停
   const many = Array.from({ length: 21 }, (_, i) => ({ name: '測試' + i, identity: '道親' }));
   assert.equal((await send('198.51.100.8', { action: 'signup', dutyId: 'x', positionId: 'y', dates: ['2026-10-13'], entries: many })).error.code, 'BAD_REQUEST');
 });
+
+test('修繕照片：公開上傳只收照片、最大 2MB，之後用檔案網址讀得到', async () => {
+  const { call } = await setup();
+  const tiny = Buffer.from([0xff, 0xd8, 0xff, 0xd9]).toString('base64');
+  const r = await call('POST', { action: 'repairUpload', mime: 'image/jpeg', data: tiny });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.match(r.data.id, /^F-/);
+  assert.equal((await call('POST', { action: 'repairUpload', mime: 'application/pdf', data: tiny })).error.code, 'BAD_REQUEST');
+});

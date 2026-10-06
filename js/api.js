@@ -208,6 +208,10 @@
     getDuty: (id) => get('getDuty', { id }),
     // 區中心場地借用
     getFaq: () => get('getFaq', {}),
+    getRepairs: () => get('getRepairs', {}),
+    reportRepair: (p) => post(Object.assign({ action: 'reportRepair' }, p)),
+    repairWatch: (endpoint, id) => post({ action: 'repairWatch', endpoint, id }),
+    repairUpload: (p) => post(Object.assign({ action: 'repairUpload' }, p)),
     getVenue: (from, to) => get('getVenue', { from, to }),
     requestVenue: (payload) => post(Object.assign({ action: 'requestVenue' }, payload)),
     myVenue: (name) => post({ action: 'myVenue', name }),

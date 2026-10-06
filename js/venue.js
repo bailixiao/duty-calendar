@@ -40,6 +40,7 @@
     root.innerHTML = `
       <h1 class="page-title">🏠 借區中心場地</h1>
       <a class="help-inline" href="#/help?c=借場地">❓ 第一次借？看圖文教學</a>
+      <button type="button" class="link-btn help-inline" data-go-repair>🔧 回報需要修繕</button>
       <p class="venue-intro">📅 選日期、⏰ 勾時段、✍️ 填好資料，就能送出申請囉！<br>✅ <strong>管理者同意後才算借到</strong>，同意後就會出現在行事曆上 🗓️<br>再請您到下面「🔍 查我的申請」看申請狀態，感謝慈悲 🙏😊</p>
       <div data-flash></div>
       <section class="venue-step">
@@ -76,7 +77,10 @@
         </form>
         <div data-mine-result aria-live="polite"></div>
       </section>
+      <section class="venue-step" id="venue-repairs" data-repairs></section>
       <a class="btn btn-block back-bottom" href="#/">‹ 回行事曆</a>`;
+    if (window.RepairPage) RepairPage.mount(root.querySelector('[data-repairs]'));
+    root.querySelector('[data-go-repair]').addEventListener('click', () => root.querySelector('[data-repairs]').scrollIntoView({ behavior: 'smooth', block: 'start' }));
     root.querySelectorAll('input[name=vmode]').forEach((r) => r.addEventListener('change', () => { state.mode = r.value; drawPick(); }));
     const form = root.querySelector('.venue-form');
     form.addEventListener('submit', submit);
