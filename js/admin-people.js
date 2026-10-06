@@ -56,6 +56,11 @@
     reload();
   }
 
+  /** 可以編輯成員、分組的帳號：總管理者、道務、教育 */
+  function canEditPeople() {
+    return ['總管理者', '道務', '教育'].indexOf(Api.adminWho().role) !== -1;
+  }
+
   // ---------- 成員 ----------
 
   const memberState = { q: '', filter: 'active', identity: 'all' };
@@ -71,13 +76,13 @@
     const counts = { active: data.members.filter((m) => m.active).length };
     counts.inactive = data.members.length - counts.active;
     const pendingList = data.members.filter((m) => m.pending);
-    const isSuper = Api.adminWho().role === '總管理者';
+    const isSuper = canEditPeople(); // 總管理者、道務、教育帳號可以編輯成員
     if (memberState.filter === 'pending' && !pendingList.length) memberState.filter = 'active';
     body.innerHTML = `
       ${AdminPage.staleNote(stale)}
       ${flash}
       ${pendingList.length ? `<div class="notice pending-banner" role="status"><p>🆕 <strong>有 ${pendingList.length} 位新成員待確認</strong>（報名時自動加入的新名字）</p>${memberState.filter === 'pending' ? '<p class="muted">確認每一位：沒問題按「保留」；其實是名單上的某人（寫法不同）按「合併到⋯」；打錯或不需要的按「刪除」。</p>' : '<button type="button" class="btn btn-primary" data-show-pending>查看待確認的人</button>'}</div>` : ''}
-      <div class="admin-actions"><button type="button" class="btn btn-primary" data-add>＋ 新增成員</button><button type="button" class="btn" data-from-signups>從出勤紀錄加入成員</button></div>
+      ${canEditPeople() ? '<div class="admin-actions"><button type="button" class="btn btn-primary" data-add>＋ 新增成員</button><button type="button" class="btn" data-from-signups>從出勤紀錄加入成員</button></div>' : ''}
       <div class="list-filter">
         <select class="input" data-filter aria-label="狀態">
           ${pendingList.length ? `<option value="pending"${memberState.filter === 'pending' ? ' selected' : ''}>🆕 待確認（${pendingList.length}）</option>` : ''}
@@ -197,11 +202,13 @@
     if (sp) sp.addEventListener('click', () => { memberState.filter = 'pending'; renderMembers(body, guard, data, false, reload); });
     body.querySelector('[data-filter]').addEventListener('change', (ev) => { memberState.filter = ev.target.value; renderMembers(body, guard, data, false, reload); });
     body.querySelector('[data-q]').addEventListener('input', (ev) => { memberState.q = ev.target.value; draw(); });
-    body.querySelector('[data-add]').addEventListener('click', () => editMember(null, data.groups, guard, reload));
-    body.querySelector('[data-from-signups]').addEventListener('click', () => fromSignups(guard, reload));
+    if (canEditPeople()) {
+      body.querySelector('[data-add]').addEventListener('click', () => editMember(null, data.groups, guard, reload));
+      body.querySelector('[data-from-signups]').addEventListener('click', () => fromSignups(guard, reload));
+    }
     rows.addEventListener('click', (ev) => {
       const b = ev.target.closest('[data-row]');
-      if (Api.adminWho().role !== '總管理者') return; // 只有總管理者能改成員
+      if (!canEditPeople()) return; // 總管理者、道務、教育帳號能改成員
       if (b) editMember(data.members.find((m) => m.row === Number(b.dataset.row)), data.groups, guard, reload);
     });
   }
@@ -463,7 +470,7 @@
     body.innerHTML = `
       ${AdminPage.staleNote(stale)}
       ${flash}
-      <div class="admin-actions"><button type="button" class="btn btn-primary" data-add>＋ 新增分組</button></div>
+      ${canEditPeople() ? '<div class="admin-actions"><button type="button" class="btn btn-primary" data-add>＋ 新增分組</button></div>' : ''}
       ${GROUP_TYPES.map((t) => {
         const items = data.groups.filter((g) => g.type === t);
         return `
@@ -478,9 +485,10 @@
       }).join('')}
       <p class="hint">組長電話只在管理後台顯示。改組名時，勤務的負責組與成員的組別會一併更新。</p>`;
     flash = '';
-    body.querySelector('[data-add]').addEventListener('click', () => editGroup(null, guard, reload));
+    const addG = body.querySelector('[data-add]');
+    if (addG) addG.addEventListener('click', () => editGroup(null, guard, reload));
     body.querySelectorAll('[data-row]').forEach((b) => b.addEventListener('click', () => {
-      if (Api.adminWho().role !== '總管理者') return; // 只有總管理者能改分組
+      if (!canEditPeople()) return; // 總管理者、道務、教育帳號能改分組
       editGroup(data.groups.find((g) => g.row === Number(b.dataset.row)), guard, reload);
     }));
   }

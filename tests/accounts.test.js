@@ -45,7 +45,7 @@ test('類別帳號：只能動自己類別的勤務；新增時類別固定成�
   const mine = env.post({ action: 'adminDutyList', token: tok }).data.duties;
   assert.deepEqual(mine.map((d) => [d.name, d.category]), [['法會', '道務']]);
   assert.equal(env.post({ action: 'adminDutyForEdit', token: tok, id: mine[0].id }).data.duty.category, '道務');
-  assert.equal(env.post({ action: 'adminSaveMember', token: tok, member: { name: '測試甲' } }).error.code, 'FORBIDDEN');
+  assert.equal(env.post({ action: 'adminSaveMember', token: tok, member: { name: '測試甲' } }).ok, true, '道務帳號可以編輯成員（2026/10/6）');
   assert.equal(env.post({ action: 'adminSaveAccount', token: tok, account: { account: 'abc', role: '道務', password: 'abc12345' } }).error.code, 'FORBIDDEN');
   assert.equal(env.post({ action: 'adminMembers', token: tok }).ok, true); // 可以看
   assert.equal(env.post({ action: 'adminLogs', token: tok }).error.code, 'FORBIDDEN'); // 操作紀錄、明日名單只給總管理者

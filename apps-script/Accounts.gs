@@ -78,6 +78,11 @@ var ADMIN_READ_ACTIONS = ['adminPing', 'adminLogout', 'adminMe', 'adminRecent', 
 var ADMIN_CATEGORY_ACTIONS = ['adminCancel', 'adminReschedule', 'adminRestore', 'adminCreateDuties', 'adminUpdateDuty',
   'adminDeleteDuty', 'adminSetAttendance', 'adminAddAttendee', 'adminDraftFromImages', 'adminUpdateStatsSheet', 'adminSetTeachers', 'adminSaveGoals', 'adminVenueDecide', 'adminPushSave', 'adminPushDelete', 'adminAutoPushSave', 'adminRollcallLink', 'adminImportAttendance', 'adminSetMemberExtra'];
 
+// 成員、分組的編輯動作，與可以編輯的帳號（總管理者另外全部可以）
+var PEOPLE_EDIT_ACTIONS = ['adminSaveMember', 'adminDeleteMember', 'adminMemberCandidates', 'adminAddMembers', 'adminMergeNames', 'adminClearCandidates',
+  'adminConfirmMembers', 'adminMergePendingMember', 'adminSaveGroup', 'adminDeleteGroup'];
+var PEOPLE_EDIT_ROLES = ['道務', '教育'];
+
 function findDutyById_(id) {
   return findById_(readTableCached_(SHEETS.DUTIES), '勤務ID', id) || null;
 }
@@ -140,8 +145,13 @@ function adminAuthorize_(session, body) {
     }
     return;
   }
+  // 成員、分組：總管理者、道務、教育帳號可以編輯（2026/10/6）
+  if (PEOPLE_EDIT_ACTIONS.indexOf(action) !== -1) {
+    if (PEOPLE_EDIT_ROLES.indexOf(role) !== -1) return;
+    denied();
+  }
   if (role === '唯讀' || CATEGORIES.indexOf(role) === -1) denied();
-  if (ADMIN_CATEGORY_ACTIONS.indexOf(action) === -1) denied(); // 成員、分組、匯入歷史、帳號：只有總管理者
+  if (ADMIN_CATEGORY_ACTIONS.indexOf(action) === -1) denied(); // 匯入歷史、帳號：只有總管理者
   targetDuties_(body).forEach(function (d) {
     if (d && dutyCategory_(d) !== role) throw new ApiError_('FORBIDDEN', '這是「' + dutyCategory_(d) + '」的勤務，這個帳號不能修改');
   });
