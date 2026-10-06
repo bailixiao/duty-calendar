@@ -16,19 +16,44 @@
     let offset = 0;
     let items = [];
     let flash = '';
+    let actions = [];
+    const filters = { q: '', kind: '', from: '', to: '' };
+    const filtering = () => !!(filters.q || filters.kind || filters.from || filters.to);
+    const params = (o) => Object.assign({ limit: PAGE_SIZE }, filters, o);
 
     /** 第一頁：先顯示記住的（或背景先抓好的），同時更新 */
     function loadFirst() {
+      if (filtering()) { search(); return; }
       AdminPage.swr('logs', () => Api.admin('adminLogs', { offset: 0, limit: PAGE_SIZE }, true), (data, stale) => {
         items = data.logs.slice();
         offset = data.logs.length;
+        actions = data.actions || actions;
         render(data.total, stale);
       }, body);
     }
 
+    // 搜尋（在伺服器篩選）：打字停一下才送
+    let searchTimer = null;
+    let searchToken = 0;
+    async function search() {
+      const t = ++searchToken;
+      const list = body.querySelector('[data-log-list]');
+      if (list) list.innerHTML = '<li class="panel-empty">搜尋中⋯</li>';
+      try {
+        const data = await Api.admin('adminLogs', params({ offset: 0 }), true);
+        if (t !== searchToken) return;
+        items = data.logs.slice();
+        offset = data.logs.length;
+        actions = data.actions || actions;
+        render(data.total, false);
+      } catch (err) {
+        guard(err, body);
+      }
+    }
+
     async function loadMore() {
       try {
-        const data = await Api.admin('adminLogs', { offset, limit: PAGE_SIZE }, true);
+        const data = await Api.admin('adminLogs', params({ offset }), true);
         items = items.concat(data.logs);
         offset += data.logs.length;
         render(data.total, false);
@@ -41,8 +66,15 @@
       body.innerHTML = `
         ${AdminPage.staleNote(stale)}
         ${flash}
-        <p class="hint">最新的在最上面。共 ${total} 筆。</p>
-        <ul class="log-list">
+        <div class="log-filter">
+          <input class="input" type="search" data-f="q" placeholder="🔍 搜尋名字、勤務、內容" value="${esc(filters.q)}">
+          <select class="input" data-f="kind" aria-label="動作"><option value="">全部動作</option>${actions.map((a) => `<option${a === filters.kind ? ' selected' : ''}>${esc(a)}</option>`).join('')}</select>
+          <label><span>從</span><input class="input" type="date" data-f="from" value="${esc(filters.from)}"></label>
+          <label><span>到</span><input class="input" type="date" data-f="to" value="${esc(filters.to)}"></label>
+          ${filtering() ? '<button type="button" class="link-btn" data-f-clear>清除搜尋</button>' : ''}
+        </div>
+        <p class="hint">${filtering() ? `找到 ${total} 筆` : `最新的在最上面。共 ${total} 筆`}。</p>
+        <ul class="log-list" data-log-list>
           ${items.map((l) => `
             <li class="log-item${l.restoredAt ? ' is-restored' : ''}">
               <div class="log-head">
@@ -57,6 +89,16 @@
         ${offset < total ? '<button type="button" class="btn btn-block" data-more>載入更多</button>' : ''}`;
       const more = body.querySelector('[data-more]');
       if (more) more.addEventListener('click', () => { more.disabled = true; more.textContent = '載入中⋯'; loadMore(); });
+      body.querySelectorAll('[data-f]').forEach((inp) => inp.addEventListener(inp.dataset.f === 'q' ? 'input' : 'change', () => {
+        filters[inp.dataset.f] = inp.value.trim();
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => (filtering() ? search() : loadFirst()), inp.dataset.f === 'q' ? 450 : 0);
+      }));
+      const clr = body.querySelector('[data-f-clear]');
+      if (clr) clr.addEventListener('click', () => { Object.keys(filters).forEach((k) => { filters[k] = ''; }); loadFirst(); });
+      // 搜尋框重畫後游標留在原位
+      const qi = body.querySelector('[data-f=q]');
+      if (qi && filters.q && document.activeElement === document.body) { qi.focus(); qi.setSelectionRange(qi.value.length, qi.value.length); }
       body.querySelectorAll('[data-restore]').forEach((b) => b.addEventListener('click', () => {
         restore(items.find((l) => String(l.row) === b.dataset.restore));
       }));

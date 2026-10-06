@@ -2153,3 +2153,22 @@ body.splash-on .text-size-btn { visibility: hidden; }
 .pending-item .muted { font-size: .9rem; margin-left: 4px; }
 .pending-near { margin: 4px 0 0; color: var(--accent); font-size: .95rem; }
 .pending-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+/* 我的勤務 */
+.my-next { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin: 8px 0; padding: 12px 14px; border: 2px solid var(--ok); border-radius: 14px; background: var(--ok-soft); }
+.my-next[hidden] { display: none; }
+.my-next-main { display: grid; gap: 2px; color: inherit; text-decoration: none; margin: 0; flex: 1 1 240px; font-size: 1.05rem; }
+.my-next-main strong { font-size: 1.15rem; }
+.my-next-who { font-size: .95rem; color: var(--ok); font-weight: 700; }
+.my-next-more { font-size: .95rem; color: var(--ink-2); }
+.my-next-switch { font-size: .9rem; color: var(--ink-2); }
+.cell-mine { position: absolute; top: 1px; right: 1px; font-size: .68rem; font-weight: 700; color: #fff; background: var(--ok); border-radius: 999px; min-width: 15px; height: 15px; line-height: 15px; text-align: center; z-index: 1; }
+.fc-daygrid-day-frame { position: relative; }
+.card-mine { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--ok); color: #fff; font-size: .8rem; font-weight: 700; vertical-align: middle; }
+.care-list { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
+.care-list li { display: grid; gap: 2px; padding: 8px 12px; border: 1px solid var(--line); border-left: 4px solid #e2b33c; border-radius: 10px; background: var(--card); }
+.care-name { font-weight: 700; font-size: 1.05rem; }
+.care-meta { color: var(--ink-2); font-size: .95rem; }
+.log-filter { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; align-items: end; }
+.log-filter [data-f=q] { grid-column: 1 / -1; }
+.log-filter label { display: grid; gap: 4px; font-size: .9rem; color: var(--ink-2); min-width: 0; }
+.log-filter .link-btn { grid-column: 1 / -1; justify-self: start; }

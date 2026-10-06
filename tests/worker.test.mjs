@@ -161,3 +161,17 @@ test('借場地通知與後台推播：請求處理完一起送出（正式切�
     globalThis.fetch = realFetch;
   }
 });
+
+test('防止亂報名：同一個網路位址 10 分鐘內超過 20 次就暫停；別的位址不受影響；一次最多 20 個名字', async () => {
+  const { app, store } = await setup();
+  const send = async (ip, payload) => {
+    const res = await app.handle(new Request('https://w.test/', { method: 'POST', headers: { 'Content-Type': 'text/plain', 'CF-Connecting-IP': ip }, body: JSON.stringify(payload) }));
+    store.persist();
+    return res.json();
+  };
+  for (let i = 0; i < 20; i++) assert.equal((await send('203.0.113.9', { action: 'cancel', signupId: 'S-nope' })).error.code, 'NOT_FOUND');
+  assert.equal((await send('203.0.113.9', { action: 'cancel', signupId: 'S-nope' })).error.code, 'BUSY');
+  assert.equal((await send('198.51.100.7', { action: 'cancel', signupId: 'S-nope' })).error.code, 'NOT_FOUND', '別的位址照常');
+  const many = Array.from({ length: 21 }, (_, i) => ({ name: '測試' + i, identity: '道親' }));
+  assert.equal((await send('198.51.100.8', { action: 'signup', dutyId: 'x', positionId: 'y', dates: ['2026-10-13'], entries: many })).error.code, 'BAD_REQUEST');
+});

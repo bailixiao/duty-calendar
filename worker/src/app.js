@@ -4,6 +4,7 @@ import { createRuntime } from './runtime.js';
 import { createGs } from './gs.generated.js';
 import * as A from './async-actions.js';
 import { Buffer } from 'node:buffer';
+import { createHash } from 'node:crypto';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -110,7 +111,13 @@ export function createApp(store, opts) {
     const action = body && body.action;
     if (special[action]) return json(await A.respondAsync(gs, () => special[action](body)));
     if (asyncActions[action]) return json(await A.respondAsync(gs, () => asyncActions[action](body)));
-    const out = gs.doPost({ postData: { contents: text } }).text;
+    // 防止亂報名：公開的寫入動作帶上「網路位址的雜湊」給 .gs 計數（RateLimit.gs）；位址本身不存
+    let contents = text;
+    if (body && typeof body === 'object' && String(action || '').indexOf('admin') !== 0) {
+      const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || '';
+      if (ip) contents = JSON.stringify(Object.assign({}, body, { _client: createHash('sha256').update('dc|' + ip).digest('hex').slice(0, 16) }));
+    }
+    const out = gs.doPost({ postData: { contents } }).text;
     await flushPush();
     return json(out);
   }

@@ -87,7 +87,24 @@ function adminLogs_(body) {
   var limit = Math.min(Math.max(Number(body.limit) || 50, 1), 200);
   var offset = Math.max(Number(body.offset) || 0, 0);
   var logs = readTable_(SHEETS.LOGS).reverse();
+  // 搜尋：q（名字、勤務、內容）、kind（動作）、from／to（日期 yyyy-MM-dd）
+  var q = String(body.q || '').replace(/[\s　]+/g, '');
+  var kind = cleanText_(body.kind);
+  var from = isDateString_(body.from) ? body.from : '';
+  var to = isDateString_(body.to) ? body.to : '';
+  var actions = [];
+  logs.forEach(function (l) { if (l['動作'] && actions.indexOf(l['動作']) === -1) actions.push(l['動作']); });
+  if (q || kind || from || to) {
+    logs = logs.filter(function (l) {
+      var day = String(l['時間']).slice(0, 10);
+      if (kind && l['動作'] !== kind) return false;
+      if (from && day < from) return false;
+      if (to && day > to) return false;
+      return !q || String(l['內容摘要'] || '').replace(/[\s　]+/g, '').indexOf(q) !== -1 || String(l['動作']).indexOf(q) !== -1;
+    });
+  }
   return {
+    actions: actions,
     total: logs.length,
     logs: logs.slice(offset, offset + limit).map(function (l) {
       return {

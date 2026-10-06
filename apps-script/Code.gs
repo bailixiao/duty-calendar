@@ -46,6 +46,7 @@ function doPost(e) {
       throw new ApiError_('BAD_REQUEST', '請求內容不是正確的 JSON');
     }
     if (String(body.action || '').indexOf('admin') === 0) return adminDispatch_(body);
+    rateLimit_(body); // 防止亂報名（RateLimit.gs）
     switch (body.action) {
       case 'signup': return signup_(body);
       case 'cancel': return cancelSignup_(body);

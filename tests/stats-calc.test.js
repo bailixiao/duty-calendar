@@ -91,3 +91,17 @@ test('還沒過完的期間：比較只算到相同天數；前幾天沒勤務�
   assert.equal(full.now.total, 3);
   assert.equal(S.startOf({ unit: 'quarter', year: 2026, n: 4 }), '2026-10-01');
 });
+
+test('關懷名單：過去一年來 3 次以上、最近 N 天沒來的人，最久沒來的在前', () => {
+  const C = require('../js/stats-calc.js');
+  const ev = (date, tan, dao) => ({ date, name: '勤務' + date.slice(5), tan, dao, unknown: [] });
+  const events = [
+    ev('2026-02-01', ['測試甲'], ['測試乙']), ev('2026-03-01', ['測試甲'], ['測試乙']), ev('2026-04-01', ['測試甲'], ['測試乙']),
+    ev('2026-05-01', [], ['測試乙', '測試丙']), ev('2026-09-20', [], ['測試丙']), ev('2026-09-25', [], ['測試丙']),
+    ev('2024-01-01', ['很久以前'], []), ev('2024-02-01', ['很久以前'], []), ev('2024-03-01', ['很久以前'], [])
+  ];
+  const list = C.careList(events, '2026-10-06', 60, 3);
+  assert.deepEqual(list.map((v) => [v.name, v.identity, v.count, v.last]), [['測試甲', '壇辦', 3, '2026-04-01'], ['測試乙', '道親', 4, '2026-05-01']]);
+  assert.equal(list[0].daysAgo, 188);
+  assert.deepEqual(C.careList(events, '2026-10-06', 30, 3).map((v) => v.name), ['測試甲', '測試乙'], '測試丙最近有來');
+});

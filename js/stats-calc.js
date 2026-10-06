@@ -104,6 +104,32 @@
     return [...map.values()].sort((a, b) => b.count - a.count || strokeCompare(a.name, b.name));
   }
 
+  /**
+   * 關懷名單：過去一年（到 today 為止）出席至少 minCount 次，但最近 days 天沒有出席的人。
+   * 回傳 [{ name, identity, count（過去一年出席次數）, last（最後出席日）, lastName（最後出席的項目）, daysAgo }]，最久沒來的在前。
+   */
+  function careList(events, today, days, minCount) {
+    const from = addDays(today, -365);
+    const cut = addDays(today, -(days || 60));
+    const map = new Map();
+    events.filter((e) => e.date >= from && e.date <= today).forEach((e) => {
+      const add = (names, identity) => names.forEach((n) => {
+        const v = map.get(n) || { name: n, identity, count: 0, last: '', lastName: '' };
+        v.count += 1;
+        if (!v.identity) v.identity = identity;
+        if (e.date > v.last) { v.last = e.date; v.lastName = e.name; }
+        map.set(n, v);
+      });
+      add(e.tan, '壇辦');
+      add(e.dao, '道親');
+      add(e.unknown, '');
+    });
+    return [...map.values()]
+      .filter((v) => v.count >= (minCount || 3) && v.last < cut)
+      .map((v) => Object.assign(v, { daysAgo: daysBetween(v.last, today) }))
+      .sort((a, b) => (a.last < b.last ? -1 : a.last > b.last ? 1 : strokeCompare(a.name, b.name)));
+  }
+
   /** 依勤務分類（同名勤務合併，例如各月的拜香輪值） */
   function byCategory(events, p) {
     const map = new Map();
@@ -203,7 +229,7 @@
     return { now: summarize(events, p), prevP, prev: cut(prevP), lyP, ly: cut(lyP), partial };
   }
 
-  const api = { compare, startOf, addDays, UNIT_NAME, periodOf, shift, lastYear, contains, label, prevName, lastYearName, summarize, trend, ranking, byCategory, missingIdentity, delta, pct, textReport, eventsIn };
+  const api = { careList, compare, startOf, addDays, UNIT_NAME, periodOf, shift, lastYear, contains, label, prevName, lastYearName, summarize, trend, ranking, byCategory, missingIdentity, delta, pct, textReport, eventsIn };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.StatsCalc = api;
 })();

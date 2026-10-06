@@ -28,6 +28,8 @@
   const EVENTS_STORAGE_PREFIX = 'duty-calendar:events:';
   const windows = new Map(); // 年份 → { data, fresh, promise }
   const dayMap = new Map(); // 'yyyy-MM-dd' → [{ duty, day, state }]
+  // 我的勤務：這支手機記過的名字（手機提醒的「我是誰」優先，其次查我的報名查過的）
+  const mine = { name: '', keys: new Set(), dates: new Set(), items: [], token: 0 };
   const cells = new Map(); // 'yyyy-MM-dd' → Set<HTMLElement>
   let calendar = null;
   let loadToken = 0;
@@ -333,6 +335,46 @@
     paintAllCells();
     renderList();
     scrollToPendingMonth();
+    if (!mine.loaded) loadMine();
+  }
+
+  // ---------- 我的勤務（首頁「下一個勤務」、行事曆上的 ✓） ----------
+
+  function savedMyName() {
+    try { return (localStorage.getItem('duty-calendar:push-name') || localStorage.getItem('duty-calendar:mine-name') || '').trim(); } catch (e) { return ''; }
+  }
+
+  async function loadMine() {
+    mine.loaded = true;
+    const name = savedMyName();
+    const t = ++mine.token;
+    mine.name = name;
+    if (!name) { mine.keys.clear(); mine.dates.clear(); mine.items = []; renderMyNext(); return; }
+    try {
+      const res = await Api.mySignups(name);
+      if (t !== mine.token) return;
+      mine.items = res.items || [];
+      mine.keys = new Set(mine.items.map((it) => it.dutyId + '|' + it.date));
+      mine.dates = new Set(mine.items.map((it) => it.date));
+      paintAllCells();
+      renderList();
+      renderMyNext();
+    } catch (e) { /* 讀不到就先不顯示 */ }
+  }
+
+  function renderMyNext() {
+    const box = document.getElementById('my-next');
+    if (!box) return;
+    if (!mine.name) { box.hidden = true; return; }
+    const next = mine.items[0];
+    const more = mine.items.length - 1;
+    box.hidden = false;
+    box.innerHTML = next
+      ? `<a class="my-next-main" href="#/mine"><span class="my-next-who">👤 ${Fmt.esc(mine.name)} 的下一個勤務</span>
+          <strong>${Fmt.esc(Fmt.shortDate(next.date))}${next.startTime && next.start === next.end ? ' ' + Fmt.esc(next.startTime) : ''}　${Fmt.esc(next.dutyName)}${next.positionName ? '・' + Fmt.esc(next.positionName) : ''}</strong>
+          ${more > 0 ? `<span class="my-next-more">之後還有 ${more} 個 ›</span>` : '<span class="my-next-more">看我的報名 ›</span>'}</a>
+         <a class="my-next-switch" href="#/mine">不是我／換名字</a>`
+      : `<p class="my-next-main"><span class="my-next-who">👤 ${Fmt.esc(mine.name)}</span>目前沒有報名的勤務，看看哪裡缺人 🙋</p><a class="my-next-switch" href="#/mine">不是我／換名字</a>`;
   }
 
   /** 看的日期接近年底或年初時，先在背景載入相鄰年份 */
@@ -424,6 +466,7 @@
   function refresh() {
     windows.forEach((entry) => { entry.fresh = false; });
     if (state.range) load(state.range.from, state.range.to);
+    loadMine();
   }
 
   // ---------- 格子 ----------
@@ -463,6 +506,8 @@
     if (!frame) return;
     const old = frame.querySelector('.cell-dots');
     if (old) old.remove();
+    const oldMine = frame.querySelector('.cell-mine');
+    if (oldMine) oldMine.remove();
 
     const items = state.loading ? [] : dayMap.get(date) || [];
     if (!items.length) {
@@ -470,6 +515,13 @@
       return;
     }
     const max = DOTS_MAX[state.view] || 4;
+    if (mine.dates.has(date)) {
+      const mk = document.createElement('span');
+      mk.className = 'cell-mine';
+      mk.setAttribute('aria-hidden', 'true');
+      mk.textContent = '✓';
+      frame.appendChild(mk);
+    }
     const dots = document.createElement('div');
     dots.className = 'cell-dots';
     dots.setAttribute('aria-hidden', 'true');
@@ -524,7 +576,7 @@
     return `
       <a class="duty-card kind-${st.kind}${compact ? ' is-compact' : ''}" href="${href}">
         <span class="card-main">
-          <span class="card-title">${catTag(duty)}${Fmt.esc(duty.name)}</span>
+          <span class="card-title">${catTag(duty)}${Fmt.esc(duty.name)}${mine.keys.has(duty.id + '|' + date) ? '<span class="card-mine">✓ 我有報名</span>' : ''}</span>
           ${meta.length ? `<span class="card-meta">${meta.map(Fmt.esc).join('・')}</span>` : ''}
           ${group && !compact ? `<span class="card-meta">${Fmt.esc(group)}</span>` : ''}
         </span>
@@ -544,7 +596,7 @@
         <span class="card-main">
           <span class="card-title">${cat(host)}🙏 ${Fmt.esc(host.name)}</span>
           ${hostMeta.length ? `<span class="card-meta">${hostMeta.map(Fmt.esc).join('・')}</span>` : ''}
-          ${item.follow.map((f) => `<span class="card-follow">接著　${cat(f.duty)}${Fmt.esc(f.duty.name)}${f.duty.startTime ? `<small>${Fmt.esc(f.duty.startTime)}</small>` : ''}</span>`).join('')}
+          ${item.follow.map((f) => `<span class="card-follow">接著　${cat(f.duty)}${Fmt.esc(f.duty.name)}${mine.keys.has(f.duty.id + '|' + date) ? '<span class="card-mine">✓ 我有報名</span>' : ''}${f.duty.startTime ? `<small>${Fmt.esc(f.duty.startTime)}</small>` : ''}</span>`).join('')}
         </span>
         <span class="badge badge-${st.kind}">${Fmt.esc(st.label)}</span>
       </a>`;
@@ -677,6 +729,7 @@
   /** 從其他頁面回到行事曆時呼叫（隱藏時 FullCalendar 量不到尺寸） */
   function onShow() {
     if (state.view !== 'week') calendar.updateSize();
+    if (savedMyName() !== mine.name) loadMine(); // 在查我的報名換了名字
   }
 
   /**
