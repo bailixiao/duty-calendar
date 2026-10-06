@@ -6,6 +6,7 @@
   const esc = Fmt.esc;
   const SEARCH_LIMIT = 10; // 與後端 MEMBER_SEARCH_LIMIT 相同；結果少於此數代表已完整
   const IDENTITIES = ['道親', '壇辦', '未求道'];
+  const KNOWN_IDENTITIES = IDENTITIES.concat(['點傳師']); // 成員名單上可能登記的（點傳師只由名單帶入）
 
   function normalize(name) {
     return String(name || '').replace(/^[\s　]+|[\s　]+$/g, '');
@@ -202,7 +203,7 @@
         return false;
       }
       const known = identity !== undefined ? identity : knownIdentity.get(name);
-      const fixed = IDENTITIES.indexOf(known) !== -1 ? known : '';
+      const fixed = KNOWN_IDENTITIES.indexOf(known) !== -1 ? known : '';
       // 項目先用上面選的；之後可以在名字卡各自改（custom＝改過，上面再改就不跟著變）
       const entry = { name, identity: fixed, accompany: false, locked: !!fixed, positionIds: perPerson ? new Set() : new Set(state.positionIds), custom: perPerson };
       state.entries.push(entry);
@@ -241,7 +242,7 @@
       try {
         const res = await Api.searchMembers(entry.name, duty.groupType, duty.group);
         const m = res.members.find((x) => x.name === entry.name);
-        if (!m || IDENTITIES.indexOf(m.identity) === -1 || state.entries.indexOf(entry) === -1) return;
+        if (!m || KNOWN_IDENTITIES.indexOf(m.identity) === -1 || state.entries.indexOf(entry) === -1) return;
         entry.identity = m.identity;
         entry.locked = true;
         if (entry.identity !== '壇辦') entry.accompany = false;

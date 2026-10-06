@@ -59,7 +59,7 @@
   // ---------- 成員 ----------
 
   const memberState = { q: '', filter: 'active', identity: 'all' };
-  const IDENTITY_ORDER = [['壇辦', '壇辦'], ['道親', '道親'], ['未求道', '未求道'], ['', '未填身分']];
+  const IDENTITY_ORDER = [['點傳師', '點傳師'], ['壇辦', '壇辦'], ['道親', '道親'], ['未求道', '未求道'], ['', '未填身分']];
   const SHORT = { '未填身分': '未填' }; // 篩選按鈕用短一點的字，手機上才排得下一列
 
   function members(body, guard) {
@@ -142,7 +142,7 @@
     const { m: modal } = formModal(`
       <h2 class="modal-title">${m ? '編輯成員' : '新增成員'}</h2>
       <label class="form-row"><span>姓名</span><input class="input" name="name" value="${esc(v.name)}" required></label>
-      <div class="form-row"><span>身分</span>${seg('identity', [['道親', '道親'], ['壇辦', '壇辦'], ['未求道', '未求道'], ['', '未填']], v.identity || '')}</div>
+      <div class="form-row"><span>身分</span>${seg('identity', [['道親', '道親'], ['壇辦', '壇辦'], ['未求道', '未求道'], ['點傳師', '點傳師'], ['', '未填']], v.identity || '')}</div>
       ${GROUP_TYPES.map((t) => `
         <label class="form-row"><span>${t}</span>
           <select class="input" name="g-${t}">

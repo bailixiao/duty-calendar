@@ -34,7 +34,7 @@ function statsEvents_() {
     if (counted && s['出席'] !== '未到') return;
     if (s['出席'] === '未到') { ev.absent++; if (ev.absentNames.indexOf(name) === -1) ev.absentNames.push(name); }
     else if (s['陪同'] === '是') ev.accompany.push(name);
-    else if (s['身分'] === '壇辦') ev.tan.push(name);
+    else if (s['身分'] === '壇辦' || s['身分'] === '點傳師') ev.tan.push(name); // 點傳師算在壇辦那邊
     else if (s['身分'] === '道親' || s['身分'] === '未求道') ev.dao.push(name); // 未求道算進道親
     else ev.unknown.push(name);
   });

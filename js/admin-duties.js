@@ -418,7 +418,7 @@
         err.hidden = false;
         return;
       }
-      const ids = ['壇辦', '道親', '未求道'];
+      const ids = ['壇辦', '道親', '未求道', '點傳師'];
       el.querySelector('[data-att-preview]').innerHTML = `<ul class="att-preview">${parsed.sessions.map((s) => {
         const d = s.dutyId ? data.duties.find((x) => x.id === s.dutyId) : null;
         const name = d ? d.name : s.create ? s.create.name + '（新增）' : '⚠️ 找不到勤務';
