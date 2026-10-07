@@ -96,7 +96,7 @@ function withTimeout(promise, ms) {
 // 推播本身不帶內容：收到後回伺服器問「今天／明天有什麼勤務」，再顯示通知。點通知打開勤務或「近期」。
 
 self.window = self; // config.js 寫的是 window.APP_CONFIG
-try { importScripts('js/config.js'); } catch (e) { /* 讀不到就用通用通知 */ }
+try { importScripts('js/site.js', 'js/config.js'); } catch (e) { /* 讀不到就用通用通知 */ }
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
@@ -121,7 +121,7 @@ async function pushId(endpoint) {
 }
 
 async function buildNotification() {
-  const fallback = { title: '🙏 教全區行事曆提醒', body: '有勤務或活動喔，歡迎點開看看 😊', url: '#/recent' };
+  const fallback = { title: '🙏 ' + ((self.SITE && self.SITE.name) || '行事曆') + '提醒', body: '有勤務或活動喔，歡迎點開看看 😊', url: '#/recent' };
   try {
     const sub = await self.registration.pushManager.getSubscription();
     const api = self.APP_CONFIG && self.APP_CONFIG.API_URL;

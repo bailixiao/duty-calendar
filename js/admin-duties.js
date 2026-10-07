@@ -13,7 +13,7 @@
   // 與 apps-script/Config.gs 的 OPTIONS 相同（只是輸入提示，也可以自己打字）
   const NATURES = ['勤務', '支援', '烹飪', '活動'];
   const GROUP_TYPES = ['勤務了愿組', '打掃組', '拜香輪值組'];
-  const LOCATIONS = ['宏宗', '區中心', '彌勒山', '厚德樓', '樹林頭活動地'];
+  const LOCATIONS = window.SITE.locations; // 地點選項在 js/site.js
   const ATTIRES = [
     '夏季制服（短袖白襯衫、藍色長褲、打領帶）',
     '冬季制服（長袖白襯衫、藍色長褲、西裝、打領帶）',
@@ -129,7 +129,7 @@
       <div class="draft-photo">
         <label class="btn btn-block btn-photo">📷 選照片或拍照<input type="file" accept="image/*" multiple hidden data-photo></label>
         <input class="input" type="text" data-hint placeholder="補充說明（選填）例：這是 11 月的">
-        <p class="modal-note">一次最多 3 張；電腦也可以把照片拖進來，或截圖後按 Ctrl+V 貼上。只整理教全區的部分。照片會交給 Google Gemini 讀取，整理好後可以在下面直接修改，確認後才新增。</p>
+        <p class="modal-note">一次最多 3 張；電腦也可以把照片拖進來，或截圖後按 Ctrl+V 貼上。只整理${esc(window.SITE.org)}的部分。照片會交給 Google Gemini 讀取，整理好後可以在下面直接修改，確認後才新增。</p>
         <div class="draft-thumbs" data-thumbs></div>
       </div>
       <div data-ai-note></div>
@@ -540,7 +540,7 @@
           <fieldset class="form-block">
             <legend>基本資料</legend>
             <label class="form-row"><span>名稱</span>
-              <input class="input" name="name" value="${esc(s.name)}" placeholder="例：彌勒山志工輪值" required></label>
+              <input class="input" name="name" value="${esc(s.name)}" placeholder="${esc(window.SITE.examples.dutyName)}" required></label>
             ${lunar ? '<p class="hint">勾「名稱前面加上農曆日期」時，這裡只填後半段，例如「拜香輪值」。</p>' : ''}
             <div class="form-row"><span>類別</span>${Api.adminWho().role === '總管理者' ? segmented('category', CATEGORIES, s.category || '勤務') : `<strong>${esc(myCategory())}</strong>`}</div>
             <div class="form-row"><span>性質</span>${segmented('nature', natures, s.nature)}</div>

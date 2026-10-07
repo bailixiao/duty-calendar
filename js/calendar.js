@@ -563,7 +563,7 @@
     if (item.venue) return `
       <div class="duty-card kind-venue${compact ? ' is-compact' : ''}" role="note">
         <span class="card-main">
-          <span class="card-title"><span class="cat-tag cat-venue">場地</span>🏠 區中心 ${Fmt.esc(item.venue.slot)}</span>
+          <span class="card-title"><span class="cat-tag cat-venue">場地</span>🏠 ${Fmt.esc(window.SITE.venue)} ${Fmt.esc(item.venue.slot)}</span>
           <span class="card-meta">${Fmt.esc(item.venue.purpose)}（${Fmt.esc(item.venue.name)}）</span>
         </span>
         <span class="badge badge-venue">已借出</span>

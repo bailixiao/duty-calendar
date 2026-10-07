@@ -179,7 +179,7 @@
   /** 名單文字：教全區＋每個日期一段，每個勤務一行「名稱人員:名字、名字」 */
   function rosterText(days) {
     if (!days.length) return '';
-    const lines = ['教全區'];
+    const lines = [window.SITE.org];
     days.forEach((d) => {
       lines.push(Fmt.shortDate(d.date));
       d.duties.forEach((x) => lines.push(`${x.name}人員:${x.names.join('、')}`));

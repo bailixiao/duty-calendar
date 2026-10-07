@@ -213,7 +213,7 @@
   }
 
   // 教育統計的「各班師資」只看這幾個班（課程名稱含這幾個字）
-  const EDU_TEACHER_CLASSES = ['讀經班', '青少年班', '高大班', '青年班'];
+  const EDU_TEACHER_CLASSES = window.SITE.eduTeacherClasses; // 在 js/site.js
 
   // 教育、道務統計的用詞
   const EDU_LABELS = {

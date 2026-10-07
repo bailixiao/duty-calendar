@@ -55,7 +55,7 @@
           </select>
         </label>
         <label class="form-row"><span>標題</span><input class="input" name="title" maxlength="60" value="${esc(form.title)}" placeholder="例：📣 定靜班事前工作"></label>
-        <label class="form-row"><span>內容</span><textarea class="input" name="body" rows="4" maxlength="300" placeholder="例：今晚 19:30 宏宗，還缺 3 位，歡迎成全 🙏">${esc(form.body)}</textarea></label>
+        <label class="form-row"><span>內容</span><textarea class="input" name="body" rows="4" maxlength="300" placeholder="${esc(window.SITE.examples.pushBody)}">${esc(form.body)}</textarea></label>
         <fieldset class="push-when">
           <legend>什麼時候送</legend>
           ${form.id ? '' : `<label class="check"><input type="radio" name="mode" value="now"${form.mode === 'now' ? ' checked' : ''}> 現在推播</label>`}
@@ -71,7 +71,7 @@
           </div>
         </fieldset>
         <div class="push-preview" aria-label="手機上看到的樣子">
-          <span class="push-preview-app">🙏 教全區行事曆</span>
+          <span class="push-preview-app">🙏 ${esc(window.SITE.name)}</span>
           <strong data-pv-title>${esc(form.title || '（標題）')}</strong>
           <span data-pv-body>${esc(form.body || '（內容）').replace(/\n/g, '<br>')}</span>
         </div>
@@ -208,7 +208,7 @@
     if (!a || !canAuto()) return '';
     return `<form class="push-form push-auto" data-auto novalidate>
       <h2 class="admin-sub">🙋 缺人自動推播 <span class="badge ${a.on ? 'badge-ok' : 'badge-full'}">${a.on ? '開啟中' : '關閉'}</span></h2>
-      <p class="hint">開啟後，每天到設定的時間，系統會找「勤務前幾天」還缺人的總務・勤務，自動推播給大家（道務、教育不算）。沒有缺人就不送。</p>
+      <p class="hint">開啟後，每天到設定的時間，系統會找「勤務前幾天」還缺人的${esc(Fmt.catLabel('勤務'))}，自動推播給大家（道務、教育不算）。沒有缺人就不送。</p>
       <label class="check"><input type="checkbox" name="on"${a.on ? ' checked' : ''}> 開啟缺人自動推播</label>
       <div class="push-auto-days"><span class="field-label">勤務前幾天推播（可以多選）</span>
         ${AUTO_DAYS.map(([n, label]) => `<label class="check"><input type="checkbox" name="day" value="${n}"${a.days.indexOf(n) !== -1 ? ' checked' : ''}> ${label}</label>`).join('')}

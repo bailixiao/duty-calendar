@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/app.css?v=20261009f">
+  <link rel="stylesheet" href="css/app.css?v=20261009h">
   <script>try { var t = localStorage.getItem('duty-calendar:text-size'); if (t === 'l' || t === 'xl') document.documentElement.classList.add('text-' + t); } catch (e) {}</script>
 </head>
 <body class="splash-on">
@@ -30,7 +30,7 @@
     <p class="splash-title" data-splash-title></p>
   </div>
   <header class="app-header">
-    <a class="app-title" href="#/"><span class="header-back" aria-hidden="true">‹</span>教全區行事曆</a>
+    <a class="app-title" href="#/"><span class="header-back" aria-hidden="true">‹</span><span data-site="name">教全區行事曆</span></a>
     <button type="button" class="text-size-btn" id="text-size" aria-label="字體大小">A＋</button>
   </header>
 
@@ -53,7 +53,7 @@
 
       <div class="top-links">
         <a class="btn mine-link" href="#/mine">查我的報名（取消／改期）</a>
-        <a class="btn mine-link venue-link" href="#/venue">🏠 借區中心場地</a>
+        <a class="btn mine-link venue-link" href="#/venue" data-feature="venue" data-site-tpl="🏠 借{venue}場地">🏠 借區中心場地</a>
         <div class="top-links-row">
           <button type="button" class="btn push-link" id="push-open">🔔 手機提醒</button>
           <a class="btn push-link help-link" href="#/help">❓ 常見問題</a>
@@ -64,9 +64,9 @@
 
       <div id="cat-filter" class="cat-filter" role="group" aria-label="類別" hidden>
         <button type="button" data-cat="全部">全部</button>
-        <button type="button" data-cat="勤務">總務・勤務</button>
-        <button type="button" data-cat="道務">道務</button>
-        <button type="button" data-cat="教育">教育</button>
+        <button type="button" data-cat="勤務" data-site-cat="勤務">總務・勤務</button>
+        <button type="button" data-cat="道務" data-site-cat="道務">道務</button>
+        <button type="button" data-cat="教育" data-site-cat="教育">教育</button>
         <button type="button" data-cat="場地">借場地</button>
       </div>
 
@@ -81,7 +81,7 @@
         <li><i class="dot dot-full"></i>額滿</li>
         <li><i class="dot dot-ok"></i>人數足（至少 2 人）</li>
         <li><i class="dot dot-notice"></i>公告（不需報名）</li>
-        <li><i class="dot dot-venue"></i>區中心場地已借出</li>
+        <li data-feature="venue"><i class="dot dot-venue"></i><span data-site-tpl="{venue}場地已借出">區中心場地已借出</span></li>
       </ul>
 
       <section id="day-panel" class="day-panel" aria-live="polite"></section>
@@ -110,46 +110,47 @@
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.21/index.global.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.21/locales/zh-tw.global.min.js"></script>
   <!-- 改了 js、css 後把 ?v= 的日期換新，手機才不會用到舊的檔案（GitHub Pages 會快取 10 分鐘） -->
-  <script src="js/config.js?v=20261009f"></script>
-  <script src="js/api.js?v=20261009f"></script>
-  <script src="js/format.js?v=20261009f"></script>
-  <script src="js/lunar-util.js?v=20261009f"></script>
-  <script src="js/date-list.js?v=20261009f"></script>
-  <script src="js/share.js?v=20261009f"></script>
-  <script src="js/addcal.js?v=20261009f"></script>
-  <script src="js/duty-cache.js?v=20261009f"></script>
-  <script src="js/calendar.js?v=20261009f"></script>
-  <script src="js/confirm.js?v=20261009f"></script>
-  <script src="js/reschedule.js?v=20261009f"></script>
-  <script src="js/signup.js?v=20261009f"></script>
-  <script src="js/duty-images.js?v=20261009f"></script>
-  <script src="js/roster-grid.js?v=20261009f"></script>
-  <script src="js/grid-page.js?v=20261009f"></script>
-  <script src="js/duty.js?v=20261009f"></script>
-  <script src="js/mine.js?v=20261009f"></script>
-  <script src="js/venue.js?v=20261009f"></script>
-  <script src="js/push.js?v=20261009f"></script>
-  <script src="js/admin.js?v=20261009f"></script>
-  <script src="js/admin-pages.js?v=20261009f"></script>
-  <script src="js/draft-editor.js?v=20261009f"></script>
-  <script src="js/admin-duties.js?v=20261009f"></script>
-  <script src="js/admin-accounts.js?v=20261009f"></script>
-  <script src="js/import-parse.js?v=20261009f"></script>
-  <script src="js/admin-import.js?v=20261009f"></script>
-  <script src="js/admin-people.js?v=20261009f"></script>
-  <script src="js/stats-calc.js?v=20261009f"></script>
-  <script src="js/edu-stats.js?v=20261009f"></script>
-  <script src="js/admin-goals.js?v=20261009f"></script>
-  <script src="js/admin-venue.js?v=20261009f"></script>
-  <script src="js/admin-push.js?v=20261009f"></script>
-  <script src="js/help.js?v=20261009f"></script>
-  <script src="js/rollcall.js?v=20261009f"></script>
-  <script src="js/stats-export.js?v=20261009f"></script>
-  <script src="js/repair.js?v=20261009f"></script>
-  <script src="js/member-stats.js?v=20261009f"></script>
-  <script src="js/admin-stats.js?v=20261009f"></script>
-  <script src="js/history-parse.js?v=20261009f"></script>
-  <script src="js/admin-history.js?v=20261009f"></script>
-  <script src="js/app.js?v=20261009f"></script>
+  <script src="js/site.js?v=20261009h"></script>
+  <script src="js/config.js?v=20261009h"></script>
+  <script src="js/api.js?v=20261009h"></script>
+  <script src="js/format.js?v=20261009h"></script>
+  <script src="js/lunar-util.js?v=20261009h"></script>
+  <script src="js/date-list.js?v=20261009h"></script>
+  <script src="js/share.js?v=20261009h"></script>
+  <script src="js/addcal.js?v=20261009h"></script>
+  <script src="js/duty-cache.js?v=20261009h"></script>
+  <script src="js/calendar.js?v=20261009h"></script>
+  <script src="js/confirm.js?v=20261009h"></script>
+  <script src="js/reschedule.js?v=20261009h"></script>
+  <script src="js/signup.js?v=20261009h"></script>
+  <script src="js/duty-images.js?v=20261009h"></script>
+  <script src="js/roster-grid.js?v=20261009h"></script>
+  <script src="js/grid-page.js?v=20261009h"></script>
+  <script src="js/duty.js?v=20261009h"></script>
+  <script src="js/mine.js?v=20261009h"></script>
+  <script src="js/venue.js?v=20261009h"></script>
+  <script src="js/push.js?v=20261009h"></script>
+  <script src="js/admin.js?v=20261009h"></script>
+  <script src="js/admin-pages.js?v=20261009h"></script>
+  <script src="js/draft-editor.js?v=20261009h"></script>
+  <script src="js/admin-duties.js?v=20261009h"></script>
+  <script src="js/admin-accounts.js?v=20261009h"></script>
+  <script src="js/import-parse.js?v=20261009h"></script>
+  <script src="js/admin-import.js?v=20261009h"></script>
+  <script src="js/admin-people.js?v=20261009h"></script>
+  <script src="js/stats-calc.js?v=20261009h"></script>
+  <script src="js/edu-stats.js?v=20261009h"></script>
+  <script src="js/admin-goals.js?v=20261009h"></script>
+  <script src="js/admin-venue.js?v=20261009h"></script>
+  <script src="js/admin-push.js?v=20261009h"></script>
+  <script src="js/help.js?v=20261009h"></script>
+  <script src="js/rollcall.js?v=20261009h"></script>
+  <script src="js/stats-export.js?v=20261009h"></script>
+  <script src="js/repair.js?v=20261009h"></script>
+  <script src="js/member-stats.js?v=20261009h"></script>
+  <script src="js/admin-stats.js?v=20261009h"></script>
+  <script src="js/history-parse.js?v=20261009h"></script>
+  <script src="js/admin-history.js?v=20261009h"></script>
+  <script src="js/app.js?v=20261009h"></script>
 </body>
 </html>

@@ -5,7 +5,7 @@
  *   - 一筆申請可以勾好幾個時段，每個時段存一列（同一個申請ID）。
  */
 
-var VENUE_NAME = '區中心';
+var VENUE_NAME = SITE.venue; // 場地名稱在 Config.gs 的 SITE
 var VENUE_SLOTS = [['早上', '08:00', '12:00'], ['下午', '13:00', '17:00'], ['晚上', '18:00', '21:00']];
 var VENUE_STATUS = ['待審核', '已同意', '不同意', '已取消'];
 var VENUE_MAX_DAYS_AHEAD = 180;

@@ -58,7 +58,8 @@
   /** 類別標籤上的字：勤務類寫「總務・勤務」，道務、教育照原樣 */
   function catLabel(category) {
     const c = category || '勤務';
-    return c === '勤務' ? '總務・勤務' : c;
+    const labels = (window.SITE && window.SITE.categoryLabels) || {};
+    return labels[c] || c;
   }
 
   function timeRange(duty) {

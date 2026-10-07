@@ -45,7 +45,7 @@
     const s = C.summarize(ev, p);
     const wb = X.utils.book_new();
     addSheet(X, wb, '摘要', [
-      ['教全區行事曆　統計', label],
+      [window.SITE.name + '　統計', label],
       ['期間', C.label(p)],
       ['出勤人次', s.total],
       ['道親佔比', s.ratio === null || s.ratio === undefined ? '' : Math.round(s.ratio * 1000) / 10 + '%'],
@@ -83,7 +83,7 @@
     const wb = X.utils.book_new();
     const pct = (v) => (v === null ? '' : Math.round(v * 100) + '%');
     addSheet(X, wb, L.item + '總覽', [
-      [`教全區行事曆　${cat}統計`, C.label(p)],
+      [`${window.SITE.name}　${cat}統計`, C.label(p)],
       [L.item, L.unit + '數', L.person + '人數', '平均每' + L.unit, '出席率', L.staff],
       ...courses.map((c) => [c.name, c.sessions.length, c.students.length, c.avg, pct(c.rate), c.teachers.join('、')])
     ], [22, 8, 10, 10, 8, 30]);

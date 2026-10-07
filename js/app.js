@@ -106,7 +106,7 @@
   // ---------- 開場動畫 ----------
   // 1. logo 由小變大再放大淡出 → 2. 一個字一個字浮現「教全區行事曆」→ 3. 名稱滑到左上角（變成頁首標題）
   // → 4. 行事曆展開。各段重疊接續、中間不停頓，全程約 3.5 秒；期間在背景讀取資料，沒讀完也照常展開，資料到了再補。
-  const SITE_NAME = '教全區行事曆';
+  const SITE_NAME = window.SITE.name;
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
   async function hideSplashWhenReady() {
@@ -211,7 +211,21 @@
     paint();
   }
 
+  /** 把 index.html 裡的團體名稱、場地、類別名稱換成 js/site.js 的設定；關掉的功能藏起來 */
+  function applySite() {
+    const S = window.SITE;
+    document.title = S.name;
+    const t = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+    if (t) t.setAttribute('content', S.name);
+    document.querySelectorAll('[data-site]').forEach((el) => { if (S[el.dataset.site]) el.textContent = S[el.dataset.site]; });
+    // data-site-tpl：整段文字的範本，{venue} 這類換成設定（只換文字，不拆開元素，排版不變）
+    document.querySelectorAll('[data-site-tpl]').forEach((el) => { el.textContent = el.dataset.siteTpl.replace(/\{(\w+)\}/g, (m, k) => S[k] || ''); });
+    document.querySelectorAll('[data-site-cat]').forEach((el) => { el.textContent = Fmt.catLabel(el.dataset.siteCat); });
+    document.querySelectorAll('[data-feature]').forEach((el) => { if (S.features && S.features[el.dataset.feature] === false) el.hidden = true; });
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
+    applySite();
     initTextSize();
     views.calendar = document.getElementById('view-calendar');
     views.duty = document.getElementById('view-duty');

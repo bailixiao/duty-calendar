@@ -31,7 +31,7 @@
     const short = rows.filter((r) => r.state.kind === 'short')
       .slice().sort((a, b) => a.date.localeCompare(b.date) || (a.duty.startTime || '').localeCompare(b.duty.startTime || ''));
     if (!short.length) return '';
-    const lines = ['🙏【教全區勤務缺人通知】🙏', '以下勤務還缺人，歡迎發心了愿報名 💪', '點連結就能報名 👇'];
+    const lines = [window.SITE.shortageTitle, '以下勤務還缺人，歡迎發心了愿報名 💪', '點連結就能報名 👇'];
     let lastDate = '';
     short.forEach(({ duty, date, state }) => {
       if (date !== lastDate) {
@@ -78,7 +78,7 @@
       return out.join('\n');
     };
     if (list.length === 1) return block(list[0]) + '\n\n歡迎家人們踴躍成全 🙏';
-    return ['🙏【教全區 成全邀請】🙏', '', list.map(block).join('\n\n'), '', '歡迎家人們踴躍成全，感謝慈悲 🙏😊'].join('\n');
+    return [window.SITE.inviteTitle, '', list.map(block).join('\n\n'), '', '歡迎家人們踴躍成全，感謝慈悲 🙏😊'].join('\n');
   }
 
   async function copyText(text) {

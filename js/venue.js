@@ -38,7 +38,7 @@
     const me = savedName();
     const mine = profiles()[me] || {};
     root.innerHTML = `
-      <h1 class="page-title">🏠 借區中心場地</h1>
+      <h1 class="page-title">🏠 借${esc(window.SITE.venue)}場地</h1>
       <a class="help-inline" href="#/help?c=借場地">❓ 第一次借？看圖文教學</a>
       <button type="button" class="link-btn help-inline" data-go-repair>🔧 回報需要修繕</button>
       <p class="venue-intro">📅 選日期、⏰ 勾時段、✍️ 填好資料，就能送出申請囉！<br>✅ <strong>管理者同意後才算借到</strong>，同意後就會出現在行事曆上 🗓️<br>再請您到下面「🔍 查我的申請」看申請狀態，感謝慈悲 🙏😊</p>
@@ -222,7 +222,7 @@
             <input type="checkbox" data-slot="${esc(s.slot)}"${on ? ' checked' : ''}${taken ? ' disabled' : ''}>
             <span class="vs-main"><strong>${esc(s.slot)}</strong><small>${esc(s.from)}～${esc(s.to)}</small></span>
             <span class="vs-state">${taken ? `已借出<small>${esc(s.purpose)}（${esc(s.name)}）</small>` : s.status === '審核中' ? '有人申請中<small>還是可以申請，由管理者決定</small>' : '可以借'}</span>
-            ${s.activities.length ? `<span class="vs-act">⚠️ 這個時段區中心有：${s.activities.map(esc).join('、')}</span>` : ''}
+            ${s.activities.length ? `<span class="vs-act">⚠️ 這個時段${esc(window.SITE.venue)}有：${s.activities.map(esc).join('、')}</span>` : ''}
           </label>
         </li>`;
       }).join('')}</ul>

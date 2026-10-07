@@ -7,7 +7,7 @@
  *   - 第一次請在 Apps Script 編輯器執行 setupPush：建立「推播」分頁、產生金鑰、設定每天兩次的排程。
  */
 
-var PUSH_SUBJECT = 'https://bailixiao.github.io/duty-calendar/'; // 推播服務聯絡用（網站網址，不放 email）
+var PUSH_SUBJECT = SITE.siteUrl; // 推播服務聯絡用（網站網址，不放 email；在 Config.gs 的 SITE）
 var PUSH_TTL_SEC = 43200;
 var PUSH_HOURS = { today: 7, tomorrow: 20 };
 

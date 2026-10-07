@@ -23,7 +23,7 @@ function loadSw(summary) {
   const fetchLog = [];
   const ctx = {
     self, caches: {}, crypto: webcrypto, TextEncoder, URL, console,
-    importScripts: () => { self.APP_CONFIG = { API_URL: 'https://api.test/exec' }; },
+    importScripts: () => { self.SITE = { name: '教全區行事曆' }; self.APP_CONFIG = { API_URL: 'https://api.test/exec' }; },
     fetch: async (url) => { fetchLog.push(url); if (summary instanceof Error) throw summary; return { json: async () => summary }; }
   };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8'), ctx);

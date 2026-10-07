@@ -9,7 +9,7 @@
 
   /** 在 box 裡畫出目前已知的問題 */
   async function mount(box) {
-    box.innerHTML = `<h2 class="venue-h">🔧 區中心修繕</h2>
+    box.innerHTML = `<h2 class="venue-h">🔧 ${esc(window.SITE.venue)}修繕</h2>
       <p class="hint">發現哪裡壞了、需要修理，請告訴我們，管理者會盡快處理 🙏</p>
       <button type="button" class="btn btn-block repair-open" data-repair-open>🔧 回報需要修繕</button>
       <div data-repair-list><p class="muted">讀取中⋯</p></div>`;

@@ -60,7 +60,7 @@ function reportRepair_(body) {
     appendRows_(SHEETS.REPAIRS, [{ '修繕ID': id, '位置': location, '位置說明': detail, '問題': problem, '急迫': urgency, '姓名': name, '電話': phone,
       '照片': photos.join(','), '狀態': '待處理', '處理說明': '', '廠商': '', '費用': '', '建立時間': now, '更新時間': now, '處理人': '', '完成時間': '' }]);
     appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '修繕回報', '報名ID': '', '內容摘要': name + '｜' + location + (detail ? '（' + detail + '）' : '') + '｜' + urgency + '｜' + problem.slice(0, 60), '還原用的前一版資料': '' }]);
-    notifyVenueAdmins_((urgency === '有危險' ? '⚠️ ' : '') + '🔧 有人回報區中心要修繕', location + (detail ? '（' + detail + '）' : '') + '｜' + urgency + '\n' + problem.slice(0, 80) + '\n請到後台「場地借用」看看 🙏');
+    notifyVenueAdmins_((urgency === '有危險' ? '⚠️ ' : '') + '🔧 有人回報' + SITE.venue + '要修繕', location + (detail ? '（' + detail + '）' : '') + '｜' + urgency + '\n' + problem.slice(0, 80) + '\n請到後台「場地借用」看看 🙏');
     SpreadsheetApp.flush();
     return { id: id };
   });
@@ -111,7 +111,7 @@ function adminRepairUpdate_(body) {
     if (status !== before && (status === '處理中' || status === '已修好')) {
       var targets = pushTargets_('修繕回報', row['修繕ID']);
       var where = row['位置'] + (row['位置說明'] ? '（' + row['位置說明'] + '）' : '');
-      pushMessageTo_(targets, '🔧 區中心修繕進度', status === '已修好'
+      pushMessageTo_(targets, '🔧 ' + SITE.venue + '修繕進度', status === '已修好'
         ? '✅ 您回報的「' + where + '」已經修好了，感恩您告訴我們 🙏' + (note ? '\n' + note : '')
         : '🛠️ 您回報的「' + where + '」正在處理中' + (note ? '：' + note : '') + '，謝謝您的耐心 🙏', '#/venue');
     }

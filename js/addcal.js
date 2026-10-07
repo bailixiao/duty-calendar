@@ -55,7 +55,7 @@
       action: 'TEMPLATE',
       text: info.name,
       dates: `${t.start}/${t.end}`,
-      details: `教全區行事曆\n${dutyUrl(info)}`,
+      details: `${window.SITE.name}\n${dutyUrl(info)}`,
       location: info.location || ''
     });
     if (!t.allDay) params.set('ctz', 'Asia/Taipei');
@@ -84,7 +84,7 @@
       t.allDay ? `DTEND;VALUE=DATE:${t.end}` : `DTEND:${t.end}`,
       `SUMMARY:${icsEscape(info.name)}`,
       info.location ? `LOCATION:${icsEscape(info.location)}` : '',
-      `DESCRIPTION:${icsEscape('教全區行事曆\n' + dutyUrl(info))}`,
+      `DESCRIPTION:${icsEscape(window.SITE.name + '\n' + dutyUrl(info))}`,
       `URL:${dutyUrl(info)}`,
       'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${icsEscape(info.name)}`, `TRIGGER:${trigger}`, 'END:VALARM',
       'END:VEVENT', 'END:VCALENDAR'

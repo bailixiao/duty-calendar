@@ -90,7 +90,7 @@ export function createRuntime(store, opts = {}) {
         getSheets: () => Object.keys(store.sheets).map(getSheet),
         setSpreadsheetTimeZone() {},
         getId: () => 'cloudflare',
-        getName: () => '教全區勤務行事曆'
+        getName: () => 'duty-calendar'
       }),
       flush() {},
       newDataValidation: chain,

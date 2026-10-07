@@ -96,7 +96,7 @@
 
       ${others.length ? `<details class="venue-others"><summary>其他（不同意、已取消、已過去的）${others.length} 筆</summary>
         <ul class="venue-reqs">${others.reverse().map((g) => card(g)).join('')}</ul></details>` : ''}
-      <p class="hint">同意後，家人們的行事曆會出現「區中心 已借出」（用途、借用人姓名；不顯示電話）。請記得打電話告訴申請人結果。</p>
+      <p class="hint">同意後，家人們的行事曆會出現「${esc(window.SITE.venue)} 已借出」（用途、借用人姓名；不顯示電話）。請記得打電話告訴申請人結果。</p>
       <section class="repair-admin" data-repairs><h2 class="admin-sub">🔧 修繕</h2><p class="muted">讀取中⋯</p></section>`;
     loadRepairs(body, guard);
 
@@ -166,7 +166,7 @@
     const done = data.items.filter((r) => r.status === '已修好');
     // 待審核上方的提醒：還沒修好的問題
     const warn = body.querySelector('[data-repair-warn]');
-    if (warn) warn.innerHTML = open.length ? `<p class="vr-warn repair-warn">⚠️ 區中心目前有 ${open.length} 個問題還沒修好：${open.slice(0, 4).map((r) => esc(r.location + '・' + r.problem.slice(0, 16) + '（' + r.status + '）')).join('、')}${open.length > 4 ? '⋯' : ''}。同意前可以先告訴申請人。</p>` : '';
+    if (warn) warn.innerHTML = open.length ? `<p class="vr-warn repair-warn">⚠️ ${esc(window.SITE.venue)}目前有 ${open.length} 個問題還沒修好：${open.slice(0, 4).map((r) => esc(r.location + '・' + r.problem.slice(0, 16) + '（' + r.status + '）')).join('、')}${open.length > 4 ? '⋯' : ''}。同意前可以先告訴申請人。</p>` : '';
     const edit = canDecide();
     const card = (r) => `
       <li class="venue-req repair-adm is-${r.status === '已修好' ? 'done' : r.urgency === '有危險' ? 'danger' : 'open'}">

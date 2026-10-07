@@ -5,6 +5,24 @@
 
 var TIME_ZONE = 'Asia/Taipei';
 
+/**
+ * 網站設定（後端）：團體名稱、場地、用詞、選項。複製給別的團體時，主要改這裡和 js/site.js。
+ * 共同欄位（name、org、venue、temple、categoryLabels、locations）兩邊要一致（tests/site-config.test.js 會檢查）。
+ * 注意：Apps Script 依檔名順序載入，排在 Config.gs 前面的檔案（Accounts、Admin、Ai、Attendance、Backup、Changes、Code）
+ * 不能在最外層直接用 SITE，只能在函式裡用。
+ */
+var SITE = {
+  name: '教全區行事曆',
+  org: '教全區',
+  venue: '區中心',
+  temple: '佛堂',
+  categoryLabels: { 勤務: '總務・勤務', 道務: '道務', 教育: '教育' },
+  locations: ['宏宗', '區中心', '彌勒山', '厚德樓', '樹林頭活動地'],
+  siteUrl: 'https://bailixiao.github.io/duty-calendar/', // 網站網址（推播服務聯絡用）
+  aiRegion: '教全區',   // 照片草稿：只整理這個區的部分
+  aiRegionShort: '教全' // 照片上可能的簡寫
+};
+
 /** 各分頁的欄位（順序即 Sheet 欄位順序，見規格第 9 節） */
 var SHEETS = {
   MEMBERS: {
@@ -101,7 +119,7 @@ var OPTIONS = {
   nature: ['勤務', '支援', '烹飪', '活動', '法會', '課程'], // 活動：只記錄參加者，不算勤務統計；法會、課程：道務、教育用
   mode: ['報名型', '公告型'],
   groupType: ['勤務了愿組', '打掃組', '拜香輪值組'],
-  location: ['宏宗', '區中心', '彌勒山', '厚德樓', '樹林頭活動地'],
+  location: SITE.locations,
   attire: [
     '夏季制服（短袖白襯衫、藍色長褲、打領帶）',
     '冬季制服（長袖白襯衫、藍色長褲、西裝、打領帶）',

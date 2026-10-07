@@ -92,7 +92,7 @@
       <li>用 <strong>Safari</strong> 開啟本網站</li>
       <li>點下方的 <strong>分享</strong> 按鈕（方框加向上箭頭 ⬆️）</li>
       <li>往下找 <strong>「加入主畫面」</strong>，按「新增」</li>
-      <li>回到手機主畫面，點 <strong>「教全區行事曆」</strong> 圖示打開</li>
+      <li>回到手機主畫面，點 <strong>「${esc(window.SITE.name)}」</strong> 圖示打開</li>
       <li>再按一次 <strong>🔔 手機提醒</strong>，就可以開啟了 😊</li>
     </ol>
     <p class="hint">您的畫面不一樣嗎？請按下面的「看圖文教學」，有各種手機的圖。</p>`;

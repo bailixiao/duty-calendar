@@ -106,12 +106,12 @@ function notifyVenueApplicants_(rows, decision, note) {
     if (!targets.length) return;
     var list = byGroup[group];
     var when = list.slice(0, 4).map(function (r) { return shortDate_(r['日期']) + ' ' + r['時段']; }).join('、') + (list.length > 4 ? ' 等 ' + list.length + ' 個時段' : '');
-    var text = decision === '已同意' ? '✅ ' + when + ' 區中心借到了，感恩您 🙏'
+    var text = decision === '已同意' ? '✅ ' + when + ' ' + SITE.venue + '借到了，感恩您 🙏'
       : decision === '不同意' ? '❌ ' + when + ' 沒有借到' + (note ? '，原因：' + note : '') + '，感謝您的體諒 🙏'
       : decision === '同意取消' ? '✅ ' + when + ' 已經幫您取消了，感恩您告訴我們 🙏'
       : decision === '不同意取消' ? '⚠️ ' + when + ' 的取消申請沒有通過，場地還是幫您保留' + (note ? '，原因：' + note : '')
       : '⚠️ ' + when + ' 的借用已取消' + (note ? '，原因：' + note : '') + '，有問題請聯絡管理者';
-    pushMessageTo_(targets, '🏠 區中心場地審核結果', text, '#/venue');
+    pushMessageTo_(targets, '🏠 ' + SITE.venue + '場地審核結果', text, '#/venue');
   });
 }
 
@@ -312,7 +312,7 @@ function autoShortSettings_() {
 /** body = { auto: { on, days, time } }：總管理者、勤務帳號設定缺人自動推播 */
 function adminAutoPushSave_(body) {
   var role = ADMIN_SESSION_.role;
-  if (role !== SUPER_ACCOUNT && role !== '勤務') throw new ApiError_('FORBIDDEN', '只有總管理者、總務・勤務帳號能設定缺人自動推播');
+  if (role !== SUPER_ACCOUNT && role !== '勤務') throw new ApiError_('FORBIDDEN', '只有總管理者、' + SITE.categoryLabels['勤務'] + '帳號能設定缺人自動推播');
   var a = body.auto || {};
   var days = (Array.isArray(a.days) ? a.days : []).map(Number).filter(function (d, i, arr) { return AUTO_SHORT_DAYS.indexOf(d) !== -1 && arr.indexOf(d) === i; }).sort(function (x, y) { return y - x; });
   var time = cleanText_(a.time);
