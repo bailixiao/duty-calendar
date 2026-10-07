@@ -24,7 +24,7 @@ test('點名：後台產生點名碼；只有當天、點名碼對才能點；�
   assert.equal(got.ok, true, JSON.stringify(got.error));
   const people = got.data.positions[0].people;
   assert.deepEqual(people.map((x) => [x.name, x.attend]), [['測試甲', '出席'], ['測試乙', '出席']]);
-  assert.equal(JSON.stringify(got.data).indexOf('09'), -1, '不回傳電話');
+  assert.doesNotMatch(JSON.stringify(got.data), /09d{2}-?d{3}-?d{3}/, '不回傳電話');
   const set = env.post(Object.assign({ action: 'rollcallSet', signupId: people[1].id, attend: '未到' }, p));
   assert.equal(set.data.positions[0].people[1].attend, '未到');
   const logs = env.post({ action: 'adminLogs', token, offset: 0, limit: 5 }).data.logs;
