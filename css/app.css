@@ -2216,3 +2216,8 @@ body.splash-on .text-size-btn { visibility: hidden; }
 .age-fill-row small { margin-left: 6px; color: var(--ink-2); }
 .name-temple { margin-left: 6px; font-size: .85rem; color: var(--ink-2); font-weight: 400; }
 .tag-temple { background: var(--notice-soft); color: var(--notice); }
+.edu-class-teachers { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 10px; }
+.edu-class-card { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.edu-class-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; font-size: 1.05rem; }
+.edu-class-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+.edu-class-list li { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px dashed var(--line); }

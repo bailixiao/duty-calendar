@@ -212,6 +212,9 @@
     body.querySelector('[data-sheet]').addEventListener('click', () => updateSheet(body, guard, p.year));
   }
 
+  // 教育統計的「各班師資」只看這幾個班（課程名稱含這幾個字）
+  const EDU_TEACHER_CLASSES = ['讀經班', '青少年班', '高大班', '青年班'];
+
   // 教育、道務統計的用詞
   const EDU_LABELS = {
     教育: { item: '課程', unit: '堂', person: '學生', staff: '師資', staffTitle: '各課程負責師資', pick: '選課程',
@@ -312,7 +315,25 @@
         </section>`;
         })() : ''}
 
+        ${cat === '教育' ? (() => {
+          // 教育：只看讀經班、青少年班、高大班、青年班的師資（課程名稱含這幾個字），一班一區
+          const groups = EDU_TEACHER_CLASSES.map((k) => {
+            const cs = allCourses.filter((c) => c.name.indexOf(k) !== -1);
+            return { name: k, sessions: cs.reduce((n, c) => n + c.sessions.length, 0), teachers: EduStats.teachersOf(cs) };
+          });
+          return `
         <section class="stats-section">
+          <h3 class="admin-sub">各班師資<span class="h2-sub">${EDU_TEACHER_CLASSES.join('・')}</span></h3>
+          <div class="edu-class-teachers">${groups.map((g) => `
+            <div class="edu-class-card">
+              <div class="edu-class-head"><strong>${esc(g.name)}</strong><span class="muted">${g.sessions ? `這段期間 ${g.sessions} 堂` : '這段期間沒有課'}</span></div>
+              ${g.teachers.length ? `<ul class="edu-class-list">${g.teachers.map((t) => `<li><span>${esc(t.name)}</span><span class="edu-teacher-total">${t.total} 堂</span></li>`).join('')}</ul>`
+                : `<p class="muted">${g.sessions ? '還沒有填師資' : '—'}</p>`}
+            </div>`).join('')}</div>
+          <p class="hint">依上面選的期間（月／季／年）計算；師資在新增或編輯課程時的「師資」欄填寫。</p>
+        </section>`;
+        })() : ''}
+        <section class="stats-section"${cat === '教育' ? ' hidden' : ''}>
           <h3 class="admin-sub">${L.staffTitle}</h3>
           ${teacherList.length ? `<ul class="edu-teacher-list">${teacherList.map((t) => `
             <li><span class="edu-teacher-name">${esc(t.name)}</span><span class="edu-teacher-total">共 ${t.total} ${L.unit}</span>
