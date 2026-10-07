@@ -25,6 +25,9 @@ function sameName_(a, b) {
   return nameKeys_(a).some(function (k) { return kb.indexOf(k) !== -1; });
 }
 
+// 名字裡出現這些符號＝把好幾個人打在同一格（例：王小明.測試甲）
+var NAME_SEPARATORS_ = /[、,，.。．\/／;；|]/;
+
 function trimTemple_(t) { return String(t || '').replace(/^[\s　]+|[\s　]+$/g, ''); }
 
 /** 名字＋佛堂：兩邊都有佛堂且不同就不是同一人，其餘照名字規則（sameName_） */
@@ -145,6 +148,7 @@ function validateSignup_(req) {
   if (!entries.length) return [{ message: '請填寫名字' }];
   if (entries.some(function (e) { return e.name === ''; })) return [{ message: '名字不可空白' }];
   entries.forEach(function (e) {
+    if (NAME_SEPARATORS_.test(e.name) || /^[一-鿿]{2,}([\s　]+[一-鿿]{2,})+$/.test(e.name)) { errors.push({ name: e.name, message: '「' + e.name + '」看起來是好幾個名字，請一個名字加一次' }); return; }
     if (IDENTITIES_.indexOf(e.identity) === -1) errors.push({ name: e.name, message: '請選擇身分（道親、壇辦或未求道）' });
     else if (e.accompany && e.identity !== '壇辦') errors.push({ name: e.name, message: '只有壇辦可以選「陪同」' });
   });

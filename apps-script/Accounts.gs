@@ -76,7 +76,7 @@ var ADMIN_READ_ACTIONS = ['adminPing', 'adminLogout', 'adminMe', 'adminRecent', 
   'adminDutyList', 'adminDutyForEdit', 'adminStats', 'adminMembers', 'adminGroups', 'adminGoals', 'adminVenue', 'adminPushList', 'adminFaq', 'adminRepairs'];
 // 依勤務類別判斷的寫入（勤務／道務／教育帳號只能動自己類別）
 var ADMIN_CATEGORY_ACTIONS = ['adminCancel', 'adminReschedule', 'adminRestore', 'adminCreateDuties', 'adminUpdateDuty',
-  'adminDeleteDuty', 'adminSetAttendance', 'adminAddAttendee', 'adminDraftFromImages', 'adminUpdateStatsSheet', 'adminSetTeachers', 'adminSaveGoals', 'adminVenueDecide', 'adminPushSave', 'adminPushDelete', 'adminAutoPushSave', 'adminRollcallLink', 'adminImportAttendance', 'adminSetMemberExtra'];
+  'adminDeleteDuty', 'adminSetAttendance', 'adminAddAttendee', 'adminDraftFromImages', 'adminUpdateStatsSheet', 'adminSetTeachers', 'adminSaveGoals', 'adminVenueDecide', 'adminPushSave', 'adminPushDelete', 'adminAutoPushSave', 'adminRollcallLink', 'adminImportAttendance', 'adminSetMemberExtra', 'adminSplitSignup'];
 
 // 成員、分組的編輯動作，與可以編輯的帳號（總管理者另外全部可以）
 var PEOPLE_EDIT_ACTIONS = ['adminSaveMember', 'adminDeleteMember', 'adminMemberCandidates', 'adminAddMembers', 'adminMergeNames', 'adminClearCandidates',

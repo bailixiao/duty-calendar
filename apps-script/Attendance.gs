@@ -129,6 +129,8 @@ function adminImportAttendance_(body) {
       var signups = readTable_(SHEETS.SIGNUPS).filter(function (r) { return r['勤務ID'] === duty['勤務ID'] && r['狀態'] === '有效' && r['日期'] === date; });
       var have = signups.map(function (r) { return normalizeName_(r['姓名']) + '|' + (r['佛堂'] || ''); });
       var raw = (Array.isArray(s.entries) ? s.entries : []).filter(function (e) { return e && cleanText_(e.name); });
+      var multi = raw.filter(function (e) { return NAME_SEPARATORS_.test(e.name); });
+      if (multi.length) throw new ApiError_('VALIDATION', label + '有名字看起來是好幾個人，請分開', multi.map(function (e) { return { message: e.name }; }));
       var skipped = [];
       var fresh = raw.filter(function (e) {
         var n = normalizeName_(e.name);
@@ -157,4 +159,45 @@ function adminImportAttendance_(body) {
     }));
   });
   return { results: results };
+}
+
+/** 把「好幾個人打在同一格」的名字拆開：王小明.測試甲 → 兩個名字 */
+function splitPeople_(name) {
+  return String(name || '').split(/[、,，.。．\/／;；|\s]+/).map(function (x) { return normalizeName_(x); }).filter(Boolean);
+}
+
+/**
+ * body = { signupId }：一筆報名的名字其實是好幾個人 → 拆成好幾筆（同勤務、日期、了愿項目；身分照成員名單，沒有的沿用原本的）
+ */
+function adminSplitSignup_(body) {
+  return withSignupLock_(function () {
+    var signups = readTable_(SHEETS.SIGNUPS);
+    var row = findActiveSignup_(signups, body.signupId);
+    var duty = findDutyById_(row['勤務ID']);
+    if (ADMIN_SESSION_.role !== SUPER_ACCOUNT && duty && dutyCategory_(duty) !== ADMIN_SESSION_.role) throw new ApiError_('FORBIDDEN', '這是「' + dutyCategory_(duty) + '」的勤務，這個帳號不能修改');
+    var parts = splitPeople_(row['姓名']);
+    if (parts.length < 2) throw new ApiError_('BAD_REQUEST', '這個名字看起來只有一個人');
+    var entries = withMemberIdentity_(parts.map(function (n) { return { name: n, identity: row['身分'] }; }));
+    var now = nowString_();
+    var before = rowSnapshot_(SHEETS.SIGNUPS, row);
+    updateRow_(SHEETS.SIGNUPS, row, { '姓名': parts[0], '身分': entries[0].identity || row['身分'], '佛堂': entries[0].ambiguous ? '' : (entries[0].temple || ''), '更新時間': now });
+    var add = entries.slice(1).map(function (e, i) {
+      var r = {};
+      SHEETS.SIGNUPS.headers.forEach(function (h) { r[h] = before[h] === undefined ? '' : before[h]; });
+      r['報名ID'] = newId_('S');
+      r['姓名'] = parts[i + 1];
+      r['身分'] = e.identity || row['身分'];
+      r['佛堂'] = e.ambiguous ? '' : (e.temple || '');
+      r['組長'] = '';
+      r['建立時間'] = now;
+      r['更新時間'] = now;
+      return r;
+    });
+    appendRows_(SHEETS.SIGNUPS, add);
+    addPendingMembers_([row].concat(add).map(function (r) { return { '姓名': r['姓名'], '身分': r['身分'], '佛堂': r['佛堂'], '日期': row['日期'] }; }), duty ? duty['名稱'] : '');
+    appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '修正', '報名ID': row['報名ID'], '內容摘要': '拆成多人｜' + before['姓名'] + ' → ' + parts.join('、') + '｜' + row['日期'] + '｜' + (duty ? duty['名稱'] : ''), '還原用的前一版資料': '' }]);
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.SIGNUPS);
+    return { names: parts };
+  });
 }

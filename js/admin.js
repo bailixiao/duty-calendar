@@ -422,6 +422,7 @@
                   ${s.identity === '壇辦' ? `<button type="button" class="btn btn-small" data-acc="${esc(s.id)}">${s.accompany ? '改了愿' : '改陪同'}</button>` : ''}` : ''}
                 ${d.layout === '職司表' ? `<button type="button" class="btn btn-small" data-leader="${esc(s.id)}">${s.leader ? '取消組長' : '★ 設組長'}</button>
                   <button type="button" class="btn btn-small" data-note="${esc(s.id)}">${s.note ? '改註記' : '加註記'}</button>` : ''}
+                ${/[、,，.。．\/／;；|]/.test(s.name) || /^[\u4e00-\u9fff]{2,}([\s　]+[\u4e00-\u9fff]{2,})+$/.test(s.name) ? `<button type="button" class="btn btn-small btn-primary" data-split="${esc(s.id)}">拆成多人</button>` : ''}
                 ${d.nature === '活動' ? '' : `<button type="button" class="btn btn-small" data-reschedule="${esc(s.id)}">改期</button>`}
                 <button type="button" class="btn btn-small btn-quiet-danger" data-cancel="${esc(s.id)}">取消</button>
               </span>` : ''}
@@ -464,6 +465,23 @@
     if (rc) rc.addEventListener('click', () => rollcallLink(d, date));
     const find = (id) => (d.signups || []).find((s) => s.id === id);
     body.querySelectorAll('[data-cancel]').forEach((b) => b.addEventListener('click', () => adminCancel(find(b.dataset.cancel))));
+    body.querySelectorAll('[data-split]').forEach((b) => b.addEventListener('click', async () => {
+      const s = find(b.dataset.split);
+      if (!(await Confirm.open({ title: '拆成多人嗎？', rows: [['原本', s.name]], note: '會拆成一人一筆報名（同一天、同一個了愿項目）。', confirmText: '拆開' }))) return;
+      Busy.show('處理中⋯');
+      try {
+        const res = await Api.admin('adminSplitSignup', { signupId: s.id });
+        Busy.hide();
+        dutyPage.flash = notice('success', '已拆成 ' + res.names.length + ' 人', res.names.join('、'));
+        clearMemo();
+        if (window.CalendarPage) CalendarPage.refresh();
+        loadDuty();
+      } catch (err) {
+        Busy.hide();
+        if (guard(err)) return;
+        alert(err.message || '拆開失敗');
+      }
+    }));
     body.querySelectorAll('[data-attend]').forEach((b) => b.addEventListener('click', () => {
       const s = find(b.dataset.attend);
       setAttendance(s, { attend: s.attend === '未到' ? '出席' : '未到' }, `${s.name}：${s.attend === '未到' ? '改為出席' : '改為未到'}`);

@@ -254,7 +254,34 @@
       } catch (e) { /* 查不到就讓報名者自己選，伺服器存檔時仍會以成員名單為準 */ }
     }
 
+    /** 一格打了好幾個名字（王小明.測試甲、王小明 測試甲）就拆開；空白只在每段都是兩個字以上的中文時才算分隔 */
+    function splitInput(raw) {
+      const byMark = String(raw || '').split(/[、,，.。．\/／;；|]+/).map(normalize).filter(Boolean);
+      return byMark.flatMap((part) => {
+        const bySpace = part.split(/[\s　]+/).filter(Boolean);
+        return bySpace.length > 1 && bySpace.every((x) => /^[\u4e00-\u9fff]{2,}$/.test(x)) ? bySpace : [part];
+      });
+    }
+
     function addFromInput() {
+      const parts = splitInput(input.value);
+      if (parts.length > 1) {
+        let added = 0;
+        parts.forEach((p) => { if (addName(p)) added += 1; });
+        input.value = '';
+        clearSuggestions();
+        if (added) {
+          const note = document.createElement('p');
+          note.className = 'hint split-note';
+          note.textContent = `已幫您分成 ${added} 個名字，一個名字一張卡片 😊`;
+          const old = el.querySelector('.split-note');
+          if (old) old.remove();
+          $('[data-names]').insertAdjacentElement('beforebegin', note);
+          setTimeout(() => note.remove(), 6000);
+        }
+        input.focus();
+        return;
+      }
       if (addName(input.value)) {
         input.value = '';
         clearSuggestions();
