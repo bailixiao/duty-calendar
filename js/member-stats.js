@@ -4,7 +4,7 @@
   'use strict';
 
   const esc = Fmt.esc;
-  const st = { q: '', guard: null, canEdit: false, members: [], temples: [], vegAll: {}, activity: new Map(), vegBox: null, ageBox: null };
+  const st = { q: '', guard: null, canEdit: false, members: [], temples: [], vegAll: {}, vegShowYes: false, activity: new Map(), vegBox: null, ageBox: null };
   const VEG_FIRST = 20; // 每區先列幾位，其餘按「全部列出」
 
   async function mount(vegBox, ageBox, opts) {
@@ -76,17 +76,19 @@
     const rest = no.filter((m) => act(m).count < MIN);
     st.vegBox.innerHTML = `
       <h3 class="admin-sub">🥬 道親清口<span class="h2-sub">成員名單上的道親</span></h3>
-      <div class="veg-summary"><strong>已清口 ${yes.length} 位</strong>／道親 ${dao.length} 位（${pct}%）
+      <div class="veg-summary"><button type="button" class="veg-yes-btn" data-veg-yes aria-expanded="${st.vegShowYes}">已清口 ${yes.length} 位 ${st.vegShowYes ? '▴' : '▾'}</button>／道親 ${dao.length} 位（${pct}%）
         <span class="veg-bar"><span style="width:${pct}%"></span></span></div>
       ${dao.length > 8 ? `<input class="input veg-q" type="search" data-veg-q placeholder="🔍 找名字" value="${esc(st.q)}">` : ''}
       <div class="veg-cols">
+        ${st.vegShowYes || q ? `<div class="veg-yes-box"><h4>✅ 已清口（${yes.length}）<span class="h2-sub">點名字看資料</span></h4>${block('yes', yes, true, '還沒有人清口')}</div>` : ''}
         <div><h4>🙏 可成全清口（${cand.length}）<span class="h2-sub">近一年出席 ${MIN} 次以上</span></h4>${block('cand', cand, false, `還沒有出席 ${MIN} 次以上、還沒清口的道親`)}</div>
         <div><h4>⬜ 還沒清口（${rest.length}）</h4>${block('no', rest, false, no.length ? '都在上面了' : '都清口了 🙏')}</div>
       </div>
       <div class="admin-actions no-print"><button type="button" class="btn" data-veg-copy>複製清口名單</button></div>
-      <p class="hint">名字右邊的小字是近一年出席次數（勤務＋道務＋教育），同一佛堂裡常來的排前面，方便找穩定的道親成全清口。點名字可以看這位參加了哪些勤務、課程、法會${st.canEdit ? '，最下面按「已成全清口」才會改，會記在成員名單' : ''}。已清口的人不列在這裡（要改回請到「成員」編輯）。道親的身分在「成員」頁設定；名單上沒有的人（例如待確認）不會列在這裡。</p>`;
+      <p class="hint">名字右邊的小字是近一年出席次數（勤務＋道務＋教育），同一佛堂裡常來的排前面，方便找穩定的道親成全清口。點名字可以看這位參加了哪些勤務、課程、法會${st.canEdit ? '，最下面按「已成全清口」才會改，會記在成員名單' : ''}。按上面的「已清口 N 位」可以看已清口的名單。道親的身分在「成員」頁設定；名單上沒有的人（例如待確認）不會列在這裡。</p>`;
     const qi = st.vegBox.querySelector('[data-veg-q]');
     if (qi) qi.addEventListener('input', () => { st.q = qi.value; drawVeg(); const n = st.vegBox.querySelector('[data-veg-q]'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); });
+    st.vegBox.querySelector('[data-veg-yes]').addEventListener('click', () => { st.vegShowYes = !st.vegShowYes; drawVeg(); });
     st.vegBox.querySelectorAll('[data-veg-all]').forEach((b) => b.addEventListener('click', () => { st.vegAll[b.dataset.vegAll] = !st.vegAll[b.dataset.vegAll]; drawVeg(); }));
     st.vegBox.querySelectorAll('[data-veg]').forEach((b) => b.addEventListener('click', () => vegDetail(st.members.find((x) => x.row === Number(b.dataset.veg)))));
     st.vegBox.querySelector('[data-veg-copy]').addEventListener('click', async (ev) => {
@@ -134,20 +136,39 @@
   // 圓餅圖：年齡層的顏色（由年輕到年長）
   const AGE_COLORS = ['#8fc1a9', '#6fa3c7', '#e0b450', '#d98a5f', '#9b7bb8'];
 
-  /** 一個身分的年齡層圓餅圖＋圖例（百分比＝占有填年齡的人） */
+  // 圓餅圖每一塊上的短標籤（和 StatsCalc 的年齡層同順序）
+  const AGE_SHORT = ['14↓', '15–29', '30–44', '45–64', '65↑'];
+
+  /** 一個身分的年齡層圓餅圖（SVG，每一塊寫年齡層與百分比；太小的寫在圓外）＋圖例（百分比＝占有填年齡的人） */
   function pieHtml(r) {
-    let at = 0;
-    const stops = r.bands.map((b, i) => {
-      const from = at;
-      at += (b.count / r.withAge) * 100;
-      return `${AGE_COLORS[i]} ${from.toFixed(2)}% ${at.toFixed(2)}%`;
-    }).join(', ');
+    const R = 100;
     const pct = (n) => Math.round((n / r.withAge) * 100);
+    const pt = (a, rad) => [Math.sin(a) * rad, -Math.cos(a) * rad].map((v) => v.toFixed(2)).join(' ');
+    let at = 0;
+    const parts = r.bands.map((b, i) => {
+      const share = b.count / r.withAge;
+      const a0 = at * 2 * Math.PI;
+      at += share;
+      const a1 = at * 2 * Math.PI;
+      if (!b.count) return { path: '', label: '' };
+      const path = share >= 0.9999
+        ? `<circle r="${R}" fill="${AGE_COLORS[i]}"/>`
+        : `<path d="M0 0 L${pt(a0, R)} A${R} ${R} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${pt(a1, R)} Z" fill="${AGE_COLORS[i]}"/>`;
+      const mid = share >= 0.9999 ? 0 : (a0 + a1) / 2;
+      const inside = share >= 0.08;
+      const [x, y] = pt(mid, share >= 0.9999 ? 0 : inside ? R * 0.62 : R * 1.17).split(' ');
+      const label = inside
+        ? `<text x="${x}" y="${y}" class="age-pie-in"><tspan x="${x}" dy="-0.2em">${AGE_SHORT[i]}</tspan><tspan x="${x}" dy="1.15em" class="age-pie-pct">${pct(b.count)}%</tspan></text>`
+        : `<text x="${x}" y="${y}" class="age-pie-out" dy="0.35em">${AGE_SHORT[i]} ${pct(b.count)}%</text>`;
+      return { path, label };
+    });
     return `
       <div class="age-pie-card${r.group === '全部' ? ' is-all' : ''}">
         <strong class="age-pie-title">${esc(r.group)}<small>有填年齡 ${r.withAge} 位</small></strong>
         <div class="age-pie-body">
-          <div class="age-pie" style="background: conic-gradient(${stops})" role="img" aria-label="${esc(r.group)}年齡層：${r.bands.map((b) => `${b.label} ${pct(b.count)}%`).join('、')}"><span>${r.withAge}<small>位</small></span></div>
+          <svg class="age-pie" viewBox="-140 -128 280 256" role="img" aria-label="${esc(r.group)}年齡層：${r.bands.map((b) => `${b.label} ${pct(b.count)}%`).join('、')}">
+            <g stroke="#fffdf7" stroke-width="2">${parts.map((p) => p.path).join('')}</g>${parts.map((p) => p.label).join('')}
+          </svg>
           <ul class="age-pie-legend">${r.bands.map((b, i) => `<li${b.count ? '' : ' class="is-zero"'}><i style="background:${AGE_COLORS[i]}"></i><span>${esc(b.label)}</span><strong>${pct(b.count)}%</strong><small>${b.count} 位</small></li>`).join('')}</ul>
         </div>
       </div>`;
