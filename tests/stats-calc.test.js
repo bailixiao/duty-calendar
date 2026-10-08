@@ -124,11 +124,13 @@ test('年齡統計：各身分的人數、平均、中位數、最小最大、�
 
 test('近一年出席次數：分類別算，一年前的不算', () => {
   const C = require('../js/stats-calc.js');
-  const ev = (date, category, dao) => ({ date, category, tan: [], dao, unknown: [] });
+  const ev = (date, category, dao) => ({ date, category, name: '測試聚會', tan: [], dao, unknown: [] });
   const m = C.activity([
     ev('2026-09-01', '勤務', ['測試甲', '測試乙']), ev('2026-08-01', '道務', ['測試甲']),
     ev('2026-07-01', '教育', ['測試甲']), ev('2025-01-01', '勤務', ['測試乙'])
   ], '2026-10-08');
-  assert.deepEqual(m.get('測試甲'), { count: 3, 勤務: 1, 道務: 1, 教育: 1 });
+  const a = m.get('測試甲');
+  assert.deepEqual([a.count, a.勤務, a.道務, a.教育, a.last], [3, 1, 1, 1, '2026-09-01']);
+  assert.deepEqual(Object.values(a.items).map((x) => x.category + x.name + x.count), ['勤務測試聚會1', '道務測試聚會1', '教育測試聚會1'], '同名不同類別分開算');
   assert.equal(m.get('測試乙').count, 1);
 });

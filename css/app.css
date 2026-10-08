@@ -2212,6 +2212,16 @@ body.splash-on .text-size-btn { visibility: hidden; }
 .veg-list li { display: flex; }
 .veg-more { margin: 2px 0 6px; }
 .grid-more { margin-top: 8px; }
+.veg-tag { margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--ok-soft); color: var(--ok); font-size: 0.875rem; vertical-align: middle; }
+.veg-detail-sum { font-size: 1.125rem; margin: 4px 0 8px; }
+.veg-detail-sum strong { font-size: 1.5rem; }
+.veg-detail-cats { list-style: none; margin: 0 0 10px; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.veg-detail-cats li { display: grid; justify-items: center; padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+.veg-detail-cats strong { font-size: 1.25rem; }
+.veg-detail-h { margin: 8px 0 4px; font-size: 1rem; }
+.veg-detail-items { list-style: none; margin: 0; padding: 0; max-height: 40vh; overflow: auto; }
+.veg-detail-items li { display: flex; justify-content: space-between; gap: 8px; padding: 6px 2px; border-bottom: 1px solid var(--line); }
+.veg-detail-items small { margin-left: 6px; color: var(--muted); font-size: 0.8125rem; }
 .veg-n { margin-left: 4px; font-size: 0.9375rem; color: var(--muted); font-weight: 400; }
 .veg-chip { display: block; width: 100%; text-align: center; white-space: nowrap; padding: 4px 6px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: inherit; font: inherit; font-size: 1.125rem; line-height: 1.5; }
 button.veg-chip { cursor: pointer; }

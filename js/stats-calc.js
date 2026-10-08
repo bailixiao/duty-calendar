@@ -131,7 +131,7 @@
   }
 
   /**
-   * 近一年每個人出席幾次（全部類別）：回傳 Map 名字 → { count, 勤務, 道務, 教育 }。
+   * 近一年每個人出席幾次（全部類別）：回傳 Map 名字 → { count, 勤務, 道務, 教育, last（最近一次日期）, items: { '類別|項目': { name, category, count } } }。
    * 名字和統計一樣（同名不同佛堂的會是「名字（佛堂）」）。
    */
   function activity(events, today, days) {
@@ -140,9 +140,13 @@
     events.filter((e) => e.date >= from && e.date <= today).forEach((e) => {
       const cat = e.category || '勤務';
       e.tan.concat(e.dao, e.unknown).forEach((n) => {
-        const v = map.get(n) || { count: 0, 勤務: 0, 道務: 0, 教育: 0 };
+        const v = map.get(n) || { count: 0, 勤務: 0, 道務: 0, 教育: 0, last: '', items: {} };
         v.count += 1;
         if (v[cat] !== undefined) v[cat] += 1;
+        if (e.date > v.last) v.last = e.date;
+        const key = cat + '|' + (e.series || e.name);
+        const it = v.items[key] || (v.items[key] = { name: e.series || e.name, category: cat, count: 0 });
+        it.count += 1;
         map.set(n, v);
       });
     });
