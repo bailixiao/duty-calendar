@@ -56,6 +56,58 @@
     reload();
   }
 
+  /** 匯入成員資料：貼上整理好的 JSON（佛堂、年齡、身分），依名字更新 */
+  function importMembers(guard, reload) {
+    const md = Modal.open(`
+      <h2 class="modal-title">📋 匯入成員資料</h2>
+      <p class="modal-note">貼上整理好的資料（Claude 整理的文字），會依名字（或別名）幫成員補上佛堂、年齡、身分；只更新有給的欄位，不會清掉原本的資料。</p>
+      <textarea class="input day-text" rows="7" data-text placeholder='{"type":"成員資料","items":[...]}'></textarea>
+      <label class="check"><input type="checkbox" data-add> 名單上找不到的，直接新增成員</label>
+      <div data-out></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-block" data-check>檢查</button>
+        <button type="button" class="btn btn-primary btn-block" data-go disabled>確定匯入</button>
+        <button type="button" class="btn btn-block" data-close>返回</button>
+      </div>`);
+    const el = md.el;
+    let items = null;
+    el.querySelector('[data-close]').addEventListener('click', () => md.close());
+    el.querySelector('[data-text]').addEventListener('input', () => { items = null; el.querySelector('[data-go]').disabled = true; });
+    el.querySelector('[data-check]').addEventListener('click', () => {
+      const out = el.querySelector('[data-out]');
+      try {
+        const j = JSON.parse(el.querySelector('[data-text]').value);
+        if (!j || !Array.isArray(j.items) || !j.items.length) throw new Error('找不到 items');
+        items = j.items;
+      } catch (e) {
+        out.innerHTML = `<p class="form-error">看不懂這段文字：${esc(e.message || '')}。請確認整段都有貼上。</p>`;
+        return;
+      }
+      const known = new Set(memberList.flatMap((m) => [m.name].concat(m.aliases || [])));
+      const miss = items.filter((x) => !known.has(String(x.name || '').trim()));
+      out.innerHTML = `<p>共 ${items.length} 位：名單上找得到 ${items.length - miss.length} 位${miss.length ? `，<strong>找不到 ${miss.length} 位</strong>（${esc(miss.map((x) => x.name).join('、'))}）` : ''}。</p>`;
+      el.querySelector('[data-go]').disabled = false;
+    });
+    el.querySelector('[data-go]').addEventListener('click', async () => {
+      if (!items) return;
+      Busy.show('匯入中⋯');
+      try {
+        const res = await Api.admin('adminImportMembers', { items, addMissing: el.querySelector('[data-add]').checked });
+        Busy.hide();
+        el.querySelector('[data-out]').innerHTML = `<div class="notice notice-success" role="status"><p><strong>✅ 匯入完成</strong>：更新 ${res.updated.length} 位${res.added.length ? `、新增 ${res.added.length} 位` : ''}</p>
+          ${res.missing.length ? `<p>找不到（沒改）：${esc(res.missing.join('、'))}</p>` : ''}
+          ${res.ambiguous.length ? `<p>同名好幾位、分不出來（沒改）：${esc(res.ambiguous.join('、'))}</p>` : ''}</div>`;
+        el.querySelector('[data-go]').disabled = true;
+        AdminPage.clearMemo();
+        el.querySelector('[data-close]').addEventListener('click', () => reload(), { once: true });
+      } catch (err) {
+        Busy.hide();
+        if (guard(err)) return;
+        el.querySelector('[data-out]').innerHTML = `<p class="form-error">${errorHtml(err)}</p>`;
+      }
+    });
+  }
+
   /** 合併成同一人：選另一位、選主要名字（真名），另一位的名字變成別名，報名紀錄一起改名 */
   function mergeMembers(m, guard, reload) {
     const others = memberList.filter((x) => x.row !== m.row);
@@ -141,7 +193,7 @@
       ${AdminPage.staleNote(stale)}
       ${flash}
       ${pendingList.length ? `<div class="notice pending-banner" role="status"><p>🆕 <strong>有 ${pendingList.length} 位新成員待確認</strong>（報名時自動加入的新名字）</p>${memberState.filter === 'pending' ? '<p class="muted">確認每一位：沒問題按「保留」；其實是名單上的某人（寫法不同）按「合併到⋯」；打錯或不需要的按「刪除」。</p>' : '<button type="button" class="btn btn-primary" data-show-pending>查看待確認的人</button>'}</div>` : ''}
-      ${canEditPeople() ? '<div class="admin-actions"><button type="button" class="btn btn-primary" data-add>＋ 新增成員</button><button type="button" class="btn" data-from-signups>從出勤紀錄加入成員</button></div>' : ''}
+      ${canEditPeople() ? '<div class="admin-actions"><button type="button" class="btn btn-primary" data-add>＋ 新增成員</button><button type="button" class="btn" data-from-signups>從出勤紀錄加入成員</button><button type="button" class="btn" data-import-members>📋 匯入成員資料</button></div>' : ''}
       <div class="list-filter">
         <select class="input" data-filter aria-label="狀態">
           ${pendingList.length ? `<option value="pending"${memberState.filter === 'pending' ? ' selected' : ''}>🆕 待確認（${pendingList.length}）</option>` : ''}
@@ -264,6 +316,7 @@
     if (canEditPeople()) {
       body.querySelector('[data-add]').addEventListener('click', () => editMember(null, data.groups, guard, reload));
       body.querySelector('[data-from-signups]').addEventListener('click', () => fromSignups(guard, reload));
+      body.querySelector('[data-import-members]').addEventListener('click', () => importMembers(guard, reload));
     }
     rows.addEventListener('click', (ev) => {
       const b = ev.target.closest('[data-row]');

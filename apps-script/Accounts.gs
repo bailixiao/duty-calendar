@@ -80,7 +80,7 @@ var ADMIN_CATEGORY_ACTIONS = ['adminCancel', 'adminReschedule', 'adminRestore', 
 
 // 成員、分組的編輯動作，與可以編輯的帳號（總管理者另外全部可以）
 var PEOPLE_EDIT_ACTIONS = ['adminSaveMember', 'adminDeleteMember', 'adminMemberCandidates', 'adminAddMembers', 'adminMergeNames', 'adminClearCandidates',
-  'adminConfirmMembers', 'adminMergePendingMember', 'adminSaveGroup', 'adminDeleteGroup', 'adminMergeMembers'];
+  'adminConfirmMembers', 'adminMergePendingMember', 'adminSaveGroup', 'adminDeleteGroup', 'adminMergeMembers', 'adminImportMembers'];
 var PEOPLE_EDIT_ROLES = ['道務', '教育'];
 
 function findDutyById_(id) {

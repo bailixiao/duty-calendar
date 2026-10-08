@@ -265,3 +265,23 @@ test('別名、合併成同一人：打別名報名記成真名；名字提示�
   names = env.get({ action: 'getDuty', id: ev.id }).data.signups.map((s) => s.name).sort();
   assert.deepEqual(names, ['測試乙', '測試甲'], '報名紀錄改成真名');
 });
+
+test('匯入成員資料：依名字或別名補佛堂、出生年；找不到的回報或新增；同名分不出來的不改', () => {
+  const env = createEnv(Date.UTC(2026, 9, 8, 2, 0, 0));
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const call = (action, body) => env.post(Object.assign({ action, token }, body));
+  call('adminSaveMember', { member: { name: '測試甲', identity: '壇辦', aliases: '小甲' } });
+  call('adminSaveMember', { member: { name: '測試乙', identity: '道親', age: '30' } });
+  call('adminSaveMember', { member: { name: '測試丙', temple: '測試佛堂A' } });
+  call('adminSaveMember', { member: { name: '測試丙', temple: '測試佛堂B' } });
+  const r = call('adminImportMembers', { items: [{ name: '小甲', temple: '測試佛堂A', birthYear: 1970 }, { name: '測試乙', temple: '測試佛堂B' }, { name: '測試丙', birthYear: 1990 }, { name: '不在名單' }] });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.deepEqual([r.data.updated, r.data.missing, r.data.ambiguous], [['小甲', '測試乙'], ['不在名單'], ['測試丙']]);
+  const list = call('adminMembers').data.members;
+  const a = list.find((m) => m.name === '測試甲');
+  assert.deepEqual([a.temple, a.birthYear, a.age], ['測試佛堂A', 1970, 56]);
+  const b = list.find((m) => m.name === '測試乙');
+  assert.deepEqual([b.temple, b.age], ['測試佛堂B', 30], '沒給的年齡不會被清掉');
+  const add = call('adminImportMembers', { items: [{ name: '測試新人', temple: '測試佛堂A', birthYear: 2000, identity: '道親' }], addMissing: true });
+  assert.deepEqual(add.data.added, ['測試新人']);
+});

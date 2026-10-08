@@ -520,3 +520,54 @@ function adminMergeMembers_(body) {
   });
   return { changed: res.changed, dropped: res.dropped, members: adminMembers_().members };
 }
+
+// ---------- 匯入成員資料（佛堂、年齡、身分） ----------
+
+/**
+ * body = { items: [{ name, temple?, birthYear? | age?, identity? }], addMissing? }：依名字（或別名）更新成員的佛堂、出生年、身分。
+ * 只更新有給的欄位；找不到的回報（addMissing 時新增）；同名好幾位分不出來的不改。
+ */
+function adminImportMembers_(body) {
+  var items = Array.isArray(body.items) ? body.items : [];
+  if (!items.length) throw new ApiError_('BAD_REQUEST', '沒有要匯入的資料');
+  if (items.length > 2000) throw new ApiError_('BAD_REQUEST', '一次最多 2000 筆');
+  var year = Number(todayString_().slice(0, 4));
+  return withSignupLock_(function () {
+    var rows = readTable_(SHEETS.MEMBERS).filter(function (m) { return m['姓名']; });
+    var updated = [];
+    var missing = [];
+    var ambiguous = [];
+    var added = [];
+    items.forEach(function (it) {
+      var name = normalizeName_(it && it.name);
+      if (!name) return;
+      var ch = {};
+      var temple = cleanText_(it.temple || '');
+      if (temple) ch['佛堂'] = temple;
+      var by = Number(it.birthYear) || 0;
+      if (!by && it.age !== undefined && it.age !== '') { var b = birthYearOf_(it.age); if (b) by = Number(b); }
+      if (by && by > 1900 && by <= year) ch['出生年'] = String(by);
+      if (it.identity && OPTIONS.identity.indexOf(it.identity) !== -1) ch['身分'] = it.identity;
+      var hits = rows.filter(function (m) { return normalizeName_(m['姓名']) === name; });
+      if (!hits.length) hits = rows.filter(function (m) { return splitAliases_(m['別名']).indexOf(name) !== -1; });
+      // 同名好幾位：用佛堂分
+      if (hits.length > 1 && temple) hits = hits.filter(function (m) { return m['佛堂'] === temple; });
+      if (hits.length > 1) { ambiguous.push(name); return; }
+      if (!hits.length) {
+        if (body.addMissing) {
+          var row = Object.assign({ '姓名': name, '啟用中': '是' }, ch);
+          appendRows_(SHEETS.MEMBERS, [row]);
+          added.push(name);
+        } else missing.push(name);
+        return;
+      }
+      if (!Object.keys(ch).length) return;
+      updateRow_(SHEETS.MEMBERS, hits[0], ch);
+      updated.push(name);
+    });
+    if (updated.length || added.length) writeDutyLog_('成員', '匯入成員資料｜更新 ' + updated.length + ' 位' + (added.length ? '、新增 ' + added.length + ' 位' : ''));
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.MEMBERS);
+    return { updated: updated, added: added, missing: missing, ambiguous: ambiguous };
+  });
+}
