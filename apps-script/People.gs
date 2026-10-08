@@ -178,7 +178,7 @@ function memberToJson_(m) {
   MEMBER_GROUP_COLUMNS.forEach(function (t) { groups[t] = m[t]; });
   var by = Number(m['出生年']) || 0;
   return { row: m._row, name: m['姓名'], identity: m['身分'], groups: groups, note: m['備註'], active: m['啟用中'] !== '否', pending: m['待確認'] === '是',
-    vegetarian: m['清口'] === '是', birthYear: by || '', age: by ? Number(todayString_().slice(0, 4)) - by : '', temple: m['佛堂'] || '', aliases: splitAliases_(m['別名']), overseas: m['國外'] || '' };
+    vegetarian: m['清口'] === '是', birthYear: by || '', age: by ? Number(todayString_().slice(0, 4)) - by : '', temple: m['佛堂'] || '', aliases: splitAliases_(m['別名']), overseas: m['國外'] || '', careNote: m['成全紀錄'] || '' };
 }
 
 /** 以列號找資料並核對原本的值（姓名或組名），不符代表資料已被移動或修改 */
@@ -451,7 +451,7 @@ function birthYearOf_(age) {
  */
 function adminSetMemberExtra_(body) {
   var role = ADMIN_SESSION_.role;
-  if (role !== SUPER_ACCOUNT && role !== '道務') throw new ApiError_('FORBIDDEN', '只有總管理者、道務帳號能改清口、年齡和佛堂');
+  if (role !== SUPER_ACCOUNT && role !== '道務') throw new ApiError_('FORBIDDEN', '只有總管理者、道務帳號能改清口、年齡、佛堂、身分和成全紀錄');
   var items = Array.isArray(body.items) ? body.items : [];
   if (!items.length) throw new ApiError_('BAD_REQUEST', '沒有要修改的成員');
   var bad = items.filter(function (x) { return x.age !== undefined && birthYearOf_(x.age) === null; });
@@ -465,9 +465,14 @@ function adminSetMemberExtra_(body) {
       if (x.vegetarian !== undefined) ch['清口'] = x.vegetarian ? '是' : '';
       if (x.age !== undefined) ch['出生年'] = birthYearOf_(x.age);
       if (x.temple !== undefined) ch['佛堂'] = cleanText_(x.temple).slice(0, 30);
+      if (x.identity !== undefined) {
+        if (x.identity && OPTIONS.identity.indexOf(x.identity) === -1) throw new ApiError_('VALIDATION', '身分只能是' + OPTIONS.identity.join('、'));
+        ch['身分'] = x.identity || '';
+      }
+      if (x.careNote !== undefined) ch['成全紀錄'] = String(x.careNote || '').replace(/\r/g, '').trim().slice(0, 300);
       if (!Object.keys(ch).length) return;
       updateRow_(SHEETS.MEMBERS, row, ch);
-      done.push(row['姓名'] + (ch['清口'] !== undefined ? (ch['清口'] ? ' 已清口' : ' 還沒清口') : '') + (ch['出生年'] !== undefined ? (ch['出生年'] ? ' ' + x.age + ' 歲' : ' 清掉年齡') : '') + (ch['佛堂'] !== undefined ? ' 佛堂：' + (ch['佛堂'] || '（空白）') : ''));
+      done.push(row['姓名'] + (ch['清口'] !== undefined ? (ch['清口'] ? ' 已清口' : ' 還沒清口') : '') + (ch['出生年'] !== undefined ? (ch['出生年'] ? ' ' + x.age + ' 歲' : ' 清掉年齡') : '') + (ch['佛堂'] !== undefined ? ' 佛堂：' + (ch['佛堂'] || '（空白）') : '') + (ch['身分'] !== undefined ? ' 身分：' + (ch['身分'] || '（空白）') : '') + (ch['成全紀錄'] !== undefined ? ' 更新成全紀錄' : ''));
     });
     if (done.length) writeDutyLog_('成員', (role === SUPER_ACCOUNT ? '總管理者' : ADMIN_SESSION_.account) + '｜' + done.join('、'));
     SpreadsheetApp.flush();
@@ -574,5 +579,67 @@ function adminImportMembers_(body) {
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.MEMBERS);
     return { updated: updated, added: added, missing: missing, ambiguous: ambiguous };
+  });
+}
+
+// ---------- 同名的舊報名紀錄：補上是哪個佛堂的那位 ----------
+
+/** 成員名單上同名、不同佛堂的名字 → 佛堂清單 */
+function sameNameTemples_() {
+  var map = {};
+  readTableCached_(SHEETS.MEMBERS).forEach(function (m) {
+    if (!m['姓名'] || !m['佛堂'] || m['待確認'] === '是') return;
+    var n = normalizeName_(m['姓名']);
+    (map[n] = map[n] || []);
+    if (map[n].indexOf(m['佛堂']) === -1) map[n].push(m['佛堂']);
+  });
+  var out = {};
+  Object.keys(map).forEach(function (n) { if (map[n].length > 1) out[n] = map[n]; });
+  return out;
+}
+
+/** 沒填佛堂、而且名字在成員名單上有同名不同佛堂的報名：[{ name, temples, signups: [{ id, date, duty }] }] */
+function adminSameNameSignups_() {
+  var multi = sameNameTemples_();
+  var duties = {};
+  readTableCached_(SHEETS.DUTIES).forEach(function (d) { duties[d['勤務ID']] = d['名稱']; });
+  var groups = {};
+  readTable_(SHEETS.SIGNUPS).forEach(function (s) {
+    if (s['狀態'] === '已取消' || s['佛堂']) return;
+    var n = normalizeName_(s['姓名']);
+    if (!multi[n]) return;
+    (groups[n] = groups[n] || []).push({ id: s['報名ID'], date: s['日期'], duty: duties[s['勤務ID']] || '' });
+  });
+  return {
+    items: Object.keys(groups).sort().map(function (n) {
+      return { name: n, temples: multi[n], signups: groups[n].sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; }) };
+    })
+  };
+}
+
+/** body = { items: [{ id, temple }] }：把舊報名指給某個佛堂的那位 */
+function adminAssignSignupTemple_(body) {
+  var items = Array.isArray(body.items) ? body.items.filter(function (x) { return x && x.id && x.temple; }) : [];
+  if (!items.length) throw new ApiError_('BAD_REQUEST', '沒有要修改的報名');
+  if (items.length > 2000) throw new ApiError_('BAD_REQUEST', '一次最多 2000 筆');
+  var multi = sameNameTemples_();
+  return withSignupLock_(function () {
+    var rows = readTable_(SHEETS.SIGNUPS);
+    var done = 0;
+    var names = {};
+    items.forEach(function (x) {
+      var row = rows.filter(function (r) { return r['報名ID'] === x.id; })[0];
+      if (!row) return;
+      var n = normalizeName_(row['姓名']);
+      var temple = cleanText_(x.temple);
+      if (!multi[n] || multi[n].indexOf(temple) === -1) return; // 只能選成員名單上這個名字有的佛堂
+      updateRow_(SHEETS.SIGNUPS, row, { '佛堂': temple, '更新時間': nowString_() });
+      done++;
+      names[n + '（' + temple + '）'] = (names[n + '（' + temple + '）'] || 0) + 1;
+    });
+    if (done) writeDutyLog_('報名', '同名的舊紀錄補佛堂｜' + Object.keys(names).map(function (k) { return k + ' ' + names[k] + ' 筆'; }).join('、'));
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.SIGNUPS);
+    return { updated: done };
   });
 }

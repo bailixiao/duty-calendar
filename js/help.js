@@ -262,9 +262,11 @@
     const root = document.getElementById('view-help');
     root.innerHTML = `
       <h1 class="page-title">❓ 常見問題</h1>
+      <div data-tutorial></div>
       <p class="hint">打字搜尋，或點下面的分類。點問題就會打開答案 😊</p>
       <div data-help><p class="panel-empty">載入中⋯</p></div>
       <a class="btn btn-block back-bottom" href="#/">‹ 回行事曆</a>`;
+    if (window.Tutorial) Tutorial.mount(root.querySelector('[data-tutorial]'));
     const box = root.querySelector('[data-help]');
     try {
       if (!cache) cache = (await Api.getFaq()).items;

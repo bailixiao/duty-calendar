@@ -193,7 +193,7 @@
       ${AdminPage.staleNote(stale)}
       ${flash}
       ${pendingList.length ? `<div class="notice pending-banner" role="status"><p>🆕 <strong>有 ${pendingList.length} 位新成員待確認</strong>（報名時自動加入的新名字）</p>${memberState.filter === 'pending' ? '<p class="muted">確認每一位：沒問題按「保留」；其實是名單上的某人（寫法不同）按「合併到⋯」；打錯或不需要的按「刪除」。</p>' : '<button type="button" class="btn btn-primary" data-show-pending>查看待確認的人</button>'}</div>` : ''}
-      ${canEditPeople() ? '<div class="admin-actions"><button type="button" class="btn btn-primary" data-add>＋ 新增成員</button><button type="button" class="btn" data-from-signups>從出勤紀錄加入成員</button><button type="button" class="btn" data-import-members>📋 匯入成員資料</button></div>' : ''}
+      ${canEditPeople() ? '<div class="admin-actions"><button type="button" class="btn btn-primary" data-add>＋ 新增成員</button><button type="button" class="btn" data-from-signups>從出勤紀錄加入成員</button><button type="button" class="btn" data-import-members>📋 匯入成員資料</button><button type="button" class="btn" data-same-name>👥 同名的舊紀錄</button></div>' : ''}
       <div class="list-filter">
         <select class="input" data-filter aria-label="狀態">
           ${pendingList.length ? `<option value="pending"${memberState.filter === 'pending' ? ' selected' : ''}>🆕 待確認（${pendingList.length}）</option>` : ''}
@@ -317,6 +317,7 @@
       body.querySelector('[data-add]').addEventListener('click', () => editMember(null, data.groups, guard, reload));
       body.querySelector('[data-from-signups]').addEventListener('click', () => fromSignups(guard, reload));
       body.querySelector('[data-import-members]').addEventListener('click', () => importMembers(guard, reload));
+      body.querySelector('[data-same-name]').addEventListener('click', () => sameNameSignups(guard));
     }
     rows.addEventListener('click', (ev) => {
       const b = ev.target.closest('[data-row]');
@@ -393,6 +394,45 @@
    *   3. 新成員清單：依上面的選擇即時更新，勾選後加入
    * 送出時先把報名紀錄裡的舊寫法改成統一的名字（統計才不會算成兩個人），再加入成員。
    */
+  /** 同名的舊報名紀錄：佛堂系統上線前沒記佛堂，指給正確的那位 */
+  async function sameNameSignups(guard) {
+    Busy.show('讀取中⋯');
+    let data;
+    try { data = await Api.admin('adminSameNameSignups'); Busy.hide(); } catch (err) { Busy.hide(); if (guard(err)) return; alert(err.message || '讀取失敗'); return; }
+    const items = data.items || [];
+    const total = items.reduce((n, g) => n + g.signups.length, 0);
+    const opts = (temples) => '<option value="">（先不改）</option>' + temples.map((t) => `<option>${esc(t)}</option>`).join('');
+    const md = Modal.open(`
+      <h2 class="modal-title">👥 同名的舊紀錄</h2>
+      <p class="modal-note">${total ? `成員名單上有同名不同佛堂的人，這 ${total} 筆報名沒有記佛堂，次數會算在一起。每筆選是哪個佛堂的那位（不確定的先不改）。` : '目前沒有需要整理的同名舊紀錄 🙏'}</p>
+      <div class="same-name-list">${items.map((g, gi) => `
+        <div class="same-name-group"><h3>${esc(g.name)}<small class="muted">（${g.signups.length} 筆；${g.temples.map(esc).join('、')}）</small></h3>
+          <label class="same-name-row"><span>這個名字全部選：</span><select class="input" data-all="${gi}">${opts(g.temples)}</select></label>
+          ${g.signups.map((s) => `<label class="same-name-row"><span>${esc(Fmt.rocDate(s.date))}　${esc(s.duty)}</span><select class="input" data-sid="${esc(s.id)}" data-g="${gi}">${opts(g.temples)}</select></label>`).join('')}
+        </div>`).join('')}</div>
+      <div class="modal-actions">
+        ${total ? '<button type="button" class="btn btn-primary btn-block" data-save>儲存</button>' : ''}
+        <button type="button" class="btn btn-block" data-close>返回</button>
+      </div>`);
+    md.el.querySelector('[data-close]').addEventListener('click', () => md.close());
+    md.el.querySelectorAll('[data-all]').forEach((sel) => sel.addEventListener('change', () => {
+      md.el.querySelectorAll(`[data-g="${sel.dataset.all}"]`).forEach((x) => { x.value = sel.value; });
+    }));
+    const sv = md.el.querySelector('[data-save]');
+    if (sv) sv.addEventListener('click', async () => {
+      const list = [...md.el.querySelectorAll('[data-sid]')].filter((x) => x.value).map((x) => ({ id: x.dataset.sid, temple: x.value }));
+      if (!list.length) { md.close(); return; }
+      Busy.show('儲存中⋯');
+      try {
+        const res = await Api.admin('adminAssignSignupTemple', { items: list });
+        Busy.hide();
+        AdminPage.clearMemo();
+        md.close();
+        alert(`已更新 ${res.updated} 筆 ✓`);
+      } catch (err) { Busy.hide(); if (guard(err)) return; alert(err.message || '儲存失敗'); }
+    });
+  }
+
   async function fromSignups(guard, reload) {
     Busy.show('讀取出勤紀錄中⋯');
     let list;

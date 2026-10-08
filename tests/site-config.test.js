@@ -15,3 +15,13 @@ test('網站設定：前端和後端的團體名稱、場地、用詞、類別�
   });
   assert.ok(front.features && front.examples && front.eduTeacherClasses, '前端設定欄位齊全');
 });
+
+test('圖解教學：每一步都有圖片檔', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const T = require('../js/tutorial.js');
+  Object.keys(T.STEPS).forEach((n) => {
+    const files = T.DIFF.indexOf(n) !== -1 ? [`ios-${n}.jpg`, `android-${n}.jpg`] : [`${n}.jpg`];
+    files.forEach((f) => assert.ok(fs.existsSync(path.join(__dirname, '..', 'img', 'tutorial', f)), '少了 ' + f));
+  });
+});

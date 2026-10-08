@@ -147,7 +147,8 @@ function adminImportAttendance_(body) {
       });
       var entries = withMemberIdentity_(fresh.map(function (e) { return { name: e.name, identity: e.identity, accompany: false, temple: e.temple }; }));
       checkAmbiguous_(entries);
-      var bad = entries.filter(function (e) { return OPTIONS.identity.indexOf(e.identity) === -1; });
+      // 身分可以空白（成員名單還沒填的；統計時用成員名單上的身分），填了就要是正確的
+      var bad = entries.filter(function (e) { return e.identity && OPTIONS.identity.indexOf(e.identity) === -1; });
       if (bad.length) throw new ApiError_('VALIDATION', label + '（' + duty['名稱'] + ' ' + date + '）有人沒有身分', bad.map(function (e) { return { message: e.name + '：請填道親、壇辦或未求道' }; }));
       var now = nowString_();
       var rows = entries.map(function (e, k) {

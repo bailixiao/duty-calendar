@@ -55,6 +55,7 @@ export async function pushTest(gs, body) {
 /** 有勤務才送；送給所有啟用中的手機，失效的（404／410）自動停用 */
 export async function sendPushAll(gs, when) {
   if (!gs.pushItems_(when).items.length) return { sent: 0, skipped: 'no-duty' };
+  gs.ensureLeaderCodes_(when); // 有組長的勤務先產生點名碼（提醒裡附給組長）
   const PUSH = gs.SHEETS.PUSH;
   const eps = gs.dailyPushEndpoints_(when); // 填了「我是誰」的手機：沒報名也沒缺人就不送
   if (!eps.length) return { sent: 0 };

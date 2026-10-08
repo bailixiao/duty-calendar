@@ -189,3 +189,22 @@ test('同步停了：超過 45 分鐘通知開啟系統通知的總管理者手�
   assert.deepEqual(env.fn('checkSyncHealth_')(), { recovered: true });
   assert.deepEqual(take(), [ADMIN_EP]);
 });
+
+test('組長的前一天提醒：是明天勤務的組長，提醒附職稱、報名人數、點名碼', () => {
+  const OCT_12_EVENING = Date.UTC(2026, 9, 12, 12, 0, 0);
+  const env = createEnv(OCT_12_EVENING);
+  env.fn('ensurePushKeys_')();
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const A = 'https://fcm.googleapis.com/fcm/send/leader-device-1';
+  env.post({ action: 'pushSubscribe', endpoint: A });
+  env.post({ action: 'pushSetName', endpoint: A, name: '測試甲' });
+  const id = env.post({ action: 'adminCreateDuties', token, duties: [{ name: '測試長青班勤務', start: '2026-10-13', leaderTitle: '勤務組長', positions: [{ name: '淨手', max: '5' }] }] }).data.ids[0];
+  const d = env.get({ action: 'getDuty', id }).data;
+  env.post({ action: 'signup', dutyId: id, positionId: d.positions[0].id, dates: ['2026-10-13'], entries: [{ name: '測試甲', identity: '道親', leader: true }, { name: '測試乙', identity: '道親' }] });
+  assert.equal(env.fn('ensureLeaderCodes_')('tomorrow'), 1);
+  const s = env.get({ action: 'pushSummary', id: env.fn('pushIdOf_')(A) }).data;
+  const lead = s.mine.find((m) => m.leader);
+  assert.equal(lead.leader, '勤務組長');
+  assert.equal(lead.people, 2);
+  assert.match(lead.code, /^\d{4}$/);
+});

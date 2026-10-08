@@ -67,7 +67,7 @@
     const item = (m, isYes) => {
       const a = act(m);
       const tip = `近一年出席 ${a.count} 次（勤務 ${a.勤務}、道務 ${a.道務}、教育 ${a.教育}）`;
-      const label = `${esc(m.name)}${a.count ? `<small class="veg-n">${a.count}</small>` : ''}`;
+      const label = `${m.careNote ? '<span class="veg-note" title="有成全紀錄">📝</span>' : ''}${esc(m.name)}${a.count ? `<small class="veg-n">${a.count}</small>` : ''}`;
       return `<li><button type="button" class="veg-chip${isYes ? ' is-yes' : ''}" data-veg="${m.row}" title="${tip}">${label}</button></li>`;
     };
     // 可成全清口：還沒清口、近一年出席 MIN 次以上；其餘的是「還沒清口」
@@ -85,9 +85,12 @@
         <div><h4>⬜ 還沒清口（${rest.length}）</h4>${block('no', rest, false, no.length ? '都在上面了' : '都清口了 🙏')}</div>
       </div>
       <div class="admin-actions no-print"><button type="button" class="btn" data-veg-copy>複製清口名單</button></div>
+      ${noIdentityHtml()}
       <p class="hint">名字右邊的小字是近一年出席次數（勤務＋道務＋教育），同一佛堂裡常來的排前面，方便找穩定的道親成全清口。點名字可以看這位參加了哪些勤務、課程、法會${st.canEdit ? '，最下面按「已成全清口」才會改，會記在成員名單' : ''}。按上面的「已清口 N 位」可以看已清口的名單。道親的身分在「成員」頁設定；名單上沒有的人（例如待確認）不會列在這裡。</p>`;
     const qi = st.vegBox.querySelector('[data-veg-q]');
     if (qi) qi.addEventListener('input', () => { st.q = qi.value; drawVeg(); const n = st.vegBox.querySelector('[data-veg-q]'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); });
+    const fi = st.vegBox.querySelector('[data-fill-identity]');
+    if (fi) fi.addEventListener('click', fillIdentity);
     st.vegBox.querySelector('[data-veg-yes]').addEventListener('click', () => { st.vegShowYes = !st.vegShowYes; drawVeg(); });
     st.vegBox.querySelectorAll('[data-veg-all]').forEach((b) => b.addEventListener('click', () => { st.vegAll[b.dataset.vegAll] = !st.vegAll[b.dataset.vegAll]; drawVeg(); }));
     st.vegBox.querySelectorAll('[data-veg]').forEach((b) => b.addEventListener('click', () => vegDetail(st.members.find((x) => x.row === Number(b.dataset.veg)))));
@@ -115,6 +118,8 @@
       <div class="veg-detail">
         <p class="veg-detail-sum">近一年出席 <strong>${a.count}</strong> 次${a.last ? `<span class="muted">（最近一次 ${esc(Fmt.rocDate(a.last))}）</span>` : ''}</p>
         <ul class="veg-detail-cats">${['勤務', '道務', '教育'].map((k) => `<li><span>${CAT_NAME[k]}</span><strong>${a[k]}</strong></li>`).join('')}</ul>
+        <h3 class="veg-detail-h">📝 成全紀錄</h3>
+        ${st.canEdit ? `<textarea class="input textarea veg-care" rows="3" maxlength="300" data-care placeholder="例：10/8 已和她談過，由某某負責成全">${esc(m.careNote || '')}</textarea><button type="button" class="btn btn-small" data-care-save>存紀錄</button>` : `<p>${m.careNote ? esc(m.careNote) : '<span class="muted">還沒有紀錄</span>'}</p>`}
         ${items.length ? `<h3 class="veg-detail-h">參加過的項目</h3><ul class="veg-detail-items">${items.map(([, v]) => `<li><span>${esc(v.name)}<small>${esc(CAT_NAME[v.category] || v.category)}</small></span><strong>${v.count} 次</strong></li>`).join('')}</ul>` : '<p class="muted">近一年沒有出席紀錄</p>'}
       </div>
       <div class="modal-actions">
@@ -124,10 +129,47 @@
         <button type="button" class="btn btn-block" data-close>返回</button>
       </div>`);
     md.el.querySelector('[data-close]').addEventListener('click', () => md.close());
+    const cs = md.el.querySelector('[data-care-save]');
+    if (cs) cs.addEventListener('click', () => {
+      md.close();
+      save([{ row: m.row, original: m.name, careNote: md.el.querySelector('[data-care]').value }]);
+    });
     const set = md.el.querySelector('[data-set]');
     if (set) set.addEventListener('click', () => {
       md.close();
       save([{ row: m.row, original: m.name, vegetarian: set.dataset.set === '1' }]);
+    });
+  }
+
+  /** 沒填身分的成員（不會列在清口名單）＋「一次補身分」 */
+  function noIdentityHtml() {
+    const n = active().filter((m) => !m.identity).length;
+    if (!n) return '';
+    return `<p class="notice">還有 <strong>${n} 位</strong>成員沒填身分（不會列在清口名單）。${st.canEdit ? '<button type="button" class="btn btn-small" data-fill-identity>一次補身分</button>' : ''}</p>`;
+  }
+
+  function fillIdentity() {
+    const list = active().filter((m) => !m.identity).sort((a, b) => Fmt.byStroke(a.name, b.name));
+    const IDS = ['道親', '壇辦', '未求道', '點傳師'];
+    const m = Modal.open(`
+      <h2 class="modal-title">👤 補身分</h2>
+      <p class="modal-note">每位選一個身分，不知道的不用選。</p>
+      <div class="id-fill-list">${list.map((x) => `
+        <div class="id-fill-row"><span>${esc(x.name)}<small>${esc(x.overseas || x.temple || '未填佛堂')}</small></span>
+          <div class="id-fill-opts">${IDS.map((id) => `<label class="id-opt"><input type="radio" name="id-${x.row}" value="${id}" data-id-row="${x.row}"><span>${id}</span></label>`).join('')}</div>
+        </div>`).join('')}</div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-primary btn-block" data-id-save>儲存</button>
+        <button type="button" class="btn btn-block" data-close>返回</button>
+      </div>`);
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    m.el.querySelector('[data-id-save]').addEventListener('click', () => {
+      const items = [...m.el.querySelectorAll('[data-id-row]:checked')].map((i) => {
+        const mem = st.members.find((x) => x.row === Number(i.dataset.idRow));
+        return { row: mem.row, original: mem.name, identity: i.value };
+      });
+      m.close();
+      if (items.length) save(items);
     });
   }
 

@@ -22,7 +22,7 @@ test('成員：新增、修改、停用；重複姓名與不存在的組被擋�
   let list = call('adminMembers').data;
   assert.equal(list.members.length, 1);
   assert.deepEqual(list.members[0], {
-    row: 2, name: '測試甲', identity: '道親', note: '', active: true, pending: false, vegetarian: false, birthYear: '', age: '', temple: '', aliases: [], overseas: '',
+    row: 2, name: '測試甲', identity: '道親', note: '', active: true, pending: false, vegetarian: false, birthYear: '', age: '', temple: '', aliases: [], overseas: '', careNote: '',
     groups: { '勤務了愿組': '', '打掃組': '第1組', '拜香輪值組': '' }
   });
   assert.ok(list.groups.length > 0);
@@ -288,4 +288,30 @@ test('匯入成員資料：依名字或別名補佛堂、出生年；找不到�
   const after = call('adminMembers').data.members;
   const b2 = after.find((m) => m.name === '測試乙');
   assert.deepEqual([b2.vegetarian, b2.overseas, b2.temple], [true, '陸', '測試佛堂B'], '可以匯入清口、國外，佛堂不變');
+});
+
+test('一次補身分、成全紀錄；同名的舊報名紀錄可以指給正確的佛堂', () => {
+  const { env, call } = setup();
+  call('adminSaveMember', { member: { name: '測試甲' } });
+  call('adminSaveMember', { member: { name: '測試丙', temple: '測試佛堂A' } });
+  call('adminSaveMember', { member: { name: '測試丙', temple: '測試佛堂B' } });
+  let a = call('adminMembers').data.members.find((m) => m.name === '測試甲');
+  const r = call('adminSetMemberExtra', { items: [{ row: a.row, original: '測試甲', identity: '道親', careNote: '已和他談過' }] });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  a = r.data.members.find((m) => m.name === '測試甲');
+  assert.deepEqual([a.identity, a.careNote], ['道親', '已和他談過']);
+  assert.equal(call('adminSetMemberExtra', { items: [{ row: a.row, original: '測試甲', identity: '外星人' }] }).error.code, 'VALIDATION');
+  // 沒記佛堂的舊報名（同名不同佛堂）
+  const ev = env.get({ action: 'getEvents', from: '2026-10-13', to: '2026-10-13' }).data.duties.find((d) => d.mode !== '公告型');
+  const s = env.post({ action: 'signup', dutyId: ev.id, positionId: ev.positions[0].id, dates: ['2026-10-13'], entries: [{ name: '測試丙', identity: '道親', temple: '測試佛堂A' }] });
+  assert.equal(s.ok, true, JSON.stringify(s.error));
+  const sid = s.data.created[0].id;
+  const SG = env.fn('SHEETS').SIGNUPS;
+  env.fn('updateRow_')(SG, env.fn('readTable_')(SG).find((x) => x['報名ID'] === sid), { '佛堂': '' }); // 模擬舊資料（沒記佛堂）
+  env.fn('invalidateTable_')(SG);
+  const list = call('adminSameNameSignups').data.items;
+  assert.deepEqual(list.map((g) => [g.name, g.signups.length]), [['測試丙', 1]]);
+  assert.equal(call('adminAssignSignupTemple', { items: [{ id: sid, temple: '別的佛堂' }] }).data.updated, 0, '只能選成員名單上有的佛堂');
+  assert.equal(call('adminAssignSignupTemple', { items: [{ id: sid, temple: '測試佛堂B' }] }).data.updated, 1);
+  assert.deepEqual(call('adminSameNameSignups').data.items, []);
 });

@@ -140,6 +140,16 @@ async function buildNotification() {
     // 填了「我是誰」的手機：只列他報名的，另外附缺人數
     if (Array.isArray(d.mine)) {
       const short = d.shortItems || [];
+      // 組長：標題寫是哪個勤務的組長，點開到點名頁
+      const lead = d.mine.find((it) => it.leader);
+      if (lead) {
+        const lines = [`⏰ ${lead.time || '時間見勤務頁'}${lead.location ? '　📍' + lead.location : ''}`, `🙋 目前報名 ${lead.people} 位`];
+        if (lead.code) lines.push(`📋 點名碼：${lead.code}（點開就能點名）`);
+        const others = d.mine.filter((it) => it !== lead);
+        if (others.length) lines.push(`另外還有 ${others.length} 個您報名的勤務`);
+        lines.push('感恩您承擔 🙏');
+        return { title: `★ ${day}您是「${lead.name}」的${lead.leader}（${p[1]}/${p[2]} ${wd}）`, body: lines.join('\n'), url: `#/rollcall/${encodeURIComponent(lead.id)}?date=${d.date}` };
+      }
       if (d.mine.length) {
         const lines = d.mine.slice(0, 4).map((it) => `${dutyEmoji(it)} ${it.time ? it.time + ' ' : ''}${it.name}${it.position ? '・' + it.position : ''}${it.location ? '（📍' + it.location + '）' : ''}`);
         if (short.length) lines.push(`🙋 另外還有 ${short.length} 個勤務缺人，點我看看`);

@@ -16,6 +16,20 @@ function statsEvents_() {
   var byKey = {};
   var order = [];
   var multiTemple = statsMultiTempleNames_();
+  // 報名沒有身分（例：匯入的舊出勤）：用成員名單上目前的身分（同名只有一位時）
+  var memberIdentity = {};
+  var memberCount = {};
+  readTableCached_(SHEETS.MEMBERS).forEach(function (m) {
+    if (!m['姓名'] || m['待確認'] === '是') return;
+    var n = normalizeName_(m['姓名']);
+    memberCount[n] = (memberCount[n] || 0) + 1;
+    if (m['身分']) memberIdentity[n] = m['身分'];
+  });
+  var identityOf = function (s) {
+    if (s['身分']) return s['身分'];
+    var n = normalizeName_(s['姓名']);
+    return memberCount[n] === 1 ? memberIdentity[n] || '' : '';
+  };
   readTableCached_(SHEETS.SIGNUPS).forEach(function (s) {
     if (s['狀態'] === '已取消' || !s['日期'] || s['日期'] > today) return;
     var duty = duties[s['勤務ID']];
@@ -36,8 +50,8 @@ function statsEvents_() {
     if (counted && s['出席'] !== '未到') return;
     if (s['出席'] === '未到') { ev.absent++; if (ev.absentNames.indexOf(name) === -1) ev.absentNames.push(name); }
     else if (s['陪同'] === '是') ev.accompany.push(name);
-    else if (s['身分'] === '壇辦' || s['身分'] === '點傳師') ev.tan.push(name); // 點傳師算在壇辦那邊
-    else if (s['身分'] === '道親' || s['身分'] === '未求道') ev.dao.push(name); // 未求道算進道親
+    else if (identityOf(s) === '壇辦' || identityOf(s) === '點傳師') ev.tan.push(name); // 點傳師算在壇辦那邊
+    else if (identityOf(s) === '道親' || identityOf(s) === '未求道') ev.dao.push(name); // 未求道算進道親
     else ev.unknown.push(name);
   });
   var signupsByDuty = groupBy_(readTableCached_(SHEETS.SIGNUPS).filter(function (s) { return s['狀態'] !== '已取消'; }), '勤務ID');

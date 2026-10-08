@@ -258,8 +258,18 @@ function pushMine_(name, date) {
     .map(function (s) {
       var d = duties[s['勤務ID']];
       var p = positions[s['了愿項目ID']];
-      return { id: d['勤務ID'], name: d['名稱'], position: p ? p['了愿項目名稱'] : '', time: d['開始時間'] || '', location: d['地點'] || '' };
+      var item = { id: d['勤務ID'], name: d['名稱'], position: p ? p['了愿項目名稱'] : '', time: d['開始時間'] || '', location: d['地點'] || '' };
+      // 組長：附上職稱、目前報名幾位、點名碼（點名碼在送出前產生，見 ensureLeaderCodes_）
+      if (s['組長'] === '是' && d['組長職稱']) {
+        var people = {};
+        activeSignups_().forEach(function (x) { if (x['勤務ID'] === d['勤務ID'] && x['日期'] === date && x['陪同'] !== '是') people[normalizeName_(x['姓名']) + '|' + (x['佛堂'] || '')] = true; });
+        item.leader = d['組長職稱'];
+        item.people = Object.keys(people).length;
+        item.code = rollcallCode_(d['勤務ID'], date, false);
+      }
+      return item;
     })
+    .filter(function (it, i, arr) { return !it.leader || arr.findIndex(function (o) { return o.id === it.id && o.leader; }) === i; })
     .sort(function (a, b) { return (a.time || '99').localeCompare(b.time || '99'); });
 }
 
@@ -317,8 +327,22 @@ function sendPushToday() { sendPushAll_('today'); }
 function sendPushTomorrow() { sendPushAll_('tomorrow'); }
 
 /** 有勤務才送；送給所有啟用中的手機，失效的（404／410）自動停用 */
+/** 送每日提醒前：那天有組長的勤務先產生點名碼（提醒裡附給組長） */
+function ensureLeaderCodes_(when) {
+  var date = pushItems_(when).date;
+  var need = {};
+  var duties = {};
+  readTableCached_(SHEETS.DUTIES).forEach(function (d) { duties[d['勤務ID']] = d; });
+  activeSignups_().forEach(function (s) { if (s['日期'] === date && s['組長'] === '是' && duties[s['勤務ID']] && duties[s['勤務ID']]['組長職稱']) need[s['勤務ID']] = true; });
+  var ids = Object.keys(need);
+  if (!ids.length) return 0;
+  withSignupLock_(function () { ids.forEach(function (id) { rollcallCode_(id, date, true); }); });
+  return ids.length;
+}
+
 function sendPushAll_(when) {
   if (!pushItems_(when).items.length) return { sent: 0, skipped: 'no-duty' };
+  ensureLeaderCodes_(when);
   var eps = dailyPushEndpoints_(when);
   if (!eps.length) return { sent: 0 };
   var results = sendPushTo_(eps);
