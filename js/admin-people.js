@@ -60,7 +60,7 @@
   function importMembers(guard, reload) {
     const md = Modal.open(`
       <h2 class="modal-title">📋 匯入成員資料</h2>
-      <p class="modal-note">貼上整理好的資料（Claude 整理的文字），會依名字（或別名）幫成員補上佛堂、年齡、身分、清口；只更新有給的欄位，不會清掉原本的資料。</p>
+      <p class="modal-note">貼上整理好的資料（Claude 整理的文字），會依名字（或別名）幫成員補上佛堂、年齡、身分；只更新有給的欄位，不會清掉原本的資料。</p>
       <textarea class="input day-text" rows="7" data-text placeholder='{"type":"成員資料","items":[...]}'></textarea>
       <label class="check"><input type="checkbox" data-add> 名單上找不到的，直接新增成員</label>
       <div data-out></div>
