@@ -42,6 +42,19 @@
     return span;
   }
 
+  const COUNT_KEYS = ['壇辦', '清口', '道親', '未求道'];
+
+  /** 成員名單上某個佛堂的人數：{ 壇辦, 清口, 道親, 未求道 }（只算啟用中、非待確認） */
+  function memberCounts(members, temple) {
+    const out = { 壇辦: 0, 清口: 0, 道親: 0, 未求道: 0 };
+    (members || []).forEach((m) => {
+      if (!m.active || m.pending || (m.temple || '') !== temple) return;
+      if (out[m.identity] !== undefined) out[m.identity] += 1;
+      if (m.vegetarian) out['清口'] += 1;
+    });
+    return out;
+  }
+
   // 卡片或表格：記住這台裝置選的；沒選過的話手機用卡片、電腦用表格
   const MODE_KEY = 'duty-calendar:goal-mode';
   function mode() {
@@ -55,11 +68,15 @@
     let data = null;
     let editing = null; // 編輯中的複本
     let flash = '';
+    let members = null; // 成員名單（算各佛堂人數、一次填佛堂）
+    let temples = [];
 
     async function load() {
       el.innerHTML = '<p class="muted">載入各佛堂道務目標中⋯</p>';
       try {
-        data = await Api.admin('adminGoals', { year });
+        const [g, mem] = await Promise.all([Api.admin('adminGoals', { year }), Api.admin('adminMembers', {}, true).catch(() => null)]);
+        data = g;
+        if (mem) { members = mem.members; temples = mem.temples || []; }
         draw();
       } catch (err) {
         if (opts.guard && opts.guard(err)) return;
@@ -122,6 +139,7 @@
           <li class="goal-card">
             <div class="gc-head"><strong>${esc(r.name)}</strong>${r.vow ? `<span class="gc-vow">立愿：${esc(r.vow)}</span>` : ''}</div>
             ${lines ? `<ul class="gc-lines">${lines}</ul>` : '<p class="muted gc-empty">今年沒有目標</p>'}
+            ${members ? `<p class="gc-members">${COUNT_KEYS.map((k) => `<span>${k} <strong>${memberCounts(members, r.name)[k]}</strong></span>`).join('')}</p>` : ''}
           </li>`;
       }).join('');
 
@@ -155,7 +173,7 @@
         <div class="goal-wrap goal-view-wrap"${mode() === 'table' ? '' : ' hidden'}>
           <table class="goal-table goal-view">
             <thead>
-              <tr><th class="goal-sticky">佛堂</th>${items.map((k) => `<th>${esc(k)}</th>`).join('')}<th>立愿</th></tr>
+              <tr><th class="goal-sticky">佛堂</th>${items.map((k) => `<th>${esc(k)}</th>`).join('')}<th>立愿</th>${members ? COUNT_KEYS.map((k) => `<th class="goal-mc">${k}</th>`).join('') : ''}</tr>
             </thead>
             <tbody>${rows.map((r, i) => `
               <tr>
@@ -167,16 +185,18 @@
                   return `<td${rs} class="goal-cell${sc.cls}">${sc.html}</td>`;
                 }).join('')}
                 <td class="goal-vow">${esc(r.vow)}</td>
+                ${members ? COUNT_KEYS.map((k) => `<td class="goal-mc">${memberCounts(members, r.name)[k]}</td>`).join('') : ''}
               </tr>`).join('')}</tbody>
             <tfoot>
               <tr><th class="goal-sticky">總計</th>${items.map((k) => {
                 const sc = showCell({ target: tot[k].target === null ? '' : tot[k].target, current: tot[k].current });
                 return `<td class="goal-cell${sc.cls}">${sc.html}</td>`;
-              }).join('')}<td></td></tr>
-              <tr><th class="goal-sticky">達成率</th>${items.map((k) => `<td class="${tot[k].rate !== null && tot[k].rate >= 1 ? 'is-done' : ''}">${pct(tot[k].rate)}</td>`).join('')}<td></td></tr>
+              }).join('')}<td></td>${members ? COUNT_KEYS.map((k) => `<td class="goal-mc">${rows.reduce((a, r) => a + memberCounts(members, r.name)[k], 0)}</td>`).join('') : ''}</tr>
+              <tr><th class="goal-sticky">達成率</th>${items.map((k) => `<td class="${tot[k].rate !== null && tot[k].rate >= 1 ? 'is-done' : ''}">${pct(tot[k].rate)}</td>`).join('')}<td></td>${members ? COUNT_KEYS.map(() => '<td></td>').join('') : ''}</tr>
             </tfoot>
           </table>
-        </div>`}
+        </div>
+        ${members ? templeNote() : ''}`}
         ${editing ? `
           <div class="admin-actions no-print">
             <button type="button" class="btn" data-add>＋ 新增佛堂</button>
@@ -194,8 +214,57 @@
       bind();
     }
 
+    /** 成員人數的說明與「一次填佛堂」 */
+    function templeNote() {
+      const no = members.filter((m) => m.active && !m.pending && !m.temple).length;
+      return `<p class="hint gc-members-hint">卡片下方是成員名單上這個佛堂的人數（啟用中；清口＝已清口的人）。${no ? `還有 <strong>${no} 位</strong>成員沒有填佛堂，不會算進去。` : ''}
+        ${canEdit ? '<button type="button" class="btn btn-small no-print" data-fill-temple>一次填佛堂</button>' : ''}</p>`;
+    }
+
+    function fillTemples() {
+      const all = members.filter((m) => m.active && !m.pending).sort((a, b) => Fmt.byStroke(a.name, b.name));
+      const optionsOf = (cur) => ['<option value="">（還沒填）</option>'].concat(temples.concat(cur && temples.indexOf(cur) === -1 ? [cur] : [])
+        .map((t) => `<option value="${esc(t)}"${t === cur ? ' selected' : ''}>${esc(t)}</option>`)).join('');
+      const md = Modal.open(`
+        <h2 class="modal-title">🏠 一次填佛堂</h2>
+        <p class="modal-note">每位成員選所屬的佛堂，不知道的留「還沒填」。佛堂選項是各佛堂道務目標上的佛堂。</p>
+        <label class="check"><input type="checkbox" data-show-all> 也顯示已填的（一起改）</label>
+        <div class="age-fill-list">${all.map((x) => `<label class="age-fill-row temple-fill-row" data-filled="${x.temple ? '1' : ''}"${x.temple ? ' hidden' : ''}><span>${esc(x.name)}<small>${esc(x.identity || '未填身分')}</small></span><select class="input" data-temple-row="${x.row}">${optionsOf(x.temple)}</select></label>`).join('')}</div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-primary btn-block" data-temple-save>儲存</button>
+          <button type="button" class="btn btn-block" data-close>返回</button>
+        </div>`);
+      md.el.querySelector('[data-close]').addEventListener('click', () => md.close());
+      md.el.querySelector('[data-show-all]').addEventListener('change', (ev) => {
+        md.el.querySelectorAll('[data-filled="1"]').forEach((r) => { r.hidden = !ev.target.checked; });
+      });
+      md.el.querySelector('[data-temple-save]').addEventListener('click', async () => {
+        const items = [...md.el.querySelectorAll('[data-temple-row]')].map((s) => {
+          const m = members.find((x) => x.row === Number(s.dataset.templeRow));
+          return m && s.value !== (m.temple || '') ? { row: m.row, original: m.name, temple: s.value } : null;
+        }).filter(Boolean);
+        md.close();
+        if (!items.length) return;
+        Busy.show('儲存中⋯');
+        try {
+          const res = await Api.admin('adminSetMemberExtra', { items });
+          Busy.hide();
+          members = res.members;
+          temples = res.temples || temples;
+          AdminPage.clearMemo();
+          flash = `<div class="notice notice-success" role="status">已更新 ${items.length} 位成員的佛堂 ✓</div>`;
+          draw();
+        } catch (err) {
+          Busy.hide();
+          if (opts.guard && opts.guard(err)) return;
+          alert((err.message || '儲存失敗') + (err.details ? '\n' + err.details.map((d) => d.message).join('\n') : ''));
+        }
+      });
+    }
+
     function bind() {
       el.querySelectorAll('input[name=goalMode]').forEach((r) => r.addEventListener('change', () => { setMode(r.value); draw(); }));
+      if (el.querySelector('[data-fill-temple]')) el.querySelector('[data-fill-temple]').addEventListener('click', fillTemples);
       const q = (sel) => el.querySelector(sel);
       if (q('[data-edit]')) q('[data-edit]').addEventListener('click', () => { flash = ''; editing = JSON.parse(JSON.stringify(data.rows)); draw(); });
       if (!editing) return;
@@ -268,7 +337,7 @@
     load();
   }
 
-  const api = { mount, totals, groupSpans };
+  const api = { mount, totals, groupSpans, memberCounts };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.GoalsPage = api;
 })();

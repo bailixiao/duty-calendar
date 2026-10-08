@@ -475,7 +475,7 @@
 
   const CATEGORIES = ['勤務', '道務', '教育'];
   // 每個類別可選的性質（與 apps-script/DutyRules.gs 的 NATURES_BY_CATEGORY_ 相同）
-  const NATURES_BY_CAT = { 勤務: ['勤務', '支援', '烹飪', '活動'], 道務: ['法會', '課程'], 教育: ['課程', '活動'] };
+  const NATURES_BY_CAT = { 勤務: ['勤務', '支援', '烹飪', '活動'], 道務: ['法會', '課程', '會議'], 教育: ['課程', '活動'] };
   // 道務、教育是自由參加的法會、課程、活動：沒有負責組、沒有了愿項目，只有名額（不限／限幾人）
   const isSimple = (cat) => cat === '道務' || cat === '教育';
   const DM_MAX = 5;

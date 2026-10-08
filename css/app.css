@@ -1938,6 +1938,11 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 .gc-line.is-done .gc-num { color: var(--ok); font-weight: 800; }
 .gc-num strong { font-size: 1.1875rem; }
 .gc-note { grid-template-columns: 5em 1fr; color: var(--muted); font-size: 0.9375rem; }
+.gc-members { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 10px 0 0; padding-top: 8px; border-top: 1px dashed var(--line); font-size: 0.9375rem; color: var(--ink-2); }
+.gc-members strong { color: var(--ink); font-size: 1.0625rem; }
+.goal-table .goal-mc { background: #f7f5ef; font-size: 0.9375rem; }
+.goal-table thead .goal-mc { background: #e9efe4; color: #3d5a2e; }
+.gc-members-hint .btn { margin-left: 6px; }
 .gc-empty { margin: 0; }
 @media (min-width: 720px) { .goal-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
@@ -2194,15 +2199,18 @@ body.splash-on .text-size-btn { visibility: hidden; }
 .repair-warn { background: #fff4f2; }
 .repair-admin { margin-top: 18px; }
 /* ---------- 清口、年齡（member-stats.js） ---------- */
-.veg-summary { display: grid; gap: 6px; margin: 6px 0 10px; font-size: 1.05rem; }
-.veg-bar { display: block; height: 12px; border-radius: 999px; background: var(--paper-2); overflow: hidden; }
+.veg-summary { margin: 6px 0 10px; font-size: 1.05rem; }
+.veg-bar { display: block; margin-top: 6px; height: 12px; border-radius: 999px; background: var(--paper-2); overflow: hidden; }
 .veg-bar span { display: block; height: 100%; background: var(--ok); }
 .veg-q { margin-bottom: 8px; }
-.veg-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; }
+.veg-cols { display: grid; gap: 12px; }
 .veg-cols h4 { margin: 4px 0 6px; }
-.veg-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
-.veg-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
-.veg-list .link-btn { font-size: .88rem; }
+.veg-list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.veg-chip { display: inline-block; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: inherit; font: inherit; font-size: .95rem; line-height: 1.4; }
+button.veg-chip { cursor: pointer; }
+button.veg-chip:hover { border-color: var(--ok); }
+.veg-chip.is-yes { background: color-mix(in srgb, var(--ok) 14%, var(--card)); border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
+.veg-empty { padding: 4px 0; }
 .age-table td, .age-table th { text-align: center; }
 .age-band-title { margin: 12px 0 6px; }
 .age-bands { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 14px; }

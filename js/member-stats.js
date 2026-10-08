@@ -41,18 +41,20 @@
     const q = st.q.replace(/[\s　]+/g, '');
     const show = (list) => (q ? list.filter((m) => m.name.indexOf(q) !== -1) : list);
     const pct = dao.length ? Math.round((yes.length / dao.length) * 100) : 0;
-    const item = (m, isYes) => `<li><span>${esc(m.name)}</span>${st.canEdit ? `<button type="button" class="link-btn" data-veg="${m.row}" data-v="${isYes ? '0' : '1'}">${isYes ? '改成還沒清口' : '改成已清口'}</button>` : ''}</li>`;
+    const item = (m, isYes) => (st.canEdit
+      ? `<li><button type="button" class="veg-chip${isYes ? ' is-yes' : ''}" data-veg="${m.row}" data-v="${isYes ? '0' : '1'}" title="${isYes ? '改成還沒清口' : '改成已清口'}">${esc(m.name)}</button></li>`
+      : `<li><span class="veg-chip${isYes ? ' is-yes' : ''}">${esc(m.name)}</span></li>`);
     st.vegBox.innerHTML = `
       <h3 class="admin-sub">🥬 道親清口<span class="h2-sub">成員名單上的道親</span></h3>
       <div class="veg-summary"><strong>已清口 ${yes.length} 位</strong>／道親 ${dao.length} 位（${pct}%）
         <span class="veg-bar"><span style="width:${pct}%"></span></span></div>
       ${dao.length > 8 ? `<input class="input veg-q" type="search" data-veg-q placeholder="🔍 找名字" value="${esc(st.q)}">` : ''}
       <div class="veg-cols">
-        <div><h4>✅ 已清口（${yes.length}）</h4><ul class="veg-list">${show(yes).map((m) => item(m, true)).join('') || '<li class="muted">還沒有</li>'}</ul></div>
-        <div><h4>⬜ 還沒清口（${no.length}）</h4><ul class="veg-list">${show(no).map((m) => item(m, false)).join('') || '<li class="muted">都清口了 🙏</li>'}</ul></div>
+        <div><h4>✅ 已清口（${yes.length}）</h4><ul class="veg-list">${show(yes).map((m) => item(m, true)).join('') || '<li class="muted veg-empty">還沒有</li>'}</ul></div>
+        <div><h4>⬜ 還沒清口（${no.length}）</h4><ul class="veg-list">${show(no).map((m) => item(m, false)).join('') || '<li class="muted veg-empty">都清口了 🙏</li>'}</ul></div>
       </div>
       <div class="admin-actions no-print"><button type="button" class="btn" data-veg-copy>複製清口名單</button></div>
-      <p class="hint">${st.canEdit ? '按名字旁的按鈕就能改，會記在成員名單。' : ''}道親的身分在「成員」頁設定；名單上沒有的人（例如待確認）不會列在這裡。</p>`;
+      <p class="hint">${st.canEdit ? '點名字就能在「已清口／還沒清口」之間切換，會記在成員名單。' : ''}道親的身分在「成員」頁設定；名單上沒有的人（例如待確認）不會列在這裡。</p>`;
     const qi = st.vegBox.querySelector('[data-veg-q]');
     if (qi) qi.addEventListener('input', () => { st.q = qi.value; drawVeg(); const n = st.vegBox.querySelector('[data-veg-q]'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); });
     st.vegBox.querySelectorAll('[data-veg]').forEach((b) => b.addEventListener('click', () => {

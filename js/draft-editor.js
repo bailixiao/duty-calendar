@@ -9,7 +9,7 @@
   const NATURES = ['勤務', '支援', '烹飪', '活動'];
   // 類別與各類別的性質（同 apps-script/DutyRules.gs 的 NATURES_BY_CATEGORY_）；道務、教育沒有了愿項目，只有一個「參加」
   const CATEGORIES = ['勤務', '道務', '教育'];
-  const NATURES_BY_CAT = { 勤務: NATURES, 道務: ['法會', '課程'], 教育: ['課程', '活動'] };
+  const NATURES_BY_CAT = { 勤務: NATURES, 道務: ['法會', '課程', '會議'], 教育: ['課程', '活動'] };
   const isSimple = (c) => c === '道務' || c === '教育';
 
   // ---------- 農曆 → 國曆 ----------

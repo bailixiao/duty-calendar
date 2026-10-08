@@ -134,10 +134,10 @@
 
   /**
    * 年齡統計（成員名單）：members = [{ identity, age }]（age 空白＝沒填）。
-   * 回傳 [{ group, total, withAge, avg, median, min, max, bands: [{ label, count }] }]，group 依序：點傳師、壇辦、道親、未求道、全部（沒有人的身分不列）。
+   * 回傳 [{ group, total, withAge, avg, median, min, max, bands: [{ label, count }] }]，group 依序：壇辦、道親、未求道、全部（沒有人的身分不列；點傳師不算，全部也不含）。
    */
   function ageStats(members) {
-    const groups = ['點傳師', '壇辦', '道親', '未求道'];
+    const groups = ['壇辦', '道親', '未求道'];
     const one = (group, list) => {
       const ages = list.filter((m) => m.age !== '' && m.age !== null && m.age !== undefined).map((m) => Number(m.age)).filter((a) => m0(a)).sort((a, b) => a - b);
       const n = ages.length;
@@ -151,7 +151,7 @@
     };
     const m0 = (a) => typeof a === 'number' && !isNaN(a) && a >= 0 && a <= 120;
     return groups.map((g) => one(g, members.filter((m) => m.identity === g))).filter((r) => r.total)
-      .concat([one('全部', members)]);
+      .concat([one('全部', members.filter((m) => m.identity !== '點傳師'))]);
   }
 
   /** 依勤務分類（同名勤務合併，例如各月的拜香輪值） */

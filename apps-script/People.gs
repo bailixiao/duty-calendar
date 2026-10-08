@@ -449,7 +449,7 @@ function birthYearOf_(age) {
  */
 function adminSetMemberExtra_(body) {
   var role = ADMIN_SESSION_.role;
-  if (role !== SUPER_ACCOUNT && role !== '道務') throw new ApiError_('FORBIDDEN', '只有總管理者、道務帳號能改清口和年齡');
+  if (role !== SUPER_ACCOUNT && role !== '道務') throw new ApiError_('FORBIDDEN', '只有總管理者、道務帳號能改清口、年齡和佛堂');
   var items = Array.isArray(body.items) ? body.items : [];
   if (!items.length) throw new ApiError_('BAD_REQUEST', '沒有要修改的成員');
   var bad = items.filter(function (x) { return x.age !== undefined && birthYearOf_(x.age) === null; });
@@ -462,9 +462,10 @@ function adminSetMemberExtra_(body) {
       var ch = {};
       if (x.vegetarian !== undefined) ch['清口'] = x.vegetarian ? '是' : '';
       if (x.age !== undefined) ch['出生年'] = birthYearOf_(x.age);
+      if (x.temple !== undefined) ch['佛堂'] = cleanText_(x.temple).slice(0, 30);
       if (!Object.keys(ch).length) return;
       updateRow_(SHEETS.MEMBERS, row, ch);
-      done.push(row['姓名'] + (ch['清口'] !== undefined ? (ch['清口'] ? ' 已清口' : ' 還沒清口') : '') + (ch['出生年'] !== undefined ? (ch['出生年'] ? ' ' + x.age + ' 歲' : ' 清掉年齡') : ''));
+      done.push(row['姓名'] + (ch['清口'] !== undefined ? (ch['清口'] ? ' 已清口' : ' 還沒清口') : '') + (ch['出生年'] !== undefined ? (ch['出生年'] ? ' ' + x.age + ' 歲' : ' 清掉年齡') : '') + (ch['佛堂'] !== undefined ? ' 佛堂：' + (ch['佛堂'] || '（空白）') : ''));
     });
     if (done.length) writeDutyLog_('成員', (role === SUPER_ACCOUNT ? '總管理者' : ADMIN_SESSION_.account) + '｜' + done.join('、'));
     SpreadsheetApp.flush();

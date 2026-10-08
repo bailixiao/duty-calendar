@@ -62,8 +62,8 @@ function eduSessions_() {
   var out = [];
   readTableCached_(SHEETS.DUTIES).forEach(function (d) {
     var cat = dutyCategory_(d);
-    // 教育：課程；道務：課程、法會
-    var ok = (cat === '教育' && d['性質'] === '課程') || (cat === '道務' && (d['性質'] === '課程' || d['性質'] === '法會'));
+    // 教育：課程；道務：課程、法會、會議
+    var ok = (cat === '教育' && d['性質'] === '課程') || (cat === '道務' && ['課程', '法會', '會議'].indexOf(d['性質']) !== -1);
     if (!d['勤務ID'] || !ok || d['模式'] === '公告型') return;
     datesInRange_(d['開始日'], d['結束日'] || d['開始日']).forEach(function (date) {
       if (date > today) return;

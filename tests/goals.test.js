@@ -16,3 +16,16 @@ test('總計與達成率：渡人合併只算一次；合併的格子跨幾列',
   assert.deepEqual(t.安壇, { target: null, current: 0, rate: null });
   assert.deepEqual(G.groupSpans(rows), [1, 2, 0]);
 });
+
+test('各佛堂的成員人數：壇辦、清口、道親、未求道；不算停用、待確認、別的佛堂', () => {
+  const c = G.memberCounts([
+    { identity: '壇辦', temple: '測試堂', active: true },
+    { identity: '道親', temple: '測試堂', active: true, vegetarian: true },
+    { identity: '道親', temple: '測試堂', active: true },
+    { identity: '未求道', temple: '測試堂', active: true },
+    { identity: '道親', temple: '測試堂', active: false },
+    { identity: '道親', temple: '測試堂', active: true, pending: true },
+    { identity: '壇辦', temple: '別堂', active: true }
+  ], '測試堂');
+  assert.deepEqual(c, { 壇辦: 1, 清口: 1, 道親: 2, 未求道: 1 });
+});

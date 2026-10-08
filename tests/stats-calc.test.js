@@ -110,7 +110,8 @@ test('年齡統計：各身分的人數、平均、中位數、最小最大、�
   const C = require('../js/stats-calc.js');
   const r = C.ageStats([
     { identity: '壇辦', age: 40 }, { identity: '壇辦', age: 60 }, { identity: '壇辦', age: '' },
-    { identity: '道親', age: 10 }, { identity: '道親', age: 30 }, { identity: '道親', age: 70 }
+    { identity: '道親', age: 10 }, { identity: '道親', age: 30 }, { identity: '道親', age: 70 },
+    { identity: '點傳師', age: 50 }
   ]);
   assert.deepEqual(r.map((g) => g.group), ['壇辦', '道親', '全部']);
   const tan = r[0];
@@ -118,5 +119,5 @@ test('年齡統計：各身分的人數、平均、中位數、最小最大、�
   const dao = r[1];
   assert.deepEqual([dao.avg, dao.median], [36.7, 30]);
   assert.deepEqual(dao.bands.map((b) => b.count), [1, 0, 1, 0, 1]);
-  assert.equal(r[2].withAge, 5);
+  assert.equal(r[2].withAge, 5, '點傳師不列、全部也不含');
 });

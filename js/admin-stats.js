@@ -57,7 +57,7 @@
     // 類別：勤務／道務／教育帳號只拿得到自己類別的資料；總管理者、唯讀可以切換
     const canPick = ['總管理者', '唯讀'].indexOf(Api.adminWho().role) !== -1;
     // 教育：改成以課程為單位的統計
-    // 教育、道務：改成以課程（道務含法會）為單位的統計
+    // 教育、道務：改成以課程（道務含法會、會議）為單位的統計
     const eduCat = canPick ? state.category : Api.adminWho().role;
     if (eduCat === '教育' || eduCat === '道務') return renderEdu(body, guard, data, stale, canPick, eduCat);
     const ev = canPick && state.category !== '全部' ? data.events.filter((e) => (e.category || '勤務') === state.category) : data.events;
@@ -220,10 +220,10 @@
     教育: { item: '課程', unit: '堂', person: '學生', staff: '師資', staffTitle: '各課程負責師資', pick: '選課程',
       empty: '這段期間沒有課程（教育類、性質「課程」）', noStaff: '還沒有填師資。新增或編輯教育的課程時，在「師資」欄填上負責的師資。' },
     道務: { item: '項目', unit: '場', person: '參與者', staff: '負責人員', staffTitle: '負責人員（講師・帶班・助理帶班）', pick: '選項目',
-      empty: '這段期間沒有道務的課程或法會', noStaff: '還沒有填講師、帶班、助理帶班。在道務的編輯畫面填寫，或用「安排整年的人員」一次排好。' }
+      empty: '這段期間沒有道務的課程、法會或會議', noStaff: '還沒有填講師、帶班、助理帶班。在道務的編輯畫面填寫，或用「安排整年的人員」一次排好。' }
   };
 
-  /** 教育、道務的統計：以課程（道務也含法會）為單位（參與量、出缺勤表、出席排行、負責人員） */
+  /** 教育、道務的統計：以課程（道務也含法會、會議）為單位（參與量、出缺勤表、出席排行、負責人員） */
   function renderEdu(body, guard, data, stale, canPick, cat) {
     const L = EDU_LABELS[cat];
     const p = state.period;
