@@ -166,11 +166,11 @@
     const done = data.items.filter((r) => r.status === '已修好');
     // 待審核上方的提醒：還沒修好的問題
     const warn = body.querySelector('[data-repair-warn]');
-    if (warn) warn.innerHTML = open.length ? `<p class="vr-warn repair-warn">⚠️ ${esc(window.SITE.venue)}目前有 ${open.length} 個問題還沒修好：${open.slice(0, 4).map((r) => esc(r.location + '・' + r.problem.slice(0, 16) + '（' + r.status + '）')).join('、')}${open.length > 4 ? '⋯' : ''}。同意前可以先告訴申請人。</p>` : '';
+    if (warn) warn.innerHTML = open.length ? `<p class="vr-warn repair-warn">⚠️ ${esc(window.SITE.venue)}目前有 ${open.length} 個問題還沒修好：${open.slice(0, 4).map((r) => esc((r.location || r.detail ? (r.location || r.detail) + '・' : '') + r.problem.slice(0, 16) + '（' + r.status + '）')).join('、')}${open.length > 4 ? '⋯' : ''}。同意前可以先告訴申請人。</p>` : '';
     const edit = canDecide();
     const card = (r) => `
       <li class="venue-req repair-adm is-${r.status === '已修好' ? 'done' : r.urgency === '有危險' ? 'danger' : 'open'}">
-        <div class="vr-head"><strong>${r.urgency === '有危險' ? '⚠️ ' : ''}${esc(r.location)}${r.detail ? '（' + esc(r.detail) + '）' : ''}</strong><span class="vr-status">${esc(r.status)}</span></div>
+        <div class="vr-head"><strong>${r.urgency === '有危險' ? '⚠️ ' : ''}${esc(r.location ? r.location + (r.detail ? '（' + r.detail + '）' : '') : r.detail || r.problem.slice(0, 16))}</strong><span class="vr-status">${esc(r.status)}</span></div>
         <p class="repair-problem">${esc(r.problem).replace(/\n/g, '<br>')}</p>
         ${r.photos.length ? `<div class="repair-photos">${r.photos.map((id) => `<a href="${esc(Api.fileUrl(id))}" target="_blank" rel="noopener" class="repair-thumb"><img src="${esc(Api.fileUrl(id))}" alt="回報的照片" loading="lazy"></a>`).join('')}</div>` : ''}
         <dl class="vr-info">

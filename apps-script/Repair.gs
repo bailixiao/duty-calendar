@@ -49,7 +49,7 @@ function reportRepair_(body) {
   var phone = cleanText_(body.phone).replace(/[^\d+\-() ]/g, '');
   var photos = (Array.isArray(body.photos) ? body.photos : []).filter(function (id) { return /^F-[\w-]{6,40}$/.test(String(id)); }).slice(0, 3);
   var errors = [];
-  if (REPAIR_LOCATIONS.indexOf(location) === -1) errors.push('請選是哪裡要修');
+  if (location && REPAIR_LOCATIONS.indexOf(location) === -1) location = ''; // 2026/10/8 起不用選位置（舊的前端還會送）
   if (problem.length < 2) errors.push('請寫一下是什麼問題');
   if (!name) errors.push('請填姓名');
   if (phone.replace(/\D/g, '').length < 8) errors.push('請填聯絡電話（管理者有問題時會打給您）');

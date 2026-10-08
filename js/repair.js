@@ -6,6 +6,8 @@
   const esc = Fmt.esc;
   const URGENCY = [['一般', '一般'], ['盡快', '盡快'], ['有危險', '⚠️ 有危險（漏電、漏水、會受傷）']];
   let locations = [];
+  /** 標題：舊資料有位置照舊；沒有就用「在哪裡」，再沒有就用問題的前幾個字 */
+  const repairTitle = (r) => (r.location ? r.location + (r.detail ? `（${r.detail}）` : '') : r.detail || String(r.problem || '').slice(0, 16));
 
   /** 在 box 裡畫出目前已知的問題 */
   async function mount(box) {
@@ -24,7 +26,7 @@
       locations = res.locations;
       list.innerHTML = res.items.length ? `<p class="repair-sub">目前已知的問題：</p><ul class="repair-list">${res.items.map((r) => `
         <li class="repair-item is-${r.status === '已修好' ? 'done' : r.urgency === '有危險' ? 'danger' : 'open'}">
-          <span class="repair-where">${r.status === '已修好' ? '✅' : r.urgency === '有危險' ? '⚠️' : '🔧'} ${esc(r.location)}${r.detail ? `（${esc(r.detail)}）` : ''}</span>
+          <span class="repair-where">${r.status === '已修好' ? '✅' : r.urgency === '有危險' ? '⚠️' : '🔧'} ${esc(repairTitle(r))}</span>
           <span class="repair-what">${esc(r.problem)}</span>
           <span class="repair-meta">${esc(r.status)}${r.status === '已修好' && r.doneAt ? `・${esc(Fmt.shortDate(r.doneAt))} 修好` : `・${esc(Fmt.shortDate(r.date))} 回報`}</span>
         </li>`).join('')}</ul>` : '<p class="muted">目前沒有已知的問題 😊</p>';
@@ -45,9 +47,7 @@
     const m = Modal.open(`
       <form class="modal-form repair-form" novalidate>
         <h2 class="modal-title">🔧 回報需要修繕</h2>
-        <label class="form-row"><span>哪裡要修？</span>
-          <select class="input" name="location"><option value="">請選</option>${(locations.length ? locations : ['其他']).map((l) => `<option>${esc(l)}</option>`).join('')}</select></label>
-        <label class="form-row"><span>位置說明（選填）</span><input class="input" name="detail" maxlength="40" placeholder="例：二樓左邊、靠窗那台"></label>
+        <label class="form-row"><span>在哪裡（選填）</span><input class="input" name="detail" maxlength="40" placeholder="例：大殿、二樓廁所、靠窗那台冷氣"></label>
         <label class="form-row"><span>什麼問題？</span><textarea class="input" name="problem" rows="3" maxlength="500" placeholder="例：冷氣開了不會冷，有滴水"></textarea></label>
         <div class="form-row"><span>急不急？</span>
           <div class="repair-urgency">${URGENCY.map(([v, l], i) => `<label class="check"><input type="radio" name="urgency" value="${v}"${i === 0 ? ' checked' : ''}> ${l}</label>`).join('')}</div></div>
@@ -96,7 +96,7 @@
       ev.preventDefault();
       err.hidden = true;
       const body = {
-        location: f.elements.location.value, detail: f.elements.detail.value.trim(), problem: f.elements.problem.value.trim(),
+        detail: f.elements.detail.value.trim(), problem: f.elements.problem.value.trim(),
         urgency: f.querySelector('[name=urgency]:checked').value, name: f.elements.name.value.trim(), phone: f.elements.phone.value.trim(),
         photos: photos.map((x) => x.id)
       };
