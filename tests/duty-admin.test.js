@@ -550,3 +550,28 @@ test('可兼任＋共需人數：缺幾人＝共需人數－不重複人數；�
   assert.match(S.needText(d, d.days['2026-10-24']), /還缺 2 位（共需 4 位，已報 2 位）/);
   assert.deepEqual(S.rosterLines(d, '2026-10-24', d.signups), ['・淨手（1／2）：測試甲', '・茶水（2／8）：測試甲、測試乙']);
 });
+
+test('組長職稱：報名時可選一位當組長，一天一位；後台設新的組長會取消原本的', () => {
+  const env = createEnv(OCT_1);
+  const token = login(env);
+  const id = admin(env, token, 'adminCreateDuties', { duties: [base({ start: '2026-10-24', leaderTitle: '勤務組長', positions: [{ name: '淨手', max: '5' }] })] }).data.ids[0];
+  let d = env.get({ action: 'getDuty', id }).data;
+  assert.equal(d.leaderTitle, '勤務組長');
+  const pid = d.positions[0].id;
+  const two = env.post({ action: 'signup', dutyId: id, positionId: pid, dates: ['2026-10-24'], entries: [{ name: '測試甲', leader: true }, { name: '測試乙', leader: true }] });
+  assert.match(two.error.details.map((x) => x.message).join(), /只要一位/);
+  assert.equal(env.post({ action: 'signup', dutyId: id, positionId: pid, dates: ['2026-10-24'], entries: [{ name: '測試甲', leader: true }, { name: '測試乙' }] }).ok, true);
+  const again = env.post({ action: 'signup', dutyId: id, positionId: pid, dates: ['2026-10-24'], entries: [{ name: '測試丙', leader: true }] });
+  assert.match(again.error.details.map((x) => x.message).join(), /已經有勤務組長（測試甲）/);
+  d = env.get({ action: 'getDuty', id }).data;
+  assert.deepEqual(d.signups.filter((s) => s.leader).map((s) => s.name), ['測試甲']);
+  // 後台把組長改成測試乙：測試甲自動取消
+  const b = d.signups.find((s) => s.name === '測試乙');
+  assert.equal(admin(env, token, 'adminSetAttendance', { signupId: b.id, leader: true }).ok, true);
+  d = env.get({ action: 'getDuty', id }).data;
+  assert.deepEqual(d.signups.filter((s) => s.leader).map((s) => s.name), ['測試乙']);
+  // 沒有組長職稱的勤務不能選組長
+  const id2 = admin(env, token, 'adminCreateDuties', { duties: [base({ start: '2026-10-25' })] }).data.ids[0];
+  const d2 = env.get({ action: 'getDuty', id: id2 }).data;
+  assert.equal(env.post({ action: 'signup', dutyId: id2, positionId: d2.positions[0].id, dates: ['2026-10-25'], entries: [{ name: '測試甲', leader: true }] }).error.code, 'VALIDATION');
+});

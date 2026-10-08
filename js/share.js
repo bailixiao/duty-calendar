@@ -79,6 +79,10 @@
       if (time) out.push(`⏰ 時段：${time}`);
       if (duty.location) out.push(`📍 地點：${duty.location}`);
       out.push(`🙋 需要人數：${needText(duty, (duty.days || {})[date])}`);
+      if (duty.leaderTitle && signups) {
+        const ls = [...new Set(signups.filter((s) => s.date === date && s.leader).map((s) => s.name))];
+        out.push(`★ ${duty.leaderTitle}：${ls.length ? ls.join('、') : '還需要一位'}`);
+      }
       const roster = rosterLines(duty, date, signups);
       if (roster.length) out.push('📋 目前報名：', ...roster);
       out.push(`👉 報名：${siteUrl()}#/duty/${encodeURIComponent(duty.id)}?date=${date}&go=signup`);
@@ -106,7 +110,7 @@
     await Promise.all(ids.map((id) => Api.getDuty(id).then((d) => { details[id] = d; }, () => {})));
     return inviteText(rows.map((r) => {
       const d = details[r.duty.id];
-      return d ? { duty: Object.assign({}, r.duty, { days: d.days || r.duty.days, totalNeed: d.totalNeed || r.duty.totalNeed || 0 }), date: r.date, signups: d.signups || [] } : r;
+      return d ? { duty: Object.assign({}, r.duty, { days: d.days || r.duty.days, totalNeed: d.totalNeed || r.duty.totalNeed || 0, leaderTitle: d.leaderTitle || '' }), date: r.date, signups: d.signups || [] } : r;
     }));
   }
 

@@ -15,7 +15,7 @@ var MAX_LIMIT = 999;
 var DUTY_FIELD_MAP_ = {
   name: '名稱', nature: '性質', mode: '模式', start: '開始日', end: '結束日',
   startTime: '開始時間', endTime: '結束時間', location: '地點',
-  groupType: '分組類型', group: '負責組', attire: '服裝', description: '說明', deadline: '報名截止日', multi: '可兼任', totalNeed: '共需人數', category: '類別', dm: 'DM',
+  groupType: '分組類型', group: '負責組', attire: '服裝', description: '說明', deadline: '報名截止日', multi: '可兼任', totalNeed: '共需人數', leaderTitle: '組長職稱', category: '類別', dm: 'DM',
   layout: '版面', stages: '階段', teachers: '師資', merge: '合併顯示',
   lecturers: '講師', leaders: '帶班', assistants: '助理帶班'
 };
@@ -97,6 +97,9 @@ function normalizeDutyInput_(input, ctx) {
   var need = String(input.totalNeed === undefined || input.totalNeed === null ? '' : input.totalNeed).trim();
   if (need && !/^\d{1,3}$/.test(need)) errors.push('共需人數請填數字');
   duty['共需人數'] = duty['可兼任'] && /^\d{1,3}$/.test(need) && Number(need) > 0 ? String(Number(need)) : '';
+  // 組長職稱：每天要一位組長（例：勤務組長）；只有總務・勤務的報名型
+  duty['組長職稱'] = cleanText_(input.leaderTitle || '').slice(0, 10);
+  if (duty['模式'] === '公告型' || (duty['類別'] || '勤務') !== '勤務') duty['組長職稱'] = '';
   duty['DM'] = cleanDm_(input.dm);
   if (!duty['類別']) duty['類別'] = '勤務';
   if (!duty['性質']) duty['性質'] = (NATURES_BY_CATEGORY_[duty['類別']] || ['勤務'])[0];
@@ -246,7 +249,8 @@ function mergeBulkInput_(target, targetPositions, sourceOldName, sourceOldPositi
     leaders: pick('staff', '帶班'),
     assistants: pick('staff', '助理帶班'),
     multi: has('positions') ? src['可兼任'] : target['可兼任'], // 可兼任跟著了愿項目一起改
-    totalNeed: has('positions') ? src['共需人數'] : target['共需人數']
+    totalNeed: has('positions') ? src['共需人數'] : target['共需人數'],
+    leaderTitle: has('positions') ? src['組長職稱'] : target['組長職稱']
   };
 
   var current = targetPositions.map(function (p) {

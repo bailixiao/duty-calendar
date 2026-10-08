@@ -21,6 +21,7 @@
       positionIds: new Set(duty.positions.length === 1 ? [duty.positions[0].id] : []),
       dates: new Set([openDates.indexOf(defaultDate) !== -1 ? defaultDate : openDates[0]]),
       entries: [], // { name, identity: '道親'|'壇辦'|'未求道'|'', accompany }
+      leader: '', // 勤務有組長職稱時：這次報名誰當組長（名字；空白＝這次沒有）
       showMissing: false, // 送出時有人沒選身分，標示出來
       submitting: false
     };
@@ -55,6 +56,7 @@
           </div>
           <div class="suggestions" data-suggestions aria-live="polite"></div>
           <ul class="name-list" data-names></ul>
+          ${duty.leaderTitle ? '<div class="leader-pick" data-leader-pick></div>' : ''}
           <p class="hint">幫長輩或家人報名時，可以連續加入多個名字${perPerson ? '，每個名字下面各自勾項目' : duty.positions.length > 1 ? '；有人要報不同的了愿項目，按他名字下的<span class="nw">「這個人改報別的」</span>' : ''}。每個名字都要選<span class="nw">「道親」</span><span class="nw">「壇辦」</span>或<span class="nw">「未求道」</span>（成員名單上已登記的會自動帶入，不能改）。壇辦可選<span class="nw">「陪同」</span>，陪同不佔名額。</p>
         </fieldset>
         <div class="form-error" data-error role="alert" hidden></div>
@@ -109,7 +111,28 @@
 
     // ---------- 日期（多天勤務） ----------
 
+    /** 組長：選的日期已經有組長就只顯示是誰；沒有就讓這次報名的其中一位當（陪同的不行） */
+    function renderLeader() {
+      const box = $('[data-leader-pick]');
+      if (!box) return;
+      const title = duty.leaderTitle;
+      const taken = (duty.signups || []).filter((s) => s.leader && state.dates.has(s.date));
+      if (taken.length) {
+        state.leader = '';
+        box.innerHTML = `<p class="leader-taken">★ 已經有${esc(title)}：<strong>${esc([...new Set(taken.map((s) => s.name))].join('、'))}</strong></p>`;
+        return;
+      }
+      const can = state.entries.filter((e) => !e.accompany);
+      if (!can.some((e) => e.name === state.leader)) state.leader = '';
+      box.innerHTML = `
+        <p class="leader-title">★ ${esc(title)}<small>每天一位就好，還沒有人當</small></p>
+        ${can.length ? `<div class="leader-options">${can.map((e) => `<label class="segment${state.leader === e.name ? ' is-checked' : ''}"><input type="radio" name="leader" value="${esc(e.name)}" data-leader-name${state.leader === e.name ? ' checked' : ''}>${esc(e.name)}</label>`).join('')}
+          <label class="segment${!state.leader ? ' is-checked' : ''}"><input type="radio" name="leader" value="" data-leader-name${!state.leader ? ' checked' : ''}>這次沒有</label></div>`
+          : '<p class="muted">加入名字後，可以選一位當' + esc(title) + '。</p>'}`;
+    }
+
     function renderDates() {
+      renderLeader();
       if (!multiDay) return;
       const chosen = duty.positions.filter((p) => state.positionIds.has(p.id) || state.entries.some((e) => e.positionIds.has(p.id)));
       const position = chosen.length === 1 ? chosen[0] : null; // 只選一項時才顯示該項人數
@@ -186,6 +209,7 @@
           ${posMissing ? '<p class="name-missing">請選這個人的了愿項目</p>' : ''}
         </li>`;
       }).join('');
+      renderLeader();
       const n = state.entries.length;
       $('[data-submit]').textContent = state.submitting ? '報名中⋯' : n ? `確認報名（${n} 人）` : '確認報名';
     }
@@ -422,7 +446,7 @@
         positionId: chosen[0].id,
         positionIds: chosen.map((p) => p.id),
         dates: Array.from(state.dates).sort(),
-        entries: state.entries.map((e) => ({ name: e.name, temple: e.temple || '', identity: e.identity, accompany: e.accompany, note: duty.layout === '職司表' ? String(e.note || '').trim() : '', positionIds: duty.positions.filter((p) => e.positionIds.has(p.id)).map((p) => p.id) }))
+        entries: state.entries.map((e) => ({ name: e.name, temple: e.temple || '', identity: e.identity, accompany: e.accompany, leader: !!duty.leaderTitle && !e.accompany && e.name === state.leader, note: duty.layout === '職司表' ? String(e.note || '').trim() : '', positionIds: duty.positions.filter((p) => e.positionIds.has(p.id)).map((p) => p.id) }))
       };
       // 每個人報的項目不一樣時，成功訊息逐人列出
       const same = payload.entries.every((e) => e.positionIds.join() === payload.entries[0].positionIds.join());
@@ -597,6 +621,10 @@
       renderNames();
     });
 
+    const leaderBox = $('[data-leader-pick]');
+    if (leaderBox) leaderBox.addEventListener('change', (ev) => {
+      if (ev.target.dataset.leaderName !== undefined) { state.leader = ev.target.value; renderLeader(); }
+    });
     $('[data-names]').addEventListener('change', (ev) => {
       const t = ev.target;
       if (t.dataset.entryPos !== undefined) {

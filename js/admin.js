@@ -415,7 +415,7 @@
           </div>
           ${!d.signups ? '<p class="muted">載入名單中⋯</p>' : people.length ? `<ul class="people">${people.map((s) => `
             <li class="person-row${past && s.attend === '未到' ? ' is-absent' : ''}">
-              <span class="person"><span class="person-name">${s.leader ? '<span class="grid-star" title="組長">★</span>' : ''}${esc(s.name)}</span>${s.temple ? `<span class="tag">${esc(s.temple)}</span>` : ''}
+              <span class="person"><span class="person-name">${s.leader ? '<span class="grid-star" title="組長">★</span>' : ''}${esc(s.name)}</span>${s.leader && d.leaderTitle ? `<span class="tag tag-leader">${esc(d.leaderTitle)}</span>` : ''}${s.temple ? `<span class="tag">${esc(s.temple)}</span>` : ''}
                 ${s.identity ? `<span class="tag">${esc(s.identity)}</span>` : '<span class="tag tag-warn">未填身分</span>'}
                 ${s.accompany ? '<span class="tag">陪同</span>' : ''}
                 ${past && s.attend === '未到' ? '<span class="tag tag-warn">未到</span>' : ''}
@@ -424,8 +424,8 @@
               ${canEdit ? `<span class="person-actions">
                 ${past ? `<button type="button" class="btn btn-small" data-attend="${esc(s.id)}">${s.attend === '未到' ? '改出席' : '改未到'}</button>
                   ${s.identity === '壇辦' ? `<button type="button" class="btn btn-small" data-acc="${esc(s.id)}">${s.accompany ? '改了愿' : '改陪同'}</button>` : ''}` : ''}
-                ${d.layout === '職司表' ? `<button type="button" class="btn btn-small" data-leader="${esc(s.id)}">${s.leader ? '取消組長' : '★ 設組長'}</button>
-                  <button type="button" class="btn btn-small" data-note="${esc(s.id)}">${s.note ? '改註記' : '加註記'}</button>` : ''}
+                ${d.layout === '職司表' || (d.leaderTitle && !s.accompany) ? `<button type="button" class="btn btn-small" data-leader="${esc(s.id)}">${s.leader ? '取消組長' : '★ 設組長'}</button>` : ''}
+                ${d.layout === '職司表' ? `<button type="button" class="btn btn-small" data-note="${esc(s.id)}">${s.note ? '改註記' : '加註記'}</button>` : ''}
                 ${/[、,，.。．\/／;；|]/.test(s.name) || /^[\u4e00-\u9fff]{2,}([\s　]+[\u4e00-\u9fff]{2,})+$/.test(s.name) ? `<button type="button" class="btn btn-small btn-primary" data-split="${esc(s.id)}">拆成多人</button>` : ''}
                 ${d.nature === '活動' ? '' : `<button type="button" class="btn btn-small" data-reschedule="${esc(s.id)}">改期</button>`}
                 <button type="button" class="btn btn-small btn-quiet-danger" data-cancel="${esc(s.id)}">取消</button>

@@ -30,6 +30,12 @@ function adminSetAttendance_(body) {
     var before = rowSnapshot_(SHEETS.SIGNUPS, row);
     var now = nowString_();
     changes['更新時間'] = now;
+    // 有組長職稱的勤務一天只有一位組長：設新的組長時，同一天原本的取消
+    var dutyRow = duties.filter(function (d) { return d['勤務ID'] === row['勤務ID']; })[0];
+    if (changes['組長'] === '是' && dutyRow && dutyRow['組長職稱']) {
+      signups.filter(function (s) { return s !== row && s['勤務ID'] === row['勤務ID'] && s['日期'] === row['日期'] && s['狀態'] !== '已取消' && s['組長'] === '是'; })
+        .forEach(function (s) { updateRow_(SHEETS.SIGNUPS, s, { '組長': '', '更新時間': now }); });
+    }
     updateRow_(SHEETS.SIGNUPS, row, changes);
     var what = [];
     if (changes['出席'] && changes['出席'] !== before['出席']) what.push('改為' + changes['出席']);

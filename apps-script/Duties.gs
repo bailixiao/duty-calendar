@@ -204,6 +204,7 @@ function dutyToJson_(d, positions) {
     mode: d['模式'] || '報名型',
     deadline: d['報名截止日'] || '',
     multi: d['可兼任'] === '是',
+    leaderTitle: d['組長職稱'] || '', // 每天要一位組長（例：勤務組長），空白＝不需要
     totalNeed: d['可兼任'] === '是' ? Number(d['共需人數']) || 0 : 0, // 可兼任時這一天總共需要幾位（0＝照各項目最少人數）
     start: d['開始日'],
     end: d['結束日'] || d['開始日'],

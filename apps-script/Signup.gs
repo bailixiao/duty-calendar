@@ -8,7 +8,8 @@ var MAX_ENTRIES_PER_SIGNUP = 20;
 var MAX_DATES_PER_SIGNUP = 31;
 
 /**
- * body = { dutyId, positionId | positionIds: [..]（可兼任的勤務可多個）, dates: ['yyyy-MM-dd'], entries: [{ name, identity, accompany, note }] }
+ * body = { dutyId, positionId | positionIds: [..]（可兼任的勤務可多個）, dates: ['yyyy-MM-dd'], entries: [{ name, identity, accompany, note, leader }] }
+ * leader：勤務有組長職稱時，這次報名的其中一位當組長（一天一位）
  * note：職司表的勤務才收（例：8:00-19:00、代理人），最多 100 字
  */
 function signup_(body) {
@@ -107,6 +108,26 @@ function signup_(body) {
         });
       });
     });
+    // 組長：一次只能一位、那天已經有組長就擋；標在這個人那天的第一筆
+    var leaders = entries.filter(function (e) { return e && e.leader; });
+    if (leaders.length) {
+      var title = duty['組長職稱'] || '';
+      if (!title) errors.push({ message: '這個勤務不需要選組長' });
+      else if (leaders.length > 1) errors.push({ message: title + '只要一位，請只選一位' });
+      else if (leaders[0].accompany) errors.push({ message: '陪同的人不能當' + title });
+      else {
+        var lname = normalizeName_(leaders[0].name);
+        dates.forEach(function (date) {
+          var has = signups.filter(function (s) { return s['日期'] === date && s['狀態'] !== '已取消' && s['組長'] === '是'; })[0];
+          if (has) { errors.push({ message: Fmt_shortDate_(date) + '已經有' + title + '（' + has['姓名'] + '）了' }); return; }
+          var first = signupRows.filter(function (r) { return r['日期'] === date && r['姓名'] === lname; })[0];
+          if (first) {
+            first['組長'] = '是';
+            created.forEach(function (c) { if (c.id === first['報名ID']) c.leader = true; });
+          }
+        });
+      }
+    }
     if (errors.length) {
       throw new ApiError_('VALIDATION', '報名沒有完成，請看下面的說明', errors);
     }
@@ -125,6 +146,11 @@ function signup_(body) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/** 'yyyy-MM-dd' → 'M/D'（錯誤訊息用） */
+function Fmt_shortDate_(date) {
+  return Number(date.slice(5, 7)) + '/' + Number(date.slice(8, 10));
 }
 
 function uniqueList_(list) {

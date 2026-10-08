@@ -602,6 +602,8 @@
             <legend>了愿項目與名額</legend>
             <p class="hint">「最少」留空預設 2 人；「最多」留空代表不限。</p>
             <label class="check"><input type="checkbox" name="multi"${s.multi === true || s.multi === '是' ? ' checked' : ''}> 同一人可以兼任多個了愿項目（同一天可報好幾項）</label>
+            ${(s.category || '勤務') === '勤務' ? `<label class="form-row"><span>每天要一位組長（填職稱；不需要就空白）</span><input class="input" name="leaderTitle" maxlength="10" value="${esc(s.leaderTitle || '')}" placeholder="例：勤務組長"></label>
+            <p class="hint">有填的話，家人們報名時可以選其中一位當組長（一天一位），名單上會標 ★。</p>` : ''}
             ${s.multi === true || s.multi === '是' ? `<label class="form-row"><span>這一天共需幾位（不重複的人，選填）</span><input class="input" name="totalNeed" inputmode="numeric" maxlength="3" value="${esc(s.totalNeed ? String(s.totalNeed) : '')}" placeholder="例：8"></label>
             <p class="hint">有填的話，缺幾人＝共需幾位－已報名的人數（一人報好幾項只算一位）；沒填就把各項目的最少人數加起來。</p>` : ''}
             <ul class="pos-edit">
@@ -856,6 +858,7 @@
       if (radio('groupMode')) st.lunar.groupMode = radio('groupMode');
       if (f.elements.multi) s.multi = f.elements.multi.checked;
       if (f.elements.totalNeed) s.totalNeed = f.elements.totalNeed.value.trim();
+      if (f.elements.leaderTitle) s.leaderTitle = f.elements.leaderTitle.value.trim();
       if (f.elements.layout) s.layout = f.elements.layout.checked ? '職司表' : '';
       if (f.elements.multiFrom) {
         const m = st.multi;
@@ -969,6 +972,7 @@
         stages: s.mode === '公告型' || isSimple(s.category) || s.layout !== '職司表' ? '' : (s.stages || ''),
         multi: s.mode === '公告型' ? false : !!(s.multi === true || s.multi === '是'),
         totalNeed: s.mode !== '公告型' && (s.multi === true || s.multi === '是') ? String(s.totalNeed || '') : '',
+        leaderTitle: s.mode !== '公告型' && (s.category || '勤務') === '勤務' ? String(s.leaderTitle || '') : '',
         positions: s.mode === '公告型' ? [] : isSimple(s.category)
           ? [{ id: s.positions[0] && s.positions[0].id, name: (s.positions[0] && s.positions[0].name) || '參加', slot: '', min: '0', max: st.quota === 'limit' ? String(st.quotaMax || '').trim() : '' }]
           : s.positions.filter((p) => p.id || p.name.trim() || p.min || p.max)
