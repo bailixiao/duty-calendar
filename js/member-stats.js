@@ -126,14 +126,17 @@
 
   // ---------- 年齡 ----------
 
+  // 年齡統計看台灣：佛堂開頭是 SITE.ageExcludeTemples（例：韓國）的不算
+  const ageExcluded = (m) => ((window.SITE && SITE.ageExcludeTemples) || []).some((t) => (m.temple || '').indexOf(t) === 0);
+
   function drawAges() {
-    const list = active();
+    const list = active().filter((m) => !ageExcluded(m));
     const rows = StatsCalc.ageStats(list);
     const missing = list.filter((m) => m.age === '' || m.age === null || m.age === undefined);
     const maxBand = Math.max(1, ...rows.filter((r) => r.group !== '全部').flatMap((r) => r.bands.map((b) => b.count)));
     const num = (v) => (v === null ? '—' : v);
     st.ageBox.innerHTML = `
-      <h3 class="admin-sub">🎂 年齡統計<span class="h2-sub">成員名單（啟用中）</span></h3>
+      <h3 class="admin-sub">🎂 年齡統計<span class="h2-sub">成員名單（啟用中${((window.SITE && SITE.ageExcludeTemples) || []).length ? `，不含${esc(SITE.ageExcludeTemples.join('、'))}` : ''}）</span></h3>
       <div class="edu-table-wrap"><table class="edu-table age-table">
         <thead><tr><th>身分</th><th>人數</th><th>有填年齡</th><th>平均</th><th>中位數</th><th>最小</th><th>最大</th></tr></thead>
         <tbody>${rows.map((r) => `<tr class="${r.group === '全部' ? 'is-current' : ''}"><th scope="row">${esc(r.group)}</th><td>${r.total}</td><td>${r.withAge}</td><td>${num(r.avg)}</td><td>${num(r.median)}</td><td>${num(r.min)}</td><td>${num(r.max)}</td></tr>`).join('')}</tbody>

@@ -525,7 +525,7 @@ function adminMergeMembers_(body) {
 // ---------- 匯入成員資料（佛堂、年齡、身分） ----------
 
 /**
- * body = { items: [{ name, temple?, birthYear? | age?, identity? }], addMissing? }：依名字（或別名）更新成員的佛堂、出生年、身分。
+ * body = { items: [{ name, temple?, birthYear? | age?, identity?, vegetarian? }], addMissing? }：依名字（或別名）更新成員的佛堂、出生年、身分、清口。
  * 只更新有給的欄位；找不到的回報（addMissing 時新增）；同名好幾位分不出來的不改。
  */
 function adminImportMembers_(body) {
@@ -549,6 +549,7 @@ function adminImportMembers_(body) {
       if (!by && it.age !== undefined && it.age !== '') { var b = birthYearOf_(it.age); if (b) by = Number(b); }
       if (by && by > 1900 && by <= year) ch['出生年'] = String(by);
       if (it.identity && OPTIONS.identity.indexOf(it.identity) !== -1) ch['身分'] = it.identity;
+      if (it.vegetarian === true) ch['清口'] = '是';
       var hits = rows.filter(function (m) { return normalizeName_(m['姓名']) === name; });
       if (!hits.length) hits = rows.filter(function (m) { return splitAliases_(m['別名']).indexOf(name) !== -1; });
       // 同名好幾位：用佛堂分

@@ -284,4 +284,6 @@ test('匯入成員資料：依名字或別名補佛堂、出生年；找不到�
   assert.deepEqual([b.temple, b.age], ['測試佛堂B', 30], '沒給的年齡不會被清掉');
   const add = call('adminImportMembers', { items: [{ name: '測試新人', temple: '測試佛堂A', birthYear: 2000, identity: '道親' }], addMissing: true });
   assert.deepEqual(add.data.added, ['測試新人']);
+  call('adminImportMembers', { items: [{ name: '測試乙', vegetarian: true }] });
+  assert.equal(call('adminMembers').data.members.find((m) => m.name === '測試乙').vegetarian, true, '可以匯入清口');
 });
