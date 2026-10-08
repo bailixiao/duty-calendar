@@ -131,11 +131,32 @@
 
   // ---------- 年齡 ----------
 
+  // 圓餅圖：年齡層的顏色（由年輕到年長）
+  const AGE_COLORS = ['#8fc1a9', '#6fa3c7', '#e0b450', '#d98a5f', '#9b7bb8'];
+
+  /** 一個身分的年齡層圓餅圖＋圖例（百分比＝占有填年齡的人） */
+  function pieHtml(r) {
+    let at = 0;
+    const stops = r.bands.map((b, i) => {
+      const from = at;
+      at += (b.count / r.withAge) * 100;
+      return `${AGE_COLORS[i]} ${from.toFixed(2)}% ${at.toFixed(2)}%`;
+    }).join(', ');
+    const pct = (n) => Math.round((n / r.withAge) * 100);
+    return `
+      <div class="age-pie-card${r.group === '全部' ? ' is-all' : ''}">
+        <strong class="age-pie-title">${esc(r.group)}<small>有填年齡 ${r.withAge} 位</small></strong>
+        <div class="age-pie-body">
+          <div class="age-pie" style="background: conic-gradient(${stops})" role="img" aria-label="${esc(r.group)}年齡層：${r.bands.map((b) => `${b.label} ${pct(b.count)}%`).join('、')}"><span>${r.withAge}<small>位</small></span></div>
+          <ul class="age-pie-legend">${r.bands.map((b, i) => `<li${b.count ? '' : ' class="is-zero"'}><i style="background:${AGE_COLORS[i]}"></i><span>${esc(b.label)}</span><strong>${pct(b.count)}%</strong><small>${b.count} 位</small></li>`).join('')}</ul>
+        </div>
+      </div>`;
+  }
+
   function drawAges() {
     const list = active().filter((m) => !m.overseas); // 年齡統計看台灣：國外的不算
     const rows = StatsCalc.ageStats(list);
     const missing = list.filter((m) => m.age === '' || m.age === null || m.age === undefined);
-    const maxBand = Math.max(1, ...rows.filter((r) => r.group !== '全部').flatMap((r) => r.bands.map((b) => b.count)));
     const num = (v) => (v === null ? '—' : v);
     st.ageBox.innerHTML = `
       <h3 class="admin-sub">🎂 年齡統計<span class="h2-sub">成員名單（啟用中，不含國外）</span></h3>
@@ -145,10 +166,7 @@
       </table></div>
       <p class="hint">平均＝所有人年齡加起來除以人數；中位數＝年齡由小排到大，正中間那位（比較不會被少數特別年長或年輕的人影響）。</p>
       <h4 class="age-band-title">年齡層分布</h4>
-      <div class="age-bands">${rows.filter((r) => r.group !== '全部' && r.withAge).map((r) => `
-        <div class="age-band-group"><strong>${esc(r.group)}</strong>
-          ${r.bands.map((b) => `<div class="age-band-row"><span class="age-band-label">${esc(b.label)}</span><span class="age-band-bar"><span style="width:${Math.round((b.count / maxBand) * 100)}%"></span></span><span class="age-band-n">${b.count}</span></div>`).join('')}
-        </div>`).join('') || '<p class="muted">還沒有人填年齡</p>'}</div>
+      <div class="age-pies">${rows.filter((r) => r.withAge).map(pieHtml).join('') || '<p class="muted">還沒有人填年齡</p>'}</div>
       ${missing.length ? `<p class="notice">還有 <strong>${missing.length} 位</strong>沒有填年齡，統計會比較不準。${st.canEdit ? '<button type="button" class="btn btn-small" data-age-fill>一次填年齡</button>' : ''}</p>` : ''}`;
     const fill = st.ageBox.querySelector('[data-age-fill]');
     if (fill) fill.addEventListener('click', () => fillAges(missing));
