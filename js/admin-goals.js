@@ -44,11 +44,11 @@
 
   const COUNT_KEYS = ['壇辦', '清口', '道親', '未求道'];
 
-  /** 成員名單上某個佛堂的人數：{ 壇辦, 清口, 道親, 未求道 }（只算啟用中、非待確認） */
+  /** 成員名單上某個佛堂的人數：{ 壇辦, 清口, 道親, 未求道 }（只算啟用中、非待確認；國外的人算在國外那張卡片，例：陸、韓國） */
   function memberCounts(members, temple) {
     const out = { 壇辦: 0, 清口: 0, 道親: 0, 未求道: 0 };
     (members || []).forEach((m) => {
-      if (!m.active || m.pending || (m.temple || '') !== temple) return;
+      if (!m.active || m.pending || (m.overseas || m.temple || '') !== temple) return;
       if (out[m.identity] !== undefined) out[m.identity] += 1;
       if (m.vegetarian) out['清口'] += 1;
     });
@@ -216,8 +216,8 @@
 
     /** 成員人數的說明與「一次填佛堂」 */
     function templeNote() {
-      const no = members.filter((m) => m.active && !m.pending && !m.temple).length;
-      return `<p class="hint gc-members-hint">卡片下方是成員名單上這個佛堂的人數（啟用中；清口＝已清口的人）。${no ? `還有 <strong>${no} 位</strong>成員沒有填佛堂，不會算進去。` : ''}
+      const no = members.filter((m) => m.active && !m.pending && !m.temple && !m.overseas).length;
+      return `<p class="hint gc-members-hint">卡片下方是成員名單上這個佛堂的人數（啟用中；清口＝已清口的人；國外的人算在國外那張卡片）。${no ? `還有 <strong>${no} 位</strong>成員沒有填佛堂，不會算進去。` : ''}
         ${canEdit ? '<button type="button" class="btn btn-small no-print" data-fill-temple>一次填佛堂</button>' : ''}</p>`;
     }
 

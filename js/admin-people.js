@@ -60,7 +60,7 @@
   function importMembers(guard, reload) {
     const md = Modal.open(`
       <h2 class="modal-title">📋 匯入成員資料</h2>
-      <p class="modal-note">貼上整理好的資料（Claude 整理的文字），會依名字（或別名）幫成員補上佛堂、年齡、身分；只更新有給的欄位，不會清掉原本的資料。</p>
+      <p class="modal-note">貼上整理好的資料（Claude 整理的文字），會依名字（或別名）幫成員補上佛堂、年齡、身分、清口、國外；只更新有給的欄位，不會清掉原本的資料。</p>
       <textarea class="input day-text" rows="7" data-text placeholder='{"type":"成員資料","items":[...]}'></textarea>
       <label class="check"><input type="checkbox" data-add> 名單上找不到的，直接新增成員</label>
       <div data-out></div>
@@ -210,7 +210,7 @@
     const rows = body.querySelector('[data-rows]');
     const card = (m) => `
           <li><button type="button" class="person-card${m.active ? '' : ' is-inactive'}" data-row="${m.row}">
-            <span class="person-card-name">${esc(m.name)}${m.aliases && m.aliases.length ? `<small class="person-alias">（${esc(m.aliases.join('、'))}）</small>` : ''}${m.temple ? `<span class="tag tag-temple">${esc(m.temple)}</span>` : ''}
+            <span class="person-card-name">${esc(m.name)}${m.aliases && m.aliases.length ? `<small class="person-alias">（${esc(m.aliases.join('、'))}）</small>` : ''}${m.temple ? `<span class="tag tag-temple">${esc(m.temple)}</span>` : ''}${m.overseas ? `<span class="tag tag-temple">🌏 ${esc(m.overseas)}</span>` : ''}
               ${m.identity ? `<span class="tag">${esc(m.identity)}</span>` : '<span class="tag tag-warn">未填身分</span>'}
               ${m.active ? '' : '<span class="tag">已停用</span>'}${m.pending ? '<span class="tag tag-warn">待確認</span>' : ''}${m.identity === '道親' && m.vegetarian ? '<span class="tag">🥬 清口</span>' : ''}${m.age !== '' && m.age !== undefined ? `<span class="tag">${m.age} 歲</span>` : ''}</span>
             <span class="person-card-meta">${esc(GROUP_TYPES.filter((t) => m.groups[t]).map((t) => `${t.replace('組', '')}：${m.groups[t]}`).join('・') || '未分組')}${m.note ? '・' + esc(m.note) : ''}</span>
@@ -335,6 +335,7 @@
       <label class="form-row"><span>姓名（請用真名）</span><input class="input" name="name" value="${esc(v.name)}" required></label>
       <label class="form-row"><span>別名（小名、其他寫法，用「、」分開；報名打別名會記成這位）</span><input class="input" name="aliases" value="${esc((v.aliases || []).join('、'))}" placeholder="例：小明、阿明"></label>
       <label class="form-row"><span>${esc(window.SITE.temple)}（同名同姓時用來分；不知道可以空著）</span><select class="input" name="temple"><option value="">（不知道／空白）</option>${templeOptions.concat(v.temple && templeOptions.indexOf(v.temple) === -1 ? [v.temple] : []).map((t) => `<option${t === v.temple ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
+      ${(window.SITE.overseas || []).length ? `<div class="form-row"><span>國外（在國外的人選；台灣的選「台灣」）</span>${seg('overseas', [['', '台灣']].concat(window.SITE.overseas.map((o) => [o, o])), v.overseas || '')}</div>` : ''}
       <div class="form-row"><span>身分</span>${seg('identity', [['道親', '道親'], ['壇辦', '壇辦'], ['未求道', '未求道'], ['點傳師', '點傳師'], ['', '未填']], v.identity || '')}</div>
       ${GROUP_TYPES.map((t) => `
         <label class="form-row"><span>${t}</span>
@@ -352,7 +353,7 @@
       await Api.admin('adminSaveMember', {
         row: m ? m.row : undefined, original: m ? m.name : undefined,
         member: { name: f.elements.name.value, identity: f.querySelector('input[name=identity]:checked').value, groups: g, note: f.elements.note.value, active: f.elements.active.checked,
-          age: f.elements.age.value.trim(), temple: f.elements.temple.value, aliases: f.elements.aliases.value, vegetarian: f.querySelector('input[name=identity]:checked').value === '道親' && f.elements.vegetarian.checked }
+          age: f.elements.age.value.trim(), temple: f.elements.temple.value, aliases: f.elements.aliases.value, overseas: f.querySelector('input[name=overseas]:checked') ? f.querySelector('input[name=overseas]:checked').value : undefined, vegetarian: f.querySelector('input[name=identity]:checked').value === '道親' && f.elements.vegetarian.checked }
       });
       notice(AdminPage.notice('success', m ? '已存檔' : '已新增成員', f.elements.name.value.trim()));
       afterWrite(reload);

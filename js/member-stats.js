@@ -46,6 +46,7 @@
     const pct = dao.length ? Math.round((yes.length / dao.length) * 100) : 0;
     // 依佛堂分組（順序同佛堂清單，沒填的放最後）；搜尋時全部列出，沒搜尋時每區先列 VEG_FIRST 位
     const order = (t) => { const i = st.temples.indexOf(t); return t ? (i === -1 ? 900 : i) : 999; };
+    const where = (m) => m.overseas || m.temple || ''; // 國外的人分在國外那一區
     // 近一年出席次數（同名不同佛堂的，統計裡是「名字（佛堂）」）
     const act = (m) => actOf(m);
     const byAct = (a, b) => act(b).count - act(a).count || Fmt.byStroke(a.name, b.name);
@@ -55,9 +56,9 @@
       // 沒全部列出時：先挑出席最多的前 VEG_FIRST 位，再依佛堂分組；同一佛堂裡出席多的在前面
       const pick = q || st.vegAll[key] ? shown : shown.slice().sort(byAct).slice(0, VEG_FIRST);
       const groups = new Map();
-      pick.slice().sort((a, b) => order(a.temple || '') - order(b.temple || '') || (a.temple || '').localeCompare(b.temple || '') || byAct(a, b))
-        .forEach((m) => { const t = m.temple || ''; if (!groups.has(t)) groups.set(t, []); groups.get(t).push(m); });
-      const total = (t) => shown.filter((m) => (m.temple || '') === t).length;
+      pick.slice().sort((a, b) => order(where(a)) - order(where(b)) || where(a).localeCompare(where(b)) || byAct(a, b))
+        .forEach((m) => { const t = where(m); if (!groups.has(t)) groups.set(t, []); groups.get(t).push(m); });
+      const total = (t) => shown.filter((m) => where(m) === t).length;
       const html = [...groups].map(([t, ms]) => `<div class="veg-group"><h5>${esc(t || '未填佛堂')}<span>（${ms.length < total(t) ? `列出 ${ms.length}／` : ''}${total(t)}）</span></h5><ul class="veg-list">${ms.map((m) => item(m, isYes)).join('')}</ul></div>`).join('');
       const more = !q && shown.length > VEG_FIRST
         ? `<button type="button" class="btn btn-small veg-more no-print" data-veg-all="${key}">${st.vegAll[key] ? '收起來' : `全部列出（${shown.length} 位）`}</button>` : '';
@@ -104,7 +105,7 @@
     const items = Object.entries(a.items || {}).sort((x, y) => y[1].count - x[1].count);
     const md = Modal.open(`
       <h2 class="modal-title">${esc(m.name)}${m.vegetarian ? '<span class="veg-tag">已清口</span>' : ''}</h2>
-      <p class="modal-note">${[m.temple ? '佛堂：' + esc(m.temple) : '還沒填佛堂', esc(m.identity || '未填身分'), m.age !== '' && m.age !== undefined && m.age !== null ? m.age + ' 歲' : ''].filter(Boolean).join('・')}</p>
+      <p class="modal-note">${[m.temple ? '佛堂：' + esc(m.temple) : '還沒填佛堂', m.overseas ? '國外：' + esc(m.overseas) : '', esc(m.identity || '未填身分'), m.age !== '' && m.age !== undefined && m.age !== null ? m.age + ' 歲' : ''].filter(Boolean).join('・')}</p>
       <div class="veg-detail">
         <p class="veg-detail-sum">近一年出席 <strong>${a.count}</strong> 次${a.last ? `<span class="muted">（最近一次 ${esc(Fmt.rocDate(a.last))}）</span>` : ''}</p>
         <ul class="veg-detail-cats">${['勤務', '道務', '教育'].map((k) => `<li><span>${CAT_NAME[k]}</span><strong>${a[k]}</strong></li>`).join('')}</ul>
@@ -127,13 +128,13 @@
   // ---------- 年齡 ----------
 
   function drawAges() {
-    const list = active();
+    const list = active().filter((m) => !m.overseas); // 年齡統計看台灣：國外的不算
     const rows = StatsCalc.ageStats(list);
     const missing = list.filter((m) => m.age === '' || m.age === null || m.age === undefined);
     const maxBand = Math.max(1, ...rows.filter((r) => r.group !== '全部').flatMap((r) => r.bands.map((b) => b.count)));
     const num = (v) => (v === null ? '—' : v);
     st.ageBox.innerHTML = `
-      <h3 class="admin-sub">🎂 年齡統計<span class="h2-sub">成員名單（啟用中）</span></h3>
+      <h3 class="admin-sub">🎂 年齡統計<span class="h2-sub">成員名單（啟用中，不含國外）</span></h3>
       <div class="edu-table-wrap"><table class="edu-table age-table">
         <thead><tr><th>身分</th><th>人數</th><th>有填年齡</th><th>平均</th><th>中位數</th><th>最小</th><th>最大</th></tr></thead>
         <tbody>${rows.map((r) => `<tr class="${r.group === '全部' ? 'is-current' : ''}"><th scope="row">${esc(r.group)}</th><td>${r.total}</td><td>${r.withAge}</td><td>${num(r.avg)}</td><td>${num(r.median)}</td><td>${num(r.min)}</td><td>${num(r.max)}</td></tr>`).join('')}</tbody>

@@ -29,3 +29,9 @@ test('各佛堂的成員人數：壇辦、清口、道親、未求道；不算�
   ], '測試堂');
   assert.deepEqual(c, { 壇辦: 1, 清口: 1, 道親: 2, 未求道: 1 });
 });
+
+test('國外的人算在國外那張卡片，不算原本的佛堂', () => {
+  const ms = [{ identity: '道親', temple: '測試堂', overseas: '陸', active: true, vegetarian: true }, { identity: '道親', temple: '測試堂', active: true }];
+  assert.deepEqual(G.memberCounts(ms, '測試堂'), { 壇辦: 0, 清口: 0, 道親: 1, 未求道: 0 });
+  assert.deepEqual(G.memberCounts(ms, '陸'), { 壇辦: 0, 清口: 1, 道親: 1, 未求道: 0 });
+});

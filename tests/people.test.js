@@ -22,7 +22,7 @@ test('成員：新增、修改、停用；重複姓名與不存在的組被擋�
   let list = call('adminMembers').data;
   assert.equal(list.members.length, 1);
   assert.deepEqual(list.members[0], {
-    row: 2, name: '測試甲', identity: '道親', note: '', active: true, pending: false, vegetarian: false, birthYear: '', age: '', temple: '', aliases: [],
+    row: 2, name: '測試甲', identity: '道親', note: '', active: true, pending: false, vegetarian: false, birthYear: '', age: '', temple: '', aliases: [], overseas: '',
     groups: { '勤務了愿組': '', '打掃組': '第1組', '拜香輪值組': '' }
   });
   assert.ok(list.groups.length > 0);
@@ -284,4 +284,8 @@ test('匯入成員資料：依名字或別名補佛堂、出生年；找不到�
   assert.deepEqual([b.temple, b.age], ['測試佛堂B', 30], '沒給的年齡不會被清掉');
   const add = call('adminImportMembers', { items: [{ name: '測試新人', temple: '測試佛堂A', birthYear: 2000, identity: '道親' }], addMissing: true });
   assert.deepEqual(add.data.added, ['測試新人']);
+  call('adminImportMembers', { items: [{ name: '測試乙', vegetarian: true, overseas: '陸' }, { name: '測試丙', overseas: '火星' }] });
+  const after = call('adminMembers').data.members;
+  const b2 = after.find((m) => m.name === '測試乙');
+  assert.deepEqual([b2.vegetarian, b2.overseas, b2.temple], [true, '陸', '測試佛堂B'], '可以匯入清口、國外，佛堂不變');
 });

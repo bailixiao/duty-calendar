@@ -40,6 +40,7 @@ function adminSaveMember_(body) {
   if (!name) errors.push('請填姓名');
   if (identity && OPTIONS.identity.indexOf(identity) === -1) errors.push('身分只能是道親、壇辦、未求道或點傳師');
   if (input.age !== undefined && input.age !== '' && birthYearOf_(input.age) === null) errors.push('年齡請填 0～120 的數字');
+  if (input.overseas && SITE.overseas.indexOf(input.overseas) === -1) errors.push('國外只能是' + SITE.overseas.join('、') + '或空白');
   var keys = groupKeys_();
   var groups = {};
   MEMBER_GROUP_COLUMNS.forEach(function (type) {
@@ -61,6 +62,7 @@ function adminSaveMember_(body) {
     if (input.vegetarian !== undefined) values['清口'] = input.vegetarian ? '是' : '';
     if (input.age !== undefined) values['出生年'] = birthYearOf_(input.age);
     if (input.temple !== undefined) values['佛堂'] = temple;
+    if (input.overseas !== undefined) values['國外'] = input.overseas || '';
     if (input.aliases !== undefined) {
       var aliases = (Array.isArray(input.aliases) ? input.aliases : splitAliases_(input.aliases)).map(normalizeName_).filter(function (a, i, arr) { return a && a !== name && arr.indexOf(a) === i; });
       var clash = aliasClash_(rows, row, aliases);
@@ -176,7 +178,7 @@ function memberToJson_(m) {
   MEMBER_GROUP_COLUMNS.forEach(function (t) { groups[t] = m[t]; });
   var by = Number(m['出生年']) || 0;
   return { row: m._row, name: m['姓名'], identity: m['身分'], groups: groups, note: m['備註'], active: m['啟用中'] !== '否', pending: m['待確認'] === '是',
-    vegetarian: m['清口'] === '是', birthYear: by || '', age: by ? Number(todayString_().slice(0, 4)) - by : '', temple: m['佛堂'] || '', aliases: splitAliases_(m['別名']) };
+    vegetarian: m['清口'] === '是', birthYear: by || '', age: by ? Number(todayString_().slice(0, 4)) - by : '', temple: m['佛堂'] || '', aliases: splitAliases_(m['別名']), overseas: m['國外'] || '' };
 }
 
 /** 以列號找資料並核對原本的值（姓名或組名），不符代表資料已被移動或修改 */
@@ -525,7 +527,7 @@ function adminMergeMembers_(body) {
 // ---------- 匯入成員資料（佛堂、年齡、身分） ----------
 
 /**
- * body = { items: [{ name, temple?, birthYear? | age?, identity? }], addMissing? }：依名字（或別名）更新成員的佛堂、出生年、身分。
+ * body = { items: [{ name, temple?, birthYear? | age?, identity?, vegetarian?, overseas? }], addMissing? }：依名字（或別名）更新成員的佛堂、出生年、身分、清口、國外。
  * 只更新有給的欄位；找不到的回報（addMissing 時新增）；同名好幾位分不出來的不改。
  */
 function adminImportMembers_(body) {
@@ -549,6 +551,8 @@ function adminImportMembers_(body) {
       if (!by && it.age !== undefined && it.age !== '') { var b = birthYearOf_(it.age); if (b) by = Number(b); }
       if (by && by > 1900 && by <= year) ch['出生年'] = String(by);
       if (it.identity && OPTIONS.identity.indexOf(it.identity) !== -1) ch['身分'] = it.identity;
+      if (it.vegetarian === true) ch['清口'] = '是';
+      if (it.overseas && SITE.overseas.indexOf(it.overseas) !== -1) ch['國外'] = it.overseas;
       var hits = rows.filter(function (m) { return normalizeName_(m['姓名']) === name; });
       if (!hits.length) hits = rows.filter(function (m) { return splitAliases_(m['別名']).indexOf(name) !== -1; });
       // 同名好幾位：用佛堂分
