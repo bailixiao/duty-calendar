@@ -4,18 +4,21 @@
   'use strict';
 
   const esc = Fmt.esc;
-  const st = { q: '', guard: null, canEdit: false, members: [], vegBox: null, ageBox: null };
+  const st = { q: '', guard: null, canEdit: false, members: [], temples: [], vegAll: {}, activity: new Map(), vegBox: null, ageBox: null };
+  const VEG_FIRST = 20; // 每區先列幾位，其餘按「全部列出」
 
   async function mount(vegBox, ageBox, opts) {
     st.vegBox = vegBox;
     st.ageBox = ageBox;
     st.canEdit = !!opts.canEdit;
     st.guard = opts.guard;
+    st.activity = opts.activity || new Map();
     vegBox.innerHTML = '<h3 class="admin-sub">🥬 道親清口</h3><p class="muted">讀取中⋯</p>';
     ageBox.innerHTML = '<h3 class="admin-sub">🎂 年齡統計</h3><p class="muted">讀取中⋯</p>';
     try {
       const data = await Api.admin('adminMembers', {}, true);
       st.members = data.members;
+      st.temples = data.temples || [];
       draw();
     } catch (err) {
       if (st.guard && st.guard(err)) return;
@@ -41,22 +44,47 @@
     const q = st.q.replace(/[\s　]+/g, '');
     const show = (list) => (q ? list.filter((m) => m.name.indexOf(q) !== -1) : list);
     const pct = dao.length ? Math.round((yes.length / dao.length) * 100) : 0;
-    const item = (m, isYes) => (st.canEdit
-      ? `<li><button type="button" class="veg-chip${isYes ? ' is-yes' : ''}" data-veg="${m.row}" data-v="${isYes ? '0' : '1'}" title="${isYes ? '改成還沒清口' : '改成已清口'}">${esc(m.name)}</button></li>`
-      : `<li><span class="veg-chip${isYes ? ' is-yes' : ''}">${esc(m.name)}</span></li>`);
+    // 依佛堂分組（順序同佛堂清單，沒填的放最後）；搜尋時全部列出，沒搜尋時每區先列 VEG_FIRST 位
+    const order = (t) => { const i = st.temples.indexOf(t); return t ? (i === -1 ? 900 : i) : 999; };
+    // 近一年出席次數（同名不同佛堂的，統計裡是「名字（佛堂）」）
+    const act = (m) => st.activity.get(m.name + '（' + (m.temple || '') + '）') || st.activity.get(m.name) || { count: 0, 勤務: 0, 道務: 0, 教育: 0 };
+    const byAct = (a, b) => act(b).count - act(a).count || Fmt.byStroke(a.name, b.name);
+    const block = (key, list, isYes, empty) => {
+      const shown = show(list);
+      if (!shown.length) return `<p class="muted veg-empty">${q ? '找不到' : empty}</p>`;
+      // 沒全部列出時：先挑出席最多的前 VEG_FIRST 位，再依佛堂分組；同一佛堂裡出席多的在前面
+      const pick = q || st.vegAll[key] ? shown : shown.slice().sort(byAct).slice(0, VEG_FIRST);
+      const groups = new Map();
+      pick.slice().sort((a, b) => order(a.temple || '') - order(b.temple || '') || (a.temple || '').localeCompare(b.temple || '') || byAct(a, b))
+        .forEach((m) => { const t = m.temple || ''; if (!groups.has(t)) groups.set(t, []); groups.get(t).push(m); });
+      const total = (t) => shown.filter((m) => (m.temple || '') === t).length;
+      const html = [...groups].map(([t, ms]) => `<div class="veg-group"><h5>${esc(t || '未填佛堂')}<span>（${ms.length < total(t) ? `列出 ${ms.length}／` : ''}${total(t)}）</span></h5><ul class="veg-list">${ms.map((m) => item(m, isYes)).join('')}</ul></div>`).join('');
+      const more = !q && shown.length > VEG_FIRST
+        ? `<button type="button" class="btn btn-small veg-more no-print" data-veg-all="${key}">${st.vegAll[key] ? '收起來' : `全部列出（${shown.length} 位）`}</button>` : '';
+      return html + more;
+    };
+    const item = (m, isYes) => {
+      const a = act(m);
+      const tip = `近一年出席 ${a.count} 次（勤務 ${a.勤務}、道務 ${a.道務}、教育 ${a.教育}）`;
+      const label = `${esc(m.name)}${a.count ? `<small class="veg-n">${a.count}</small>` : ''}`;
+      return st.canEdit
+        ? `<li><button type="button" class="veg-chip${isYes ? ' is-yes' : ''}" data-veg="${m.row}" data-v="${isYes ? '0' : '1'}" title="${tip}；點一下${isYes ? '改成還沒清口' : '改成已清口'}">${label}</button></li>`
+        : `<li><span class="veg-chip${isYes ? ' is-yes' : ''}" title="${tip}">${label}</span></li>`;
+    };
     st.vegBox.innerHTML = `
       <h3 class="admin-sub">🥬 道親清口<span class="h2-sub">成員名單上的道親</span></h3>
       <div class="veg-summary"><strong>已清口 ${yes.length} 位</strong>／道親 ${dao.length} 位（${pct}%）
         <span class="veg-bar"><span style="width:${pct}%"></span></span></div>
       ${dao.length > 8 ? `<input class="input veg-q" type="search" data-veg-q placeholder="🔍 找名字" value="${esc(st.q)}">` : ''}
       <div class="veg-cols">
-        <div><h4>✅ 已清口（${yes.length}）</h4><ul class="veg-list">${show(yes).map((m) => item(m, true)).join('') || '<li class="muted veg-empty">還沒有</li>'}</ul></div>
-        <div><h4>⬜ 還沒清口（${no.length}）</h4><ul class="veg-list">${show(no).map((m) => item(m, false)).join('') || '<li class="muted veg-empty">都清口了 🙏</li>'}</ul></div>
+        <div><h4>✅ 已清口（${yes.length}）</h4>${block('yes', yes, true, '還沒有')}</div>
+        <div><h4>⬜ 還沒清口（${no.length}）</h4>${block('no', no, false, '都清口了 🙏')}</div>
       </div>
       <div class="admin-actions no-print"><button type="button" class="btn" data-veg-copy>複製清口名單</button></div>
-      <p class="hint">${st.canEdit ? '點名字就能在「已清口／還沒清口」之間切換，會記在成員名單。' : ''}道親的身分在「成員」頁設定；名單上沒有的人（例如待確認）不會列在這裡。</p>`;
+      <p class="hint">名字右邊的小字是近一年出席次數（勤務＋道務＋教育），同一佛堂裡常來的排前面，方便找穩定的道親成全清口。${st.canEdit ? '點名字就能在「已清口／還沒清口」之間切換，會記在成員名單。' : ''}道親的身分在「成員」頁設定；名單上沒有的人（例如待確認）不會列在這裡。</p>`;
     const qi = st.vegBox.querySelector('[data-veg-q]');
     if (qi) qi.addEventListener('input', () => { st.q = qi.value; drawVeg(); const n = st.vegBox.querySelector('[data-veg-q]'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); });
+    st.vegBox.querySelectorAll('[data-veg-all]').forEach((b) => b.addEventListener('click', () => { st.vegAll[b.dataset.vegAll] = !st.vegAll[b.dataset.vegAll]; drawVeg(); }));
     st.vegBox.querySelectorAll('[data-veg]').forEach((b) => b.addEventListener('click', () => {
       const m = st.members.find((x) => x.row === Number(b.dataset.veg));
       save([{ row: m.row, original: m.name, vegetarian: b.dataset.v === '1' }]);
@@ -121,6 +149,7 @@
       const res = await Api.admin('adminSetMemberExtra', { items });
       Busy.hide();
       st.members = res.members;
+      st.temples = res.temples || st.temples;
       AdminPage.clearMemo();
       draw();
     } catch (err) {

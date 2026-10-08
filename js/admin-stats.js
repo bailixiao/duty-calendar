@@ -370,7 +370,7 @@
     bindCare(body, (data.events || []).filter((e) => (e.category || '勤務') === cat), data.today, () => render(body, guard, data, false));
     // 各佛堂道務目標（年度跟著上面選的期間）
     const veg = body.querySelector('[data-veg]');
-    if (veg) MemberStats.mount(veg, body.querySelector('[data-ages]'), { canEdit: ['總管理者', '道務'].indexOf(Api.adminWho().role) !== -1, guard });
+    if (veg) MemberStats.mount(veg, body.querySelector('[data-ages]'), { canEdit: ['總管理者', '道務'].indexOf(Api.adminWho().role) !== -1, guard, activity: C.activity(data.events || [], data.today) });
     const goals = body.querySelector('[data-goals]');
     if (goals) GoalsPage.mount(goals, p.year, { canEdit: ['總管理者', '道務'].indexOf(Api.adminWho().role) !== -1, guard });
   }

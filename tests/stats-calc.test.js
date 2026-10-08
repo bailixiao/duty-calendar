@@ -121,3 +121,14 @@ test('年齡統計：各身分的人數、平均、中位數、最小最大、�
   assert.deepEqual(dao.bands.map((b) => b.count), [1, 0, 1, 0, 1]);
   assert.equal(r[2].withAge, 5, '點傳師不列、全部也不含');
 });
+
+test('近一年出席次數：分類別算，一年前的不算', () => {
+  const C = require('../js/stats-calc.js');
+  const ev = (date, category, dao) => ({ date, category, tan: [], dao, unknown: [] });
+  const m = C.activity([
+    ev('2026-09-01', '勤務', ['測試甲', '測試乙']), ev('2026-08-01', '道務', ['測試甲']),
+    ev('2026-07-01', '教育', ['測試甲']), ev('2025-01-01', '勤務', ['測試乙'])
+  ], '2026-10-08');
+  assert.deepEqual(m.get('測試甲'), { count: 3, 勤務: 1, 道務: 1, 教育: 1 });
+  assert.equal(m.get('測試乙').count, 1);
+});

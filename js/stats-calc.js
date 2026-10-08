@@ -130,6 +130,25 @@
       .sort((a, b) => (a.last < b.last ? -1 : a.last > b.last ? 1 : strokeCompare(a.name, b.name)));
   }
 
+  /**
+   * 近一年每個人出席幾次（全部類別）：回傳 Map 名字 → { count, 勤務, 道務, 教育 }。
+   * 名字和統計一樣（同名不同佛堂的會是「名字（佛堂）」）。
+   */
+  function activity(events, today, days) {
+    const from = addDays(today, -(days || 365));
+    const map = new Map();
+    events.filter((e) => e.date >= from && e.date <= today).forEach((e) => {
+      const cat = e.category || '勤務';
+      e.tan.concat(e.dao, e.unknown).forEach((n) => {
+        const v = map.get(n) || { count: 0, 勤務: 0, 道務: 0, 教育: 0 };
+        v.count += 1;
+        if (v[cat] !== undefined) v[cat] += 1;
+        map.set(n, v);
+      });
+    });
+    return map;
+  }
+
   const AGE_BANDS = [['14 歲以下', 0, 14], ['15–29', 15, 29], ['30–44', 30, 44], ['45–64', 45, 64], ['65 歲以上', 65, 200]];
 
   /**
@@ -253,7 +272,7 @@
     return { now: summarize(events, p), prevP, prev: cut(prevP), lyP, ly: cut(lyP), partial };
   }
 
-  const api = { ageStats, careList, compare, startOf, addDays, UNIT_NAME, periodOf, shift, lastYear, contains, label, prevName, lastYearName, summarize, trend, ranking, byCategory, missingIdentity, delta, pct, textReport, eventsIn };
+  const api = { activity, ageStats, careList, compare, startOf, addDays, UNIT_NAME, periodOf, shift, lastYear, contains, label, prevName, lastYearName, summarize, trend, ranking, byCategory, missingIdentity, delta, pct, textReport, eventsIn };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.StatsCalc = api;
 })();
