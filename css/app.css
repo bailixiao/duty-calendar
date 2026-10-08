@@ -2214,6 +2214,14 @@ body.splash-on .text-size-btn { visibility: hidden; }
 .veg-yes-btn { padding: 2px 10px; border: 1px solid color-mix(in srgb, var(--ok) 45%, var(--line)); border-radius: 999px; background: color-mix(in srgb, var(--ok) 12%, var(--card)); color: inherit; font: inherit; font-weight: 700; cursor: pointer; }
 .veg-yes-box { padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--ok) 35%, var(--line)); border-radius: 12px; background: color-mix(in srgb, var(--ok) 5%, var(--card)); }
 .grid-more { margin-top: 8px; }
+.stat-card-btn { font: inherit; color: inherit; text-align: left; cursor: pointer; width: 100%; }
+.stat-card-btn:hover, .stat-card-btn.is-open { border-color: var(--accent, #b5562f); }
+.items-box { margin: 12px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); display: grid; gap: 10px; }
+.items-group h4 { margin: 0 0 4px; font-size: 1.0625rem; }
+.items-group h4 span { font-weight: 400; color: var(--muted); }
+.items-group ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.items-group li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 1.0625rem; }
+.items-group small { color: var(--muted); font-size: 0.875rem; }
 .veg-tag { margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--ok-soft); color: var(--ok); font-size: 0.875rem; vertical-align: middle; }
 .veg-detail-sum { font-size: 1.125rem; margin: 4px 0 8px; }
 .veg-detail-sum strong { font-size: 1.5rem; }

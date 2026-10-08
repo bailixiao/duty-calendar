@@ -7,7 +7,7 @@
   const esc = Fmt.esc;
   const C = window.StatsCalc;
   const TREND_COUNT = { month: 12, quarter: 8, year: 5 };
-  const state = { unit: 'month', period: null, rankKind: 'all', rankAll: false, category: '勤務', eduCourse: {}, eduRankAll: false, eduGridAll: false, eduPick: {}, careDays: 60 };
+  const state = { unit: 'month', period: null, rankKind: 'all', rankAll: false, category: '勤務', eduCourse: {}, eduRankAll: false, eduGridAll: false, eduItemsOpen: false, eduPick: {}, careDays: 60 };
 
   function show(body, guard) {
     AdminPage.swr('stats', () => Api.admin('adminStats', {}, true), (data, stale) => {
@@ -224,6 +224,21 @@
   };
 
   const GRID_FIRST = 10; // 出缺勤表先列幾位
+  const NATURE_ORDER = ['法會', '課程', '會議']; // 道務的性質
+
+  /** 「項目」卡片展開的清單：依性質分，寫場次；點名稱看出缺勤表 */
+  function itemsListHtml(courses, L, cat) {
+    if (!courses.length) return `<div class="items-box"><p class="muted">${L.empty}</p></div>`;
+    const idx = (c) => courses.indexOf(c);
+    const groups = cat === '道務'
+      ? NATURE_ORDER.concat([...new Set(courses.map((c) => c.nature).filter((n) => NATURE_ORDER.indexOf(n) === -1))])
+        .map((n) => [n || '其他', courses.filter((c) => (c.nature || '') === n || (!n && !c.nature))]).filter(([, cs]) => cs.length)
+      : [[L.item, courses]];
+    return `<div class="items-box">${groups.map(([n, cs]) => `
+      <div class="items-group"><h4>${esc(n)}<span>（${cs.length}）</span></h4>
+        <ul>${cs.slice().sort((a, b) => b.sessions.length - a.sessions.length).map((c) => `<li><button type="button" class="link-btn" data-course="${idx(c)}">${esc(c.name)}</button><small>${c.sessions.length} ${L.unit}・${c.students.length} 人</small></li>`).join('')}</ul>
+      </div>`).join('')}<p class="hint">點名稱看那個${L.item}的出缺勤表。</p></div>`;
+  }
 
   /** 教育、道務的統計：以課程（道務也含法會、會議）為單位（參與量、出缺勤表、出席排行、負責人員） */
   function renderEdu(body, guard, data, stale, canPick, cat) {
@@ -269,11 +284,13 @@
         </div>${picked.length ? `<p class="stats-note">只看：${picked.map(esc).join('、')}</p>` : ''}` : ''}
 
         <div class="stat-cards">
-          <div class="stat-card"><span class="stat-label">${L.item}</span><span class="stat-num">${courses.length}</span><span class="stat-hint">同名的算同一個${L.item}</span></div>
+          <button type="button" class="stat-card stat-card-btn${state.eduItemsOpen ? ' is-open' : ''}" data-items-toggle aria-expanded="${state.eduItemsOpen}"><span class="stat-label">${L.item} ${state.eduItemsOpen ? '▴' : '▾'}</span><span class="stat-num">${courses.length}</span><span class="stat-hint">${cat === '道務' && courses.length ? NATURE_ORDER.map((n) => `${n} ${courses.filter((c) => c.nature === n).length}`).join('・') : `同名的算同一個${L.item}`}</span></button>
           <div class="stat-card"><span class="stat-label">${cat === '教育' ? '上課堂數' : '場次'}</span><span class="stat-num">${courses.reduce((n, c) => n + c.sessions.length, 0)}</span><span class="stat-hint">只算今天以前</span></div>
           <div class="stat-card"><span class="stat-label">${L.person}（不重複）</span><span class="stat-num">${students.size}</span><span class="stat-hint">同一人只算 1 位，不含陪同</span></div>
           <div class="stat-card"><span class="stat-label">出席率</span><span class="stat-num">${pctText(present + absent ? present / (present + absent) : null)}</span><span class="stat-hint">出席 ${present} 人次・未到 ${absent} 人次</span></div>
         </div>
+
+        ${state.eduItemsOpen ? itemsListHtml(courses, L, cat) : ''}
 
         <section class="stats-section">
           <h3 class="admin-sub">各${L.item}${L.person}量<span class="h2-sub">點${L.item}看出缺勤表</span></h3>
@@ -356,6 +373,8 @@
       const sec = body.querySelector('[data-grid-section]');
       if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }));
+    const it = body.querySelector('[data-items-toggle]');
+    if (it) it.addEventListener('click', () => { state.eduItemsOpen = !state.eduItemsOpen; render(body, guard, data, false); });
     const ea = body.querySelector('[data-erank-all]');
     if (ea) ea.addEventListener('click', () => { state.eduRankAll = !state.eduRankAll; render(body, guard, data, false); });
     const ga = body.querySelector('[data-grid-all]');

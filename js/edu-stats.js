@@ -30,11 +30,12 @@
     });
     const map = new Map();
     const course = (series, name) => {
-      if (!map.has(series)) map.set(series, { name, sessions: [], keys: new Set() });
+      if (!map.has(series)) map.set(series, { name, nature: '', sessions: [], keys: new Set() });
       return map.get(series);
     };
     (eduSessions || []).filter((s) => (s.category || '教育') === category && inPeriod(s.date)).forEach((s) => {
       const c = course(s.series || s.name, s.name);
+      if (!c.nature) c.nature = s.nature || '';
       const key = s.dutyId + '|' + s.date;
       if (c.keys.has(key)) return;
       c.keys.add(key);
@@ -44,6 +45,7 @@
     // 堂次清單沒有、但有出勤資料的（例如舊資料性質不是課程）：只收教育的「課程」
     Object.values(byKey).filter((e) => NATURES[category].indexOf(e.nature) !== -1 && inPeriod(e.date)).forEach((e) => {
       const c = course(e.series || e.name, e.name);
+      if (!c.nature) c.nature = e.nature || '';
       const key = e.dutyId + '|' + e.date;
       if (c.keys.has(key)) return;
       c.keys.add(key);
@@ -72,7 +74,7 @@
       students.forEach((n) => { perStudent[n] = Object.values(grid[n]).filter((v) => v === '✓').length; });
       const teachers = [...new Set(c.sessions.flatMap((s) => s.teachers))];
       return {
-        name: c.name, sessions: c.sessions, students, grid, present, absent, perStudent, perSession, teachers,
+        name: c.name, nature: c.nature, sessions: c.sessions, students, grid, present, absent, perStudent, perSession, teachers,
         avg: c.sessions.length ? Math.round((present / c.sessions.length) * 10) / 10 : 0,
         rate: present + absent ? present / (present + absent) : null
       };
