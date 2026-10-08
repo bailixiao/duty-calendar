@@ -7,7 +7,7 @@
   const esc = Fmt.esc;
   const C = window.StatsCalc;
   const TREND_COUNT = { month: 12, quarter: 8, year: 5 };
-  const state = { unit: 'month', period: null, rankKind: 'all', rankAll: false, category: '勤務', eduCourse: {}, eduRankAll: false, eduPick: {}, careDays: 60 };
+  const state = { unit: 'month', period: null, rankKind: 'all', rankAll: false, category: '勤務', eduCourse: {}, eduRankAll: false, eduGridAll: false, eduPick: {}, careDays: 60 };
 
   function show(body, guard) {
     AdminPage.swr('stats', () => Api.admin('adminStats', {}, true), (data, stale) => {
@@ -223,6 +223,8 @@
       empty: '這段期間沒有道務的課程、法會或會議', noStaff: '還沒有填講師、帶班、助理帶班。在道務的編輯畫面填寫，或用「安排整年的人員」一次排好。' }
   };
 
+  const GRID_FIRST = 10; // 出缺勤表先列幾位
+
   /** 教育、道務的統計：以課程（道務也含法會、會議）為單位（參與量、出缺勤表、出席排行、負責人員） */
   function renderEdu(body, guard, data, stale, canPick, cat) {
     const L = EDU_LABELS[cat];
@@ -291,13 +293,14 @@
           <h3 class="admin-sub">出缺勤表：${esc(cur.name)}<span class="h2-sub">✓ 出席・✗ 未到・空白＝沒報名</span></h3>
           ${cur.students.length ? `<div class="edu-table-wrap"><table class="edu-table edu-grid">
             <thead><tr><th class="edu-sticky">姓名</th>${cur.sessions.map((s) => `<th>${md(s.date)}<small>（${esc(Fmt.weekday(s.date))}）</small></th>`).join('')}<th>出席</th></tr></thead>
-            <tbody>${cur.students.map((n) => `
+            <tbody>${(state.eduGridAll ? cur.students : cur.students.slice(0, GRID_FIRST)).map((n) => `
               <tr><th scope="row" class="edu-sticky">${esc(n)}</th>${cur.sessions.map((s) => {
                 const v = cur.grid[n][s.key] || '';
                 return `<td class="${v === '✓' ? 'is-here' : v === '✗' ? 'is-away' : ''}">${v}</td>`;
               }).join('')}<td class="edu-sum">${cur.perStudent[n]}/${cur.sessions.length}</td></tr>`).join('')}</tbody>
             <tfoot><tr><th class="edu-sticky">每${L.unit}出席</th>${cur.sessions.map((s) => `<td>${cur.perSession[s.key]}</td>`).join('')}<td></td></tr></tfoot>
           </table></div>
+          ${cur.students.length > GRID_FIRST ? `<button type="button" class="btn btn-small no-print grid-more" data-grid-all>${state.eduGridAll ? `只看前 ${GRID_FIRST} 位` : `看全部 ${cur.students.length} 位`}</button>` : ''}
           <div class="admin-actions no-print"><button type="button" class="btn" data-copy-grid>複製出缺勤表（貼到試算表或 LINE）</button></div>` : `<p class="muted">這個${L.item}這段期間還沒有人報名</p>`}
           <p class="hint">沒來的人：到後台這${L.unit}的報名名單按「改未到」；沒報名但有來的人：按「補登」。</p>
         </section>` : ''}
@@ -355,6 +358,12 @@
     }));
     const ea = body.querySelector('[data-erank-all]');
     if (ea) ea.addEventListener('click', () => { state.eduRankAll = !state.eduRankAll; render(body, guard, data, false); });
+    const ga = body.querySelector('[data-grid-all]');
+    if (ga) ga.addEventListener('click', () => {
+      state.eduGridAll = !state.eduGridAll;
+      render(body, guard, data, false);
+      if (!state.eduGridAll) body.querySelector('[data-grid-section]').scrollIntoView({ block: 'start' }); // 收起來後回到表格開頭
+    });
     body.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => {
       const n = b.dataset.pick;
       const set = new Set(state.eduPick[cat] || []);

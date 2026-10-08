@@ -2211,6 +2211,7 @@ body.splash-on .text-size-btn { visibility: hidden; }
 .veg-list { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(6.2em, 1fr)); gap: 6px; }
 .veg-list li { display: flex; }
 .veg-more { margin: 2px 0 6px; }
+.grid-more { margin-top: 8px; }
 .veg-n { margin-left: 4px; font-size: 0.75rem; color: var(--muted); font-weight: 400; }
 .veg-chip { display: block; width: 100%; text-align: center; white-space: nowrap; padding: 4px 6px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: inherit; font: inherit; font-size: .95rem; line-height: 1.4; }
 button.veg-chip { cursor: pointer; }
