@@ -145,7 +145,11 @@ function withMemberIdentity_(entries) {
     var n = normalizeName_(m['姓名']);
     (map[n] = map[n] || []).push(m);
   });
+  var alias = memberAliasMap_();
   return entries.map(function (e) {
+    // 打的是別名（而且不是別人的本名）：換成主要名字
+    var typed = normalizeName_(e && e.name);
+    if (!map[typed] && alias[typed]) e = Object.assign({}, e, { name: alias[typed].name, temple: (e && e.temple) || alias[typed].temple });
     var list = map[normalizeName_(e && e.name)] || [];
     var temple = cleanText_((e && e.temple) || '');
     var m = temple ? list.filter(function (x) { return x['佛堂'] === temple; })[0] : list.length === 1 ? list[0] : null;
@@ -163,4 +167,27 @@ function checkAmbiguous_(entries) {
   if (bad.length) throw new ApiError_('VALIDATION', '名單上有同名的人，請選是哪一位', bad.map(function (e) {
     return { name: normalizeName_(e.name), message: '名單上有 ' + e.ambiguous.length + ' 位「' + normalizeName_(e.name) + '」（' + e.ambiguous.join('、') + '），請從名字提示點選是哪個佛堂的' };
   }));
+}
+
+/** 別名 → { name: 主要名字, temple }（啟用中、非待確認的成員） */
+function memberAliasMap_() {
+  var out = {};
+  readTableCached_(SHEETS.MEMBERS).forEach(function (m) {
+    if (!m['姓名'] || m['啟用中'] === '否' || m['待確認'] === '是' || !m['別名']) return;
+    splitAliases_(m['別名']).forEach(function (a) { out[a] = { name: normalizeName_(m['姓名']), temple: m['佛堂'] || '' }; });
+  });
+  return out;
+}
+
+function splitAliases_(text) {
+  return String(text || '').split(/[、，,\s]+/).map(function (x) { return normalizeName_(x); }).filter(Boolean);
+}
+
+/** 名字如果是某人的別名，換成主要名字（查我的報名、手機提醒的「我是誰」用） */
+function canonicalName_(name) {
+  var n = normalizeName_(name);
+  var isMember = readTableCached_(SHEETS.MEMBERS).some(function (m) { return normalizeName_(m['姓名']) === n; });
+  if (isMember) return n;
+  var a = memberAliasMap_()[n];
+  return a ? a.name : n;
 }

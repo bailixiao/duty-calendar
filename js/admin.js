@@ -627,8 +627,8 @@
       const exact = sameName.find((x) => (x.temple || '') === (f.dataset.temple || '')) || (sameName.length === 1 ? sameName[0] : null);
       if (exact && exact.identity) setIdentity(exact.identity); // 名單上已登記的身分自動帶入
       if (exact && sameName.length === 1) f.dataset.temple = exact.temple || '';
-      const list = q ? members.filter((x) => x.name.indexOf(q) !== -1 && (x.name !== q || sameName.length > 1)).slice(0, 8) : [];
-      sug.innerHTML = list.map((x) => `<button type="button" class="suggestion" data-suggest="${esc(x.name)}" data-temple="${esc(x.temple || '')}">${esc(x.name)}${x.temple ? `<small>${esc(x.temple)}</small>` : ''}${x.identity ? `<small>${esc(x.identity)}</small>` : ''}</button>`).join('');
+      const list = q ? members.filter((x) => (x.name.indexOf(q) !== -1 && (x.name !== q || sameName.length > 1)) || (x.aliases || []).some((a) => a.indexOf(q) !== -1)).slice(0, 8) : [];
+      sug.innerHTML = list.map((x) => `<button type="button" class="suggestion" data-suggest="${esc(x.name)}" data-temple="${esc(x.temple || '')}">${esc(x.name)}${(x.aliases || []).length ? `<small>${esc(x.aliases.join('、'))}</small>` : ''}${x.temple ? `<small>${esc(x.temple)}</small>` : ''}${x.identity ? `<small>${esc(x.identity)}</small>` : ''}</button>`).join('');
     }
     f.elements.name.addEventListener('input', () => { f.dataset.temple = ''; onName(); });
     sug.addEventListener('click', (ev) => {

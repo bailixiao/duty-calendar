@@ -47,5 +47,5 @@ function mySignups_(body) {
 
 /** 比對用：去掉名字裡所有半形與全形空白 */
 function mineKey_(name) {
-  return normalizeName_(name).replace(/[\s　]+/g, '');
+  return canonicalName_(normalizeName_(name).replace(/[\s　]+/g, '')); // 打別名也查得到
 }

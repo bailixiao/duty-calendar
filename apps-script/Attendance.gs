@@ -75,7 +75,7 @@ function adminAddAttendee_(body) {
     var now = nowString_();
     var row = {
       '報名ID': newId_('S'), '勤務ID': duty['勤務ID'], '日期': body.date, '了愿項目ID': body.positionId,
-      '姓名': normalizeName_(body.name), '身分': entry.identity, '佛堂': entry.temple || '', '陪同': entry.accompany ? '是' : '否',
+      '姓名': normalizeName_(entry.name), '身分': entry.identity, '佛堂': entry.temple || '', '陪同': entry.accompany ? '是' : '否',
       '出席': '出席', '狀態': '有效', '建立時間': now, '更新時間': now
     };
     if (duty['版面'] === '職司表' && body.note) row['註記'] = cleanText_(body.note).slice(0, 100);

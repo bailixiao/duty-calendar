@@ -61,6 +61,12 @@ function adminSaveMember_(body) {
     if (input.vegetarian !== undefined) values['清口'] = input.vegetarian ? '是' : '';
     if (input.age !== undefined) values['出生年'] = birthYearOf_(input.age);
     if (input.temple !== undefined) values['佛堂'] = temple;
+    if (input.aliases !== undefined) {
+      var aliases = (Array.isArray(input.aliases) ? input.aliases : splitAliases_(input.aliases)).map(normalizeName_).filter(function (a, i, arr) { return a && a !== name && arr.indexOf(a) === i; });
+      var clash = aliasClash_(rows, row, aliases);
+      if (clash) throw new ApiError_('VALIDATION', '成員資料有錯，沒有存檔', [{ message: clash }]);
+      values['別名'] = aliases.join('、');
+    }
     MEMBER_GROUP_COLUMNS.forEach(function (type) { values[type] = groups[type]; });
     var summary;
     if (row) {
@@ -170,7 +176,7 @@ function memberToJson_(m) {
   MEMBER_GROUP_COLUMNS.forEach(function (t) { groups[t] = m[t]; });
   var by = Number(m['出生年']) || 0;
   return { row: m._row, name: m['姓名'], identity: m['身分'], groups: groups, note: m['備註'], active: m['啟用中'] !== '否', pending: m['待確認'] === '是',
-    vegetarian: m['清口'] === '是', birthYear: by || '', age: by ? Number(todayString_().slice(0, 4)) - by : '', temple: m['佛堂'] || '' };
+    vegetarian: m['清口'] === '是', birthYear: by || '', age: by ? Number(todayString_().slice(0, 4)) - by : '', temple: m['佛堂'] || '', aliases: splitAliases_(m['別名']) };
 }
 
 /** 以列號找資料並核對原本的值（姓名或組名），不符代表資料已被移動或修改 */
@@ -465,4 +471,52 @@ function adminSetMemberExtra_(body) {
     invalidateTable_(SHEETS.MEMBERS);
     return adminMembers_();
   });
+}
+
+// ---------- 別名、合併成同一人 ----------
+
+/** 別名不能是別人的名字或別名；有衝突回傳說明，沒有回空字串 */
+function aliasClash_(rows, self, aliases) {
+  for (var i = 0; i < aliases.length; i++) {
+    var a = aliases[i];
+    var other = rows.filter(function (m) {
+      return m !== self && m['姓名'] && (normalizeName_(m['姓名']) === a || splitAliases_(m['別名']).indexOf(a) !== -1);
+    })[0];
+    if (other) return '別名「' + a + '」已經是「' + other['姓名'] + '」的' + (normalizeName_(other['姓名']) === a ? '名字' : '別名') + '；是同一個人的話，請用「和另一位是同一人」合併';
+  }
+  return '';
+}
+
+/**
+ * body = { keep: { row, original }, drop: { row, original } }：兩位其實是同一人，留 keep（主要名字，通常是真名），
+ * drop 的名字和別名變成 keep 的別名；keep 沒填的身分、組別、年齡、佛堂、清口、備註用 drop 的補上；
+ * 報名紀錄 drop 的名字改成 keep 的（同一場重複只留一筆）；刪掉 drop 那一列。
+ */
+function adminMergeMembers_(body) {
+  var k = body.keep || {};
+  var d = body.drop || {};
+  var rows = readTable_(SHEETS.MEMBERS);
+  var keep = findRowChecked_(rows, k.row, '姓名', k.original, '成員');
+  var drop = findRowChecked_(rows, d.row, '姓名', d.original, '成員');
+  if (keep === drop) throw new ApiError_('BAD_REQUEST', '請選另一位');
+  var keepName = normalizeName_(keep['姓名']);
+  var dropName = normalizeName_(drop['姓名']);
+  var res = keepName !== dropName ? adminMergeNames_({ merges: [{ from: [dropName].concat(splitAliases_(drop['別名'])), to: keepName }] }) : { changed: 0, dropped: 0 };
+  withSignupLock_(function () {
+    var fresh = readTable_(SHEETS.MEMBERS);
+    var kk = findRowChecked_(fresh, k.row, '姓名', k.original, '成員');
+    var dd = findRowChecked_(fresh, d.row, '姓名', d.original, '成員');
+    var aliases = splitAliases_(kk['別名']).concat([dropName], splitAliases_(dd['別名']))
+      .filter(function (a, i, arr) { return a && a !== keepName && arr.indexOf(a) === i; });
+    var ch = { '別名': aliases.join('、') };
+    ['身分', '勤務了愿組', '打掃組', '拜香輪值組', '出生年', '佛堂', '清口'].forEach(function (h) { if (!kk[h] && dd[h]) ch[h] = dd[h]; });
+    if (dd['備註'] && String(kk['備註'] || '').indexOf(dd['備註']) === -1) ch['備註'] = [kk['備註'], dd['備註']].filter(Boolean).join('；');
+    if (dd['待確認'] !== '是' && kk['待確認'] === '是') ch['待確認'] = '';
+    updateRow_(SHEETS.MEMBERS, kk, ch);
+    deleteRows_(SHEETS.MEMBERS, [dd._row]);
+    writeDutyLog_('成員', '合併成同一人｜「' + dropName + '」併入「' + keepName + '」（變成別名；報名紀錄改名 ' + res.changed + ' 筆' + (res.dropped ? '，同一場重複 ' + res.dropped + ' 筆改為已取消' : '') + '）');
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.MEMBERS);
+  });
+  return { changed: res.changed, dropped: res.dropped, members: adminMembers_().members };
 }

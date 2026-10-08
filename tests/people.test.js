@@ -22,7 +22,7 @@ test('成員：新增、修改、停用；重複姓名與不存在的組被擋�
   let list = call('adminMembers').data;
   assert.equal(list.members.length, 1);
   assert.deepEqual(list.members[0], {
-    row: 2, name: '測試甲', identity: '道親', note: '', active: true, pending: false, vegetarian: false, birthYear: '', age: '', temple: '',
+    row: 2, name: '測試甲', identity: '道親', note: '', active: true, pending: false, vegetarian: false, birthYear: '', age: '', temple: '', aliases: [],
     groups: { '勤務了愿組': '', '打掃組': '第1組', '拜香輪值組': '' }
   });
   assert.ok(list.groups.length > 0);
@@ -236,4 +236,32 @@ test('佛堂：同名不同佛堂可以都在名單；報名沒選佛堂會請�
   const e = call('adminStats').data.events.find((x) => x.dutyId === ev.id);
   assert.deepEqual([...e.tan, ...e.dao].sort(), ['測試甲（測試佛堂A）', '測試甲（測試佛堂B）'], '統計分開算，身分照名單（B 是壇辦）');
   assert.deepEqual(e.tan, ['測試甲（測試佛堂B）']);
+});
+
+test('別名、合併成同一人：打別名報名記成真名；名字提示用別名找得到；合併後報名紀錄改名、只留真名那位', () => {
+  const env = createEnv(Date.UTC(2026, 9, 1, 2, 0, 0));
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const call = (action, body) => env.post(Object.assign({ action, token }, body));
+  call('adminSaveMember', { member: { name: '測試甲', identity: '壇辦', aliases: '小甲' } });
+  call('adminSaveMember', { member: { name: '測試乙', identity: '道親' } });
+  call('adminSaveMember', { member: { name: '測試乙乙', identity: '壇辦', age: '50' } });
+  assert.equal(call('adminSaveMember', { member: { name: '測試丙', aliases: '小甲' } }).error.code, 'VALIDATION', '別名不能重複');
+  const sug = env.get({ action: 'searchMembers', q: '小甲' }).data.members;
+  assert.deepEqual(sug.map((m) => [m.name, m.alias]), [['測試甲', '小甲']]);
+  const ev = env.get({ action: 'getEvents', from: '2026-10-13', to: '2026-10-13' }).data.duties.find((d) => d.name === '彌勒山志工輪值');
+  const r = env.post({ action: 'signup', dutyId: ev.id, positionId: ev.positions[0].id, dates: ['2026-10-13'], entries: [{ name: '小甲', identity: '道親' }, { name: '測試乙乙', identity: '壇辦' }] });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  let names = env.get({ action: 'getDuty', id: ev.id }).data.signups.map((s) => s.name).sort();
+  assert.deepEqual(names, ['測試乙乙', '測試甲'], '別名記成真名');
+  assert.equal(env.post({ action: 'mySignups', name: '小甲' }).data.items.length, 1, '打別名也查得到');
+  // 測試乙乙其實是測試乙（真名＝測試乙）
+  const list = call('adminMembers').data.members;
+  const keep = list.find((m) => m.name === '測試乙');
+  const drop = list.find((m) => m.name === '測試乙乙');
+  const mg = call('adminMergeMembers', { keep: { row: keep.row, original: keep.name }, drop: { row: drop.row, original: drop.name } });
+  assert.equal(mg.ok, true, JSON.stringify(mg.error));
+  const after = mg.data.members.find((m) => m.name === '測試乙');
+  assert.deepEqual([after.aliases, after.identity, after.age, !!mg.data.members.find((m) => m.name === '測試乙乙')], [['測試乙乙'], '道親', 50, false]);
+  names = env.get({ action: 'getDuty', id: ev.id }).data.signups.map((s) => s.name).sort();
+  assert.deepEqual(names, ['測試乙', '測試甲'], '報名紀錄改成真名');
 });

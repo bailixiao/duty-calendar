@@ -266,7 +266,7 @@ function pushMine_(name, date) {
 /** body = { endpoint, name }：手機提醒的「我是誰」（空白＝清掉，收全部） */
 function pushSetName_(body) {
   if (!validEndpoint_(body.endpoint)) throw new ApiError_('BAD_REQUEST', '推播網址格式不對');
-  var name = normalizeName_(String(body.name || '').replace(/[\s　]+/g, ''));
+  var name = canonicalName_(String(body.name || '').replace(/[\s　]+/g, '')); // 打別名就換成主要名字
   if (name && name.length < 2) throw new ApiError_('BAD_REQUEST', '請輸入完整的名字');
   return withSignupLock_(function () {
     var row = readTable_(SHEETS.PUSH).filter(function (r) { return r['端點'] === body.endpoint && r['啟用'] !== '否'; })[0];

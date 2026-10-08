@@ -243,10 +243,16 @@
     async function lookupIdentity(entry) {
       try {
         const res = await Api.searchMembers(entry.name, duty.groupType, duty.group);
+        // 打的是別名：換成真名
+        const byAlias = res.members.filter((x) => x.alias === entry.name);
+        if (byAlias.length === 1 && !res.members.some((x) => x.name === entry.name)) {
+          entry.name = byAlias[0].name;
+          entry.temple = entry.temple || byAlias[0].temple || '';
+        }
         const same = res.members.filter((x) => x.name === entry.name);
         if (same.length > 1 && !entry.temple) { showError(`名單上有 ${same.length} 位「${entry.name}」（${same.map((x) => x.temple || '未填佛堂').join('、')}），請移除後從名字提示點選是哪一位`); return; }
         const m = same[0];
-        if (!m || KNOWN_IDENTITIES.indexOf(m.identity) === -1 || state.entries.indexOf(entry) === -1) return;
+        if (!m || KNOWN_IDENTITIES.indexOf(m.identity) === -1 || state.entries.indexOf(entry) === -1) { renderNames(); return; }
         entry.identity = m.identity;
         entry.locked = true;
         if (entry.identity !== '壇辦') entry.accompany = false;
@@ -312,7 +318,7 @@
       items.forEach((m) => { knownIdentity.set(m.name + '|' + (m.temple || ''), m.identity || ''); if (!m.dup) knownIdentity.set(m.name + '|', m.identity || ''); });
       const inGroup = (m) => duty.groupType && duty.group && m.groups && m.groups[duty.groupType] === duty.group;
       $('[data-suggestions]').innerHTML = items.length
-        ? items.map((m) => `<button type="button" class="suggestion" data-suggest="${esc(m.name)}" data-temple="${esc(m.temple || '')}">${esc(m.name)}${m.dup ? `<small>${esc(m.temple || '未填佛堂')}</small>` : ''}${inGroup(m) ? '<small>本組</small>' : ''}</button>`).join('')
+        ? items.map((m) => `<button type="button" class="suggestion" data-suggest="${esc(m.name)}" data-temple="${esc(m.temple || '')}">${esc(m.name)}${m.alias ? `<small>${esc(m.alias)}</small>` : ''}${m.dup ? `<small>${esc(m.temple || '未填佛堂')}</small>` : ''}${inGroup(m) ? '<small>本組</small>' : ''}</button>`).join('')
         : '';
       if (pending) $('[data-suggestions]').insertAdjacentHTML('beforeend', '<span class="muted small">搜尋更多中⋯</span>');
     }

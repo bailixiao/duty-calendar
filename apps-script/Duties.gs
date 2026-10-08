@@ -153,11 +153,18 @@ function searchMembers_(params) {
       return {
         name: normalizeName_(m['姓名']),
         temple: m['佛堂'] || '',
+        aliases: splitAliases_(m['別名']),
         identity: OPTIONS.identity.indexOf(m['身分']) !== -1 ? m['身分'] : '',
         groups: { '勤務了愿組': m['勤務了愿組'], '打掃組': m['打掃組'], '拜香輪值組': m['拜香輪值組'] }
       };
     })
-    .filter(function (m) { return m.name.indexOf(q) !== -1; });
+    .filter(function (m) {
+      if (m.name.indexOf(q) !== -1) return true;
+      var hit = m.aliases.filter(function (a) { return a.indexOf(q) !== -1; })[0];
+      if (hit) m.alias = hit; // 用別名找到的：前端顯示「主要名字（別名）」
+      return !!hit;
+    })
+    .map(function (m) { var o = Object.assign({}, m); delete o.aliases; return o; });
 
   // 同名的人：前端顯示佛堂
   var count = {};

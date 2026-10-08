@@ -56,6 +56,60 @@
     reload();
   }
 
+  /** 合併成同一人：選另一位、選主要名字（真名），另一位的名字變成別名，報名紀錄一起改名 */
+  function mergeMembers(m, guard, reload) {
+    const others = memberList.filter((x) => x.row !== m.row);
+    const md = Modal.open(`
+      <h2 class="modal-title">👥 「${esc(m.name)}」和誰是同一人？</h2>
+      <p class="modal-note">例如一個是小名、一個是真名。合併後只留一位，另一個名字變成別名，以前的報名紀錄也會改成同一個名字。</p>
+      <label class="form-row"><span>打名字找另一位</span><input class="input" data-q placeholder="打名字或別名"></label>
+      <div class="suggestions" data-list></div>
+      <div data-pick hidden>
+        <p><strong>主要名字要用哪一個？</strong>（請選<strong>真名</strong>）</p>
+        <div class="merge-choice" data-choice></div>
+        <button type="button" class="btn btn-primary btn-block" data-go>合併</button>
+      </div>
+      <div class="modal-actions"><button type="button" class="btn btn-block" data-close>返回</button></div>`);
+    const el = md.el;
+    let other = null;
+    el.querySelector('[data-close]').addEventListener('click', () => md.close());
+    const near = others.filter((x) => Fmt.sameName(x.name, m.name)).slice(0, 6);
+    const drawList = (list) => {
+      el.querySelector('[data-list]').innerHTML = list.map((x) => `<button type="button" class="suggestion" data-row="${x.row}">${esc(x.name)}${x.temple ? `<small>${esc(x.temple)}</small>` : ''}${x.identity ? `<small>${esc(x.identity)}</small>` : ''}</button>`).join('');
+    };
+    drawList(near);
+    el.querySelector('[data-q]').addEventListener('input', (ev) => {
+      const q = ev.target.value.replace(/[\s　]+/g, '');
+      drawList(q ? others.filter((x) => x.name.indexOf(q) !== -1 || (x.aliases || []).some((a) => a.indexOf(q) !== -1)).slice(0, 10) : near);
+    });
+    el.querySelector('[data-list]').addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-row]');
+      if (!b) return;
+      other = others.find((x) => x.row === Number(b.dataset.row));
+      const desc = (x) => [x.identity, x.temple, x.age !== '' && x.age !== undefined ? x.age + ' 歲' : ''].filter(Boolean).join('・');
+      el.querySelector('[data-choice]').innerHTML = [m, other].map((x, i) => `<label class="check merge-opt"><input type="radio" name="keep" value="${x.row}"${i === 0 ? ' checked' : ''}> <span><strong>${esc(x.name)}</strong>${desc(x) ? `<small>${esc(desc(x))}</small>` : ''}</span></label>`).join('');
+      el.querySelector('[data-pick]').hidden = false;
+    });
+    el.querySelector('[data-go]').addEventListener('click', async () => {
+      if (!other) return;
+      const keepRow = Number(el.querySelector('[name=keep]:checked').value);
+      const keep = keepRow === m.row ? m : other;
+      const drop = keep === m ? other : m;
+      md.close();
+      if (!(await Confirm.open({ title: '確定合併成同一人嗎？', rows: [['主要名字', keep.name], ['變成別名', drop.name]], note: '「' + drop.name + '」以前的報名紀錄會改成「' + keep.name + '」，名單上只留「' + keep.name + '」。', confirmText: '確定合併' }))) return;
+      Busy.show('合併中⋯');
+      try {
+        const res = await Api.admin('adminMergeMembers', { keep: { row: keep.row, original: keep.name }, drop: { row: drop.row, original: drop.name } });
+        Busy.hide();
+        notice(AdminPage.notice('success', '已合併成同一人', `「${drop.name}」變成「${keep.name}」的別名${res.changed ? `，報名紀錄改了 ${res.changed} 筆` : ''}`));
+        afterWrite(reload);
+      } catch (err) {
+        Busy.hide();
+        if (!guard(err)) { notice(`<div class="notice notice-error" role="alert"><p>${errorHtml(err)}</p></div>`); reload(); }
+      }
+    });
+  }
+
   /** 可以編輯成員、分組的帳號：總管理者、道務、教育 */
   function canEditPeople() {
     return ['總管理者', '道務', '教育'].indexOf(Api.adminWho().role) !== -1;
@@ -73,9 +127,11 @@
   }
 
   let templeOptions = []; // 佛堂選項（各佛堂道務目標的佛堂）
+  let memberList = []; // 合併成同一人時選另一位用
 
   function renderMembers(body, guard, data, stale, reload) {
     templeOptions = data.temples || [];
+    memberList = data.members;
     const counts = { active: data.members.filter((m) => m.active).length };
     counts.inactive = data.members.length - counts.active;
     const pendingList = data.members.filter((m) => m.pending);
@@ -102,7 +158,7 @@
     const rows = body.querySelector('[data-rows]');
     const card = (m) => `
           <li><button type="button" class="person-card${m.active ? '' : ' is-inactive'}" data-row="${m.row}">
-            <span class="person-card-name">${esc(m.name)}${m.temple ? `<span class="tag tag-temple">${esc(m.temple)}</span>` : ''}
+            <span class="person-card-name">${esc(m.name)}${m.aliases && m.aliases.length ? `<small class="person-alias">（${esc(m.aliases.join('、'))}）</small>` : ''}${m.temple ? `<span class="tag tag-temple">${esc(m.temple)}</span>` : ''}
               ${m.identity ? `<span class="tag">${esc(m.identity)}</span>` : '<span class="tag tag-warn">未填身分</span>'}
               ${m.active ? '' : '<span class="tag">已停用</span>'}${m.pending ? '<span class="tag tag-warn">待確認</span>' : ''}${m.identity === '道親' && m.vegetarian ? '<span class="tag">🥬 清口</span>' : ''}${m.age !== '' && m.age !== undefined ? `<span class="tag">${m.age} 歲</span>` : ''}</span>
             <span class="person-card-meta">${esc(GROUP_TYPES.filter((t) => m.groups[t]).map((t) => `${t.replace('組', '')}：${m.groups[t]}`).join('・') || '未分組')}${m.note ? '・' + esc(m.note) : ''}</span>
@@ -113,7 +169,7 @@
       const base = data.members.filter((m) => {
         if (memberState.filter === 'active' && !m.active) return false;
         if (memberState.filter === 'inactive' && m.active) return false;
-        return !q || m.name.indexOf(q) !== -1 || (m.temple || '').indexOf(q) !== -1 || GROUP_TYPES.some((t) => (m.groups[t] || '').indexOf(q) !== -1);
+        return !q || m.name.indexOf(q) !== -1 || (m.aliases || []).some((a) => a.indexOf(q) !== -1) || (m.temple || '').indexOf(q) !== -1 || GROUP_TYPES.some((t) => (m.groups[t] || '').indexOf(q) !== -1);
       });
       base.sort((a, b) => Fmt.byStroke(a.name, b.name)); // 姓的筆劃少到多
       // 身分分類：按鈕附人數；選「全部」時分段列出
@@ -223,7 +279,8 @@
     const canDelete = m && !m.active; // 已停用的才能刪除
     const { m: modal } = formModal(`
       <h2 class="modal-title">${m ? '編輯成員' : '新增成員'}</h2>
-      <label class="form-row"><span>姓名</span><input class="input" name="name" value="${esc(v.name)}" required></label>
+      <label class="form-row"><span>姓名（請用真名）</span><input class="input" name="name" value="${esc(v.name)}" required></label>
+      <label class="form-row"><span>別名（小名、其他寫法，用「、」分開；報名打別名會記成這位）</span><input class="input" name="aliases" value="${esc((v.aliases || []).join('、'))}" placeholder="例：小明、阿明"></label>
       <label class="form-row"><span>${esc(window.SITE.temple)}（同名同姓時用來分；不知道可以空著）</span><select class="input" name="temple"><option value="">（不知道／空白）</option>${templeOptions.concat(v.temple && templeOptions.indexOf(v.temple) === -1 ? [v.temple] : []).map((t) => `<option${t === v.temple ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
       <div class="form-row"><span>身分</span>${seg('identity', [['道親', '道親'], ['壇辦', '壇辦'], ['未求道', '未求道'], ['點傳師', '點傳師'], ['', '未填']], v.identity || '')}</div>
       ${GROUP_TYPES.map((t) => `
@@ -242,14 +299,16 @@
       await Api.admin('adminSaveMember', {
         row: m ? m.row : undefined, original: m ? m.name : undefined,
         member: { name: f.elements.name.value, identity: f.querySelector('input[name=identity]:checked').value, groups: g, note: f.elements.note.value, active: f.elements.active.checked,
-          age: f.elements.age.value.trim(), temple: f.elements.temple.value, vegetarian: f.querySelector('input[name=identity]:checked').value === '道親' && f.elements.vegetarian.checked }
+          age: f.elements.age.value.trim(), temple: f.elements.temple.value, aliases: f.elements.aliases.value, vegetarian: f.querySelector('input[name=identity]:checked').value === '道親' && f.elements.vegetarian.checked }
       });
       notice(AdminPage.notice('success', m ? '已存檔' : '已新增成員', f.elements.name.value.trim()));
       afterWrite(reload);
-    }, guard, canDelete ? '<button type="button" class="btn btn-block btn-quiet-danger" data-delete-member>刪除這位成員</button>'
-      : (m ? '<p class="hint">要刪除成員，請先取消勾選「啟用中」存檔（停用），再回來刪除。</p>' : ''));
+    }, guard, (m ? '<button type="button" class="btn btn-block" data-merge-member>👥 這個人和另一位是同一人</button>' : '') + (canDelete ? '<button type="button" class="btn btn-block btn-quiet-danger" data-delete-member>刪除這位成員</button>'
+      : (m ? '<p class="hint">要刪除成員，請先取消勾選「啟用中」存檔（停用），再回來刪除。</p>' : '')));
 
     modal.el.querySelectorAll('input[name=identity]').forEach((r) => r.addEventListener('change', () => { modal.el.querySelector('[data-veg-row]').hidden = r.value !== '道親' || !r.checked; }));
+    const mg = modal.el.querySelector('[data-merge-member]');
+    if (mg) mg.addEventListener('click', () => { modal.close(); mergeMembers(m, guard, reload); });
     const del = modal.el.querySelector('[data-delete-member]');
     if (del) del.addEventListener('click', async () => {
       modal.close();

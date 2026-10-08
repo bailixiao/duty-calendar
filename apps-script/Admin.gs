@@ -316,6 +316,7 @@ function adminRun_(body) {
     case 'adminRepairs': return adminRepairs_(body);
     case 'adminSetMemberExtra': return adminSetMemberExtra_(body);
     case 'adminSplitSignup': return adminSplitSignup_(body);
+    case 'adminMergeMembers': return adminMergeMembers_(body);
     case 'adminRepairUpdate': return adminRepairUpdate_(body);
     case 'adminConfirmMembers': return adminConfirmMembers_(body);
     case 'adminMergePendingMember': return adminMergePendingMember_(body);
