@@ -179,7 +179,9 @@ function searchMembers_(params) {
 /** 排序：負責組組員優先，其次名字開頭相符 */
 function memberRank_(m, q, params) {
   var inGroup = params.groupType && params.group && m.groups[params.groupType] === params.group;
-  return (inGroup ? 0 : 2) + (m.name.indexOf(q) === 0 ? 0 : 1);
+  // 完全同名＞開頭相同或只差姓（打「榮欽」找「曾榮欽」）＞其他含這幾個字的
+  var givenName = q.length >= 2 && m.name.length > q.length && m.name.length <= q.length + 2 && m.name.slice(-q.length) === q;
+  return (inGroup ? 0 : 3) + (m.name === q ? 0 : m.name.indexOf(q) === 0 || givenName ? 1 : 2);
 }
 
 // ---- 以下為共用 ----

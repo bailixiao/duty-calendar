@@ -16,3 +16,4 @@
 ## 開發流程
 
 - 每完成一個段落就 commit 並 push 到 GitHub。
+- **每次加新功能或畫面（行事曆排版）改變，都要同時更新常見問題**：apps-script/FaqSeed.gs 的題目（家人們與管理者）、img/help 截圖（先重開測試版再執行 node tools/help-shots.js）、圖解教學（img/tutorial、js/tutorial.js）要和畫面對得上。

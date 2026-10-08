@@ -161,7 +161,7 @@
         return `
         <li class="name-item${missing || posMissing ? ' is-missing' : ''}">
           <div class="name-top">
-            <span class="name-text">${esc(e.name)}${e.temple ? `<small class="name-temple">${esc(e.temple)}</small>` : ''}</span>
+            <span class="name-text">${esc(e.name)}${e.temple ? `<small class="name-temple">${esc(e.temple)}</small>` : ''}${e.typed ? `<small class="name-typed">打「${esc(e.typed)}」，已對到成員名單</small>` : ''}</span>
             <button type="button" class="btn-remove" data-remove="${i}" aria-label="移除 ${esc(e.name)}">×</button>
           </div>
           <div class="name-options">
@@ -272,6 +272,22 @@
         if (byAlias.length === 1 && !res.members.some((x) => x.name === entry.name)) {
           entry.name = byAlias[0].name;
           entry.temple = entry.temple || byAlias[0].temple || '';
+        }
+        // 只打名字、沒打姓（例：榮欽）：名單上只有一位「〇榮欽」就換成全名；好幾位就請他點選
+        if (entry.name.length >= 2 && !res.members.some((x) => x.name === entry.name) && !byAlias.length) {
+          const given = res.members.filter((x) => x.name.length > entry.name.length && x.name.length <= entry.name.length + 2 && x.name.slice(-entry.name.length) === entry.name);
+          if (given.length === 1) {
+            const full = given[0];
+            const dup = state.entries.find((o) => o !== entry && o.name === full.name && (o.temple || '') === (full.temple || ''));
+            if (dup) { state.entries.splice(state.entries.indexOf(entry), 1); renderNames(); showError(`「${entry.name}」就是「${full.name}」，已經在名單裡了`); return; }
+            entry.typed = entry.name;
+            entry.name = full.name;
+            entry.temple = entry.temple || full.temple || '';
+          } else if (given.length > 1) {
+            renderNames();
+            showError(`名單上有好幾位名字是「${entry.name}」：${given.map((x) => x.name + (x.temple ? '（' + x.temple + '）' : '')).join('、')}。請移除這張卡片，打字後從名字提示點選是哪一位`);
+            return;
+          }
         }
         const same = res.members.filter((x) => x.name === entry.name);
         if (same.length > 1 && !entry.temple) { showError(`名單上有 ${same.length} 位「${entry.name}」（${same.map((x) => x.temple || '未填佛堂').join('、')}），請移除後從名字提示點選是哪一位`); return; }

@@ -62,5 +62,25 @@ test('後台：管理者題目依角色；只有總管理者能編輯；第一�
   const moved = env.post({ action: 'adminFaqMove', token, id: 'faq-signup-many', dir: -1 }).data.all.filter((f) => f.category === '報名');
   assert.deepEqual(moved.slice(0, 2).map((f) => f.id), ['faq-signup-many', 'faq-signup']);
   const del = env.post({ action: 'adminFaqDelete', token, id: 'faq-contact' });
-  assert.ok(!del.data.all.find((f) => f.id === 'faq-contact'));
+  assert.equal(del.data.all.find((f) => f.id === 'faq-contact').enabled, false, '預設題目刪除＝不啟用（之後不會又冒出來）');
+  assert.ok(!env.get({ action: 'getFaq' }).data.items.find((f) => f.id === 'faq-contact'));
+});
+
+test('常見問題跟著新版：沒改過的預設題目用最新內容、新加的預設題目自動出現、改過的不蓋掉', () => {
+  const env = createEnv(Date.UTC(2026, 9, 8, 2));
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const all0 = env.post({ action: 'adminFaq', token }).data.all;
+  const edited = all0.find((f) => f.id === 'faq-font');
+  env.post({ action: 'adminFaqSave', token, item: Object.assign({}, edited, { a: '我自己改的答案' }) });
+  // 模擬之後的版本：改了一題的答案、加了一題新的
+  const D = env.fn('FAQ_DEFAULTS_');
+  D.find((f) => f.id === 'faq-signup').a = '新版的報名說明';
+  D.find((f) => f.id === 'faq-font').a = '新版的字體說明';
+  const at = D.findIndex((f) => f.id === 'faq-signup');
+  D.splice(at + 1, 0, { id: 'faq-new-test', audience: '家人們', category: '報名', q: '新功能測試題？', a: '新功能的說明' });
+  const items = env.get({ action: 'getFaq' }).data.items;
+  assert.equal(items.find((f) => f.id === 'faq-signup').a, '新版的報名說明', '沒改過的跟著新版');
+  assert.equal(items.find((f) => f.id === 'faq-font').a, '我自己改的答案', '改過的不蓋掉');
+  const ids = items.map((f) => f.id);
+  assert.equal(ids[ids.indexOf('faq-signup') + 1], 'faq-new-test', '新題目排在前一題後面');
 });
