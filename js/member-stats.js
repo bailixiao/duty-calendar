@@ -70,23 +70,27 @@
       const label = `${esc(m.name)}${a.count ? `<small class="veg-n">${a.count}</small>` : ''}`;
       return `<li><button type="button" class="veg-chip${isYes ? ' is-yes' : ''}" data-veg="${m.row}" title="${tip}">${label}</button></li>`;
     };
+    // 可成全清口：還沒清口、近一年出席 MIN 次以上；其餘的是「還沒清口」
+    const MIN = (window.SITE && SITE.vegCandidateMin) || 15;
+    const cand = no.filter((m) => act(m).count >= MIN);
+    const rest = no.filter((m) => act(m).count < MIN);
     st.vegBox.innerHTML = `
       <h3 class="admin-sub">🥬 道親清口<span class="h2-sub">成員名單上的道親</span></h3>
       <div class="veg-summary"><strong>已清口 ${yes.length} 位</strong>／道親 ${dao.length} 位（${pct}%）
         <span class="veg-bar"><span style="width:${pct}%"></span></span></div>
       ${dao.length > 8 ? `<input class="input veg-q" type="search" data-veg-q placeholder="🔍 找名字" value="${esc(st.q)}">` : ''}
       <div class="veg-cols">
-        <div><h4>✅ 已清口（${yes.length}）</h4>${block('yes', yes, true, '還沒有')}</div>
-        <div><h4>⬜ 還沒清口（${no.length}）</h4>${block('no', no, false, '都清口了 🙏')}</div>
+        <div><h4>🙏 可成全清口（${cand.length}）<span class="h2-sub">近一年出席 ${MIN} 次以上</span></h4>${block('cand', cand, false, `還沒有出席 ${MIN} 次以上、還沒清口的道親`)}</div>
+        <div><h4>⬜ 還沒清口（${rest.length}）</h4>${block('no', rest, false, no.length ? '都在上面了' : '都清口了 🙏')}</div>
       </div>
       <div class="admin-actions no-print"><button type="button" class="btn" data-veg-copy>複製清口名單</button></div>
-      <p class="hint">名字右邊的小字是近一年出席次數（勤務＋道務＋教育），同一佛堂裡常來的排前面，方便找穩定的道親成全清口。點名字可以看這位參加了哪些勤務、課程、法會${st.canEdit ? '，最下面按「已成全清口」才會改，會記在成員名單' : ''}。道親的身分在「成員」頁設定；名單上沒有的人（例如待確認）不會列在這裡。</p>`;
+      <p class="hint">名字右邊的小字是近一年出席次數（勤務＋道務＋教育），同一佛堂裡常來的排前面，方便找穩定的道親成全清口。點名字可以看這位參加了哪些勤務、課程、法會${st.canEdit ? '，最下面按「已成全清口」才會改，會記在成員名單' : ''}。已清口的人不列在這裡（要改回請到「成員」編輯）。道親的身分在「成員」頁設定；名單上沒有的人（例如待確認）不會列在這裡。</p>`;
     const qi = st.vegBox.querySelector('[data-veg-q]');
     if (qi) qi.addEventListener('input', () => { st.q = qi.value; drawVeg(); const n = st.vegBox.querySelector('[data-veg-q]'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); });
     st.vegBox.querySelectorAll('[data-veg-all]').forEach((b) => b.addEventListener('click', () => { st.vegAll[b.dataset.vegAll] = !st.vegAll[b.dataset.vegAll]; drawVeg(); }));
     st.vegBox.querySelectorAll('[data-veg]').forEach((b) => b.addEventListener('click', () => vegDetail(st.members.find((x) => x.row === Number(b.dataset.veg)))));
     st.vegBox.querySelector('[data-veg-copy]').addEventListener('click', async (ev) => {
-      const text = [`🥬 道親清口：已清口 ${yes.length} 位／道親 ${dao.length} 位（${pct}%）`, '', `✅ 已清口：${yes.map((m) => m.name).join('、') || '（無）'}`, '', `⬜ 還沒清口：${no.map((m) => m.name).join('、') || '（無）'}`].join('\n');
+      const text = [`🥬 道親清口：已清口 ${yes.length} 位／道親 ${dao.length} 位（${pct}%）`, '', `✅ 已清口：${yes.map((m) => m.name).join('、') || '（無）'}`, '', `🙏 可成全清口（近一年出席 ${MIN} 次以上）：${cand.sort(byAct).map((m) => m.name).join('、') || '（無）'}`, '', `⬜ 還沒清口：${rest.map((m) => m.name).join('、') || '（無）'}`].join('\n');
       ev.target.textContent = (await Share.copyText(text)) ? '已複製 ✓' : '複製失敗';
       setTimeout(() => { ev.target.textContent = '複製清口名單'; }, 2500);
     });
