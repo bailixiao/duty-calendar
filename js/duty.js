@@ -155,7 +155,7 @@
     el.innerHTML = `
       ${d.layout === '職司表' ? stagesSection(d) : ''}
       ${d.mergeHost ? mergeHostSection(d) : ''}
-      ${d.mode === '公告型' ? groupSection(d) : ''}
+      ${d.mode === '公告型' && (d.group || d.groupInfo) ? groupSection(d) : ''}
       ${dm.length ? `
         <section class="detail-section">
           <h2>DM${dmImages.length ? '<span class="h2-sub">點圖片可以放大</span>' : ''}</h2>

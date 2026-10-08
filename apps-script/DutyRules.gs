@@ -129,7 +129,8 @@ function normalizeDutyInput_(input, ctx) {
   if (duty['負責組'] && ctx.groups && ctx.groups.indexOf(duty['分組類型'] + '|' + duty['負責組']) === -1) {
     errors.push('「' + duty['分組類型'] + '」沒有「' + duty['負責組'] + '」這一組');
   }
-  if (duty['模式'] === '公告型' && !duty['負責組']) errors.push('公告型勤務要選輪值的負責組');
+  // 道務、教育的公告型只是公告（例：月會），不用負責組
+  if (duty['模式'] === '公告型' && !duty['負責組'] && (duty['類別'] || '勤務') === '勤務') errors.push('公告型勤務要選輪值的負責組');
 
   var positions = [];
   if (duty['模式'] === '報名型') {

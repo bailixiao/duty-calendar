@@ -51,6 +51,7 @@ test('normalizeDutyInput_：各種錯誤', () => {
   assert.match(errs({ positions: [{ name: '甲', min: '3', max: '2' }] }), /最少人數不能大於最多人數/);
   assert.match(errs({ positions: [{ name: '甲', min: '兩' }] }), /最少人數要是整數/);
   assert.match(errs({ mode: '公告型' }), /要選輪值的負責組/);
+  assert.doesNotMatch(errs({ mode: '公告型', category: '道務', nature: '會議' }), /負責組/, '道務的公告型不用負責組');
   // 公告型不留了愿項目
   const notice = normalizeDutyInput_(base({ mode: '公告型', groupType: '打掃組', group: '第1組' }), { groups: ['打掃組|第1組'] });
   assert.deepEqual(notice.errors, []);
