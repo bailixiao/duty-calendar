@@ -118,7 +118,7 @@ test('年齡統計：各身分的人數、平均、中位數、最小最大、�
   assert.deepEqual([tan.total, tan.withAge, tan.avg, tan.median, tan.min, tan.max], [3, 2, 50, 50, 40, 60]);
   const dao = r[1];
   assert.deepEqual([dao.avg, dao.median], [36.7, 30]);
-  assert.deepEqual(dao.bands.map((b) => b.count), [1, 0, 1, 0, 1]);
+  assert.deepEqual(dao.bands.map((b) => b.count), [1, 0, 1, 0, 0, 1]);
   assert.equal(r[2].withAge, 5, '點傳師不列、全部也不含');
 });
 
