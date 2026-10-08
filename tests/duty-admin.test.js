@@ -522,3 +522,31 @@ test('道務：講師、帶班、助理帶班（只有道務存）；安排整�
   const sess = call('adminStats', {}).data.eduSessions.filter((s) => s.name === '初一十五班');
   assert.deepEqual(sess.map((s) => [s.date, s.category, s.leaders]), [['2026-10-10', '道務', '測試乙'], ['2026-10-25', '道務', '測試丙']]);
 });
+
+test('可兼任＋共需人數：缺幾人＝共需人數－不重複人數；通知列出各項目報名的人', () => {
+  const env = createEnv(OCT_1);
+  const token = login(env);
+  const id = admin(env, token, 'adminCreateDuties', { duties: [base({ start: '2026-10-24', multi: true, totalNeed: '4', positions: [{ name: '淨手', min: '2', max: '2' }, { name: '茶水', min: '3', max: '8' }] })] }).data.ids[0];
+  let d = env.get({ action: 'getDuty', id }).data;
+  assert.equal(d.totalNeed, 4);
+  const [p1, p2] = d.positions;
+  env.post({ action: 'signup', dutyId: id, positionId: p1.id, dates: ['2026-10-24'], entries: [{ name: '測試甲' }] });
+  env.post({ action: 'signup', dutyId: id, positionId: p2.id, dates: ['2026-10-24'], entries: [{ name: '測試甲' }, { name: '測試乙' }] });
+  d = env.get({ action: 'getDuty', id }).data;
+  assert.deepEqual([d.days['2026-10-24'].people, d.days['2026-10-24'].shortage], [2, 2], '兩位報了三項，共需 4 位還缺 2 位（不是 5－3）');
+  assert.equal(admin(env, token, 'adminDutyForEdit', { id }).data.duty.totalNeed, '4');
+  // 沒勾可兼任時共需人數不存
+  const id2 = admin(env, token, 'adminCreateDuties', { duties: [base({ start: '2026-12-05', totalNeed: '4' })] }).data.ids[0];
+  assert.equal(env.get({ action: 'getDuty', id: id2 }).data.totalNeed, 0);
+
+  // 前端：缺人狀態、需要人數、報名情形
+  global.window = global.window || {};
+  global.window.SITE = { inviteTitle: '', shortageTitle: '' };
+  require('../js/format.js');
+  global.Fmt = global.window.Fmt;
+  require('../js/share.js');
+  const S = global.window.Share;
+  assert.equal(global.Fmt.dayState(d, d.days['2026-10-24']).label, '缺 2 人');
+  assert.match(S.needText(d, d.days['2026-10-24']), /還缺 2 位（共需 4 位，已報 2 位）/);
+  assert.deepEqual(S.rosterLines(d, '2026-10-24', d.signups), ['・淨手（1／2）：測試甲', '・茶水（2／8）：測試甲、測試乙']);
+});

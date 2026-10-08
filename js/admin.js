@@ -344,7 +344,8 @@
       body.querySelectorAll('[data-invite]').forEach((btn) => btn.addEventListener('click', async () => {
         const r = rowOf(btn.dataset.invite);
         if (!r) return;
-        flashBtn(btn, (await Share.copyText(Share.inviteText([r]))) ? '已複製 ✓' : '複製失敗', '📋 複製通知');
+        btn.textContent = '產生中⋯';
+        flashBtn(btn, (await Share.copyText(await Share.inviteTextFull([r]))) ? '已複製 ✓' : '複製失敗', '📋 複製通知');
       }));
       const bar = body.querySelector('[data-invite-bar]');
       const picked = () => [...body.querySelectorAll('[data-invite-pick]:checked')].map((c) => rowOf(c.dataset.invitePick)).filter(Boolean);
@@ -355,9 +356,12 @@
       }));
       if (bar) {
         const copyBtn = bar.querySelector('[data-invite-copy]');
-        copyBtn.addEventListener('click', async () => flashBtn(copyBtn, (await Share.copyText(Share.inviteText(picked()))) ? '已複製 ✓' : '複製失敗', '複製勾選的通知'));
-        bar.querySelector('[data-invite-line]').addEventListener('click', () => {
-          window.open('https://line.me/R/msg/text/?' + encodeURIComponent(Share.inviteText(picked())), '_blank', 'noopener');
+        copyBtn.addEventListener('click', async () => { copyBtn.textContent = '產生中⋯'; flashBtn(copyBtn, (await Share.copyText(await Share.inviteTextFull(picked()))) ? '已複製 ✓' : '複製失敗', '複製勾選的通知'); });
+        bar.querySelector('[data-invite-line]').addEventListener('click', async () => {
+          const w = window.open('', '_blank'); // 先開視窗（等名單時被擋），之後再換網址
+          if (w) w.opener = null;
+          const url = 'https://line.me/R/msg/text/?' + encodeURIComponent(await Share.inviteTextFull(picked()));
+          if (w) w.location.href = url; else location.href = url;
         });
       }
     }

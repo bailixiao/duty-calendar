@@ -204,6 +204,7 @@ function dutyToJson_(d, positions) {
     mode: d['模式'] || '報名型',
     deadline: d['報名截止日'] || '',
     multi: d['可兼任'] === '是',
+    totalNeed: d['可兼任'] === '是' ? Number(d['共需人數']) || 0 : 0, // 可兼任時這一天總共需要幾位（0＝照各項目最少人數）
     start: d['開始日'],
     end: d['結束日'] || d['開始日'],
     startTime: d['開始時間'],
@@ -225,7 +226,7 @@ function dutyToJson_(d, positions) {
   };
 }
 
-/** 每一天的人數狀態：{ 'yyyy-MM-dd': { total, shortage, full, counts: { 了愿項目ID: 人數 } } }；公告型回傳空物件 */
+/** 每一天的人數狀態：{ 'yyyy-MM-dd': { total, people（不重複人數）, shortage, full, counts: { 了愿項目ID: 人數 } } }；公告型回傳空物件 */
 function daysStatus_(duty, positions, signups, dates) {
   var days = {};
   if (duty['模式'] === '公告型') return days;
@@ -234,7 +235,13 @@ function daysStatus_(duty, positions, signups, dates) {
     var s = dayStatus_(positions, signups, date);
     var counts = {};
     s.positions.forEach(function (p) { counts[p.id] = p.count; });
-    days[date] = { total: s.total, shortage: free ? 0 : s.shortage, full: s.full, counts: counts };
+    var names = {};
+    signups.forEach(function (x) { if (x['日期'] === date && countsTowardQuota_(x)) names[normalizeName_(x['姓名']) + '|' + (x['佛堂'] || '')] = true; });
+    var people = Object.keys(names).length;
+    // 可兼任且有填共需人數：缺幾人＝共需人數－不重複人數
+    var need = duty['可兼任'] === '是' ? Number(duty['共需人數']) || 0 : 0;
+    var shortage = free ? 0 : need ? Math.max(need - people, 0) : s.shortage;
+    days[date] = { total: s.total, people: people, shortage: shortage, full: s.full, counts: counts };
   });
   return days;
 }

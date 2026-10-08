@@ -56,6 +56,11 @@
       const left = duty.positions.reduce((sum, p) => sum + Math.max(p.max - (counts[p.id] || 0), 0), 0);
       return `名額還有 ${left} 位`;
     }
+    if (duty.totalNeed) {
+      const people = d.people !== undefined ? d.people : d.total;
+      const left = Math.max(duty.totalNeed - people, 0);
+      return left ? `還缺 ${left} 位（共需 ${duty.totalNeed} 位，已報 ${people} 位）` : `已有 ${people} 位（共需 ${duty.totalNeed} 位），人數足了，還可以報名`;
+    }
     const need = duty.positions.reduce((sum, p) => sum + Fmt.effectiveMin(p), 0);
     const short = duty.positions.reduce((sum, p) => sum + Math.max(Fmt.effectiveMin(p) - (counts[p.id] || 0), 0), 0);
     if (short > 0) return `還缺 ${short} 位（共需 ${need} 位）`;
@@ -68,17 +73,41 @@
    */
   function inviteText(rows) {
     const list = rows.slice().sort((a, b) => a.date.localeCompare(b.date) || (a.duty.startTime || '').localeCompare(b.duty.startTime || ''));
-    const block = ({ duty, date }) => {
+    const block = ({ duty, date, signups }) => {
       const out = [`【${duty.name}】`, `📅 日期：${Fmt.rocDate(date)}`];
       const time = Fmt.cardTime(duty, date);
       if (time) out.push(`⏰ 時段：${time}`);
       if (duty.location) out.push(`📍 地點：${duty.location}`);
       out.push(`🙋 需要人數：${needText(duty, (duty.days || {})[date])}`);
+      const roster = rosterLines(duty, date, signups);
+      if (roster.length) out.push('📋 目前報名：', ...roster);
       out.push(`👉 報名：${siteUrl()}#/duty/${encodeURIComponent(duty.id)}?date=${date}&go=signup`);
       return out.join('\n');
     };
     if (list.length === 1) return block(list[0]) + '\n\n歡迎家人們踴躍成全 🙏';
     return [window.SITE.inviteTitle, '', list.map(block).join('\n\n'), '', '歡迎家人們踴躍成全，感謝慈悲 🙏😊'].join('\n');
+  }
+
+  /** 每個了愿項目一行：「・項目（已報／名額）：名字、名字」；signups 沒給（沒讀到名單）就不列 */
+  function rosterLines(duty, date, signups) {
+    if (!signups || duty.mode === '公告型' || !duty.positions || !duty.positions.length) return [];
+    return duty.positions.map((p) => {
+      const names = signups.filter((s) => s.date === date && s.positionId === p.id && !s.accompany).map((s) => s.name);
+      const cap = p.max !== null && p.max !== undefined ? p.max : Fmt.effectiveMin(p);
+      const full = p.max !== null && p.max !== undefined && names.length >= p.max;
+      return `・${p.name}（${names.length}${cap ? '／' + cap : ''}）${full ? '✅' : ''}：${names.length ? names.join('、') : '還沒有人'}`;
+    });
+  }
+
+  /** 讀每個勤務的報名名單（詳情）再產生邀請通知；讀不到的那筆就不列名單 */
+  async function inviteTextFull(rows) {
+    const ids = [...new Set(rows.map((r) => r.duty.id))];
+    const details = {};
+    await Promise.all(ids.map((id) => Api.getDuty(id).then((d) => { details[id] = d; }, () => {})));
+    return inviteText(rows.map((r) => {
+      const d = details[r.duty.id];
+      return d ? { duty: Object.assign({}, r.duty, { days: d.days || r.duty.days, totalNeed: d.totalNeed || r.duty.totalNeed || 0 }), date: r.date, signups: d.signups || [] } : r;
+    }));
   }
 
   async function copyText(text) {
@@ -128,5 +157,5 @@
     }
   }
 
-  window.Share = { shortageText, inviteText, needText, copyText, buttonsHtml, bind };
+  window.Share = { shortageText, inviteText, inviteTextFull, rosterLines, needText, copyText, buttonsHtml, bind };
 })();

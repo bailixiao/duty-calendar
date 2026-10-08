@@ -353,7 +353,7 @@
         btn.textContent = '產生中⋯';
         try {
           const r = await inviteRows([btn.dataset.invite]);
-          flashBtn(btn, r.length && (await Share.copyText(Share.inviteText(r))) ? '已複製 ✓' : '複製失敗', '📋 複製通知');
+          flashBtn(btn, r.length && (await Share.copyText(await Share.inviteTextFull(r))) ? '已複製 ✓' : '複製失敗', '📋 複製通知');
         } catch (e) { flashBtn(btn, '讀取失敗，請再試', '📋 複製通知'); }
       }));
       rows.querySelectorAll('[data-invite-pick]').forEach((c) => c.addEventListener('change', () => {
@@ -367,7 +367,7 @@
       barCopy.textContent = '產生中⋯';
       try {
         const r = await inviteRows([...listState.picked]);
-        flashBtn(barCopy, r.length && (await Share.copyText(Share.inviteText(r))) ? '已複製 ✓' : '複製失敗', '複製勾選的通知');
+        flashBtn(barCopy, r.length && (await Share.copyText(await Share.inviteTextFull(r))) ? '已複製 ✓' : '複製失敗', '複製勾選的通知');
       } catch (e) { flashBtn(barCopy, '讀取失敗，請再試', '複製勾選的通知'); }
     });
     inviteBar.querySelector('[data-invite-line]').addEventListener('click', async () => {
@@ -375,7 +375,7 @@
       if (w) w.opener = null;
       try {
         const r = await inviteRows([...listState.picked]);
-        const url = 'https://line.me/R/msg/text/?' + encodeURIComponent(Share.inviteText(r));
+        const url = 'https://line.me/R/msg/text/?' + encodeURIComponent(await Share.inviteTextFull(r));
         if (w) w.location.href = url; else location.href = url;
       } catch (e) { if (w) w.close(); alert('讀取失敗，請再試'); }
     });
@@ -602,6 +602,8 @@
             <legend>了愿項目與名額</legend>
             <p class="hint">「最少」留空預設 2 人；「最多」留空代表不限。</p>
             <label class="check"><input type="checkbox" name="multi"${s.multi === true || s.multi === '是' ? ' checked' : ''}> 同一人可以兼任多個了愿項目（同一天可報好幾項）</label>
+            ${s.multi === true || s.multi === '是' ? `<label class="form-row"><span>這一天共需幾位（不重複的人，選填）</span><input class="input" name="totalNeed" inputmode="numeric" maxlength="3" value="${esc(s.totalNeed ? String(s.totalNeed) : '')}" placeholder="例：8"></label>
+            <p class="hint">有填的話，缺幾人＝共需幾位－已報名的人數（一人報好幾項只算一位）；沒填就把各項目的最少人數加起來。</p>` : ''}
             <ul class="pos-edit">
               ${s.positions.map((p, i) => `
                 <li class="pos-row">
@@ -853,6 +855,7 @@
       if (radio('dateType')) st.dateType = radio('dateType');
       if (radio('groupMode')) st.lunar.groupMode = radio('groupMode');
       if (f.elements.multi) s.multi = f.elements.multi.checked;
+      if (f.elements.totalNeed) s.totalNeed = f.elements.totalNeed.value.trim();
       if (f.elements.layout) s.layout = f.elements.layout.checked ? '職司表' : '';
       if (f.elements.multiFrom) {
         const m = st.multi;
@@ -884,7 +887,7 @@
       // 會改變表單結構的選項：讀回目前的值後重畫
       f.addEventListener('change', (ev) => {
         const n = ev.target.name;
-        if (['mode', 'dateType', 'groupType', 'groupMode', 'rotation', 'category', 'quotaMode', 'layout', 'multiFreq'].indexOf(n) === -1) return;
+        if (['mode', 'dateType', 'groupType', 'groupMode', 'rotation', 'category', 'quotaMode', 'layout', 'multiFreq', 'multi'].indexOf(n) === -1) return;
         sync();
         if (n === 'groupType') { s.group = ''; st.lunar.rotation = []; st.lunar.rotationStart = 0; }
         if (n === 'dateType' && st.dateType === 'range' && !s.end) s.end = s.start;
@@ -965,6 +968,7 @@
         layout: s.mode === '公告型' || isSimple(s.category) ? '' : (s.layout || ''),
         stages: s.mode === '公告型' || isSimple(s.category) || s.layout !== '職司表' ? '' : (s.stages || ''),
         multi: s.mode === '公告型' ? false : !!(s.multi === true || s.multi === '是'),
+        totalNeed: s.mode !== '公告型' && (s.multi === true || s.multi === '是') ? String(s.totalNeed || '') : '',
         positions: s.mode === '公告型' ? [] : isSimple(s.category)
           ? [{ id: s.positions[0] && s.positions[0].id, name: (s.positions[0] && s.positions[0].name) || '參加', slot: '', min: '0', max: st.quota === 'limit' ? String(st.quotaMax || '').trim() : '' }]
           : s.positions.filter((p) => p.id || p.name.trim() || p.min || p.max)
