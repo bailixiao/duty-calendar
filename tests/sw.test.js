@@ -12,7 +12,7 @@ function loadSw(summary) {
   const self = {
     addEventListener: (t, fn) => { listeners[t] = fn; },
     skipWaiting() {},
-    location: { origin: 'https://example.test' },
+    location: { origin: 'https://example.test', href: 'https://example.test/duty-calendar/sw.js', toString() { return this.href; } },
     registration: {
       scope: 'https://example.test/duty-calendar/',
       pushManager: { getSubscription: async () => ({ endpoint: 'https://fcm.googleapis.com/fcm/send/abc' }) },
@@ -68,4 +68,23 @@ test('只有一項：點了直接打開那個勤務；測試通知；問不到�
   n = await loadSw(new Error('offline')).push();
   assert.equal(n.title, '🙏 教全區行事曆提醒');
   assert.equal(n.data.url, '#/recent');
+});
+
+test('快取名稱帶網站路徑：清舊快取只清自己的，不清同網域其他網站的', async () => {
+  const listeners = {};
+  const deleted = [];
+  const self = {
+    addEventListener: (t, fn) => { listeners[t] = fn; }, skipWaiting() {},
+    location: { origin: 'https://example.test', href: 'https://example.test/duty-calendar/sw.js', toString() { return this.href; } },
+    registration: { scope: 'https://example.test/duty-calendar/' }, clients: { claim() {} }
+  };
+  const caches = {
+    keys: async () => ['duty-calendar-v2', 'duty-calendar:/duty-calendar/:v1', 'duty-calendar:/duty-calendar/:v3', 'duty-calendar:/shumeizi-calendar/:v3', 'shumeizi-calendar-v1'],
+    delete: async (k) => { deleted.push(k); return true; }
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8'), { self, caches, URL, console, importScripts() {} });
+  let p;
+  listeners.activate({ waitUntil: (x) => { p = x; } });
+  await p;
+  assert.deepStrictEqual(deleted.sort(), ['duty-calendar-v2', 'duty-calendar:/duty-calendar/:v1']);
 });
