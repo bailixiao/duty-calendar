@@ -79,7 +79,7 @@ function signup_(body) {
       dates.forEach(function (date) {
         group.forEach(function (e) {
           var name = normalizeName_(e.name);
-          var accompany = !!e.accompany;
+          var accompany = !!e.accompany && dutyCategory_(duty) === '勤務'; // 道務、教育沒有陪同
           var id = newId_('S');
           var row = {
             '報名ID': id,

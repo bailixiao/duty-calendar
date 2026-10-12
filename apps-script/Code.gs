@@ -52,6 +52,8 @@ function doPost(e) {
       case 'signup': return signup_(body);
       case 'cancel': return cancelSignup_(body);
       case 'reschedule': return rescheduleSignup_(body);
+      case 'setNote': return setMyNote_(body);
+      case 'gridMove': return gridMove_(body);
       case 'mySignups': return mySignups_(body);
       case 'requestVenue': return requestVenue_(body);
       case 'myVenue': return myVenue_(body);

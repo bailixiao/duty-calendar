@@ -19,7 +19,8 @@
     const state = {
       // 選到的了愿項目；可兼任的勤務可以複選，其他勤務最多一個
       positionIds: new Set(duty.positions.length === 1 ? [duty.positions[0].id] : []),
-      dates: new Set([openDates.indexOf(defaultDate) !== -1 ? defaultDate : openDates[0]]),
+      // 好幾天的勤務：一開始都不勾，讓大家自己選；只有一天的直接選那天
+      dates: new Set(multiDay ? [] : [openDates[0]].filter(Boolean)),
       entries: [], // { name, identity: '道親'|'壇辦'|'未求道'|'', accompany }
       leader: '', // 勤務有組長職稱時：這次報名誰當組長（名字；空白＝這次沒有）
       showMissing: false, // 送出時有人沒選身分，標示出來
@@ -34,6 +35,8 @@
     const perPerson = !!duty.multi && duty.positions.length > 1;
     // 道務、教育的活動只有一個「參加」：不用選項目，直接填名字
     const single = (duty.category === '道務' || duty.category === '教育') && duty.positions.length === 1;
+    // 道務、教育：壇辦不用選了愿／陪同，一律是報名
+    const freeJoin = duty.category === '道務' || duty.category === '教育';
 
     el.innerHTML = `
       <h2>我要報名</h2>
@@ -191,7 +194,7 @@
                 <button type="button" class="link-btn" data-pos-custom="${i}">這個人改報別的</button>
               </div>
             </div>`) : ''}
-            ${e.identity === '壇辦' ? `<div class="option-row">
+            ${e.identity === '壇辦' && !freeJoin ? `<div class="option-row">
               <span class="option-label">方式</span>
               <div class="segmented" role="radiogroup" aria-label="${esc(e.name)} 的參加方式">
                 ${[['了愿', false], ['陪同', true]].map(([label, value]) => `

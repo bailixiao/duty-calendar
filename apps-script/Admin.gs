@@ -12,7 +12,7 @@
 var ADMIN_TOKEN_TTL_SEC = 21600; // 6 小時（CacheService 上限）
 var ADMIN_MAX_FAILS = 10;
 var ADMIN_LOCK_SEC = 600;
-var RESTORABLE_ACTIONS = ['報名', '取消', '改期'];
+var RESTORABLE_ACTIONS = ['報名', '取消', '改期', '調整職司'];
 
 function adminLogin_(body) {
   var who = checkLogin_(body.account, body.password);
@@ -161,6 +161,16 @@ function adminRestore_(body) {
       cancelRow(log['報名ID']);
     } else if (log['動作'] === '取消') {
       reactivateRow(log['報名ID']);
+    } else if (log['動作'] === '調整職司') {
+      // 職司表拖曳：每筆放回原本的日期、項目
+      var back = JSON.parse(log['還原用的前一版資料'] || '{}').moves || [];
+      if (!back.length) throw new ApiError_('BAD_REQUEST', '這筆紀錄缺少還原資料');
+      back.forEach(function (mv) {
+        var row = findById_(signups, '報名ID', mv.id);
+        if (!row || row['狀態'] === '已取消') { warnings.push('有一筆報名已經取消，沒有放回去'); return; }
+        updateRow_(SHEETS.SIGNUPS, row, { '日期': mv.date, '了愿項目ID': mv.positionId, '更新時間': now });
+        touched.push(row);
+      });
     } else {
       var prev = JSON.parse(log['還原用的前一版資料'] || '{}');
       if (!prev.from || !prev.toSignupId) throw new ApiError_('BAD_REQUEST', '這筆改期紀錄缺少還原資料');

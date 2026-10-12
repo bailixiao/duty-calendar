@@ -23,8 +23,8 @@
         <td class="grid-n">${r + 1}</td>
         ${g.dates.map((x) => {
           const s = grp.cells[x.date][r];
-          if (!s) return `<td class="grid-empty${x.today ? ' is-today' : ''}">—</td>`;
-          return `<td class="${x.today ? 'is-today' : ''}"><span class="grid-name${s.leader ? ' is-leader' : ''}">${s.leader ? '<span class="grid-star" title="組長">★</span>' : ''}${esc(s.name)}${s.accompany ? '<small>陪同</small>' : ''}${s.note ? `<button type="button" class="grid-note" data-note="${esc(s.id)}" aria-label="${esc(s.name)}的註記">註</button>` : ''}</span></td>`;
+          if (!s) return `<td class="grid-empty${x.today ? ' is-today' : ''}" data-date="${x.date}" data-pos="${esc(grp.position.id)}">—</td>`;
+          return `<td class="${x.today ? 'is-today' : ''}" data-date="${x.date}" data-pos="${esc(grp.position.id)}" data-sid="${esc(s.id)}"><span class="grid-name${s.leader ? ' is-leader' : ''}" data-sid="${esc(s.id)}">${s.leader ? '<span class="grid-star" title="組長">★</span>' : ''}${esc(s.name)}${s.accompany ? '<small>陪同</small>' : ''}${s.note ? `<button type="button" class="grid-note" data-note="${esc(s.id)}" aria-label="${esc(s.name)}的註記">註</button>` : ''}</span></td>`;
         }).join('')}
       </tr>`).join('')).join('');
     return `
@@ -170,7 +170,7 @@
       <section class="gp-section">
         <h2 class="gp-h2">職司表</h2>
         ${d.signups ? tableHtml(d) : '<p class="muted">載入職司表中⋯</p>'}
-        <p class="hint">表格可以左右滑動。報名、取消或改期後，這裡會自動更新。</p>
+        <p class="hint">表格可以左右滑動。<strong>要調整：按住名字拖到別的格子</strong>（手機先按住一下再拖），拖到有人的格子會兩人互換，放下後會先問您。</p>
       </section>
       ${d.description ? `
       <section class="gp-section">
@@ -187,10 +187,115 @@
       if (today) wrap.scrollLeft = Math.max(0, today.offsetLeft - 120);
     }
     bindNotes(root, d);
+    bindDrag(root, d);
     root.querySelector('[data-signup]').addEventListener('click', () => {
       // 到勤務頁後直接捲到報名表單
       sessionStorage.setItem('duty-calendar:to-signup', d.id);
     });
+  }
+
+  // ---------- 拖曳調整：按住名字拖到別的格子（空格＝改過去，有人＝互換） ----------
+
+  let drag = null;
+  function cellAt(x, y) {
+    const t = document.elementFromPoint(x, y);
+    return t ? t.closest('td[data-date]') : null;
+  }
+  function endDrag() {
+    if (!drag) return;
+    clearTimeout(drag.timer);
+    if (drag.ghost) drag.ghost.remove();
+    if (drag.name) drag.name.classList.remove('is-dragging');
+    if (drag.over) drag.over.classList.remove('is-drop');
+    document.body.classList.remove('grid-dragging');
+    drag = null;
+  }
+  function startDrag(x, y) {
+    drag.active = true;
+    drag.name.classList.add('is-dragging');
+    document.body.classList.add('grid-dragging');
+    const g = document.createElement('div');
+    g.className = 'grid-ghost';
+    g.textContent = drag.label;
+    document.body.appendChild(g);
+    drag.ghost = g;
+    if (navigator.vibrate) { try { navigator.vibrate(15); } catch (e) { /* 不支援 */ } }
+    moveDrag(x, y);
+  }
+  function moveDrag(x, y) {
+    drag.ghost.style.left = x + 'px';
+    drag.ghost.style.top = y + 'px';
+    const td = cellAt(x, y);
+    if (drag.over && drag.over !== td) drag.over.classList.remove('is-drop');
+    drag.over = td && td !== drag.from ? td : null;
+    if (drag.over) drag.over.classList.add('is-drop');
+  }
+  // 拖曳中不要讓手機捲動畫面（要在 touchmove 擋，pointer 事件擋不住）
+  document.addEventListener('touchmove', (ev) => { if (drag && drag.active) ev.preventDefault(); }, { passive: false });
+  document.addEventListener('contextmenu', (ev) => { if (drag) ev.preventDefault(); });
+  window.addEventListener('pointermove', (ev) => {
+    if (!drag) return;
+    const dist = Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y);
+    if (!drag.active) {
+      if (!drag.touch && dist > 6) startDrag(ev.clientX, ev.clientY);
+      else if (drag.touch && dist > 10) endDrag(); // 手指還沒按住就滑動＝在捲表格
+      return;
+    }
+    moveDrag(ev.clientX, ev.clientY);
+  });
+  window.addEventListener('pointerup', (ev) => {
+    if (!drag) return;
+    const d = drag;
+    const target = d.active ? cellAt(ev.clientX, ev.clientY) : null;
+    endDrag();
+    if (target && target !== d.from) confirmMove(d.data, d.sid, target);
+  });
+  window.addEventListener('pointercancel', endDrag);
+
+  function bindDrag(el, d) {
+    const wrap = el.querySelector('.grid-wrap');
+    if (!wrap) return;
+    wrap.addEventListener('pointerdown', (ev) => {
+      const name = ev.target.closest('.grid-name[data-sid]');
+      if (!name || ev.target.closest('[data-note]') || (ev.pointerType === 'mouse' && ev.button !== 0)) return;
+      const s = (d.signups || []).find((x) => x.id === name.dataset.sid);
+      if (!s) return;
+      if (ev.pointerType === 'mouse') ev.preventDefault(); // 不要選到文字
+      drag = { sid: s.id, data: d, name, from: name.closest('td'), label: s.name, x: ev.clientX, y: ev.clientY, touch: ev.pointerType !== 'mouse', active: false };
+      if (drag.touch) drag.timer = setTimeout(() => { if (drag && !drag.active) startDrag(drag.x, drag.y); }, 350);
+    });
+  }
+
+  async function confirmMove(d, sid, td) {
+    const a = (d.signups || []).find((x) => x.id === sid);
+    if (!a) return;
+    const date = td.dataset.date;
+    const pos = td.dataset.pos;
+    const b = td.dataset.sid ? d.signups.find((x) => x.id === td.dataset.sid) : null;
+    if (b && b.id === a.id) return;
+    if (!b && a.date === date && a.positionId === pos) return;
+    const posName = (id) => (d.positions.find((x) => x.id === id) || {}).name || '';
+    const where = (dt, pid) => `${Fmt.shortDate(dt)} ${posName(pid)}`;
+    const ok = await Confirm.open(b ? {
+      title: '這兩位要互換嗎？',
+      rows: [[a.name, `${where(a.date, a.positionId)} → ${where(b.date, b.positionId)}`], [b.name, `${where(b.date, b.positionId)} → ${where(a.date, a.positionId)}`]],
+      confirmText: '確定互換', cancelText: '不要'
+    } : {
+      title: '要這樣調整嗎？',
+      rows: [['姓名', a.name], ['原本', where(a.date, a.positionId)], ['改到', where(date, pos)]],
+      confirmText: '確定調整', cancelText: '不要'
+    });
+    if (!ok) return;
+    Busy.show('調整中⋯');
+    try {
+      await Api.gridMove({ signupId: a.id, date, positionId: pos, swapId: b ? b.id : '' });
+      const fresh = await DutyCache.fetch(d.id);
+      Busy.hide();
+      if (root && fresh.id === (data && data.id)) { data = fresh; updatedAt = new Date(); render(); }
+    } catch (err) {
+      Busy.hide();
+      alert((err.message || '調整失敗，請再試一次') + (err.details ? '\n' + err.details.map((x) => x.message).join('\n') : ''));
+    }
   }
 
   window.GridPage = { show, tableHtml, bindNotes, richDesc };

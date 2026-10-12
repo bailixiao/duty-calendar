@@ -2226,6 +2226,12 @@ body.splash-on .text-size-btn { visibility: hidden; }
 .veg-yes-btn { padding: 2px 10px; border: 1px solid color-mix(in srgb, var(--ok) 45%, var(--line)); border-radius: 999px; background: color-mix(in srgb, var(--ok) 12%, var(--card)); color: inherit; font: inherit; font-weight: 700; cursor: pointer; }
 .veg-yes-box { padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--ok) 35%, var(--line)); border-radius: 12px; background: color-mix(in srgb, var(--ok) 5%, var(--card)); }
 .grid-more { margin-top: 8px; }
+.gp-section .grid-name[data-sid] { cursor: grab; touch-action: pan-x pan-y; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.grid-name.is-dragging { opacity: 0.35; }
+.roster-grid td.is-drop { background: #fff1c2 !important; box-shadow: inset 0 0 0 2px #c99a1d; }
+.grid-ghost { position: fixed; z-index: 9999; transform: translate(-50%, -130%); padding: 6px 14px; border-radius: 999px; background: #2b2622; color: #fff; font-weight: 700; pointer-events: none; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+body.grid-dragging, body.grid-dragging * { cursor: grabbing !important; }
+.mine-note-text { color: var(--ink-2); }
 .name-typed { display: block; margin-top: 2px; font-size: 0.8125rem; font-weight: 400; color: var(--ok); }
 .veg-note { margin-right: 2px; font-size: 0.875rem; }
 .veg-care { width: 100%; margin-bottom: 6px; }

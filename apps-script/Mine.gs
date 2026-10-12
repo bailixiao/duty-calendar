@@ -36,6 +36,8 @@ function mySignups_(body) {
       temple: s['佛堂'] || '',
       positionName: p ? p['了愿項目名稱'] : '',
       accompany: s['陪同'] === '是',
+      grid: d['版面'] === '職司表', // 職司表的報名可以改註記
+      note: s['註記'] || '',
       canChange: canSelfChange_(s['日期'], today)
     };
   });
@@ -48,4 +50,28 @@ function mySignups_(body) {
 /** 比對用：去掉名字裡所有半形與全形空白 */
 function mineKey_(name) {
   return canonicalName_(normalizeName_(name).replace(/[\s　]+/g, '')); // 打別名也查得到
+}
+
+/** 查我的報名：改職司表報名的註記。body = { signupId, name, note }（今天以後的都可以，當天也可以） */
+function setMyNote_(body) {
+  var note = cleanText_(body.note).replace(/\s*\n\s*/g, ' ');
+  if (note.length > 100) throw new ApiError_('BAD_REQUEST', '註記最多 100 字');
+  var duties = readTableCached_(SHEETS.DUTIES);
+  return withSignupLock_(function () {
+    var signups = readTable_(SHEETS.SIGNUPS);
+    var row = findActiveSignup_(signups, body.signupId);
+    if (mineKey_(row['姓名']) !== mineKey_(body.name)) throw new ApiError_('FORBIDDEN', '只能改自己查到的報名');
+    var duty = findById_(duties, '勤務ID', row['勤務ID']);
+    if (!duty || duty['版面'] !== '職司表') throw new ApiError_('BAD_REQUEST', '這個勤務沒有註記');
+    if (row['日期'] < todayString_()) throw new ApiError_('FORBIDDEN', '已經過了的報名不能改註記');
+    var now = nowString_();
+    var before = row['註記'] || '';
+    updateRow_(SHEETS.SIGNUPS, row, { '註記': note, '更新時間': now });
+    appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '修正', '報名ID': row['報名ID'],
+      '內容摘要': [row['姓名'], row['日期'], duty['名稱']].join('｜') + '｜' + (note ? '註記：' + note : '刪除註記') + '（查我的報名）',
+      '還原用的前一版資料': JSON.stringify({ '註記': before }) }]);
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.SIGNUPS);
+    return { signupId: row['報名ID'], note: note };
+  });
 }

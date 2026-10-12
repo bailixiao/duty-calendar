@@ -193,3 +193,68 @@ function signupSummary_(row, duty, position) {
   var who = row['姓名'] + '（' + (row['身分'] || '未填身分') + (row['陪同'] === '是' ? '・陪同' : '') + '）';
   return [who, row['日期'], duty ? duty['名稱'] : row['勤務ID'], position ? position['了愿項目名稱'] : row['了愿項目ID']].join('｜');
 }
+
+/**
+ * 大張職司表拖曳調整（大家都可以，規則同自己改期）：body = { signupId, date, positionId, swapId? }
+ *   - 拖到空格：這筆改到那天、那個項目；拖到有人的格子（swapId）：兩筆互換日期與項目。
+ *   - 原本那筆直接改（註記、組長、佛堂都保留）；當天（含）以前不能動；名額、同日重複照報名規則。
+ *   - 操作紀錄「調整職司」，還原用的前一版資料 { moves: [{ id, date, positionId }] }。
+ */
+function gridMove_(body, opts) {
+  opts = opts || {};
+  var duties = readTableCached_(SHEETS.DUTIES);
+  var positions = readTableCached_(SHEETS.POSITIONS);
+  return withSignupLock_(function () {
+    var signups = readTable_(SHEETS.SIGNUPS);
+    var a = findActiveSignup_(signups, body.signupId);
+    var duty = findById_(duties, '勤務ID', a['勤務ID']);
+    if (!duty || duty['版面'] !== '職司表') throw new ApiError_('BAD_REQUEST', '只有職司表可以拖曳調整');
+    var dutyPositions = positions.filter(function (p) { return p['勤務ID'] === duty['勤務ID']; });
+    var toPos = dutyPositions.filter(function (p) { return p['了愿項目ID'] === body.positionId; })[0];
+    if (!toPos || !isDateString_(body.date) || body.date < duty['開始日'] || body.date > (duty['結束日'] || duty['開始日'])) throw new ApiError_('BAD_REQUEST', '放的位置不在這個勤務裡');
+    var today = todayString_();
+    var b = body.swapId ? findActiveSignup_(signups, body.swapId) : null;
+    if (b && b['勤務ID'] !== a['勤務ID']) throw new ApiError_('BAD_REQUEST', '只能和同一個勤務的人互換');
+    if (b && (b['日期'] !== body.date || b['了愿項目ID'] !== body.positionId)) throw new ApiError_('CONFLICT', '名單剛剛有變動，請重新整理再拖一次');
+    [a['日期'], body.date].forEach(function (d) {
+      if (!opts.admin && !canSelfChange_(d, today)) throw new ApiError_('FORBIDDEN', Number(d.slice(5, 7)) + '/' + Number(d.slice(8, 10)) + ' 已經是當天或過了，不能自己調整，請聯絡管理者');
+    });
+    if (!b && a['日期'] === body.date && a['了愿項目ID'] === body.positionId) throw new ApiError_('BAD_REQUEST', '位置沒有變');
+    var multi = duty['可兼任'] === '是';
+    var who = function (s) { return normalizeName_(s['姓名']) + '|' + (s['佛堂'] || ''); };
+    var others = signups.filter(function (s) { return s['勤務ID'] === duty['勤務ID'] && s['狀態'] !== '已取消' && s !== a && s !== b; });
+    var errors = [];
+    // 同一天重複：不可兼任＝那天已經有報；可兼任＝那天同一個項目已經有報
+    var dupCheck = function (s, date, pid) {
+      var dup = others.filter(function (o) { return who(o) === who(s) && o['日期'] === date && (!multi || o['了愿項目ID'] === pid); })[0];
+      if (dup) errors.push(s['姓名'] + ' 在 ' + Number(date.slice(5, 7)) + '/' + Number(date.slice(8, 10)) + ' 已經有報名了');
+    };
+    dupCheck(a, body.date, body.positionId);
+    if (b) dupCheck(b, a['日期'], a['了愿項目ID']);
+    if (!b && a['陪同'] !== '是') {
+      var max = parseLimit_(toPos['最多']);
+      var count = others.filter(function (o) { return o['日期'] === body.date && o['了愿項目ID'] === body.positionId && countsTowardQuota_(o); }).length;
+      if (max !== null && count >= max) errors.push(toPos['了愿項目名稱'] + ' 那天已經額滿了');
+    }
+    if (errors.length) throw new ApiError_('VALIDATION', '沒有調整，請看下面的說明', errors.map(function (m) { return { message: m }; }));
+    var now = nowString_();
+    var moves = [{ id: a['報名ID'], date: a['日期'], positionId: a['了愿項目ID'] }];
+    var posName = function (id) { var x = dutyPositions.filter(function (q) { return q['了愿項目ID'] === id; })[0]; return x ? x['了愿項目名稱'] : ''; };
+    var md = function (d) { return Number(d.slice(5, 7)) + '/' + Number(d.slice(8, 10)); };
+    var summary;
+    if (b) {
+      moves.push({ id: b['報名ID'], date: b['日期'], positionId: b['了愿項目ID'] });
+      updateRow_(SHEETS.SIGNUPS, a, { '日期': b['日期'], '了愿項目ID': b['了愿項目ID'], '更新時間': now });
+      updateRow_(SHEETS.SIGNUPS, b, { '日期': moves[0].date, '了愿項目ID': moves[0].positionId, '更新時間': now });
+      summary = a['姓名'] + '（' + md(moves[0].date) + ' ' + posName(moves[0].positionId) + '）和 ' + b['姓名'] + '（' + md(moves[1].date) + ' ' + posName(moves[1].positionId) + '）互換';
+    } else {
+      updateRow_(SHEETS.SIGNUPS, a, { '日期': body.date, '了愿項目ID': body.positionId, '更新時間': now });
+      summary = a['姓名'] + '：' + md(moves[0].date) + ' ' + posName(moves[0].positionId) + ' → ' + md(body.date) + ' ' + posName(body.positionId);
+    }
+    appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '調整職司', '報名ID': a['報名ID'], '內容摘要': duty['名稱'] + '｜' + summary + (opts.admin ? adminTag_() : '（職司表拖曳）'),
+      '還原用的前一版資料': JSON.stringify({ moves: moves }) }]);
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.SIGNUPS);
+    return { ok: true };
+  });
+}

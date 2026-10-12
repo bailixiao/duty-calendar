@@ -63,18 +63,16 @@
   /**
    * 「階段」留空時自動推算（12人小組的節奏，教全區三個階段）：
    *   ③ 壇辦班職司最後調整：輪值第一天之前的禮拜一（壇辦班都在禮拜一）
-   *   ② 職司安排：再前一週的禮拜一～禮拜五
-   *   ① 報名了愿日期：③ 往前三週的禮拜一～職司安排前一天（禮拜日）
-   * 例：11/8 開始 → 10/12~10/25、10/26~10/30、11/2(一)
+   *   ① 報名了愿日期、職司安排：③ 往前三週的禮拜一～前一週的禮拜五（2026/10/12 起合成一段）
+   * 例：11/8 開始 → 10/12~10/30、11/2(一)
    */
   function autoStages(start) {
     let adjust = addDays(start, -1);
     while (weekdayOf(adjust) !== 1) adjust = addDays(adjust, -1);
-    const arrange = [addDays(adjust, -7), addDays(adjust, -3)];
-    const signup = [addDays(adjust, -21), addDays(adjust, -8)];
+    const from = addDays(adjust, -21);
+    const to = addDays(adjust, -3);
     return [
-      `${md(signup[0])}~${md(signup[1])}｜報名了愿日期`,
-      `${md(arrange[0])}~${md(arrange[1])}｜職司安排`,
+      `${md(from)}~${md(to)}｜報名了愿日期、職司安排`,
       `${md(adjust)}(${WEEK[weekdayOf(adjust)]})｜壇辦班職司最後調整`
     ].join('\n');
   }

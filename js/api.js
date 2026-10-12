@@ -231,6 +231,8 @@
     signup: (payload) => post(Object.assign({ action: 'signup' }, payload)),
     cancel: (signupId) => post({ action: 'cancel', signupId }),
     reschedule: (payload) => post(Object.assign({ action: 'reschedule' }, payload)),
+    setNote: (payload) => post(Object.assign({ action: 'setNote' }, payload)),
+    gridMove: (payload) => post(Object.assign({ action: 'gridMove' }, payload)),
     // 手機提醒（推播）：只送瀏覽器產生的推播網址，沒有名字
     pushKey: () => get('pushKey', {}),
     pushSubscribe: (endpoint) => post({ action: 'pushSubscribe', endpoint }),

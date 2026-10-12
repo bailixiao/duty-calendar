@@ -50,7 +50,7 @@ test('normalizeDutyInput_：各種錯誤', () => {
   assert.match(errs({ positions: [{ name: '甲' }, { name: '甲' }] }), /重複/);
   assert.match(errs({ positions: [{ name: '甲', min: '3', max: '2' }] }), /最少人數不能大於最多人數/);
   assert.match(errs({ positions: [{ name: '甲', min: '兩' }] }), /最少人數要是整數/);
-  assert.match(errs({ mode: '公告型' }), /要選輪值的負責組/);
+  assert.doesNotMatch(errs({ mode: '公告型' }), /負責組/, '公告型可以不選負責組');
   assert.doesNotMatch(errs({ mode: '公告型', category: '道務', nature: '會議' }), /負責組/, '道務的公告型不用負責組');
   // 公告型不留了愿項目
   const notice = normalizeDutyInput_(base({ mode: '公告型', groupType: '打掃組', group: '第1組' }), { groups: ['打掃組|第1組'] });
@@ -574,4 +574,49 @@ test('組長職稱：報名時可選一位當組長，一天一位；後台設�
   const id2 = admin(env, token, 'adminCreateDuties', { duties: [base({ start: '2026-10-25' })] }).data.ids[0];
   const d2 = env.get({ action: 'getDuty', id: id2 }).data;
   assert.equal(env.post({ action: 'signup', dutyId: id2, positionId: d2.positions[0].id, dates: ['2026-10-25'], entries: [{ name: '測試甲', leader: true }] }).error.code, 'VALIDATION');
+});
+
+test('職司表拖曳調整：搬到空格、兩人互換、額滿與當天擋下、註記保留、可以還原；查我的報名改註記；道務沒有陪同', () => {
+  const env = createEnv(OCT_1);
+  const token = login(env);
+  const id = admin(env, token, 'adminCreateDuties', { duties: [{ name: '測試小組輪值', start: '2026-10-20', end: '2026-10-22', layout: '職司表', positions: [{ name: '烹飪', max: '2' }, { name: '維安', max: '1' }] }] }).data.ids[0];
+  let d = env.get({ action: 'getDuty', id }).data;
+  const [cook, guard] = d.positions;
+  const sign = (pos, date, name, note) => env.post({ action: 'signup', dutyId: id, positionId: pos.id, dates: [date], entries: [{ name, identity: '道親', note }] });
+  sign(cook, '2026-10-20', '測試甲', '代理人');
+  sign(guard, '2026-10-21', '測試乙');
+  sign(guard, '2026-10-22', '測試丙');
+  d = env.get({ action: 'getDuty', id }).data;
+  const by = (n) => d.signups.find((s) => s.name === n);
+  // 搬到空格：測試甲 10/20 烹飪 → 10/21 烹飪，註記保留
+  assert.equal(env.post({ action: 'gridMove', signupId: by('測試甲').id, date: '2026-10-21', positionId: cook.id }).ok, true);
+  d = env.get({ action: 'getDuty', id }).data;
+  assert.deepEqual([by('測試甲').date, by('測試甲').positionId, by('測試甲').note], ['2026-10-21', cook.id, '代理人']);
+  // 搬到額滿的維安（10/22 已有測試丙，名額 1）要擋
+  const full = env.post({ action: 'gridMove', signupId: by('測試甲').id, date: '2026-10-22', positionId: guard.id });
+  assert.equal(full.error.code, 'VALIDATION');
+  // 互換：測試乙（10/21 維安）和測試丙（10/22 維安）
+  assert.equal(env.post({ action: 'gridMove', signupId: by('測試乙').id, date: '2026-10-22', positionId: guard.id, swapId: by('測試丙').id }).ok, true);
+  d = env.get({ action: 'getDuty', id }).data;
+  assert.deepEqual([by('測試乙').date, by('測試丙').date], ['2026-10-22', '2026-10-21']);
+  // 還原互換
+  const log = admin(env, token, 'adminLogs').data.logs.find((l) => l.action === '調整職司' && /互換/.test(l.summary));
+  const r = admin(env, token, 'adminRestore', { row: log.row, signupId: log.signupId });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  d = env.get({ action: 'getDuty', id }).data;
+  assert.deepEqual([by('測試乙').date, by('測試丙').date], ['2026-10-21', '2026-10-22']);
+  // 查我的報名改註記（名字要對）
+  assert.equal(env.post({ action: 'setNote', signupId: by('測試乙').id, name: '測試甲', note: 'x' }).error.code, 'FORBIDDEN');
+  assert.equal(env.post({ action: 'setNote', signupId: by('測試乙').id, name: '測試乙', note: '8:00-12:00' }).ok, true);
+  const mine = env.post({ action: 'mySignups', name: '測試乙' }).data.items[0];
+  assert.deepEqual([mine.grid, mine.note], [true, '8:00-12:00']);
+  // 當天不能自己拖
+  env.clock.now = Date.UTC(2026, 9, 21, 2);
+  assert.equal(env.post({ action: 'gridMove', signupId: by('測試乙').id, date: '2026-10-22', positionId: cook.id }).error.code, 'FORBIDDEN');
+  // 道務的活動：壇辦選了陪同也存成報名
+  env.clock.now = OCT_1;
+  const did = admin(env, token, 'adminCreateDuties', { duties: [{ name: '測試讀書會', category: '道務', nature: '課程', start: '2026-10-25', positions: [{ name: '參加', min: '0' }] }] }).data.ids[0];
+  const dd = env.get({ action: 'getDuty', id: did }).data;
+  env.post({ action: 'signup', dutyId: did, positionId: dd.positions[0].id, dates: ['2026-10-25'], entries: [{ name: '測試丁', identity: '壇辦', accompany: true }] });
+  assert.equal(env.get({ action: 'getDuty', id: did }).data.signups[0].accompany, false);
 });

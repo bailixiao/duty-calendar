@@ -149,6 +149,7 @@
     const find = (id) => current.items.find((x) => x.signupId === id);
     box.querySelectorAll('[data-cancel]').forEach((btn) => btn.addEventListener('click', () => cancel(find(btn.dataset.cancel))));
     box.querySelectorAll('[data-reschedule]').forEach((btn) => btn.addEventListener('click', () => reschedule(find(btn.dataset.reschedule))));
+    box.querySelectorAll('[data-note]').forEach((btn) => btn.addEventListener('click', () => editNote(find(btn.dataset.note))));
     const picks = () => [...box.querySelectorAll('[data-pick]')];
     const all = box.querySelector('[data-pick-all]');
     if (all) all.addEventListener('click', () => picks().forEach((c) => { c.checked = true; }));
@@ -172,6 +173,7 @@
         <a class="mine-main" href="${href}">
           <span class="card-title">${esc(it.dutyName)}</span>
           <span class="card-meta">${esc(it.positionName)}${it.accompany ? '（陪同）' : ''}${it.temple ? '・' + esc(it.temple) : ''}</span>
+          ${it.grid && it.note ? `<span class="card-meta mine-note-text">註：${esc(it.note)}</span>` : ''}
           ${meta ? `<span class="card-meta">${esc(meta)}</span>` : ''}
         </a>
         ${it.canChange ? `
@@ -179,8 +181,41 @@
             <button type="button" class="btn btn-quiet-danger" data-cancel="${esc(it.signupId)}">取消</button>
             ${it.nature === '活動' ? '' : `<button type="button" class="btn" data-reschedule="${esc(it.signupId)}">改期</button>`}
           </div>` : `<p class="muted mine-note">當天（含）之後不能自己取消或改期，${esc(Fmt.askAdmin())}</p>`}
+        ${it.grid ? `<div class="mine-actions"><button type="button" class="btn" data-note="${esc(it.signupId)}">✏️ ${it.note ? '改註記' : '加註記'}</button></div>` : ''}
         <div class="addcal-row">${AddCal.button({ name: it.dutyName, location: it.location, start: it.start, end: it.end, startTime: it.startTime, endTime: it.endTime, dutyId: it.dutyId, date: it.date })}</div>
       </div>`;
+  }
+
+  /** 職司表的註記（例：8:00-19:00、代理人） */
+  function editNote(it) {
+    if (!it) return;
+    const m = Modal.open(`
+      <h2 class="modal-title">✏️ 註記</h2>
+      <p class="modal-note">${esc(Fmt.shortDate(it.date))}　${esc(it.dutyName)}・${esc(it.positionName)}</p>
+      <input class="input" data-note-text maxlength="100" value="${esc(it.note || '')}" placeholder="例：8:00-19:00、代理人" aria-label="註記">
+      <p class="hint">會顯示在職司表上（點「註」看得到）。不要寫就清空再存。</p>
+      <div class="form-error" data-note-err hidden></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-primary btn-block" data-note-save>存註記</button>
+        <button type="button" class="btn btn-block" data-close>返回</button>
+      </div>`);
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    m.el.querySelector('[data-note-save]').addEventListener('click', async () => {
+      const note = m.el.querySelector('[data-note-text]').value.trim();
+      Busy.show('儲存中⋯');
+      try {
+        await Api.setNote({ signupId: it.signupId, name: current.name, note });
+        Busy.hide();
+        it.note = note;
+        m.close();
+        render(`<div class="notice notice-success" role="status"><p><strong>已存註記 ✓</strong></p></div>`);
+      } catch (err) {
+        Busy.hide();
+        const box = m.el.querySelector('[data-note-err]');
+        box.textContent = err.message || '儲存失敗，請再試一次';
+        box.hidden = false;
+      }
+    });
   }
 
   async function cancel(it) {
