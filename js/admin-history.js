@@ -183,7 +183,7 @@
         AdminPage.clearMemo();
         if (window.CalendarPage) CalendarPage.refresh();
         box.innerHTML = `<div class="notice notice-success" role="status"><p><strong>匯入完成：新增 ${sum.duties} 場、${sum.signups} 筆出席</strong></p>
-          ${sum.updated ? `<p>之前匯入過的 ${sum.updated} 場，已補上這次多讀到的人。</p>` : ''}${sum.skipped ? `<p>已存在而略過 ${sum.skipped} 場。</p>` : ''}<p><a href="#/admin/stats">到統計頁看結果 ›</a></p></div>`;
+          ${sum.updated ? `<p>之前匯入過的 ${sum.updated} 場，已補上這次多讀到的人。</p>` : ''}${sum.skipped ? `<p>已存在而略過 ${sum.skipped} 場。</p>` : ''}<p><a class="link-btn" href="#/admin/stats">到統計頁看結果 ›</a></p></div>`;
       } catch (err) {
         Busy.hide();
         if (guard(err)) return;

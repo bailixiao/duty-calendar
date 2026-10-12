@@ -977,7 +977,7 @@ body.has-modal { overflow: hidden; }
   font-size: .85rem;
 }
 
-.app-footer a { color: var(--muted); }
+.app-footer a { color: var(--ink-2); font-size: .875rem; }
 
 .admin-view { max-width: 720px; }
 
@@ -1501,7 +1501,10 @@ select.input { appearance: auto; }
 .pos-chip.is-checked { background: var(--ink); border-color: var(--ink); color: var(--paper); font-weight: 700; }
 .pos-chip:focus-within { outline: 3px solid var(--accent); outline-offset: 1px; }
 .pos-same { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 40px; }
-.link-btn { padding: 4px 0; border: 0; background: none; color: var(--accent); font: inherit; font-size: .92rem; text-decoration: underline; cursor: pointer; }
+/* 小按鈕（2026/10/12 起原本的底線文字連結都改成這個，手機好按） */
+.link-btn, .help-inline, .my-next-switch, .gp-foot a, .app-footer a { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 36px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--accent); font: inherit; font-size: .92rem; font-weight: 600; line-height: 1.3; text-decoration: none; cursor: pointer; vertical-align: middle; }
+.link-btn:hover, .help-inline:hover, .my-next-switch:hover, .gp-foot a:hover, .app-footer a:hover { border-color: var(--accent); background: var(--accent-soft); }
+.link-btn:focus-visible, .help-inline:focus-visible, .my-next-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .pos-chips + .link-btn { margin-top: 6px; }
 
 /* 缺人通知：複製／傳到 LINE */
@@ -1780,7 +1783,7 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 .edu-table thead th small { display: block; font-weight: 400; font-size: 0.75rem; }
 .edu-table tbody th { text-align: left; font-weight: 700; }
 .edu-table tr.is-current > * { background: #fff6e0; }
-.edu-course { font-size: 1.0625rem; font-weight: 800; text-align: left; }
+.edu-course { font-size: 1rem; font-weight: 800; text-align: left; }
 .edu-teachers { text-align: left !important; white-space: normal !important; min-width: 120px; }
 .edu-grid .edu-sticky { position: sticky; left: 0; z-index: 1; background: var(--card); border-right: 1px solid var(--line); }
 .edu-grid thead .edu-sticky { background: var(--notice-soft); }
@@ -2132,7 +2135,7 @@ input.input[type="date"] { min-width: 0; max-width: 100%; width: 100%; box-sizin
 .help-role-list { display: flex; flex-wrap: wrap; gap: 4px 14px; }
 .help-preview { margin: 6px 0 12px; }
 .help-preview .help-qbtn { cursor: default; }
-.help-inline { display: inline-block; margin: 4px 0 10px; font-size: 1.02rem; font-weight: 700; color: var(--accent); }
+.help-inline { margin: 4px 0 10px; font-size: 1rem; font-weight: 700; }
 
 /* 字體大小（頁首 A＋）：所有字都用 rem，改根元素的大小就整站等比例放大 */
 html.text-l { font-size: 112.5%; }
