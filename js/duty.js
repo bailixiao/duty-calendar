@@ -394,7 +394,9 @@
     const who = (e) => `${e.name}（${e.identity}${e.accompany ? '・陪同' : ''}）`;
     const dates = result.dates.map(Fmt.shortDate).join('、');
     // 大家報同樣的項目：一行名字＋項目；各報各的：逐人列出
-    const body = result.positionName
+    const body = result.sameDates === false
+      ? result.entries.map((e) => `<p>${esc(who(e))}：${esc(e.dates.map(Fmt.shortDate).join('、'))}・${esc(e.positionLabel)}</p>`).join('')
+      : result.positionName
       ? `<p>${esc(result.entries.map(who).join('、'))}<br>${esc(dates)}・${esc(result.positionName)}</p>`
       : `<p>${esc(dates)}</p>${result.entries.map((e) => `<p>${esc(who(e))}：${esc(e.positionLabel)}</p>`).join('')}`;
     const flash = `

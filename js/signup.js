@@ -134,6 +134,12 @@
           : '<p class="muted">加入名字後，可以選一位當' + esc(title) + '。</p>'}`;
     }
 
+    /** 這個人報的項目，某天有沒有額滿（勾他自己的日期用） */
+    function entryFull(e, d) {
+      const pids = e.custom ? [...e.positionIds] : [...state.positionIds];
+      return duty.positions.some((p) => pids.indexOf(p.id) !== -1 && isFull(p, d));
+    }
+
     function renderDates() {
       renderLeader();
       if (!multiDay) return;
@@ -185,13 +191,29 @@
                   ${duty.positions.map((p) => { const full = !e.positionIds.has(p.id) && positionFull(p); return `<label class="pos-chip${e.positionIds.has(p.id) ? ' is-checked' : ''}${full ? ' is-disabled' : ''}">
                     <input type="${duty.multi ? 'checkbox' : 'radio'}" name="epos-${i}" value="${esc(p.id)}" data-entry-pos="${i}"${e.positionIds.has(p.id) ? ' checked' : ''}${full ? ' disabled' : ''}>${esc(p.name)}${full ? '<small>額滿</small>' : ''}</label>`; }).join('')}
                 </div>
-                ${perPerson ? '' : `<button type="button" class="link-btn" data-pos-reset="${i}">改回跟上面一樣</button>`}
+                ${perPerson ? '' : `<button type="button" class="btn btn-small entry-btn" data-pos-reset="${i}">改回跟上面一樣</button>`}
               </div>
             </div>` : `<div class="option-row">
               <span class="option-label">項目</span>
               <div class="pos-same">
                 <span>${state.positionIds.size ? esc(duty.positions.filter((p) => state.positionIds.has(p.id)).map((p) => p.name).join('、')) : '<span class="muted">請在上面選了愿項目</span>'}<span class="muted">（同上面）</span></span>
-                <button type="button" class="link-btn" data-pos-custom="${i}">這個人改報別的</button>
+                <button type="button" class="btn btn-small entry-btn" data-pos-custom="${i}">這個人改報別的</button>
+              </div>
+            </div>`) : ''}
+            ${multiDay ? (e.datesCustom ? `<div class="option-row">
+              <span class="option-label">日期</span>
+              <div>
+                <div class="pos-chips" role="group" aria-label="${esc(e.name)} 的日期">
+                  ${allDates.map((d) => { const off = d <= duty.today || (!e.dates.has(d) && entryFull(e, d)); return `<label class="pos-chip${e.dates.has(d) ? ' is-checked' : ''}${off ? ' is-disabled' : ''}">
+                    <input type="checkbox" value="${d}" data-entry-date="${i}"${e.dates.has(d) ? ' checked' : ''}${off ? ' disabled' : ''}>${Fmt.shortDate(d)}${!e.dates.has(d) && d > duty.today && entryFull(e, d) ? '<small>額滿</small>' : ''}</label>`; }).join('')}
+                </div>
+                <button type="button" class="btn btn-small entry-btn" data-date-reset="${i}">改回跟上面一樣</button>
+              </div>
+            </div>` : `<div class="option-row">
+              <span class="option-label">日期</span>
+              <div class="pos-same">
+                <span>${state.dates.size ? esc([...state.dates].sort().map(Fmt.shortDate).join('、')) : '<span class="muted">請在上面選日期</span>'}<span class="muted">（同上面）</span></span>
+                <button type="button" class="btn btn-small entry-btn" data-date-custom="${i}">這個人日期不一樣</button>
               </div>
             </div>`) : ''}
             ${e.identity === '壇辦' && !freeJoin ? `<div class="option-row">
@@ -234,7 +256,7 @@
       const known = identity !== undefined ? identity : knownIdentity.get(name + '|');
       const fixed = KNOWN_IDENTITIES.indexOf(known) !== -1 ? known : '';
       // 項目先用上面選的；之後可以在名字卡各自改（custom＝改過，上面再改就不跟著變）
-      const entry = { name, temple, identity: fixed, accompany: false, locked: !!fixed, positionIds: perPerson ? new Set() : new Set(state.positionIds), custom: perPerson };
+      const entry = { name, temple, identity: fixed, accompany: false, locked: !!fixed, positionIds: perPerson ? new Set() : new Set(state.positionIds), custom: perPerson, datesCustom: false, dates: new Set() };
       state.entries.push(entry);
       hideError();
       renderNames();
@@ -439,7 +461,9 @@
         state.showMissing = true;
         renderNames();
       }
-      if (!state.dates.size) problems.push('請選擇日期');
+      // 上面的日期：有人「同上面」才一定要選；自己選日期的人要至少勾一天
+      if (!state.dates.size && (!state.entries.length || state.entries.some((e) => !e.datesCustom))) problems.push('請選擇日期');
+      if (state.entries.some((e) => e.datesCustom && !e.dates.size)) problems.push('「這個人日期不一樣」的人，請勾他的日期');
       if (!state.entries.length) problems.push('請填寫名字，並按「加入」');
       if (state.entries.some((e) => !e.identity)) {
         problems.push('請為每個名字選擇「道親」「壇辦」或「未求道」');
@@ -464,13 +488,13 @@
         dutyId: duty.id,
         positionId: chosen[0].id,
         positionIds: chosen.map((p) => p.id),
-        dates: Array.from(state.dates).sort(),
-        entries: state.entries.map((e) => ({ name: e.name, temple: e.temple || '', identity: e.identity, accompany: e.accompany, leader: !!duty.leaderTitle && !e.accompany && e.name === state.leader, note: duty.layout === '職司表' ? String(e.note || '').trim() : '', positionIds: duty.positions.filter((p) => e.positionIds.has(p.id)).map((p) => p.id) }))
+        dates: [...new Set(state.entries.flatMap((e) => [...(e.datesCustom ? e.dates : state.dates)]))].sort(),
+        entries: state.entries.map((e) => ({ dates: [...(e.datesCustom ? e.dates : state.dates)].sort(), name: e.name, temple: e.temple || '', identity: e.identity, accompany: e.accompany, leader: !!duty.leaderTitle && !e.accompany && e.name === state.leader, note: duty.layout === '職司表' ? String(e.note || '').trim() : '', positionIds: duty.positions.filter((p) => e.positionIds.has(p.id)).map((p) => p.id) }))
       };
       // 每個人報的項目不一樣時，成功訊息逐人列出
       const same = payload.entries.every((e) => e.positionIds.join() === payload.entries[0].positionIds.join());
       const result = {
-        dutyId: duty.id, dates: payload.dates, positionId: chosen[0].id,
+        dutyId: duty.id, dates: payload.dates, positionId: chosen[0].id, sameDates: payload.entries.every((e) => e.dates.join() === payload.entries[0].dates.join()),
         positionName: same ? payload.entries[0].positionIds.map(nameOf).join('、') : '',
         entries: payload.entries.map((e) => Object.assign({}, e, { positionLabel: e.positionIds.map(nameOf).join('、') }))
       };
@@ -559,7 +583,7 @@
       const found = [];
       for (const e of payload.entries) {
         for (const pid of e.positionIds) {
-          for (const date of payload.dates) {
+          for (const date of e.dates) {
             const s = added.find((x) => x.positionId === pid && x.date === date && x.name === e.name);
             if (!s) return found.length ? null : false;
             found.push({ id: s.id, date, name: s.name, identity: e.identity, accompany: s.accompany, positionId: pid });
@@ -624,6 +648,23 @@
         renderNames();
         return;
       }
+      // 這個人日期不一樣：先帶入上面選的日期
+      const dc = ev.target.closest('[data-date-custom]');
+      if (dc) {
+        const entry = state.entries[Number(dc.dataset.dateCustom)];
+        entry.datesCustom = true;
+        entry.dates = new Set(state.dates);
+        renderNames();
+        return;
+      }
+      const dr = ev.target.closest('[data-date-reset]');
+      if (dr) {
+        const entry = state.entries[Number(dr.dataset.dateReset)];
+        entry.datesCustom = false;
+        entry.dates = new Set();
+        renderNames();
+        return;
+      }
       // 改回跟上面一樣
       const reset = ev.target.closest('[data-pos-reset]');
       if (reset) {
@@ -646,6 +687,12 @@
     });
     $('[data-names]').addEventListener('change', (ev) => {
       const t = ev.target;
+      if (t.dataset.entryDate !== undefined) {
+        const entry = state.entries[Number(t.dataset.entryDate)];
+        if (t.checked) entry.dates.add(t.value); else entry.dates.delete(t.value);
+        renderNames();
+        return;
+      }
       if (t.dataset.entryPos !== undefined) {
         const entry = state.entries[Number(t.dataset.entryPos)];
         if (duty.multi) { if (t.checked) entry.positionIds.add(t.value); else entry.positionIds.delete(t.value); }

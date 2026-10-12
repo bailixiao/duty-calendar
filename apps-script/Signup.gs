@@ -8,13 +8,17 @@ var MAX_ENTRIES_PER_SIGNUP = 20;
 var MAX_DATES_PER_SIGNUP = 31;
 
 /**
- * body = { dutyId, positionId | positionIds: [..]（可兼任的勤務可多個）, dates: ['yyyy-MM-dd'], entries: [{ name, identity, accompany, note, leader }] }
+ * body = { dutyId, positionId | positionIds: [..]（可兼任的勤務可多個）, dates: ['yyyy-MM-dd'], entries: [{ name, identity, accompany, note, leader, dates? }] }
+ * entries[].dates：這個人自己的日期（每個人可以不同）；沒給就用 body.dates
  * leader：勤務有組長職稱時，這次報名的其中一位當組長（一天一位）
  * note：職司表的勤務才收（例：8:00-19:00、代理人），最多 100 字
  */
 function signup_(body) {
-  var dates = uniqueList_(body.dates);
   var entries = Array.isArray(body.entries) ? body.entries : [];
+  // 每個人自己的日期（沒給就用整批的）；dates＝全部人的日期合起來
+  var baseDates = uniqueList_(body.dates);
+  var entryDates = entries.map(function (e) { var own = uniqueList_(e && e.dates); return own.length ? own : baseDates; });
+  var dates = uniqueList_([].concat.apply([], entryDates)).sort();
   if (entries.length > MAX_ENTRIES_PER_SIGNUP) {
     throw new ApiError_('BAD_REQUEST', '一次最多報名 ' + MAX_ENTRIES_PER_SIGNUP + ' 人');
   }
@@ -24,7 +28,7 @@ function signup_(body) {
 
   // 勤務與了愿項目在報名過程中不會變動，在排隊前先讀，縮短每筆佔用鎖的時間（壓力測試：每筆約 0.9 秒）
   // 成員名單上已登記身分的人，一律以名單為準（報名者不能改，統計才一致）
-  entries = withMemberIdentity_(entries);
+  entries = withMemberIdentity_(entries).map(function (e, i) { return Object.assign({}, e, { _dates: entryDates[i] }); });
   checkAmbiguous_(entries);
 
   var duty = readTableCached_(SHEETS.DUTIES).filter(function (d) { return d['勤務ID'] === body.dutyId; })[0];
@@ -58,25 +62,28 @@ function signup_(body) {
     var created = [];
     var errors = [];
     positionIds.forEach(function (pid) {
-      var group = entries.filter(function (e, i) { return entryPids[i].indexOf(pid) !== -1; });
-      // 前面幾個項目這次要新增的也算進去（名額、重複檢查才正確）
+      var position = positions.filter(function (p) { return p['了愿項目ID'] === pid; })[0];
+     dates.forEach(function (date) {
+      // 報這個項目、而且這天有選的人（每個人的日期可以不同）
+      var group = entries.filter(function (e, i) { return entryPids[i].indexOf(pid) !== -1 && e._dates.indexOf(date) !== -1; });
+      if (!group.length) return;
+      // 前面幾個項目、日期這次要新增的也算進去（名額、重複檢查才正確）
       var errs = validateSignup_({
         duty: duty,
         positions: positions,
         signups: signups.concat(signupRows),
         positionId: pid,
-        dates: dates,
+        dates: [date],
         entries: group,
         today: todayString_()
       });
-      var position = positions.filter(function (p) { return p['了愿項目ID'] === pid; })[0];
       if (positionIds.length > 1 && position) {
         errs.forEach(function (e) { e.message = '「' + position['了愿項目名稱'] + '」' + e.message; });
       }
       errors = errors.concat(errs);
       if (errs.length || !position) return;
 
-      dates.forEach(function (date) {
+      [date].forEach(function (date) {
         group.forEach(function (e) {
           var name = normalizeName_(e.name);
           var accompany = !!e.accompany && dutyCategory_(duty) === '勤務'; // 道務、教育沒有陪同
@@ -107,6 +114,7 @@ function signup_(body) {
           created.push({ id: id, date: date, name: name, identity: e.identity, accompany: accompany, positionId: position['了愿項目ID'] });
         });
       });
+     });
     });
     // 組長：一次只能一位、那天已經有組長就擋；標在這個人那天的第一筆
     var leaders = entries.filter(function (e) { return e && e.leader; });
@@ -117,7 +125,7 @@ function signup_(body) {
       else if (leaders[0].accompany) errors.push({ message: '陪同的人不能當' + title });
       else {
         var lname = normalizeName_(leaders[0].name);
-        dates.forEach(function (date) {
+        leaders[0]._dates.forEach(function (date) {
           var has = signups.filter(function (s) { return s['日期'] === date && s['狀態'] !== '已取消' && s['組長'] === '是'; })[0];
           if (has) { errors.push({ message: Fmt_shortDate_(date) + '已經有' + title + '（' + has['姓名'] + '）了' }); return; }
           var first = signupRows.filter(function (r) { return r['日期'] === date && r['姓名'] === lname; })[0];

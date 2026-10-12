@@ -43,30 +43,62 @@
     if (pop) { pop.remove(); pop = null; }
   }
   document.addEventListener('click', (ev) => {
-    if (pop && !pop.contains(ev.target) && !ev.target.closest('[data-note]')) closeNote();
+    if (pop && !pop.contains(ev.target) && !ev.target.closest('[data-note]') && !ev.target.closest('.grid-name[data-sid]')) closeNote();
   });
   window.addEventListener('hashchange', closeNote);
   window.addEventListener('resize', closeNote);
 
-  function bindNotes(el, d) {
+  /** el 裡的「註」可以點；editable＝大張職司表（可以改註記） */
+  function bindNotes(el, d, editable) {
     el.querySelectorAll('.grid-wrap').forEach((w) => w.addEventListener('scroll', closeNote, { passive: true }));
     el.querySelectorAll('[data-note]').forEach((btn) => btn.addEventListener('click', (ev) => {
       ev.stopPropagation();
       const s = (d.signups || []).find((x) => x.id === btn.dataset.note);
-      if (!s) return;
+      if (s) openPop(btn, s, d, editable);
+    }));
+  }
+
+  /** 名字旁邊的小視窗：看註記；editable 而且今天以後的，可以直接改 */
+  function openPop(btn, s, d, editable) {
       const same = pop && pop.dataset.id === s.id;
       closeNote();
-      if (same) return; // 再點一次同一個「註」＝關掉
+      if (same) return; // 再點一次同一個＝關掉
+      const canEdit = editable && s.date >= d.today;
+      const posName = (d.positions.find((x) => x.id === s.positionId) || {}).name || '';
       pop = document.createElement('div');
-      pop.className = 'note-pop';
+      pop.className = 'note-pop' + (canEdit ? ' is-edit' : '');
       pop.dataset.id = s.id;
       pop.setAttribute('role', 'dialog');
       pop.innerHTML = `
         <button type="button" class="note-pop-x" aria-label="關閉">×</button>
-        <p class="note-pop-head"><strong>${esc(s.name)}</strong><span>${esc(Fmt.shortDate(s.date))}</span></p>
-        <p class="note-pop-text">${esc(s.note)}</p>`;
+        <p class="note-pop-head"><strong>${esc(s.name)}</strong><span>${esc(Fmt.shortDate(s.date))}${posName ? '・' + esc(posName) : ''}</span></p>
+        ${canEdit ? `<label class="note-pop-label" for="note-pop-input">註記</label>
+          <input class="input note-pop-input" id="note-pop-input" maxlength="100" value="${esc(s.note || '')}" placeholder="例：8:00-19:00、代理人">
+          <div class="note-pop-actions"><button type="button" class="btn btn-primary btn-small" data-note-save>存註記</button><span class="note-pop-msg" data-note-msg></span></div>`
+          : `<p class="note-pop-text">${s.note ? esc(s.note) : '<span class="muted">沒有註記</span>'}</p>`}`;
       document.body.appendChild(pop);
       pop.querySelector('.note-pop-x').addEventListener('click', closeNote);
+      const save = pop.querySelector('[data-note-save]');
+      if (save) {
+        const inputEl = pop.querySelector('.note-pop-input');
+        const doSave = async () => {
+          const msg = pop.querySelector('[data-note-msg]');
+          save.disabled = true;
+          msg.textContent = '儲存中⋯';
+          try {
+            await Api.gridNote({ signupId: s.id, note: inputEl.value.trim() });
+            s.note = inputEl.value.trim();
+            closeNote();
+            const fresh = await DutyCache.fetch(d.id);
+            if (root && data && fresh.id === data.id) { data = fresh; updatedAt = new Date(); render(); }
+          } catch (err) {
+            save.disabled = false;
+            msg.textContent = err.message || '儲存失敗，請再試一次';
+          }
+        };
+        save.addEventListener('click', doSave);
+        inputEl.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); doSave(); } });
+      }
       // 放在名字下方，靠近「註」；超出畫面就往內推，下方放不下就放上方
       const r = btn.getBoundingClientRect();
       const w = pop.offsetWidth;
@@ -77,7 +109,6 @@
       pop.style.top = (below ? r.bottom + 10 : r.top - h - 10) + window.scrollY + 'px';
       pop.style.setProperty('--arrow', Math.min(Math.max(16, r.left + r.width / 2 - left), w - 16) + 'px');
       pop.classList.add(below ? 'is-below' : 'is-above');
-    }));
   }
 
   /**
@@ -170,7 +201,7 @@
       <section class="gp-section">
         <h2 class="gp-h2">職司表</h2>
         ${d.signups ? tableHtml(d) : '<p class="muted">載入職司表中⋯</p>'}
-        <p class="hint">表格可以左右滑動。<strong>要調整：按住名字拖到別的格子</strong>（手機先按住一下再拖），拖到有人的格子會兩人互換，放下後會先問您。</p>
+        <p class="hint">表格可以左右滑動。<strong>點一下名字</strong>可以看、改註記；<strong>按住名字拖到別的格子</strong>可以調整（手機先按住一下再拖），拖到有人的格子會兩人互換，放下後會先問您。</p>
       </section>
       ${d.description ? `
       <section class="gp-section">
@@ -186,7 +217,7 @@
       const today = wrap.querySelector('th.is-today');
       if (today) wrap.scrollLeft = Math.max(0, today.offsetLeft - 120);
     }
-    bindNotes(root, d);
+    bindNotes(root, d, true);
     bindDrag(root, d);
     root.querySelector('[data-signup]').addEventListener('click', () => {
       // 到勤務頁後直接捲到報名表單
@@ -249,6 +280,10 @@
     const target = d.active ? cellAt(ev.clientX, ev.clientY) : null;
     endDrag();
     if (target && target !== d.from) confirmMove(d.data, d.sid, target);
+    else if (!d.active) { // 點一下名字（沒有拖）＝看／改註記
+      const s = (d.data.signups || []).find((x) => x.id === d.sid);
+      if (s) openPop(d.name, s, d.data, true);
+    }
   });
   window.addEventListener('pointercancel', endDrag);
 

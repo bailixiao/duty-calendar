@@ -620,3 +620,26 @@ test('職司表拖曳調整：搬到空格、兩人互換、額滿與當天擋�
   env.post({ action: 'signup', dutyId: did, positionId: dd.positions[0].id, dates: ['2026-10-25'], entries: [{ name: '測試丁', identity: '壇辦', accompany: true }] });
   assert.equal(env.get({ action: 'getDuty', id: did }).data.signups[0].accompany, false);
 });
+
+test('每個人可以報不同的日期：一次送出，各自的日期分別建立；名額照每天算', () => {
+  const env = createEnv(OCT_1);
+  const token = login(env);
+  const id = admin(env, token, 'adminCreateDuties', { duties: [{ name: '測試多日輪值', start: '2026-10-20', end: '2026-10-22', positions: [{ name: '烹飪', max: '1' }, { name: '清潔', max: '3' }] }] }).data.ids[0];
+  const d = env.get({ action: 'getDuty', id }).data;
+  const [cook, clean] = d.positions;
+  const r = env.post({ action: 'signup', dutyId: id, positionId: clean.id, dates: ['2026-10-20'], entries: [
+    { name: '測試甲', identity: '道親', positionIds: [clean.id], dates: ['2026-10-20', '2026-10-21'] },
+    { name: '測試乙', identity: '道親', positionIds: [cook.id], dates: ['2026-10-22'] },
+    { name: '測試丙', identity: '道親', positionIds: [clean.id] } // 沒給：用整批的 10/20
+  ] });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  const got = env.get({ action: 'getDuty', id }).data.signups.map((s) => s.name + s.date.slice(8)).sort();
+  assert.deepEqual(got, ['測試丙20', '測試乙22', '測試甲20', '測試甲21']);
+  // 烹飪 10/22 已額滿：整批都不寫入
+  const full = env.post({ action: 'signup', dutyId: id, positionId: cook.id, dates: ['2026-10-21'], entries: [
+    { name: '測試丁', identity: '道親', positionIds: [cook.id], dates: ['2026-10-21'] },
+    { name: '測試戊', identity: '道親', positionIds: [cook.id], dates: ['2026-10-22'] }
+  ] });
+  assert.equal(full.error.code, 'VALIDATION');
+  assert.equal(env.get({ action: 'getDuty', id }).data.signups.length, 4, '整批全有或全無');
+});

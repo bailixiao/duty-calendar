@@ -258,3 +258,26 @@ function gridMove_(body, opts) {
     return { ok: true };
   });
 }
+
+/** 大張職司表點名字改註記（大家都可以）：body = { signupId, note }；今天以後的都可以，當天也可以 */
+function gridNote_(body) {
+  var note = cleanText_(body.note).replace(/\s*\n\s*/g, ' ');
+  if (note.length > 100) throw new ApiError_('BAD_REQUEST', '註記最多 100 字');
+  var duties = readTableCached_(SHEETS.DUTIES);
+  return withSignupLock_(function () {
+    var signups = readTable_(SHEETS.SIGNUPS);
+    var row = findActiveSignup_(signups, body.signupId);
+    var duty = findById_(duties, '勤務ID', row['勤務ID']);
+    if (!duty || duty['版面'] !== '職司表') throw new ApiError_('BAD_REQUEST', '這個勤務沒有註記');
+    if (row['日期'] < todayString_()) throw new ApiError_('FORBIDDEN', '已經過了的不能改註記');
+    var now = nowString_();
+    var before = row['註記'] || '';
+    updateRow_(SHEETS.SIGNUPS, row, { '註記': note, '更新時間': now });
+    appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '修正', '報名ID': row['報名ID'],
+      '內容摘要': [row['姓名'], row['日期'], duty['名稱']].join('｜') + '｜' + (note ? '註記：' + note : '刪除註記') + '（職司表）',
+      '還原用的前一版資料': JSON.stringify({ '註記': before }) }]);
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.SIGNUPS);
+    return { signupId: row['報名ID'], note: note };
+  });
+}
