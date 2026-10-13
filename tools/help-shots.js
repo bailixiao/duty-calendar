@@ -14,7 +14,7 @@ const CHROME = [
   'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
   '/usr/bin/google-chrome', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 ].find((p) => fs.existsSync(p));
-const PORT = 9333;
+const PORT = Number(process.env.SHOT_CDP_PORT) || 9334; // 書槑子那份工具用 9333，同時拍截圖才不會互搶
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function launch() {

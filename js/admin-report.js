@@ -1,4 +1,4 @@
-// 管理後台：📑 年度總結（#/admin/report）。一整年的出勤、最常來的家人、新朋友、道務目標、清口與年齡、場地使用。
+// 管理後台：📑 年度總結（#/admin/report）。一整年的出勤、最常來的家人、新朋友、好久不見的老朋友、道務目標、清口與年齡、場地使用。
 // 資料都是後台本來就有的（統計、道務目標、成員、場地統計）；勤務／道務／教育帳號只看得到自己類別。可以複製文字、匯出 Excel。
 (function () {
   'use strict';
@@ -41,6 +41,31 @@
       .sort((a, b) => (a.date < b.date ? 1 : -1));
   }
 
+  /**
+   * 好久不見的老朋友：3 個月前往回一年內來了 minTimes 次以上，最近 90 天都沒來的人。
+   * 回傳 [{ name, times, last, lastDuty }]，以前來越多次的排前面。
+   */
+  function longAbsent(events, today, minTimes) {
+    const recentFrom = StatsCalc.addDays(today, -90);
+    const pastFrom = StatsCalc.addDays(today, -455);
+    const people = (e) => e.tan.concat(e.dao, e.unknown);
+    const before = new Map();
+    const last = new Map();
+    const recent = new Set();
+    events.forEach((e) => {
+      if (e.date > today) return;
+      people(e).forEach((n) => {
+        const l = last.get(n);
+        if (!l || e.date > l.date) last.set(n, { date: e.date, duty: e.name });
+        if (e.date >= recentFrom) recent.add(n);
+        else if (e.date >= pastFrom) before.set(n, (before.get(n) || 0) + 1);
+      });
+    });
+    return [...before.entries()].filter(([n, t]) => t >= (minTimes || 5) && !recent.has(n))
+      .map(([n, t]) => ({ name: n, times: t, last: last.get(n).date, lastDuty: last.get(n).duty }))
+      .sort((a, b) => b.times - a.times || (a.last < b.last ? 1 : -1));
+  }
+
   function show(body, guard) {
     body.innerHTML = '<p class="panel-empty">整理年度總結中⋯</p>';
     load(body, guard);
@@ -72,6 +97,7 @@
     }
     if (venue && venue.items) extra.venue = { times: venue.items.length, hours: venue.items.reduce((n, x) => n + x.hours.length, 0) };
     extra.recent = recentNewcomers(stats.events || [], stats.today, 30);
+    extra.absent = longAbsent(stats.events || [], stats.today, 5);
     render(body, guard, model(stats.events || [], y, extra), stats.today);
   }
 
@@ -101,6 +127,10 @@
       ${m.recent ? `<section class="stats-section report-recent">
         <h3 class="admin-sub">🆕 最近 30 天的新朋友<span class="h2-sub">第一次來的，記得關心一下</span></h3>
         ${m.recent.length ? `<ul class="vs-list">${m.recent.map((x) => `<li><span>${esc(x.name)}<small class="muted">　${esc(Fmt.shortDate(x.date))} ${esc(x.duty)}</small></span><strong>${x.again ? '✓ 有再來' : '還沒再來'}</strong></li>`).join('')}</ul>` : '<p class="muted">最近 30 天沒有新朋友。</p>'}
+      </section>` : ''}
+      ${m.absent ? `<section class="stats-section report-absent">
+        <h3 class="admin-sub">💛 好久不見的老朋友<span class="h2-sub">記得關心一下</span></h3>
+        ${m.absent.length ? `<ul class="vs-list">${m.absent.slice(0, 30).map((x) => `<li><span>${esc(x.name)}<small class="muted">　上次 ${esc(Fmt.shortDate(x.last))} ${esc(x.lastDuty)}</small></span><strong>之前來了 ${x.times} 次</strong></li>`).join('')}</ul>${m.absent.length > 30 ? `<p class="hint">還有 ${m.absent.length - 30} 位</p>` : ''}<p class="hint">以前常來（3 個月前往回一年內來 5 次以上）、最近 3 個月都沒來的人。可以請組長或引保師打個電話問候一下 🙏</p>` : '<p class="muted">沒有，大家都有常常來 😊</p>'}
       </section>` : ''}
       <div class="stat-cards">
         <div class="stat-card"><span class="stat-label">全年出席</span><span class="stat-num">${m.total}</span><span class="stat-hint">人次（今天以前）</span></div>
@@ -146,7 +176,7 @@
     });
   }
 
-  const api = { show, model, text, recentNewcomers };
+  const api = { show, model, text, recentNewcomers, longAbsent };
   if (typeof module !== 'undefined') module.exports = api;
   else window.ReportPage = api;
 })();

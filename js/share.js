@@ -161,5 +161,5 @@
     }
   }
 
-  window.Share = { shortageText, inviteText, inviteTextFull, rosterLines, needText, copyText, buttonsHtml, bind };
+  window.Share = { siteUrl, shortageText, inviteText, inviteTextFull, rosterLines, needText, copyText, buttonsHtml, bind };
 })();

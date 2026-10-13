@@ -2,6 +2,7 @@
 // 取消、改期只能在這裡做（勤務頁名單沒有按鈕，避免誤按到別人的）。
 // 名字用 POST 送到伺服器（不放網址）；上次查的名字記在這台瀏覽器，下次自動帶入。
 // 打字時跟報名一樣從成員名單提示名字，點一下就查。
+// 下面還有「組長專區」（這個人負責的勤務：名單、缺幾人、複製通知、點名）和「我的成全紀錄」（今年參加幾次，可分享）。
 (function () {
   'use strict';
 
@@ -123,8 +124,11 @@
     const { name, items } = current;
     if (!items.length) {
       box.innerHTML = `${flash || ''}
+        ${leadHtml()}
         <div class="notice" role="status"><p>查不到<strong>${esc(name)}</strong>今天以後的報名。</p>
-        <p class="muted">如果有報名卻查不到，可能報名時名字寫法不一樣（例如沒寫姓），可以到行事曆點進勤務看名單。</p></div>`;
+        <p class="muted">如果有報名卻查不到，可能報名時名字寫法不一樣（例如沒寫姓），可以到行事曆點進勤務看名單。</p></div>
+        ${recordHtml()}`;
+      bindExtras(box);
       return;
     }
     const byDate = new Map();
@@ -134,6 +138,7 @@
     });
     const canAny = items.some((it) => it.canChange);
     box.innerHTML = `${flash || ''}
+      ${leadHtml()}
       <h2 class="mine-title">${esc(name)}　共 ${items.length} 筆報名</h2>
       ${canAny ? `<div class="mine-bulk">
         <span>要取消好幾筆：先勾選，再按最下面的按鈕</span>
@@ -144,7 +149,9 @@
           <h3 class="mine-date">${Fmt.shortDate(date)}${date === current.today ? '<span class="h2-sub">今天</span>' : ''}</h3>
           ${list.map((it) => itemHtml(it)).join('')}
         </section>`).join('')}
-      ${canAny ? '<button type="button" class="btn btn-quiet-danger btn-block mine-bulk-go" data-cancel-picked>取消勾選的報名</button>' : ''}`;
+      ${canAny ? '<button type="button" class="btn btn-quiet-danger btn-block mine-bulk-go" data-cancel-picked>取消勾選的報名</button>' : ''}
+      ${recordHtml()}`;
+    bindExtras(box);
     offerPushMe(box, name);
     const find = (id) => current.items.find((x) => x.signupId === id);
     box.querySelectorAll('[data-cancel]').forEach((btn) => btn.addEventListener('click', () => cancel(find(btn.dataset.cancel))));
@@ -161,6 +168,104 @@
       if (!list.length) { alert('請先勾要取消的報名'); return; }
       cancelMany(list);
     });
+  }
+
+  // ---------- 組長專區 ----------
+
+  function leadHtml() {
+    const lead = current.lead || [];
+    if (!lead.length) return '';
+    return `<section class="lead-box">
+        <h2 class="lead-title">★ 組長專區<span class="h2-sub">${esc(current.name)} 負責的勤務（60 天內）</span></h2>
+        ${lead.map((x, i) => `<div class="lead-item" data-lead="${i}">
+          <div class="lead-head"><strong>${esc(Fmt.shortDate(x.date))}${x.date === current.today ? '（今天）' : ''}　${esc(x.dutyName)}</strong><span class="tag tag-leader">${esc(x.title)}</span></div>
+          <div class="lead-body" data-lead-body><p class="muted">讀取名單中⋯</p></div>
+        </div>`).join('')}
+      </section>`;
+  }
+
+  /** 名單、缺幾人：讀公開的勤務資料（同一個勤務只讀一次） */
+  function loadLead(box) {
+    const lead = current.lead || [];
+    if (!lead.length) return;
+    const details = new Map();
+    const get = (id) => {
+      if (!details.has(id)) details.set(id, Api.getDuty(id));
+      return details.get(id);
+    };
+    lead.forEach((x, i) => {
+      const el = box.querySelector(`[data-lead="${i}"] [data-lead-body]`);
+      get(x.dutyId).then((duty) => {
+        if (!el.isConnected) return;
+        const day = (duty.days || {})[x.date];
+        const notice = duty.mode === '公告型';
+        const roster = Share.rosterLines(duty, x.date, duty.signups || []);
+        const time = Fmt.cardTime(duty, x.date);
+        el.innerHTML = `
+          ${time || duty.location ? `<p class="card-meta">${esc([time, duty.location].filter(Boolean).join('・'))}</p>` : ''}
+          ${notice ? '<p class="muted">公告型（不用報名）</p>' : `<p class="lead-need${day && Fmt.dayState(duty, day).kind === 'short' ? ' is-short' : ''}">🙋 ${esc(Share.needText(duty, day))}</p>`}
+          ${roster.length ? `<ul class="lead-roster">${roster.map((r) => `<li>${esc(r.replace(/^・/, ''))}</li>`).join('')}</ul>` : ''}
+          <div class="lead-actions">
+            ${notice ? '' : '<button type="button" class="btn" data-lead-copy>📋 複製通知</button>'}
+            ${!notice && x.date === current.today ? `<a class="btn btn-primary" href="#/rollcall/${encodeURIComponent(x.dutyId)}?date=${x.date}">✅ 點名</a>` : ''}
+            <a class="btn" href="#/duty/${encodeURIComponent(x.dutyId)}?date=${x.date}">看報名頁</a>
+          </div>`;
+        const copy = el.querySelector('[data-lead-copy]');
+        if (copy) copy.addEventListener('click', async () => {
+          const ok = await Share.copyText(Share.inviteText([{ duty, date: x.date, signups: duty.signups || [] }]));
+          copy.textContent = ok ? '已複製 ✓ 可以貼到 LINE' : '複製失敗';
+          setTimeout(() => { copy.textContent = '📋 複製通知'; }, 2500);
+        });
+      }, () => { if (el.isConnected) el.innerHTML = `<p class="muted"><a href="#/duty/${encodeURIComponent(x.dutyId)}?date=${x.date}">讀不到名單，點這裡看報名頁</a></p>`; });
+    });
+  }
+
+  // ---------- 我的成全紀錄 ----------
+
+  function recordText(r) {
+    const L = window.SITE.categoryLabels || {};
+    const cats = Object.keys(r.byCat).map((c) => `${L[c] || c} ${r.byCat[c]} 次`).join('、');
+    const lines = [`🌟 ${current.name} 的 ${r.year - 1911} 年成全紀錄`, `今年在${window.SITE.org}參加了 ${r.total} 次${cats ? `（${cats}）` : ''}`];
+    if (r.top) lines.push(`最常參加：${r.top}（${r.topTimes} 次）`);
+    lines.push('感恩大家一起成全 🙏', Share.siteUrl ? Share.siteUrl() : location.origin + location.pathname);
+    return lines.join('\n');
+  }
+
+  function recordHtml() {
+    const r = current.record;
+    if (!r) return '';
+    if (!r.total) {
+      return `<section class="record-card is-empty"><p class="record-head">🌟 ${esc(current.name)} 的 ${r.year - 1911} 年成全紀錄</p>
+        <p>今年還沒有出席紀錄${r.lastYear ? `（去年參加了 ${r.lastYear} 次）` : ''}，期待在勤務中見到您 😊</p></section>`;
+    }
+    const L = window.SITE.categoryLabels || {};
+    const cats = Object.keys(r.byCat).map((c) => `<li><span>${esc(L[c] || c)}</span><strong>${r.byCat[c]} 次</strong></li>`).join('');
+    const vs = r.lastYear ? (r.total > r.lastYear ? `比去年多 ${r.total - r.lastYear} 次 👏` : `去年 ${r.lastYear} 次`) : '';
+    return `<section class="record-card">
+        <p class="record-head">🌟 ${esc(current.name)} 的 ${r.year - 1911} 年成全紀錄</p>
+        <p class="record-big">今年參加了 <strong>${r.total}</strong> 次</p>
+        <ul class="record-cats">${cats}</ul>
+        ${r.top ? `<p>最常參加：<strong>${esc(r.top)}</strong>（${r.topTimes} 次）</p>` : ''}
+        ${vs || r.since ? `<p class="muted">${[vs, r.since ? `從 ${esc(Fmt.rocDate(r.since))} 開始參加` : ''].filter(Boolean).join('・')}</p>` : ''}
+        <p class="record-thanks">感恩您的發心 🙏</p>
+        <div class="share-actions">
+          <button type="button" class="btn" data-record-copy>複製紀錄</button>
+          <button type="button" class="btn btn-line" data-record-line>傳到 LINE</button>
+        </div>
+        <p class="hint">算到今天為止，同一場只算一次；點名「未到」的不算。</p>
+      </section>`;
+  }
+
+  function bindExtras(box) {
+    loadLead(box);
+    const r = current.record;
+    const copy = box.querySelector('[data-record-copy]');
+    if (copy) copy.addEventListener('click', async () => {
+      copy.textContent = (await Share.copyText(recordText(r))) ? '已複製 ✓' : '複製失敗';
+      setTimeout(() => { copy.textContent = '複製紀錄'; }, 2500);
+    });
+    const line = box.querySelector('[data-record-line]');
+    if (line) line.addEventListener('click', () => window.open('https://line.me/R/msg/text/?' + encodeURIComponent(recordText(r)), '_blank', 'noopener'));
   }
 
   function itemHtml(it) {

@@ -661,3 +661,37 @@ test('讀取快取：報名後勤務詳情與打包立刻更新；直接改試�
   env.keepWarm();
   assert.equal(env.get({ action: 'getDuty', id: v.id }).data.name, '彌勒山志工輪值（改）');
 });
+
+test('我的成全紀錄：今年到今天參加幾次（同一場只算一次、未到不算、已取消不算）', () => {
+  const env = createEnv(OCT_1);
+  const team = findDuty(env, '2026-11-08', '2026-11-08', d => d.name === '12人小組輪值');
+  const cook = team.positions[0];
+  signupOne(env, team, cook.id, '2026-11-08', { name: '測試甲' });
+  signupOne(env, team, cook.id, '2026-11-09', { name: '測試甲' });
+  const c = signupOne(env, team, cook.id, '2026-11-10', { name: '測試甲' });
+  env.post({ action: 'cancel', signupId: c });
+  let r = env.post({ action: 'mySignups', name: '測試甲' }).data;
+  assert.equal(r.record.total, 0, '還沒到的不算');
+  env.clock.now = Date.UTC(2026, 10, 12, 2); // 台北 11/12
+  r = env.post({ action: 'mySignups', name: '測試甲' }).data;
+  assert.equal(r.record.year, 2026);
+  assert.equal(r.record.total, 2);
+  assert.deepEqual(r.record.byCat, { '勤務': 2 });
+  assert.equal(r.record.top, '12人小組輪值');
+  assert.equal(r.record.since, '2026-11-08');
+  assert.equal(r.items.length, 0);
+});
+
+test('組長專區：報名勾組長的、分組名單上是負責組組長的，今天起 60 天內', () => {
+  const env = createEnv(OCT_1);
+  const g = env.sheets['分組'].data.find(r => r[0] === '勤務了愿組' && r[1] === '第1組');
+  g[2] = '測試組長、測試副組長';
+  const ev = env.get({ action: 'getEvents', from: '2026-10-01', to: '2026-11-29' }).data;
+  const led = ev.duties.filter(d => d.groupLeader && d.groupLeader.includes('測試組長'));
+  assert.ok(led.length, '測試資料要有第1組的勤務');
+  const r = env.post({ action: 'mySignups', name: '測試副組長' }).data;
+  assert.ok(r.lead.length > 0);
+  assert.ok(r.lead.every(x => x.date >= '2026-10-01' && x.date <= '2026-11-29' && /組長$/.test(x.title)));
+  assert.ok(!JSON.stringify(r).includes('0900'));
+  assert.deepEqual(env.post({ action: 'mySignups', name: '測試乙' }).data.lead, []);
+});

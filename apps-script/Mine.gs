@@ -44,7 +44,75 @@ function mySignups_(body) {
   items.sort(function (a, b) {
     return a.date < b.date ? -1 : a.date > b.date ? 1 : String(a.startTime).localeCompare(String(b.startTime));
   });
-  return { name: name, today: today, items: items.slice(0, MINE_MAX) };
+  return { name: name, today: today, items: items.slice(0, MINE_MAX), record: myRecord_(name, today, duties), lead: myLead_(name, today, duties) };
+}
+
+/**
+ * 我的成全紀錄（2026/10/13）：今年（到今天為止）參加了幾次、各類別幾次、最常參加哪一種，和去年比。
+ * 同一場（勤務＋日期）兼好幾個了愿項目只算一次；點名「未到」的不算；陪同也算（有來就算）。
+ */
+function myRecord_(name, today, duties) {
+  var year = today.slice(0, 4);
+  var lastYear = String(Number(year) - 1);
+  var seen = {};
+  var byCat = {};
+  var series = {};
+  var total = 0;
+  var last = 0;
+  var since = '';
+  readTableCached_(SHEETS.SIGNUPS).forEach(function (s) {
+    if (s['狀態'] === '已取消' || s['出席'] === '未到' || !s['日期'] || s['日期'] > today) return;
+    var d = duties[s['勤務ID']];
+    if (!d || mineKey_(s['姓名']) !== name) return;
+    var key = s['勤務ID'] + '|' + s['日期'];
+    if (seen[key]) return;
+    seen[key] = true;
+    if (!since || s['日期'] < since) since = s['日期'];
+    var y = s['日期'].slice(0, 4);
+    if (y === lastYear) last++;
+    if (y !== year) return;
+    total++;
+    var c = dutyCategory_(d);
+    byCat[c] = (byCat[c] || 0) + 1;
+    var k = seriesKey_(d['名稱']) || d['名稱'];
+    series[k] = (series[k] || 0) + 1;
+  });
+  var top = Object.keys(series).sort(function (a, b) { return series[b] - series[a] || a.localeCompare(b); })[0] || '';
+  return { year: Number(year), total: total, byCat: byCat, top: top, topTimes: top ? series[top] : 0, lastYear: last, since: since };
+}
+
+var LEAD_DAYS = 60;
+var LEAD_MAX = 30;
+
+/**
+ * 組長專區（2026/10/13）：這個人今天起 60 天內負責的勤務。
+ *   - 報名時勾了組長（報名的「組長」欄）
+ *   - 分組名單上是那一組的組長或召集人（勤務的負責組）：每個勤務最多列 10 天
+ * 只回傳勤務ID、日期、名稱、職稱；名單和缺幾人前端用公開的勤務資料讀。
+ */
+function myLead_(name, today, duties) {
+  var until = addDaysStr_(today, LEAD_DAYS - 1);
+  var out = {};
+  var add = function (d, date, title) {
+    var key = d['勤務ID'] + '|' + date;
+    if (!out[key]) out[key] = { dutyId: d['勤務ID'], date: date, dutyName: d['名稱'], title: title };
+  };
+  activeSignups_().forEach(function (s) {
+    var d = duties[s['勤務ID']];
+    if (!d || s['組長'] !== '是' || s['日期'] < today || s['日期'] > until || mineKey_(s['姓名']) !== name) return;
+    add(d, s['日期'], d['組長職稱'] || '組長');
+  });
+  Object.keys(duties).forEach(function (id) {
+    var d = duties[id];
+    var end = d['結束日'] || d['開始日'];
+    if (!d['負責組'] || !d['開始日'] || end < today || d['開始日'] > until) return;
+    var leader = groupLeader_(d['分組類型'], d['負責組']);
+    if (!leader || !String(leader).split(/[、,，\/／\s　]+/).some(function (x) { return x && mineKey_(x) === name; })) return; // 可能寫好幾位
+    datesInRange_(d['開始日'] > today ? d['開始日'] : today, end < until ? end : until).slice(0, 10).forEach(function (date) { add(d, date, d['負責組'] + '組長'); });
+  });
+  return Object.keys(out).map(function (k) { return out[k]; })
+    .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : a.dutyName.localeCompare(b.dutyName); })
+    .slice(0, LEAD_MAX);
 }
 
 /** 比對用：去掉名字裡所有半形與全形空白 */
