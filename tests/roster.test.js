@@ -19,6 +19,12 @@ test('名單：今天起一個月有人報名的日期，同名只列一次；�
   const day = all.days.find((d) => d.date === '2026-10-13');
   assert.deepEqual(day.duties.find((d) => d.id === ev.id).names, ['測試乙', '測試丙']);
   assert.ok(all.days.every((d) => d.date >= '2026-10-01' && d.date <= '2026-10-31'));
+  const empty = all.days.flatMap((d) => d.duties).filter((x) => !x.notice && !x.names.length);
+  assert.ok(empty.length > 0, '還沒有人報名的勤務也要列出來');
+  global.window = { SITE: { org: '教全區' } };
+  global.Fmt = { shortDate: (d) => d, esc: (x) => x };
+  const AP = require('../js/admin-pages.js');
+  assert.match((global.window.AdminPages || AP).rosterText([{ date: '2026-10-02', duties: [{ name: '測試勤務', names: [] }, { name: '輪值', notice: true, group: '第二組', names: [] }] }]), /測試勤務人員:還沒有人報名\n輪值：第二組輪值/);
   const dw = env.post({ action: 'adminLogin', account: '道務組', password: 'abc12345' }).data.token;
   const mine = env.post({ action: 'adminRoster', token: dw }).data;
   assert.ok(mine.days.every((d) => d.duties.every((x) => x.category === '道務')), '道務帳號只看到道務');

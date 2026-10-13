@@ -134,7 +134,7 @@
   }
 
   // ---------- 名單 ----------
-  // 今天起一個月有人報名的日期，勾選（可全選）後產生貼到 LINE 的文字：
+  // 今天起一個月有勤務或活動的日期（還沒有人報名的也列），勾選（可全選）後產生貼到 LINE 的文字：
   //   教全區
   //   11/14（六）
   //   勤務名稱人員:名字、名字
@@ -145,7 +145,7 @@
 
   function renderRoster(body, data, stale) {
     if (!data.days.length) {
-      body.innerHTML = `${AdminPage.staleNote(stale)}<p class="panel-empty">今天起一個月還沒有人報名。</p>`;
+      body.innerHTML = `${AdminPage.staleNote(stale)}<p class="panel-empty">今天起一個月沒有勤務或活動。</p>`;
       return;
     }
     const tomorrow = Fmt.addDays(data.today, 1);
@@ -153,12 +153,12 @@
     const first = !body.querySelector('[data-roster-date]');
     body.innerHTML = `
       ${AdminPage.staleNote(stale)}
-      <p class="hint">勾要產生名單的日期（今天起一個月，有人報名的日子），下面的文字會跟著變，按「複製文字」貼到 LINE。</p>
+      <p class="hint">勾要產生名單的日期（今天起一個月所有的勤務、活動；還沒有人報名的會寫「還沒有人報名」），下面的文字會跟著變，按「複製文字」貼到 LINE。</p>
       <div class="roster-quick"><button type="button" class="link-btn" data-all>全選</button><button type="button" class="link-btn" data-none>都不選</button></div>
       <div class="roster-dates">${data.days.map((d) => {
         const on = first ? d.date === tomorrow : prev.has(d.date);
         return `<label class="check roster-date"><input type="checkbox" data-roster-date value="${d.date}"${on ? ' checked' : ''}>
-          <span><strong>${esc(Fmt.shortDate(d.date))}</strong>${d.date === data.today ? '<small>今天</small>' : d.date === tomorrow ? '<small>明天</small>' : ''}<br><small>${esc(d.duties.map((x) => x.name).join('、'))}</small></span></label>`;
+          <span><strong>${esc(Fmt.shortDate(d.date))}</strong>${d.date === data.today ? '<small>今天</small>' : d.date === tomorrow ? '<small>明天</small>' : ''}<br><small>${esc(d.duties.map((x) => x.name + (x.notice || x.names.length ? '' : '（0）')).join('、'))}</small></span></label>`;
       }).join('')}</div>
       <textarea class="day-text" rows="14" aria-label="名單文字（可修改）"></textarea>
       <button type="button" class="btn btn-primary btn-block" data-copy>複製文字</button>
@@ -182,7 +182,7 @@
     const lines = [window.SITE.org];
     days.forEach((d) => {
       lines.push(Fmt.shortDate(d.date));
-      d.duties.forEach((x) => lines.push(`${x.name}人員:${x.names.join('、')}`));
+      d.duties.forEach((x) => lines.push(x.notice ? `${x.name}：${x.group ? x.group + '輪值' : '公告'}` : `${x.name}人員:${x.names.length ? x.names.join('、') : '還沒有人報名'}`));
     });
     return lines.join('\n');
   }

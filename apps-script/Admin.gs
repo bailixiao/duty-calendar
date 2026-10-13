@@ -277,12 +277,19 @@ function adminRoster_() {
   var rows = activeSignups_().filter(function (s) { return s['日期'] >= today && s['日期'] <= to && byDuty[s['勤務ID']]; })
     .sort(function (a, b) { return String(a['建立時間']).localeCompare(String(b['建立時間'])); });
   var days = {};
+  var entry = function (d, date) {
+    if (!days[date]) days[date] = {};
+    if (!days[date][d.id]) days[date][d.id] = { id: d.id, name: d.name, category: d.category, startTime: d.startTime, names: [], notice: d.mode === '公告型', group: d.group || '' };
+    return days[date][d.id];
+  };
+  // 一個月內所有的勤務、活動都列出來（還沒有人報名的也列，2026/10/13）
+  events.duties.forEach(function (d) {
+    Object.keys(d.days || {}).forEach(function (date) { if (date >= today && date <= to) entry(d, date); });
+  });
   rows.forEach(function (s) {
     var date = s['日期'];
     var d = byDuty[s['勤務ID']];
-    if (!days[date]) days[date] = {};
-    if (!days[date][d.id]) days[date][d.id] = { id: d.id, name: d.name, category: d.category, startTime: d.startTime, names: [] };
-    var list = days[date][d.id].names;
+    var list = entry(d, date).names;
     if (list.indexOf(s['姓名']) === -1) list.push(s['姓名']);
   });
   return {

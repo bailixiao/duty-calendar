@@ -2400,3 +2400,4 @@ button.veg-chip:hover { border-color: var(--ok); }
 .record-card .hint { color: #7a6650; }
 .lead-actions a.btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
 .lead-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.roster-date input[type=checkbox] { flex-shrink: 0; }
