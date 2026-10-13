@@ -2241,7 +2241,7 @@ body.splash-on .text-size-btn { visibility: hidden; }
 .hour-cell.is-on { border-color: var(--accent); background: var(--accent-soft); }
 .hour-cell.is-on .hc-state { color: var(--accent); font-weight: 700; }
 .hour-picked { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 10px 0 4px; }
-.vm-failed-toggle { margin-top: 10px; }
+.vm-failed-toggle { margin-top: 10px; min-height: 52px; font-size: 1.0625rem; font-weight: 700; }
 .vm-failed { margin-top: 8px; opacity: .85; }
 .note-pop.is-edit { width: min(92vw, 300px); }
 .note-pop-label { display: block; margin: 6px 0 4px; font-size: 0.875rem; color: var(--ink-2); }

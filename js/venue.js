@@ -211,7 +211,7 @@
     box.innerHTML = `
       <p class="venue-day">${esc(Fmt.rocDate(state.date))}</p>
       <div data-hours>${hoursGrid(day)}</div>
-      <p class="hint">點開始那格，再點結束那格，就選好一段（只點一格＝一小時）。灰色是已借出，黃色是有人申請中（還是可以申請，由管理者決定）。</p>`;
+      <p class="hint">點開始那格，再點結束那格，就選好一段（只點一格＝一小時；一格一格點也可以）。點頭或尾那格＝少借那一小時。灰色是已借出，黃色是有人申請中（還是可以申請，由管理者決定）。</p>`;
     bindHours(box.querySelector('[data-hours]'), day, () => drawSingle(true));
   }
 
@@ -245,18 +245,23 @@
     el.querySelectorAll('[data-hour]').forEach((b) => b.addEventListener('click', () => {
       const i = Number(b.dataset.hour);
       const err = el.querySelector('[data-hour-err]');
-      const single = state.sel && state.sel.a === state.sel.b;
-      if (state.sel && single && i !== state.sel.a) {
-        const lo = Math.min(i, state.sel.a);
-        const hi = Math.max(i, state.sel.a);
-        const blocked = day && HOURS.slice(lo, hi + 1).some((h) => (day.find((x) => x.slot === h) || {}).status === '已借出');
-        if (blocked) { state.sel = { a: i, b: i }; syncSlots(); redraw(); const e2 = document.querySelector('[data-hour-err]'); if (e2) { e2.textContent = '中間有已借出的時間，請重選一段'; e2.hidden = false; } return; }
-        state.sel = { a: state.sel.a, b: i };
-      } else if (single && i === state.sel.a) {
-        state.sel = null; // 再點一次同一格＝取消
-      } else {
-        state.sel = { a: i, b: i };
+      // 規則：沒選＝從這格開始；點那段外面＝延長到這格（07→08→09 一格一格點也會接起來）；
+      //       點頭或尾＝少借那一小時；點中間＝縮到這格為止；只剩一格再點＝取消
+      const lo = state.sel ? Math.min(state.sel.a, state.sel.b) : null;
+      const hi = state.sel ? Math.max(state.sel.a, state.sel.b) : null;
+      let next;
+      if (!state.sel) next = { a: i, b: i };
+      else if (i < lo || i > hi) next = { a: Math.min(lo, i), b: Math.max(hi, i) };
+      else if (lo === hi) next = null;
+      else if (i === lo) next = { a: lo + 1, b: hi };
+      else if (i === hi) next = { a: lo, b: hi - 1 };
+      else next = { a: lo, b: i };
+      const blocked = next && day && HOURS.slice(next.a, next.b + 1).some((h) => (day.find((x) => x.slot === h) || {}).status === '已借出');
+      if (blocked) {
+        if (err) { err.textContent = '中間有已借出的時間，接不起來；請按「清除重選」再選一段'; err.hidden = false; }
+        return;
       }
+      state.sel = next;
       if (err) err.hidden = true;
       syncSlots();
       redraw();
@@ -440,7 +445,7 @@
           <span class="vm-status">${r.cancelPending ? '⏳ 取消審核中' : r.status === '待審核' ? '⏳ 審核中' : r.status === '已同意' ? '✅ 已借到' : r.status === '不同意' ? '❌ 沒有借到' : '已取消'}${r.note ? `<small>${esc(r.note)}</small>` : ''}</span>
         </li>`;
     out.innerHTML = `<p class="venue-mine-who"><strong>${esc(name)}</strong> 的申請</p>` + (list.length ? `${shown.length ? `<ul class="venue-mine">${shown.map(item).join('')}</ul>` : '<p class="muted">目前沒有審核中或已借到的申請。</p>'}
-        ${failed.length ? `<button type="button" class="btn btn-small vm-failed-toggle" data-failed-toggle aria-expanded="false">看沒借到、已取消的（${failed.length} 筆）</button>
+        ${failed.length ? `<button type="button" class="btn btn-block vm-failed-toggle" data-failed-toggle aria-expanded="false">❌ 看沒借到、已取消的（${failed.length} 筆）</button>
           <ul class="venue-mine vm-failed" data-failed hidden>${failed.map(item).join('')}</ul>` : ''}
         ${can.length ? `<div class="vm-cancel">
           <div class="vm-quick"><button type="button" class="link-btn" data-vm-all>全選</button><button type="button" class="link-btn" data-vm-none>都不選</button></div>
@@ -452,7 +457,7 @@
       const ul = out.querySelector('[data-failed]');
       ul.hidden = !ul.hidden;
       ft.setAttribute('aria-expanded', String(!ul.hidden));
-      ft.textContent = ul.hidden ? `看沒借到、已取消的（${failed.length} 筆）` : '收起沒借到、已取消的';
+      ft.textContent = ul.hidden ? `❌ 看沒借到、已取消的（${failed.length} 筆）` : '❌ 收起沒借到、已取消的';
     });
     const boxes = () => [...out.querySelectorAll('[data-cancel-id]')];
     const all = out.querySelector('[data-vm-all]');
