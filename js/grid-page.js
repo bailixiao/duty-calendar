@@ -63,7 +63,7 @@
       const same = pop && pop.dataset.id === s.id;
       closeNote();
       if (same) return; // 再點一次同一個＝關掉
-      const canEdit = editable && s.date >= d.today;
+      const canEdit = editable && (s.date >= d.today || Api.isAdmin());
       const posName = (d.positions.find((x) => x.id === s.positionId) || {}).name || '';
       pop = document.createElement('div');
       pop.className = 'note-pop' + (canEdit ? ' is-edit' : '');
@@ -86,7 +86,8 @@
           save.disabled = true;
           msg.textContent = '儲存中⋯';
           try {
-            await Api.gridNote({ signupId: s.id, note: inputEl.value.trim() });
+            const payload = { signupId: s.id, note: inputEl.value.trim() };
+            if (Api.isAdmin()) await Api.admin('adminGridNote', payload); else await Api.gridNote(payload);
             s.note = inputEl.value.trim();
             closeNote();
             const fresh = await DutyCache.fetch(d.id);
@@ -177,6 +178,10 @@
     return d.start === d.end ? md(d.start) : `${md(d.start)}～${md(d.end)}`;
   }
 
+  /** 過了定案日、又不是管理者：只能看 */
+  const isLocked = (d) => !!(d.gridLock && d.today > d.gridLock && !Api.isAdmin());
+  const lockText = (d) => `${Number(d.gridLock.slice(5, 7))}/${Number(d.gridLock.slice(8, 10))}`;
+
   function render() {
     const d = data;
     if (d.layout !== '職司表') { // 不是職司表的勤務：直接去勤務頁
@@ -201,7 +206,7 @@
       <section class="gp-section">
         <h2 class="gp-h2">職司表</h2>
         ${d.signups ? tableHtml(d) : '<p class="muted">載入職司表中⋯</p>'}
-        <p class="hint">表格可以左右滑動。<strong>點一下名字</strong>可以看、改註記；<strong>按住名字拖到別的格子</strong>可以調整（手機先按住一下再拖），拖到有人的格子會兩人互換，放下後會先問您。</p>
+        ${isLocked(d) ? `<p class="notice grid-locked">🔒 職司已在 ${lockText(d)} 定案，要調整請聯絡管理者。點名字可以看註記。</p>` : `<p class="hint">表格可以左右滑動。<strong>點一下名字</strong>可以看、改註記；<strong>按住名字拖到別的格子</strong>可以調整（手機先按住一下再拖），拖到有人的格子會兩人互換，放下後會先問您。${d.gridLock ? `${lockText(d)} 定案後只有管理者能調整。` : ''}${Api.isAdmin() ? '（您已登入後台，定案後也可以調整）' : ''}</p>`}
       </section>
       ${d.description ? `
       <section class="gp-section">
@@ -217,8 +222,8 @@
       const today = wrap.querySelector('th.is-today');
       if (today) wrap.scrollLeft = Math.max(0, today.offsetLeft - 120);
     }
-    bindNotes(root, d, true);
-    bindDrag(root, d);
+    bindNotes(root, d, !isLocked(d));
+    if (!isLocked(d)) bindDrag(root, d);
     root.querySelector('[data-signup]').addEventListener('click', () => {
       // 到勤務頁後直接捲到報名表單
       sessionStorage.setItem('duty-calendar:to-signup', d.id);
@@ -282,7 +287,7 @@
     if (target && target !== d.from) confirmMove(d.data, d.sid, target);
     else if (!d.active) { // 點一下名字（沒有拖）＝看／改註記
       const s = (d.data.signups || []).find((x) => x.id === d.sid);
-      if (s) openPop(d.name, s, d.data, true);
+      if (s) openPop(d.name, s, d.data, !isLocked(d.data));
     }
   });
   window.addEventListener('pointercancel', endDrag);
@@ -323,7 +328,8 @@
     if (!ok) return;
     Busy.show('調整中⋯');
     try {
-      await Api.gridMove({ signupId: a.id, date, positionId: pos, swapId: b ? b.id : '' });
+      const payload = { signupId: a.id, date, positionId: pos, swapId: b ? b.id : '' };
+      if (Api.isAdmin()) await Api.admin('adminGridMove', payload); else await Api.gridMove(payload);
       const fresh = await DutyCache.fetch(d.id);
       Busy.hide();
       if (root && fresh.id === (data && data.id)) { data = fresh; updatedAt = new Date(); render(); }

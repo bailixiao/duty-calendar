@@ -114,7 +114,7 @@ function adminCreateDuties_(body) {
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.DUTIES);
     invalidateTable_(SHEETS.POSITIONS);
-    return { ids: ids };
+    return { ids: ids, warnings: venueDutyClash_(dutyRows) };
   });
 }
 
@@ -211,6 +211,7 @@ function adminUpdateDuty_(body) {
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.DUTIES);
     invalidateTable_(SHEETS.POSITIONS);
+    warnings = warnings.concat(venueDutyClash_(readTable_(SHEETS.DUTIES).filter(function (d) { return d['勤務ID'] === source['勤務ID']; })));
     return { id: source['勤務ID'], updated: plans.length, warnings: warnings, moved: moved };
   });
 }

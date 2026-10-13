@@ -483,7 +483,8 @@
     const item = (r) => `
         <li class="is-${r.status === '已同意' ? 'ok' : r.status === '待審核' ? 'wait' : 'no'}">
           <span>${r.canCancel ? `<label class="check vm-pick"><input type="checkbox" data-cancel-id="${esc((r.ids || [r.id]).join(','))}"> ` : ''}<strong>${esc(Fmt.shortDate(r.date))} ${esc(r.slot)}</strong>　${esc(r.purpose)}${r.canCancel ? '</label>' : ''}</span>
-          <span class="vm-status">${r.cancelPending ? '⏳ 取消審核中' : r.status === '待審核' ? '⏳ 審核中' : r.status === '已同意' ? '✅ 已借到' : r.status === '不同意' ? '❌ 沒有借到' : '已取消'}${r.note ? `<small>${esc(r.note)}</small>` : ''}</span>
+          <span class="vm-status">${r.changeAsk ? `⏳ 改時間審核中<small>想改成 ${esc(r.changeAsk.label)}</small>` : r.cancelPending ? '⏳ 取消審核中' : r.status === '待審核' ? '⏳ 審核中' : r.status === '已同意' ? '✅ 已借到' : r.status === '不同意' ? '❌ 沒有借到' : '已取消'}${r.note ? `<small>${esc(r.note)}</small>` : ''}</span>
+          ${r.canChange ? `<button type="button" class="btn btn-small vm-change" data-change="${esc((r.ids || [r.id]).join(','))}" data-date="${esc(r.date)}" data-slot="${esc(r.slot)}">🕘 申請改時間</button>` : ''}
         </li>`;
     out.innerHTML = `<p class="venue-mine-who"><strong>${esc(name)}</strong> 的申請</p>` + (list.length ? `${shown.length ? `<ul class="venue-mine">${shown.map(item).join('')}</ul>` : '<p class="muted">目前沒有審核中或已借到的申請。</p>'}
         ${failed.length ? `<button type="button" class="btn btn-block vm-failed-toggle" data-failed-toggle aria-expanded="false">❌ 看沒借到、已取消的（${failed.length} 筆）</button>
@@ -500,6 +501,7 @@
       ft.setAttribute('aria-expanded', String(!ul.hidden));
       ft.textContent = ul.hidden ? `❌ 看沒借到、已取消的（${failed.length} 筆）` : '❌ 收起沒借到、已取消的';
     });
+    out.querySelectorAll('[data-change]').forEach((b) => b.addEventListener('click', () => askChange(name, b.dataset.change.split(','), b.dataset.date, b.dataset.slot, out)));
     const boxes = () => [...out.querySelectorAll('[data-cancel-id]')];
     const all = out.querySelector('[data-vm-all]');
     if (all) all.addEventListener('click', () => boxes().forEach((c) => { c.checked = true; }));
@@ -511,6 +513,49 @@
       const ids = picked.flatMap((c) => c.dataset.cancelId.split(','));
       if (!ids.length) { alert('請先勾要取消的日期時間'); return; }
       askPhone(name, ids, out, picked.length);
+    });
+  }
+
+  /** 申請改時間：選新的日期、開始、結束，輸入電話（管理者同意才改） */
+  function askChange(name, ids, date, slotLabel, out) {
+    const known = (profiles()[name] || {}).phone || '';
+    const m0 = String(slotLabel).match(/(\d{2}:\d{2})～(\d{2}:\d{2})/);
+    const opt = (list, cur) => list.map((h) => `<option value="${h}"${h === cur ? ' selected' : ''}>${h}</option>`).join('');
+    const m = Modal.open(`
+      <form class="modal-form" novalidate>
+        <h2 class="modal-title">🕘 申請改時間</h2>
+        <p class="modal-note">原本：${esc(Fmt.shortDate(date))} ${esc(slotLabel)}。選好新的日期和時間送出，<strong>管理者同意後才會改</strong>，之前還是原本的時間。</p>
+        <label class="form-row"><span>新的日期</span><input class="input" type="date" name="date" min="${state.tomorrow}" max="${state.last}" value="${esc(date)}"></label>
+        <div class="form-row form-row-pair">
+          <label><span>開始</span><select class="input" name="from">${opt(HOURS, m0 ? m0[1] : '09:00')}</select></label>
+          <label><span>結束</span><select class="input" name="to">${opt(HOURS.map(VenueHours.next), m0 ? m0[2] : '10:00')}</select></label>
+        </div>
+        <label class="form-row"><span>申請時留的電話（確認是本人）</span><input class="input" name="phone" type="tel" inputmode="tel" value="${esc(known)}" placeholder="例：0912-345678"></label>
+        <div class="form-error" data-err hidden></div>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-primary btn-block">送出改時間申請</button>
+          <button type="button" class="btn btn-block" data-close>先不要</button>
+        </div>
+      </form>`);
+    const f = m.el.querySelector('form');
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    f.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const box = f.querySelector('[data-err]');
+      if (f.elements.to.value <= f.elements.from.value) { box.textContent = '結束要晚於開始'; box.hidden = false; return; }
+      box.hidden = true;
+      Busy.show('送出中⋯');
+      try {
+        const res = await Api.changeVenue({ ids, name, phone: f.elements.phone.value.trim(), date: f.elements.date.value, from: f.elements.from.value, to: f.elements.to.value });
+        Busy.hide();
+        m.close();
+        drawMine(out, name, res.requests);
+        out.insertAdjacentHTML('afterbegin', '<div class="notice notice-success" role="status"><p><strong>改時間的申請送出了</strong> 📮 管理者同意後就會改，可以再到這裡查看 🙏</p></div>');
+      } catch (err) {
+        Busy.hide();
+        box.innerHTML = `<strong>${esc(err.message || '沒有送出')}</strong>${(err.details || []).map((x) => '<br>' + esc(x.message)).join('')}`;
+        box.hidden = false;
+      }
     });
   }
 

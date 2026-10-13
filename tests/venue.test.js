@@ -190,3 +190,37 @@ test('後台好幾天的場地一起改時間（日期不變）；有一天重�
   const mine = env.post({ action: 'myVenue', name: '測試甲' }).data.requests;
   assert.deepEqual(mine.map((x) => [x.date, x.slot, x.status]), [['2026-10-17', '07:00～12:00', '已同意'], ['2026-10-24', '07:00～12:00', '已同意'], ['2026-10-31', '07:00～12:00', '已同意']]);
 });
+
+test('申請人申請改時間：要對得上電話、管理者同意才改（重疊會擋）、不同意維持原狀；場地使用統計', () => {
+  const env = createEnv(OCT_1);
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const call = (action, body) => env.post(Object.assign({ action, token }, body));
+  const H = (a, b) => Array.from({ length: b - a }, (_, i) => String(a + i).padStart(2, '0') + ':00');
+  env.post({ action: 'requestVenue', dates: ['2026-10-20'], slots: H(9, 12), name: '測試甲', phone: '0912345678', purpose: '讀經' });
+  env.post({ action: 'requestVenue', dates: ['2026-10-21'], slots: H(13, 15), name: '測試乙', phone: '0987654321', purpose: '書法' });
+  call('adminVenueDecide', { ids: call('adminVenue', {}).data.requests.map((r) => r.id), decision: '已同意' });
+  let mine = env.post({ action: 'myVenue', name: '測試甲' }).data.requests;
+  assert.equal(mine[0].canChange, true);
+  const ids = mine[0].ids;
+  assert.equal(env.post({ action: 'changeVenue', ids, name: '測試甲', phone: '0999999999', date: '2026-10-21', from: '13:00', to: '15:00' }).error.code, 'FORBIDDEN');
+  // 申請改到和測試乙重疊的時間：送得出去，但管理者同意時會擋
+  const r = env.post({ action: 'changeVenue', ids, name: '測試甲', phone: '0912345678', date: '2026-10-21', from: '14:00', to: '16:00' });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.equal(r.data.requests[0].changeAsk.label, '10/21 14:00～16:00');
+  assert.equal(r.data.requests[0].canChange, false);
+  let ask = call('adminVenue', {}).data.requests.filter((x) => x.name === '測試甲');
+  assert.equal(call('adminVenueChangeDecide', { ids: ask.map((x) => x.id), ok: true }).error.code, 'VALIDATION');
+  // 不同意：維持原狀
+  call('adminVenueChangeDecide', { ids: ask.map((x) => x.id), ok: false, note: '時間重疊' });
+  mine = env.post({ action: 'myVenue', name: '測試甲' }).data.requests;
+  assert.deepEqual([mine[0].date, mine[0].slot, mine[0].changeAsk, mine[0].note], ['2026-10-20', '09:00～12:00', null, '不同意改時間：時間重疊']);
+  // 再申請 10/21 15:00～17:00，同意
+  env.post({ action: 'changeVenue', ids: mine[0].ids, name: '測試甲', phone: '0912345678', date: '2026-10-21', from: '15:00', to: '17:00' });
+  ask = call('adminVenue', {}).data.requests.filter((x) => x.name === '測試甲');
+  assert.equal(call('adminVenueChangeDecide', { ids: ask.map((x) => x.id), ok: true }).ok, true);
+  mine = env.post({ action: 'myVenue', name: '測試甲' }).data.requests;
+  assert.deepEqual([mine[0].date, mine[0].slot, mine[0].status, mine[0].changeAsk], ['2026-10-21', '15:00～17:00', '已同意', null]);
+  // 統計
+  const st = call('adminVenueStats', { month: '2026-10' }).data;
+  assert.deepEqual(st.items.map((x) => [x.name, x.label, x.hours.length]), [['測試乙', '13:00～15:00', 2], ['測試甲', '15:00～17:00', 2]]);
+});

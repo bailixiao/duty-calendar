@@ -50,7 +50,12 @@
    * 回傳 { ids } 或 null（使用者取消）；其他錯誤照樣丟出。
    */
   async function createDuties(duties) {
-    const send = (allowDuplicate) => Api.admin('adminCreateDuties', allowDuplicate ? { duties, allowDuplicate: true } : { duties });
+    const send = async (allowDuplicate) => {
+      const res = await Api.admin('adminCreateDuties', allowDuplicate ? { duties, allowDuplicate: true } : { duties });
+      // 和已借出的區中心場地撞期：存好了，提醒一下
+      if (res && res.warnings && res.warnings.length) setTimeout(() => alert('⚠️ 注意，區中心已經借出去了：\n' + res.warnings.join('\n')), 300);
+      return res;
+    };
     try {
       return await send(false);
     } catch (err) {

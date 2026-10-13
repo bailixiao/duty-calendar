@@ -216,6 +216,7 @@
     requestVenue: (payload) => post(Object.assign({ action: 'requestVenue' }, payload)),
     myVenue: (name) => post({ action: 'myVenue', name }),
     cancelVenue: (payload) => post(Object.assign({ action: 'cancelVenue' }, payload)),
+    changeVenue: (payload) => post(Object.assign({ action: 'changeVenue' }, payload)),
     venueWatch: (endpoint, id) => post({ action: 'venueWatch', endpoint, id }),
     pushSetName: (endpoint, name) => post({ action: 'pushSetName', endpoint, name }),
     rollcallGet: (p) => post(Object.assign({ action: 'rollcallGet' }, p)),

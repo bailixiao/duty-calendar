@@ -643,3 +643,40 @@ test('每個人可以報不同的日期：一次送出，各自的日期分別�
   assert.equal(full.error.code, 'VALIDATION');
   assert.equal(env.get({ action: 'getDuty', id }).data.signups.length, 4, '整批全有或全無');
 });
+
+test('職司表定案後家人們不能拖、不能改註記，管理者可以；調整時通知組長；區中心撞期提醒', () => {
+  const env = createEnv(OCT_1);
+  env.fn('ensurePushKeys_')();
+  const token = login(env);
+  // 11/8 開始 → 定案日 11/2（禮拜一）
+  const id = admin(env, token, 'adminCreateDuties', { duties: [{ name: '測試小組', start: '2026-11-08', end: '2026-11-09', layout: '職司表', positions: [{ name: '烹飪', max: '3' }] }] }).data.ids[0];
+  let d = env.get({ action: 'getDuty', id }).data;
+  assert.equal(d.gridLock, '2026-11-02');
+  const pid = d.positions[0].id;
+  env.post({ action: 'signup', dutyId: id, positionId: pid, dates: ['2026-11-08'], entries: [{ name: '測試甲', identity: '道親' }, { name: '測試乙', identity: '道親' }] });
+  d = env.get({ action: 'getDuty', id }).data;
+  const a = d.signups.find((s) => s.name === '測試甲');
+  const b = d.signups.find((s) => s.name === '測試乙');
+  // 組長測試乙的手機有開提醒、填了名字
+  const EP = 'https://fcm.googleapis.com/fcm/send/leader-grid-1';
+  env.post({ action: 'pushSubscribe', endpoint: EP });
+  env.post({ action: 'pushSetName', endpoint: EP, name: '測試乙' });
+  admin(env, token, 'adminSetAttendance', { signupId: b.id, leader: true });
+  env.fn('takePendingPush_')();
+  assert.equal(env.post({ action: 'gridMove', signupId: a.id, date: '2026-11-09', positionId: pid }).ok, true, '定案前可以');
+  assert.deepEqual(env.fn('takePendingPush_')(), [EP], '通知組長');
+  // 過了定案日
+  env.clock.now = Date.UTC(2026, 10, 3, 2);
+  assert.equal(env.post({ action: 'gridMove', signupId: a.id, date: '2026-11-08', positionId: pid }).error.code, 'FORBIDDEN');
+  assert.equal(env.post({ action: 'gridNote', signupId: a.id, note: 'x' }).error.code, 'FORBIDDEN');
+  assert.equal(admin(env, token, 'adminGridMove', { signupId: a.id, date: '2026-11-08', positionId: pid }).ok, true, '管理者可以');
+  assert.equal(admin(env, token, 'adminGridNote', { signupId: a.id, note: '代理人' }).ok, true);
+  // 區中心撞期提醒
+  env.clock.now = OCT_1;
+  env.post({ action: 'requestVenue', dates: ['2026-10-25'], slots: ['09:00', '10:00'], name: '測試丙', phone: '0912345678', purpose: '讀書會' });
+  const vids = admin(env, token, 'adminVenue', {}).data.requests.map((r) => r.id);
+  admin(env, token, 'adminVenueDecide', { ids: vids, decision: '已同意' });
+  const c = admin(env, token, 'adminCreateDuties', { duties: [{ name: '測試課程', category: '教育', nature: '課程', start: '2026-10-25', startTime: '10:30', endTime: '11:30', location: '教全區中心', positions: [{ name: '參加', min: '0' }] }] });
+  assert.match(c.data.warnings.join(), /10\/25 測試課程：這段時間區中心已借給 測試丙（讀書會） 10:00～11:00/);
+  assert.deepEqual(admin(env, token, 'adminVenue', {}).data.requests.find((r) => r.slot === '10:00').busy, ['測試課程']);
+});

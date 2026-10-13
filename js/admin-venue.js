@@ -17,7 +17,7 @@
   function groups(list) {
     const map = new Map();
     list.forEach((r) => {
-      const k = r.group + '|' + r.status + '|' + (r.cancelAsk ? 'c' : '');
+      const k = r.group + '|' + r.status + '|' + (r.cancelAsk ? 'c' : '') + '|' + (r.changeAsk ? 'm' + r.date : '');
       if (!map.has(k)) map.set(k, Object.assign({}, r, { key: k, ids: [], slots: [], dates: [], items: [] }));
       const g = map.get(k);
       g.ids.push(r.id);
@@ -47,6 +47,7 @@
           ${g.cancelAsk ? `<div><dt>申請取消</dt><dd>${esc(g.cancelAsk)}</dd></div>` : ''}
           ${g.decidedAt ? `<div><dt>審核</dt><dd>${esc(g.decidedAt)}${g.decidedBy ? `（${esc(g.decidedBy)}）` : ''}${g.note ? `・${esc(g.note)}` : ''}</dd></div>` : ''}
         </dl>
+        ${(() => { const b = [...new Set(g.items.flatMap((r) => r.busy || []))]; return b.length && g.status !== '不同意' && g.status !== '已取消' ? `<p class="vr-busy">⚠️ 這段時間${esc(window.SITE.venue)}有：${b.map(esc).join('、')}</p>` : ''; })()}
         ${actions && canDecide() ? `<div class="vr-actions">${actions(g)}${(g.status === '待審核' || g.status === '已同意') && g.last >= todayStr ? `<button type="button" class="btn btn-small" data-edit="${esc(g.key)}">✏️ 改日期時間</button>` : ''}</div>` : ''}
       </li>`;
   }
@@ -57,10 +58,11 @@
     todayStr = today;
     const all = groups(data.requests);
     const legacy = data.requests.filter((r) => VenueHours.LEGACY[r.slot]);
+    const changeAsks = all.filter((g) => g.changeAsk && !g.cancelAsk);
     const cancelAsks = all.filter((g) => g.cancelAsk);
-    const pending = all.filter((g) => !g.cancelAsk && g.status === '待審核' && g.last >= today);
-    const approved = all.filter((g) => !g.cancelAsk && g.status === '已同意' && g.last >= today);
-    const others = all.filter((g) => cancelAsks.indexOf(g) === -1 && pending.indexOf(g) === -1 && approved.indexOf(g) === -1);
+    const pending = all.filter((g) => !g.cancelAsk && !g.changeAsk && g.status === '待審核' && g.last >= today);
+    const approved = all.filter((g) => !g.cancelAsk && !g.changeAsk && g.status === '已同意' && g.last >= today);
+    const others = all.filter((g) => cancelAsks.indexOf(g) === -1 && changeAsks.indexOf(g) === -1 && pending.indexOf(g) === -1 && approved.indexOf(g) === -1);
     // 待審核的時段如果已經被同意給別人，提醒
     // 已同意的：日期｜小時（舊的早上／下午／晚上換算成小時）
     const takenKey = new Set(data.requests.filter((r) => r.status === '已同意').flatMap((r) => VenueHours.hoursOf(r.slot).map((h) => r.date + '|' + h)));
@@ -69,6 +71,10 @@
       ${AdminPage.staleNote(stale)}
       ${canDecide() ? '<div class="venue-watch" data-watch></div>' : ''}
       ${canDecide() && legacy.length ? `<div class="notice venue-legacy"><p>🕘 有 <strong>${legacy.length} 筆</strong>是舊的時段格式（早上／下午／晚上）。換成小時格式後，就能用「改日期時間」調整。</p><button type="button" class="btn" data-convert>換成小時格式</button></div>` : ''}
+      ${changeAsks.length ? `<h2 class="admin-sub">申請改時間 <span class="badge badge-short">${changeAsks.length} 筆</span></h2>
+      <ul class="venue-reqs">${changeAsks.map((g) => card(g, (x) => `<p class="vr-warn">🕘 想改成：<strong>${esc(x.changeAsk.label)}</strong></p>
+        <button type="button" class="btn btn-primary" data-mok="${esc(x.ids.join(','))}">同意改</button>
+        <button type="button" class="btn btn-quiet-danger" data-mno="${esc(x.ids.join(','))}">不同意改</button>`)).join('')}</ul>` : ''}
       ${cancelAsks.length ? `<h2 class="admin-sub">申請取消 <span class="badge badge-short">${cancelAsks.length} 筆</span></h2>
       <p class="hint">申請人想取消這些時段。同意取消後，行事曆上的「已借出」才會消失；不同意就維持原狀（可以寫原因給申請人看）。</p>
       <ul class="venue-reqs">${cancelAsks.map((g) => card(g, (x) => `<button type="button" class="btn btn-primary" data-cok="${esc(x.ids.join(','))}">同意取消</button>
@@ -106,8 +112,10 @@
       ${others.length ? `<details class="venue-others"><summary>其他（不同意、已取消、已過去的）${others.length} 筆</summary>
         <ul class="venue-reqs">${others.reverse().map((g) => card(g)).join('')}</ul></details>` : ''}
       <p class="hint">同意後，家人們的行事曆會出現「${esc(window.SITE.venue)} 已借出」（用途、借用人姓名；不顯示電話）。請記得打電話告訴申請人結果。</p>
+      <section class="venue-stats" data-vstats></section>
       <section class="repair-admin" data-repairs><h2 class="admin-sub">🔧 修繕</h2><p class="muted">讀取中⋯</p></section>`;
     loadRepairs(body, guard);
+    loadStats(body, guard, statsMonth || today.slice(0, 7));
 
     const watchBox = body.querySelector('[data-watch]');
     if (watchBox) drawWatch(watchBox, guard);
@@ -126,6 +134,22 @@
         alert((err.message || '處理失敗') + (err.details ? '\n' + err.details.map((d) => d.message).join('\n') : ''));
       }
     };
+    const changeDecide = async (ids, ok, note) => {
+      Busy.show('處理中⋯');
+      try {
+        const res = await Api.admin('adminVenueChangeDecide', { ids: ids.split(','), ok, note: note || '' });
+        Busy.hide();
+        AdminPage.clearMemo();
+        if (window.CalendarPage) CalendarPage.refresh();
+        render(body, guard, res, false);
+      } catch (err) {
+        Busy.hide();
+        if (guard(err)) return;
+        alert((err.message || '處理失敗') + (err.details ? '\n' + err.details.map((d) => d.message).join('\n') : ''));
+      }
+    };
+    body.querySelectorAll('[data-mok]').forEach((b) => b.addEventListener('click', () => changeDecide(b.dataset.mok, true)));
+    body.querySelectorAll('[data-mno]').forEach((b) => b.addEventListener('click', () => askReason('不同意改時間', (note) => changeDecide(b.dataset.mno, false, note))));
     body.querySelectorAll('[data-cok]').forEach((b) => b.addEventListener('click', () => decide(b.dataset.cok, '同意取消')));
     body.querySelectorAll('[data-cno]').forEach((b) => b.addEventListener('click', () => askReason('不同意取消（維持原狀）', (note) => decide(b.dataset.cno, '不同意取消', note))));
     body.querySelectorAll('[data-ok]').forEach((b) => b.addEventListener('click', () => decide(b.dataset.ok, '已同意')));
@@ -154,6 +178,50 @@
     }));
     const cv = body.querySelector('[data-convert]');
     if (cv) cv.addEventListener('click', () => convertLegacy(legacy.length, (res) => render(body, guard, res, false), guard));
+  }
+
+  // ---------- 場地使用統計 ----------
+
+  let statsMonth = '';
+  async function loadStats(body, guard, month) {
+    const box = body.querySelector('[data-vstats]');
+    if (!box) return;
+    statsMonth = month;
+    box.innerHTML = '<h2 class="admin-sub">📊 場地使用統計</h2><p class="muted">讀取中⋯</p>';
+    let data;
+    try { data = await Api.admin('adminVenueStats', { month }); } catch (err) { if (guard(err)) return; box.innerHTML = '<h2 class="admin-sub">📊 場地使用統計</h2><p class="form-error">讀不到統計</p>'; return; }
+    if (!box.isConnected) return;
+    const items = data.items;
+    const total = items.reduce((n, x) => n + x.hours.length, 0);
+    const sumBy = (key) => {
+      const map = new Map();
+      items.forEach((x) => map.set(x[key], (map.get(x[key]) || 0) + x.hours.length));
+      return [...map.entries()].sort((a, b) => b[1] - a[1]);
+    };
+    const byHour = VenueHours.HOURS.map((h) => [h, items.filter((x) => x.hours.indexOf(h) !== -1).length]);
+    const maxH = Math.max(1, ...byHour.map((x) => x[1]));
+    const [y, m] = month.split('-').map(Number);
+    const shift = (n) => { const d = new Date(Date.UTC(y, m - 1 + n, 1)); return d.toISOString().slice(0, 7); };
+    const list = (rows) => rows.length ? `<ul class="vs-list">${rows.map(([k, v]) => `<li><span>${esc(k || '（沒寫）')}</span><strong>${v} 小時</strong></li>`).join('')}</ul>` : '<p class="muted">沒有</p>';
+    box.innerHTML = `
+      <h2 class="admin-sub">📊 場地使用統計</h2>
+      <div class="mcal-head vs-head"><button type="button" class="btn btn-small" data-vm="-1" aria-label="上個月">‹</button><strong>${y} 年 ${m} 月</strong><button type="button" class="btn btn-small" data-vm="1" aria-label="下個月">›</button></div>
+      <p class="vs-sum">借出 <strong>${items.length}</strong> 次，共 <strong>${total}</strong> 小時（只算已同意的）</p>
+      ${items.length ? `
+        <div class="vs-cols">
+          <div><h3 class="vs-h">各用途</h3>${list(sumBy('purpose'))}</div>
+          <div><h3 class="vs-h">各申請人</h3>${list(sumBy('name'))}</div>
+        </div>
+        <h3 class="vs-h">各時段被借的次數</h3>
+        <ul class="vs-bars">${byHour.map(([h, n]) => `<li><span>${h}</span><span class="vs-bar"><span style="width:${Math.round((n / maxH) * 100)}%"></span></span><strong>${n}</strong></li>`).join('')}</ul>
+        <button type="button" class="btn" data-vs-copy>複製這個月的統計</button>` : '<p class="muted">這個月還沒有借出。</p>'}`;
+    box.querySelectorAll('[data-vm]').forEach((b) => b.addEventListener('click', () => loadStats(body, guard, shift(Number(b.dataset.vm)))));
+    const cp = box.querySelector('[data-vs-copy]');
+    if (cp) cp.addEventListener('click', async () => {
+      const text = [`🏠 ${window.SITE.venue}使用統計（${y} 年 ${m} 月）`, `借出 ${items.length} 次，共 ${total} 小時`, '', '各用途：', ...sumBy('purpose').map(([k, v]) => `・${k}：${v} 小時`), '', '明細：', ...items.map((x) => `・${Fmt.shortDate(x.date)} ${x.label} ${x.purpose}（${x.name}）`)].join('\n');
+      cp.textContent = (await Share.copyText(text)) ? '已複製 ✓' : '複製失敗';
+      setTimeout(() => { cp.textContent = '複製這個月的統計'; }, 2500);
+    });
   }
 
   // ---------- 改日期時間、舊格式換成小時 ----------

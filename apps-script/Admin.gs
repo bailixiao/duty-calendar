@@ -343,8 +343,12 @@ function adminRun_(body) {
     case 'adminGoals': return adminGoals_(body);
     case 'adminVenue': return adminVenue_(body);
     case 'adminVenueDecide': return adminVenueDecide_(body);
+    case 'adminGridMove': return gridMove_(body, { admin: true });
+    case 'adminGridNote': return gridNote_(body, { admin: true });
     case 'adminVenueEdit': return body.allDays ? adminVenueEditAll_(body) : adminVenueEdit_(body);
     case 'adminVenueConvert': return adminVenueConvert_(body);
+    case 'adminVenueChangeDecide': return adminVenueChangeDecide_(body);
+    case 'adminVenueStats': return adminVenueStats_(body);
     case 'adminSaveGoals': return adminSaveGoals_(body);
     case 'adminAddAttendee': return adminAddAttendee_(body);
     case 'adminStats': return adminStats_(body);

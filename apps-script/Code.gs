@@ -59,6 +59,7 @@ function doPost(e) {
       case 'requestVenue': return requestVenue_(body);
       case 'myVenue': return myVenue_(body);
       case 'cancelVenue': return cancelVenue_(body);
+      case 'changeVenue': return requestVenueChange_(body);
       case 'venueWatch': return venueWatch_(body);
       case 'reportRepair': return reportRepair_(body);
       case 'repairWatch': return repairWatch_(body);

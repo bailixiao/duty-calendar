@@ -73,10 +73,10 @@ function currentTokenKey_(account) {
 
 // 所有角色都能用的讀取
 var ADMIN_READ_ACTIONS = ['adminPing', 'adminLogout', 'adminMe', 'adminRecent', 'adminDuty', 'adminLogs', 'adminDay', 'adminRoster',
-  'adminDutyList', 'adminDutyForEdit', 'adminStats', 'adminMembers', 'adminGroups', 'adminGoals', 'adminVenue', 'adminPushList', 'adminFaq', 'adminRepairs'];
+  'adminDutyList', 'adminDutyForEdit', 'adminStats', 'adminMembers', 'adminGroups', 'adminGoals', 'adminVenue', 'adminVenueStats', 'adminPushList', 'adminFaq', 'adminRepairs'];
 // 依勤務類別判斷的寫入（勤務／道務／教育帳號只能動自己類別）
 var ADMIN_CATEGORY_ACTIONS = ['adminCancel', 'adminReschedule', 'adminRestore', 'adminCreateDuties', 'adminUpdateDuty',
-  'adminDeleteDuty', 'adminSetAttendance', 'adminAddAttendee', 'adminDraftFromImages', 'adminUpdateStatsSheet', 'adminSetTeachers', 'adminSaveGoals', 'adminVenueDecide', 'adminVenueEdit', 'adminVenueConvert', 'adminPushSave', 'adminPushDelete', 'adminAutoPushSave', 'adminRollcallLink', 'adminImportAttendance', 'adminSetMemberExtra', 'adminSplitSignup'];
+  'adminDeleteDuty', 'adminSetAttendance', 'adminAddAttendee', 'adminDraftFromImages', 'adminUpdateStatsSheet', 'adminSetTeachers', 'adminSaveGoals', 'adminVenueDecide', 'adminVenueEdit', 'adminVenueConvert', 'adminGridMove', 'adminGridNote', 'adminPushSave', 'adminPushDelete', 'adminAutoPushSave', 'adminRollcallLink', 'adminImportAttendance', 'adminSetMemberExtra', 'adminSplitSignup'];
 
 // 成員、分組的編輯動作，與可以編輯的帳號（總管理者另外全部可以）
 var PEOPLE_EDIT_ACTIONS = ['adminSaveMember', 'adminDeleteMember', 'adminMemberCandidates', 'adminAddMembers', 'adminMergeNames', 'adminClearCandidates',
@@ -95,7 +95,7 @@ function dutyOfSignup_(signupId) {
 /** 這個請求會動到的勤務（找不到回傳 null，交給原本的函式回錯誤） */
 function targetDuties_(body) {
   switch (body.action) {
-    case 'adminCancel': case 'adminReschedule': case 'adminSetAttendance': case 'adminRestore':
+    case 'adminCancel': case 'adminReschedule': case 'adminSetAttendance': case 'adminRestore': case 'adminGridMove': case 'adminGridNote':
       return [dutyOfSignup_(body.signupId)];
     case 'adminAddAttendee':
       return [findDutyById_(body.dutyId)];
@@ -124,7 +124,7 @@ function adminAuthorize_(session, body) {
   var denied = function () { throw new ApiError_('FORBIDDEN', '這個帳號沒有權限做這件事'); };
   // 區中心場管：只看、只審核場地借用
   if (role === '場管') {
-    if (['adminPing', 'adminLogout', 'adminMe', 'adminVenue', 'adminVenueDecide', 'adminVenueEdit', 'adminVenueConvert', 'adminVenueWatch', 'adminFaq', 'adminRepairs', 'adminRepairUpdate'].indexOf(action) === -1) denied();
+    if (['adminPing', 'adminLogout', 'adminMe', 'adminVenue', 'adminVenueDecide', 'adminVenueEdit', 'adminVenueConvert', 'adminVenueChangeDecide', 'adminVenueStats', 'adminVenueWatch', 'adminFaq', 'adminRepairs', 'adminRepairUpdate'].indexOf(action) === -1) denied();
     return;
   }
   // 唯讀不看操作紀錄、名單（有個資與聯絡細節）、勤務管理
@@ -135,7 +135,7 @@ function adminAuthorize_(session, body) {
   if (action === 'adminGoals' && (role === '勤務' || role === '教育')) denied();
   if (action === 'adminSaveGoals' && role !== '道務') denied();
   // 場地借用：總管理者、場管審核；其他帳號只能看
-  if (['adminVenueDecide', 'adminVenueEdit', 'adminVenueConvert', 'adminVenueWatch', 'adminRepairUpdate'].indexOf(action) !== -1) denied();
+  if (['adminVenueDecide', 'adminVenueEdit', 'adminVenueConvert', 'adminVenueChangeDecide', 'adminVenueWatch', 'adminRepairUpdate'].indexOf(action) !== -1) denied();
   // 後台推播：總管理者、勤務、道務、教育（類別帳號只看、只改自己類別，在 PushMore.gs 檢查）
   if (/^adminPush/.test(action) && PUSH_PLAN_ROLES.indexOf(role) === -1) denied();
   if (ADMIN_READ_ACTIONS.indexOf(action) !== -1) {
