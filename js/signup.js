@@ -614,7 +614,7 @@
         else state.dates.delete(ev.target.value);
         renderDates();
         renderPositions();
-        if (perPerson) renderNames();
+        renderNames(); // 名字卡的「日期（同上面）」跟著變
       });
     }
 

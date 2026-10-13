@@ -276,6 +276,7 @@
   function renderRoster() {
     const d = page.data;
     const el = document.getElementById('duty-roster');
+    if (!el) return; // 公告型沒有報名名單
     const dates = Fmt.datesBetween(d.start, d.end);
     const date = page.viewDate;
     const day = d.days[date];
