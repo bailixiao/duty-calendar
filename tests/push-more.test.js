@@ -23,12 +23,12 @@ test('借場地：申請時通知開啟通知的管理者；審核後通知申�
   assert.equal(env.post({ action: 'adminVenueWatch', token, endpoint: ADMIN_EP, on: true }).data.on, true);
   assert.equal(env.post({ action: 'adminVenueWatch', token, endpoint: ADMIN_EP }).data.on, true);
   take();
-  const req = env.post({ action: 'requestVenue', dates: ['2026-10-13'], slots: ['晚上'], name: '測試甲', phone: '0912345678', purpose: '讀書會' });
+  const req = env.post({ action: 'requestVenue', dates: ['2026-10-13'], slots: ['18:00', '19:00', '20:00'], name: '測試甲', phone: '0912345678', purpose: '讀書會' });
   assert.equal(req.ok, true, JSON.stringify(req.error));
   assert.deepEqual(take(), [ADMIN_EP]);
   const m = summary(ADMIN_EP).message;
   assert.equal(m.title, '🏠 有新的場地申請');
-  assert.match(m.body, /測試甲.*10\/13.*晚上.*讀書會/);
+  assert.match(m.body, /測試甲.*10\/13.*18:00～21:00.*讀書會/);
   assert.equal(m.url, '#/admin/venue');
   assert.equal(summary(ADMIN_EP).message, undefined, '拿過就刪');
 
@@ -36,14 +36,14 @@ test('借場地：申請時通知開啟通知的管理者；審核後通知申�
   assert.equal(env.post({ action: 'venueWatch', endpoint: USER_EP, id: 'V-nope' }).error.code, 'NOT_FOUND');
   const rows = env.post({ action: 'adminVenue', token }).data.requests;
   take();
-  env.post({ action: 'adminVenueDecide', token, ids: [rows[0].id], decision: '不同意', note: '當天有活動' });
+  env.post({ action: 'adminVenueDecide', token, ids: rows.map((r) => r.id), decision: '不同意', note: '當天有活動' });
   assert.deepEqual(take(), [USER_EP]);
   const u = summary(USER_EP).message;
-  assert.match(u.body, /10\/13.*晚上.*沒有借到.*當天有活動/);
+  assert.match(u.body, /10\/13.*18:00～21:00.*沒有借到.*當天有活動/);
 
   // 管理者關閉通知後就不送
   assert.equal(env.post({ action: 'adminVenueWatch', token, endpoint: ADMIN_EP, on: false }).data.on, false);
-  env.post({ action: 'requestVenue', dates: ['2026-10-14'], slots: ['早上'], name: '測試乙', phone: '0912345679', purpose: '練唱' });
+  env.post({ action: 'requestVenue', dates: ['2026-10-14'], slots: ['08:00', '09:00', '10:00', '11:00'], name: '測試乙', phone: '0912345679', purpose: '練唱' });
   assert.deepEqual(take(), []);
 });
 

@@ -105,7 +105,7 @@ function notifyVenueApplicants_(rows, decision, note) {
     var targets = pushTargets_('場地申請', group);
     if (!targets.length) return;
     var list = byGroup[group];
-    var when = list.slice(0, 4).map(function (r) { return shortDate_(r['日期']) + ' ' + r['時段']; }).join('、') + (list.length > 4 ? ' 等 ' + list.length + ' 個時段' : '');
+    var when = venueGroupText_(list);
     var text = decision === '已同意' ? '✅ ' + when + ' ' + SITE.venue + '借到了，感恩您 🙏'
       : decision === '不同意' ? '❌ ' + when + ' 沒有借到' + (note ? '，原因：' + note : '') + '，感謝您的體諒 🙏'
       : decision === '同意取消' ? '✅ ' + when + ' 已經幫您取消了，感恩您告訴我們 🙏'

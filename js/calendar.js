@@ -421,7 +421,7 @@
     if (catFilter === '全部' || catFilter === '場地') (data.venue || []).forEach((v) => {
       if (v.date < from || v.date > to) return;
       if (!dayMap.has(v.date)) dayMap.set(v.date, []);
-      dayMap.get(v.date).push({ venue: v, duty: { name: '', startTime: VENUE_ORDER[v.slot] || '' }, state: { kind: 'venue', label: '已借出' } });
+      dayMap.get(v.date).push({ venue: v, duty: { name: '', startTime: v.from || VENUE_ORDER[v.slot] || '' }, state: { kind: 'venue', label: '已借出' } });
     });
     // 合併顯示：同一天有「名稱含 merge 文字」的項目（例：拜香輪值），把這筆接在它後面，變成一張卡片
     dayMap.forEach((items, date) => {

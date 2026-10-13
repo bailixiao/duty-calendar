@@ -124,7 +124,7 @@ const SHOTS = [
       const b = [...document.querySelectorAll('[data-reschedule]')].pop(); b.click(); await __wait(2000);`,
     clip: `return __box('.modal-box', 4);` },
   { name: 'push-panel', hash: '#/', js: `PushPage.openPanel(); await __wait(1200);`, clip: `return __box('.modal-box', 4);` },
-  { name: 'venue-pick', hash: '#/venue', js: `await __wait(1500); const chip = [...document.querySelectorAll('#view-venue button, #view-venue label')].find((b) => /早上/.test(b.textContent)); if (chip) chip.click(); await __wait(300);`,
+  { name: 'venue-pick', hash: '#/venue', js: `await __wait(1500); const cells = document.querySelectorAll('#view-venue [data-hour]'); if (cells[2]) { cells[2].click(); await __wait(200); document.querySelectorAll('#view-venue [data-hour]')[4].click(); } await __wait(300);`,
     clip: `const s = document.querySelector('#view-venue .venue-step, #view-venue section, #view-venue form'); return { x: 0, y: 0, width: innerWidth, height: 1100 };` },
   { name: 'venue-form', hash: '#/venue', js: `await __wait(1500); const f = document.querySelector('#view-venue form'); f.elements.name.value = '測試甲'; f.elements.phone.value = '0900-000000'; f.elements.purpose.value = '讀書會'; f.elements.people.value = '15'; f.elements.note.value = '要用投影機';`,
     clip: `const f = document.querySelector('#view-venue form'); const sec = f.closest('section') || f; return __box(f, 8);` },

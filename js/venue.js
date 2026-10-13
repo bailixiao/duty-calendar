@@ -1,4 +1,4 @@
-// 借區中心場地（#/venue?date=…）：選日期（單日或多個日期）→ 勾早上／下午／晚上 → 填資料送出申請（管理者同意後才算借到）。
+// 借區中心場地（#/venue?date=…）：選日期（單日或多個日期）→ 點時間格子選一段（07:00～22:00，一小時一格）→ 填資料送出申請（管理者同意後才算借到）。
 // 多個日期：固定的日子（每週、每兩週⋯、每月第幾個星期幾、每月幾號）或一天一天加；每一天借同樣的時段。
 // 填過的資料（姓名、電話、用途、人數）記在這台裝置，下次選名字就自動帶入。電話只送到伺服器給管理者看，不會公開。
 (function () {
@@ -7,7 +7,7 @@
   const esc = Fmt.esc;
   const NAME_KEY = 'duty-calendar:venue-name';
   const PROFILE_KEY = 'duty-calendar:venue-profiles'; // { 姓名: { phone, purpose, people, note } }
-  const SLOT_NAMES = ['早上', '下午', '晚上'];
+  const HOURS = VenueHours.HOURS; // 07:00～21:00 開始的整點（一格一小時）
   let root = null;
   let token = 0;
   let state = null;
@@ -31,7 +31,7 @@
     state = {
       tomorrow, last,
       mode: 'single', date: date && date >= tomorrow ? date : tomorrow,
-      dates: new Set(), slots: new Set(),
+      dates: new Set(), slots: new Set(), sel: null, // sel：選的那段 { a, b }（HOURS 的位置）
       rule: { from: '', to: '', weekdays: [], freq: 'w1', dom: '' },
       status: {} // 日期 → [{ slot, status, name, purpose, activities }]
     };
@@ -41,7 +41,7 @@
       <h1 class="page-title">🏠 借${esc(window.SITE.venue)}場地</h1>
       <a class="help-inline" href="#/help?c=借場地">❓ 第一次借？看圖文教學</a>
       <button type="button" class="link-btn help-inline" data-go-repair>🔧 回報需要修繕</button>
-      <p class="venue-intro">📅 選日期、⏰ 勾時段、✍️ 填好資料，就能送出申請囉！<br>✅ <strong>管理者同意後才算借到</strong>，同意後就會出現在行事曆上 🗓️<br>再請您到下面「🔍 查我的申請」看申請狀態，感謝慈悲 🙏😊</p>
+      <p class="venue-intro">📅 選日期、⏰ 點時間格子、✍️ 填好資料，就能送出申請囉！<br>✅ <strong>管理者同意後才算借到</strong>，同意後就會出現在行事曆上 🗓️<br>再請您到下面「🔍 查我的申請」看申請狀態，感謝慈悲 🙏😊</p>
       <div data-flash></div>
       <section class="venue-step">
         <h2 class="venue-h"><span class="step">1</span>選日期</h2>
@@ -109,8 +109,8 @@
     const box = root.querySelector('[data-pick]');
     const r = state.rule;
     const slotChips = `
-      <p class="venue-sub">要借的時段${state.mode === 'multi' ? '（每一天都一樣）' : ''}：</p>
-      <div class="venue-slot-chips">${SLOT_NAMES.map((s, i) => `<label class="plan-chip${state.slots.has(s) ? ' is-on' : ''}"><input type="checkbox" data-sl="${s}"${state.slots.has(s) ? ' checked' : ''}><span>${s}</span><small>${['08:00～12:00', '13:00～17:00', '18:00～21:00'][i]}</small></label>`).join('')}</div>`;
+      <p class="venue-sub">要借的時間（每一天都一樣）：點開始那格，再點結束那格</p>
+      <div data-hours-multi>${hoursGrid(null)}</div>`;
     if (state.mode === 'single') {
       box.innerHTML = `
         <input class="input venue-date" type="date" min="${state.tomorrow}" max="${state.last}" value="${state.date}" aria-label="日期" data-date>
@@ -179,10 +179,7 @@
     box.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => { state.dates.delete(b.dataset.del); drawPick(); }));
     const clear = box.querySelector('[data-clear]');
     if (clear) clear.addEventListener('click', () => { state.dates.clear(); drawPick(); });
-    box.querySelectorAll('[data-sl]').forEach((c) => c.addEventListener('change', () => {
-      if (c.checked) state.slots.add(c.dataset.sl); else state.slots.delete(c.dataset.sl);
-      drawPick();
-    }));
+    bindHours(box.querySelector('[data-hours-multi]'), null, () => drawPick());
     if (list.length && state.slots.size) loadStatus(list).then(drawCheck);
   }
 
@@ -210,27 +207,62 @@
   function drawSingle(ok) {
     if (!ok || state.mode !== 'single') return;
     const box = root.querySelector('[data-slots]');
-    const slots = state.status[state.date] || [];
+    const day = state.status[state.date] || [];
     box.innerHTML = `
       <p class="venue-day">${esc(Fmt.rocDate(state.date))}</p>
-      <ul class="venue-slots">${slots.map((s) => {
+      <div data-hours>${hoursGrid(day)}</div>
+      <p class="hint">點開始那格，再點結束那格，就選好一段（只點一格＝一小時）。灰色是已借出，黃色是有人申請中（還是可以申請，由管理者決定）。</p>`;
+    bindHours(box.querySelector('[data-hours]'), day, () => drawSingle(true));
+  }
+
+  /** 選的那段（state.sel）→ state.slots */
+  function syncSlots() {
+    state.slots = new Set(state.sel ? HOURS.slice(Math.min(state.sel.a, state.sel.b), Math.max(state.sel.a, state.sel.b) + 1) : []);
+  }
+
+  /** 時間格子：day＝那天每小時的狀態（多個日期時是 null，不顯示狀態） */
+  function hoursGrid(day) {
+    const sel = state.slots;
+    return `
+      <ul class="hour-grid">${HOURS.map((h, i) => {
+        const s = day ? day.find((x) => x.slot === h) || {} : {};
         const taken = s.status === '已借出';
-        const on = state.slots.has(s.slot) && !taken;
-        return `
-        <li>
-          <label class="venue-slot is-${taken ? 'taken' : s.status === '審核中' ? 'pending' : 'free'}${on ? ' is-on' : ''}">
-            <input type="checkbox" data-slot="${esc(s.slot)}"${on ? ' checked' : ''}${taken ? ' disabled' : ''}>
-            <span class="vs-main"><strong>${esc(s.slot)}</strong><small>${esc(s.from)}～${esc(s.to)}</small></span>
-            <span class="vs-state">${taken ? `已借出<small>${esc(s.purpose)}（${esc(s.name)}）</small>` : s.status === '審核中' ? '有人申請中<small>還是可以申請，由管理者決定</small>' : '可以借'}</span>
-            ${s.activities.length ? `<span class="vs-act">⚠️ 這個時段${esc(window.SITE.venue)}有：${s.activities.map(esc).join('、')}</span>` : ''}
-          </label>
-        </li>`;
+        const pending = s.status === '審核中';
+        const on = sel.has(h);
+        return `<li><button type="button" class="hour-cell${taken ? ' is-taken' : pending ? ' is-pending' : ''}${on ? ' is-on' : ''}" data-hour="${i}"${taken ? ' disabled' : ''} aria-pressed="${on}">
+          <span class="hc-time">${h}～${VenueHours.next(h)}</span>
+          <span class="hc-state">${taken ? esc(s.purpose || '已借出') : pending ? '有人申請中' : on ? '✓ 選了' : '可以借'}</span>
+          ${s.activities && s.activities.length ? `<span class="hc-act" title="${esc(s.activities.join('、'))}">⚠️ ${esc(s.activities[0])}</span>` : ''}
+        </button></li>`;
       }).join('')}</ul>
-      <p class="hint">可以勾好幾個時段。已借出的不能勾。</p>`;
-    box.querySelectorAll('[data-slot]').forEach((c) => c.addEventListener('change', () => {
-      if (c.checked) state.slots.add(c.dataset.slot); else state.slots.delete(c.dataset.slot);
-      drawSingle(true);
+      <div class="hour-picked">${sel.size ? `<strong>已選：${esc(VenueHours.label([...sel]))}</strong>（${sel.size} 小時）<button type="button" class="link-btn" data-hour-clear>清除重選</button>` : '<span class="muted">還沒選時間</span>'}</div>
+      <div class="form-error" data-hour-err hidden></div>`;
+  }
+
+  /** 點格子：第一下＝開始，第二下＝結束（中間有已借出的就重新從這格開始） */
+  function bindHours(el, day, redraw) {
+    if (!el) return;
+    el.querySelectorAll('[data-hour]').forEach((b) => b.addEventListener('click', () => {
+      const i = Number(b.dataset.hour);
+      const err = el.querySelector('[data-hour-err]');
+      const single = state.sel && state.sel.a === state.sel.b;
+      if (state.sel && single && i !== state.sel.a) {
+        const lo = Math.min(i, state.sel.a);
+        const hi = Math.max(i, state.sel.a);
+        const blocked = day && HOURS.slice(lo, hi + 1).some((h) => (day.find((x) => x.slot === h) || {}).status === '已借出');
+        if (blocked) { state.sel = { a: i, b: i }; syncSlots(); redraw(); const e2 = document.querySelector('[data-hour-err]'); if (e2) { e2.textContent = '中間有已借出的時間，請重選一段'; e2.hidden = false; } return; }
+        state.sel = { a: state.sel.a, b: i };
+      } else if (single && i === state.sel.a) {
+        state.sel = null; // 再點一次同一格＝取消
+      } else {
+        state.sel = { a: i, b: i };
+      }
+      if (err) err.hidden = true;
+      syncSlots();
+      redraw();
     }));
+    const clear = el.querySelector('[data-hour-clear]');
+    if (clear) clear.addEventListener('click', () => { state.sel = null; syncSlots(); redraw(); });
   }
 
   /** 多個日期：每一天、勾的時段的狀態；已借出的那天不會送出 */
@@ -241,6 +273,7 @@
     const rows = list.map((d) => {
       const day = state.status[d] || [];
       const info = [...state.slots].map((s) => day.find((x) => x.slot === s)).filter(Boolean);
+      const label = (xs) => VenueHours.label(xs.map((x) => x.slot));
       const taken = info.filter((x) => x.status === '已借出');
       const pending = info.filter((x) => x.status === '審核中');
       const acts = [...new Set(info.flatMap((x) => x.activities))];
@@ -251,7 +284,7 @@
       <ul class="venue-check">${rows.map((r) => `
         <li class="${r.taken.length ? 'is-taken' : ''}">
           <strong>${esc(Fmt.shortDate(r.d))}</strong>
-          <span>${r.taken.length ? `❌ ${r.taken.map((x) => esc(x.slot)).join('、')}已借出（這天不會送出）` : r.pending.length ? `⏳ ${r.pending.map((x) => esc(x.slot)).join('、')}有人申請中` : '✓ 可以借'}${r.acts.length ? `<small>⚠️ 區中心有：${r.acts.map(esc).join('、')}</small>` : ''}</span>
+          <span>${r.taken.length ? `❌ ${esc(VenueHours.label(r.taken.map((x) => x.slot)))} 已借出（這天不會送出）` : r.pending.length ? `⏳ ${esc(VenueHours.label(r.pending.map((x) => x.slot)))} 有人申請中` : '✓ 可以借'}${r.acts.length ? `<small>⚠️ 區中心有：${r.acts.map(esc).join('、')}</small>` : ''}</span>
         </li>`).join('')}</ul>
       ${bad.length ? `<p class="hint">已借出的 ${bad.length} 天會自動拿掉，只送出其他 ${rows.length - bad.length} 天。</p>` : ''}`;
   }
@@ -280,7 +313,7 @@
     };
     box.hidden = true;
     if (!dates.length) { box.textContent = state.mode === 'multi' && state.dates.size ? '選的日子都已經借出了，請換日期或時段' : '請在上面選日期'; box.hidden = false; return; }
-    if (!body.slots.length) { box.textContent = '請在上面勾要借的時段'; box.hidden = false; return; }
+    if (!body.slots.length) { box.textContent = '請在上面點時間格子，選要借的時間'; box.hidden = false; return; }
     btn.disabled = true;
     btn.textContent = '送出中⋯';
     try {
@@ -290,11 +323,13 @@
       const n = res.dates.length;
       root.querySelector('[data-flash]').innerHTML = `<div class="notice notice-success notice-big" role="status">
         <p><strong>🎉 已收到您的申請，感恩您！</strong></p>
-        <p>${n > 1 ? `${esc(Fmt.shortDate(res.dates[0]))} 等 ${n} 天` : esc(Fmt.rocDate(res.dates[0]))}　${res.slots.map(esc).join('、')}<br>✅ 管理者同意後就會出現在行事曆上 🗓️，再請您到下面「🔍 查我的申請」看申請狀態，感謝慈悲 🙏😊</p></div>`;
+        <p>${n > 1 ? `${esc(Fmt.shortDate(res.dates[0]))} 等 ${n} 天` : esc(Fmt.rocDate(res.dates[0]))}　${esc(res.label || VenueHours.label(res.slots))}<br>✅ 管理者同意後就會出現在行事曆上 🗓️，再請您到下面「🔍 查我的申請」看申請狀態，感謝慈悲 🙏😊</p></div>`;
       offerNotify(root.querySelector('[data-flash]'), res.id);
       root.querySelector('[data-flash]').scrollIntoView({ behavior: 'smooth', block: 'center' });
       state.status = {};
       state.dates.clear();
+      state.sel = null;
+      syncSlots();
       drawPick();
       mine2(body.name);
     } catch (err) {
@@ -397,16 +432,28 @@
   /** 查我的申請的結果：還沒到的（審核中、已借到）可以勾起來「申請取消」（管理者同意才算取消） */
   function drawMine(out, name, list) {
     const can = list.filter((r) => r.canCancel);
-    out.innerHTML = `<p class="venue-mine-who"><strong>${esc(name)}</strong> 的申請</p>` + (list.length ? `<ul class="venue-mine">${list.map((r) => `
+    const failed = list.filter((r) => r.status === '不同意' || r.status === '已取消');
+    const shown = list.filter((r) => failed.indexOf(r) === -1);
+    const item = (r) => `
         <li class="is-${r.status === '已同意' ? 'ok' : r.status === '待審核' ? 'wait' : 'no'}">
-          <span>${r.canCancel ? `<label class="check vm-pick"><input type="checkbox" data-cancel-id="${esc(r.id)}"> ` : ''}<strong>${esc(Fmt.shortDate(r.date))} ${esc(r.slot)}</strong>　${esc(r.purpose)}${r.canCancel ? '</label>' : ''}</span>
+          <span>${r.canCancel ? `<label class="check vm-pick"><input type="checkbox" data-cancel-id="${esc((r.ids || [r.id]).join(','))}"> ` : ''}<strong>${esc(Fmt.shortDate(r.date))} ${esc(r.slot)}</strong>　${esc(r.purpose)}${r.canCancel ? '</label>' : ''}</span>
           <span class="vm-status">${r.cancelPending ? '⏳ 取消審核中' : r.status === '待審核' ? '⏳ 審核中' : r.status === '已同意' ? '✅ 已借到' : r.status === '不同意' ? '❌ 沒有借到' : '已取消'}${r.note ? `<small>${esc(r.note)}</small>` : ''}</span>
-        </li>`).join('')}</ul>
+        </li>`;
+    out.innerHTML = `<p class="venue-mine-who"><strong>${esc(name)}</strong> 的申請</p>` + (list.length ? `${shown.length ? `<ul class="venue-mine">${shown.map(item).join('')}</ul>` : '<p class="muted">目前沒有審核中或已借到的申請。</p>'}
+        ${failed.length ? `<button type="button" class="btn btn-small vm-failed-toggle" data-failed-toggle aria-expanded="false">看沒借到、已取消的（${failed.length} 筆）</button>
+          <ul class="venue-mine vm-failed" data-failed hidden>${failed.map(item).join('')}</ul>` : ''}
         ${can.length ? `<div class="vm-cancel">
           <div class="vm-quick"><button type="button" class="link-btn" data-vm-all>全選</button><button type="button" class="link-btn" data-vm-none>都不選</button></div>
           <p class="hint">臨時不借了？勾要取消的日期時段，按下面的按鈕申請取消（要輸入申請時留的電話）。<strong>管理者同意後才算取消</strong>，之前還是幫您留著。當天（含）之後要取消，請聯絡管理者。</p>
           <button type="button" class="btn btn-quiet-danger btn-block" data-cancel-go>申請取消勾選的時段</button>
         </div>` : ''}` : '<p class="muted">查不到今天以後的申請（姓名要和申請時一樣）。</p>');
+    const ft = out.querySelector('[data-failed-toggle]');
+    if (ft) ft.addEventListener('click', () => {
+      const ul = out.querySelector('[data-failed]');
+      ul.hidden = !ul.hidden;
+      ft.setAttribute('aria-expanded', String(!ul.hidden));
+      ft.textContent = ul.hidden ? `看沒借到、已取消的（${failed.length} 筆）` : '收起沒借到、已取消的';
+    });
     const boxes = () => [...out.querySelectorAll('[data-cancel-id]')];
     const all = out.querySelector('[data-vm-all]');
     if (all) all.addEventListener('click', () => boxes().forEach((c) => { c.checked = true; }));
@@ -414,17 +461,18 @@
     if (none) none.addEventListener('click', () => boxes().forEach((c) => { c.checked = false; }));
     const go = out.querySelector('[data-cancel-go]');
     if (go) go.addEventListener('click', () => {
-      const ids = [...out.querySelectorAll('[data-cancel-id]:checked')].map((c) => c.dataset.cancelId);
-      if (!ids.length) { alert('請先勾要取消的日期時段'); return; }
-      askPhone(name, ids, out);
+      const picked = [...out.querySelectorAll('[data-cancel-id]:checked')];
+      const ids = picked.flatMap((c) => c.dataset.cancelId.split(','));
+      if (!ids.length) { alert('請先勾要取消的日期時間'); return; }
+      askPhone(name, ids, out, picked.length);
     });
   }
 
-  function askPhone(name, ids, out) {
+  function askPhone(name, ids, out, n) {
     const known = (profiles()[name] || {}).phone || '';
     const m = Modal.open(`
       <form class="modal-form" novalidate>
-        <h2 class="modal-title">申請取消 ${ids.length} 個時段</h2>
+        <h2 class="modal-title">申請取消 ${n || ids.length} 筆</h2>
         <p class="modal-note">為了確認是本人，請輸入申請時留的電話。送出後要等管理者同意才會取消。</p>
         <label class="form-row"><span>電話</span><input class="input" name="phone" type="tel" inputmode="tel" value="${esc(known)}" placeholder="例：0912-345678"></label>
         <div class="form-error" data-err hidden></div>

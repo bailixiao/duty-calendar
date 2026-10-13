@@ -1,16 +1,49 @@
 /**
- * 區中心場地借用：家人們申請（早上／下午／晚上），管理者同意後才算借到。
+ * 區中心場地借用：家人們申請（2026/10/13 起按小時借，07:00～22:00 一小時一格），管理者同意後才算借到。
  *   - 行事曆上公開：已借出的時段、用途、借用人姓名（電話只有後台看得到）。
  *   - 審核中的時段在借用頁顯示「審核中」，不顯示是誰。
- *   - 一筆申請可以勾好幾個時段，每個時段存一列（同一個申請ID）。
+ *   - 一筆申請可以借好幾個小時，每個小時存一列（「時段」＝開始的整點，例 09:00；同一個申請ID）。
+ *   - 以前的「早上／下午／晚上」照舊顯示，算重疊時換算成它包含的小時（規則同 js/venue-hours.js）。
  */
 
 var VENUE_NAME = SITE.venue; // 場地名稱在 Config.gs 的 SITE
-var VENUE_SLOTS = [['早上', '08:00', '12:00'], ['下午', '13:00', '17:00'], ['晚上', '18:00', '21:00']];
+var VENUE_HOURS = (function () { var a = []; for (var h = 7; h <= 21; h++) a.push((h < 10 ? '0' : '') + h + ':00'); return a; })();
+var VENUE_LEGACY = { 早上: ['08:00', '09:00', '10:00', '11:00'], 下午: ['13:00', '14:00', '15:00', '16:00'], 晚上: ['18:00', '19:00', '20:00'] };
+
+/** 某個時段包含的小時（舊的早上／下午／晚上換算） */
+function venueHoursOf_(slot) {
+  return VENUE_LEGACY[slot] || (VENUE_HOURS.indexOf(slot) !== -1 ? [slot] : []);
+}
+function venueNextHour_(h) {
+  var n = Number(h.slice(0, 2)) + 1;
+  return (n < 10 ? '0' : '') + n + ':00';
+}
+/** 好幾個時段 → 連續的合成一段（例：09:00～12:00、14:00～15:00） */
+function venueLabel_(slots) {
+  var hours = [];
+  slots.forEach(function (s) { venueHoursOf_(s).forEach(function (h) { if (hours.indexOf(h) === -1) hours.push(h); }); });
+  hours.sort();
+  var out = [];
+  hours.forEach(function (h) {
+    var last = out[out.length - 1];
+    if (last && last[1] === h) last[1] = venueNextHour_(h);
+    else out.push([h, venueNextHour_(h)]);
+  });
+  return out.map(function (x) { return x[0] + '～' + x[1]; }).join('、');
+}
+function venueOverlap_(a, b) {
+  var set = {};
+  a.forEach(function (s) { venueHoursOf_(s).forEach(function (h) { set[h] = true; }); });
+  return b.some(function (s) { return venueHoursOf_(s).some(function (h) { return set[h]; }); });
+}
+function venueFirstHour_(slots) {
+  var hs = [];
+  slots.forEach(function (s) { hs = hs.concat(venueHoursOf_(s)); });
+  return hs.sort()[0] || '';
+}
 var VENUE_STATUS = ['待審核', '已同意', '不同意', '已取消'];
 var VENUE_MAX_DAYS_AHEAD = 180;
 
-function venueSlotNames_() { return VENUE_SLOTS.map(function (s) { return s[0]; }); }
 
 function venueRows_() {
   return readTable_(SHEETS.VENUE).filter(function (r) { return r['借用ID']; });
@@ -24,9 +57,9 @@ function venueActivities_(from, to) {
   });
 }
 
-/** 某天某時段有沒有區中心的活動（時間有重疊就算；沒寫時間的算整天） */
-function venueBusyNames_(acts, date, slot) {
-  var def = VENUE_SLOTS.filter(function (s) { return s[0] === slot; })[0];
+/** 某天某個小時有沒有區中心的活動（時間有重疊就算；沒寫時間的算整天） */
+function venueBusyNames_(acts, date, hour) {
+  var def = [hour, hour, venueNextHour_(hour)];
   return acts.filter(function (d) {
     if (d['開始日'] > date || (d['結束日'] || d['開始日']) < date) return false;
     var st = d['開始時間'];
@@ -47,9 +80,17 @@ function addMinutesToTime_(t, mins) {
 
 /** 公開：已同意的借用（行事曆用）：[{ date, slot, name, purpose }] */
 function venueApproved_(from, to) {
-  return venueRows_().filter(function (r) { return r['狀態'] === '已同意' && r['日期'] >= from && r['日期'] <= to; })
-    .map(function (r) { return { date: r['日期'], slot: r['時段'], name: r['姓名'], purpose: r['用途'] }; })
-    .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : venueSlotNames_().indexOf(a.slot) - venueSlotNames_().indexOf(b.slot); });
+  var groups = {};
+  var order = [];
+  venueRows_().filter(function (r) { return r['狀態'] === '已同意' && r['日期'] >= from && r['日期'] <= to; }).forEach(function (r) {
+    var k = r['申請ID'] + '|' + r['日期'];
+    if (!groups[k]) { groups[k] = { date: r['日期'], slots: [], name: r['姓名'], purpose: r['用途'] }; order.push(k); }
+    groups[k].slots.push(r['時段']);
+  });
+  return order.map(function (k) {
+    var g = groups[k];
+    return { date: g.date, slot: venueLabel_(g.slots), from: venueFirstHour_(g.slots), name: g.name, purpose: g.purpose };
+  }).sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : a.from < b.from ? -1 : 1; });
 }
 
 /** params = { from, to }：借用頁每天每個時段的狀態 */
@@ -63,23 +104,23 @@ function getVenue_(params) {
   var acts = venueActivities_(from, to);
   var days = {};
   datesInRange_(from, to).forEach(function (date) {
-    days[date] = VENUE_SLOTS.map(function (s) {
-      var mine = rows.filter(function (r) { return r['日期'] === date && r['時段'] === s[0]; });
+    days[date] = VENUE_HOURS.map(function (h) {
+      var mine = rows.filter(function (r) { return r['日期'] === date && venueHoursOf_(r['時段']).indexOf(h) !== -1; });
       var ok = mine.filter(function (r) { return r['狀態'] === '已同意'; })[0];
       var pending = mine.some(function (r) { return r['狀態'] === '待審核'; });
       return {
-        slot: s[0], from: s[1], to: s[2],
+        slot: h, from: h, to: venueNextHour_(h),
         status: ok ? '已借出' : pending ? '審核中' : '可以借',
         name: ok ? ok['姓名'] : '', purpose: ok ? ok['用途'] : '',
-        activities: venueBusyNames_(acts, date, s[0])
+        activities: venueBusyNames_(acts, date, h)
       };
     });
   });
-  return { today: todayString_(), venue: VENUE_NAME, slots: VENUE_SLOTS.map(function (s) { return { slot: s[0], from: s[1], to: s[2] }; }), days: days };
+  return { today: todayString_(), venue: VENUE_NAME, slots: VENUE_HOURS.map(function (h) { return { slot: h, from: h, to: venueNextHour_(h) }; }), days: days };
 }
 
 /**
- * body = { date | dates: [...], slots: [...], name, phone, purpose, people }：送出申請（待審核）。
+ * body = { date | dates: [...], slots: ['09:00', '10:00', ...]（要借的小時）, name, phone, purpose, people }：送出申請（待審核）。
  * 可以一次申請好幾天（每週固定、每月、自己挑的日期），每一天都借同樣的時段；全部用同一個申請ID。
  */
 var VENUE_MAX_DATES = 60;
@@ -88,7 +129,7 @@ function requestVenue_(body) {
   var today = todayString_();
   var dates = (Array.isArray(body.dates) && body.dates.length ? body.dates : [body.date]).map(cleanText_)
     .filter(function (d, i, a) { return d && a.indexOf(d) === i; }).sort();
-  var slots = (Array.isArray(body.slots) ? body.slots : []).map(cleanText_).filter(function (s, i, a) { return a.indexOf(s) === i; });
+  var slots = (Array.isArray(body.slots) ? body.slots : []).map(cleanText_).filter(function (s, i, a) { return a.indexOf(s) === i; }).sort();
   var name = normalizeName_(body.name);
   var phone = cleanText_(body.phone).replace(/[^\d+\-() ]/g, '');
   var purpose = cleanText_(body.purpose).slice(0, 60);
@@ -99,8 +140,8 @@ function requestVenue_(body) {
   if (dates.some(function (d) { return !isDateString_(d); })) errors.push('日期格式不對');
   else if (dates.some(function (d) { return d <= today; })) errors.push('最早只能借明天');
   else if (dates.some(function (d) { return datesInRange_(today, d).length > VENUE_MAX_DAYS_AHEAD; })) errors.push('最多只能借半年內的日期');
-  if (!slots.length) errors.push('請勾要借的時段');
-  if (slots.some(function (s) { return venueSlotNames_().indexOf(s) === -1; })) errors.push('時段不對');
+  if (!slots.length) errors.push('請選要借的時間');
+  if (slots.some(function (s) { return VENUE_HOURS.indexOf(s) === -1; })) errors.push('時間不對（只能借 07:00～22:00，一小時一格）');
   if (!name) errors.push('請填姓名');
   if (phone.replace(/\D/g, '').length < 8) errors.push('請填聯絡電話（管理者會用這支電話聯絡您）');
   if (!purpose) errors.push('請填用途');
@@ -111,26 +152,25 @@ function requestVenue_(body) {
     var rows = venueRows_();
     var taken = [];
     dates.forEach(function (d) {
-      slots.forEach(function (s) {
-        if (rows.some(function (r) { return r['日期'] === d && r['時段'] === s && r['狀態'] === '已同意'; })) taken.push(shortDate_(d) + ' ' + s);
-      });
+      var used = rows.filter(function (r) { return r['日期'] === d && r['狀態'] === '已同意' && venueOverlap_([r['時段']], slots); });
+      if (used.length) taken.push(shortDate_(d) + ' ' + venueLabel_(used.map(function (r) { return r['時段']; })));
     });
-    if (taken.length) throw new ApiError_('VALIDATION', '申請沒有送出', [{ message: taken.join('、') + '已經借出了，請把這幾天拿掉或換時段' }]);
+    if (taken.length) throw new ApiError_('VALIDATION', '申請沒有送出', [{ message: taken.join('、') + '已經借出了，請把這幾天拿掉或換時間' }]);
     var id = newId_('V');
     var now = nowString_();
     var out = [];
     dates.forEach(function (d, di) {
       slots.forEach(function (s) {
-        out.push({ '借用ID': id + '-' + (di + 1) + '-' + (venueSlotNames_().indexOf(s) + 1), '申請ID': id, '日期': d, '時段': s, '姓名': name, '電話': phone,
+        out.push({ '借用ID': id + '-' + (di + 1) + '-' + s.slice(0, 2), '申請ID': id, '日期': d, '時段': s, '姓名': name, '電話': phone,
           '用途': purpose, '人數': people, '狀態': '待審核', '建立時間': now, '審核時間': '', '審核人': '', '備註': '', '申請備註': applicantNote });
       });
     });
     appendRows_(SHEETS.VENUE, out);
-    notifyVenueAdmins_('🏠 有新的場地申請', name + '｜' + dates.slice(0, 3).map(shortDate_).join('、') + (dates.length > 3 ? ' 等 ' + dates.length + ' 天' : '') + ' ' + slots.join('、') + '｜' + purpose + '\n請到後台審核 🙏');
-    appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '場地申請', '報名ID': '', '內容摘要': name + '｜' + dates.join('、') + ' ' + slots.join('、') + '｜' + purpose, '還原用的前一版資料': '' }]);
+    notifyVenueAdmins_('🏠 有新的場地申請', name + '｜' + dates.slice(0, 3).map(shortDate_).join('、') + (dates.length > 3 ? ' 等 ' + dates.length + ' 天' : '') + ' ' + venueLabel_(slots) + '｜' + purpose + '\n請到後台審核 🙏');
+    appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '場地申請', '報名ID': '', '內容摘要': name + '｜' + dates.join('、') + ' ' + venueLabel_(slots) + '｜' + purpose, '還原用的前一版資料': '' }]);
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.VENUE);
-    return { id: id, date: dates[0], dates: dates, slots: slots };
+    return { id: id, date: dates[0], dates: dates, slots: slots, label: venueLabel_(slots) };
   });
 }
 
@@ -140,15 +180,26 @@ function myVenue_(body) {
   if (name.length < 2) throw new ApiError_('BAD_REQUEST', '請輸入完整姓名');
   var today = todayString_();
   return {
-    requests: venueRows_().filter(function (r) { return normalizeName_(r['姓名']) === name && r['日期'] >= today; })
-      .map(function (r) {
+    requests: (function () {
+      var groups = {};
+      var order = [];
+      venueRows_().filter(function (r) { return normalizeName_(r['姓名']) === name && r['日期'] >= today; }).forEach(function (r) {
         var active = r['狀態'] === '待審核' || r['狀態'] === '已同意';
-        return { id: r['借用ID'], date: r['日期'], slot: r['時段'], purpose: r['用途'], status: r['狀態'],
-          note: r['備註'] || '',
-          cancelPending: active && !!r['申請取消'],
-          canCancel: active && !r['申請取消'] && r['日期'] > today };
-      })
-      .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : venueSlotNames_().indexOf(a.slot) - venueSlotNames_().indexOf(b.slot); })
+        var k = [r['申請ID'], r['日期'], r['狀態'], active && r['申請取消'] ? 'c' : ''].join('|');
+        if (!groups[k]) {
+          groups[k] = { ids: [], slots: [], date: r['日期'], purpose: r['用途'], status: r['狀態'], note: r['備註'] || '',
+            cancelPending: active && !!r['申請取消'], canCancel: active && !r['申請取消'] && r['日期'] > today };
+          order.push(k);
+        }
+        groups[k].ids.push(r['借用ID']);
+        groups[k].slots.push(r['時段']);
+      });
+      return order.map(function (k) {
+        var g = groups[k];
+        return { id: g.ids[0], ids: g.ids, date: g.date, slot: venueLabel_(g.slots), from: venueFirstHour_(g.slots), purpose: g.purpose, status: g.status,
+          note: g.note, cancelPending: g.cancelPending, canCancel: g.canCancel };
+      });
+    })().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : a.from < b.from ? -1 : 1; })
   };
 }
 
@@ -175,12 +226,12 @@ function cancelVenue_(body) {
     if (mismatch) throw new ApiError_('FORBIDDEN', '電話和申請時留的不一樣，沒有送出。忘記的話請聯絡管理者。');
     var bad = targets.filter(function (r) { return ['待審核', '已同意'].indexOf(r['狀態']) === -1 || r['日期'] <= today || r['申請取消']; });
     if (bad.length) throw new ApiError_('VALIDATION', '取消申請沒有送出', bad.map(function (r) {
-      return { message: r['日期'] + ' ' + r['時段'] + '：' + (r['日期'] <= today ? '當天（含）之後要取消，請聯絡管理者' : r['申請取消'] ? '已經申請取消了，等管理者審核' : '這筆已經是「' + r['狀態'] + '」') };
+      return { message: r['日期'] + ' ' + venueLabel_([r['時段']]) + '：' + (r['日期'] <= today ? '當天（含）之後要取消，請聯絡管理者' : r['申請取消'] ? '已經申請取消了，等管理者審核' : '這筆已經是「' + r['狀態'] + '」') };
     }));
     var now = nowString_();
     targets.forEach(function (r) { updateRow_(SHEETS.VENUE, r, { '申請取消': now }); });
-    notifyVenueAdmins_('🏠 有人申請取消場地', name + '｜' + targets.slice(0, 4).map(function (r) { return shortDate_(r['日期']) + ' ' + r['時段']; }).join('、') + (targets.length > 4 ? ' 等 ' + targets.length + ' 個時段' : '') + '\n請到後台審核 🙏');
-    appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '場地申請取消', '報名ID': '', '內容摘要': name + '｜' + targets.map(function (r) { return r['日期'] + ' ' + r['時段']; }).join('、'), '還原用的前一版資料': '' }]);
+    notifyVenueAdmins_('🏠 有人申請取消場地', name + '｜' + venueGroupText_(targets) + '\n請到後台審核 🙏');
+    appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '場地申請取消', '報名ID': '', '內容摘要': name + '｜' + venueGroupText_(targets, 99), '還原用的前一版資料': '' }]);
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.VENUE);
     return myVenue_({ name: name });
@@ -194,13 +245,13 @@ function adminVenue_() {
   var rows = venueRows_().filter(function (r) { return r['日期'] >= past; });
   return {
     today: today,
-    slots: venueSlotNames_(),
+    hours: VENUE_HOURS,
     requests: rows.map(function (r) {
-      return { id: r['借用ID'], group: r['申請ID'], date: r['日期'], slot: r['時段'], name: r['姓名'], phone: r['電話'], purpose: r['用途'],
+      return { id: r['借用ID'], group: r['申請ID'], date: r['日期'], slot: r['時段'], label: venueLabel_([r['時段']]), name: r['姓名'], phone: r['電話'], purpose: r['用途'],
         people: r['人數'], status: r['狀態'], createdAt: r['建立時間'], decidedAt: r['審核時間'], decidedBy: r['審核人'], note: r['備註'],
         applicantNote: r['申請備註'] || '',
         cancelAsk: (r['狀態'] === '待審核' || r['狀態'] === '已同意') ? (r['申請取消'] || '') : '' };
-    }).sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : venueSlotNames_().indexOf(a.slot) - venueSlotNames_().indexOf(b.slot); })
+    }).sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : venueFirstHour_([a.slot]) < venueFirstHour_([b.slot]) ? -1 : 1; })
   };
 }
 
@@ -223,10 +274,10 @@ function adminVenueDecide_(body) {
     });
     if (decision === '已同意') {
       var clash = targets.filter(function (t, i) {
-        return rows.some(function (r) { return r !== t && r['日期'] === t['日期'] && r['時段'] === t['時段'] && r['狀態'] === '已同意'; }) ||
-          targets.slice(0, i).some(function (o) { return o['日期'] === t['日期'] && o['時段'] === t['時段']; }); // 一次同意兩筆同時段也不行
+        return rows.some(function (r) { return r !== t && r['日期'] === t['日期'] && r['狀態'] === '已同意' && venueOverlap_([r['時段']], [t['時段']]); }) ||
+          targets.slice(0, i).some(function (o) { return o['日期'] === t['日期'] && venueOverlap_([o['時段']], [t['時段']]); }); // 一次同意兩筆同時間也不行
       });
-      if (clash.length) throw new ApiError_('VALIDATION', '沒有同意', clash.map(function (t) { return { message: t['日期'] + ' ' + t['時段'] + '已經借給別人了' }; }));
+      if (clash.length) throw new ApiError_('VALIDATION', '沒有同意', [{ message: venueGroupText_(clash, 99) + ' 已經借給別人了' }]);
     }
     var now = nowString_();
     var who = !ADMIN_SESSION_ ? '' : ADMIN_SESSION_.role === SUPER_ACCOUNT ? '總管理者' : ADMIN_SESSION_.account;
@@ -240,9 +291,22 @@ function adminVenueDecide_(body) {
       updateRow_(SHEETS.VENUE, t, patch);
     });
     notifyVenueApplicants_(targets, decision, note);
-    appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '場地' + decision.replace('已', ''), '報名ID': '', '內容摘要': targets[0]['姓名'] + '｜' + targets.map(function (t) { return t['日期'] + ' ' + t['時段']; }).join('、') + (note ? '｜' + note : ''), '還原用的前一版資料': '' }]);
+    appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '場地' + decision.replace('已', ''), '報名ID': '', '內容摘要': targets[0]['姓名'] + '｜' + venueGroupText_(targets, 99) + (note ? '｜' + note : ''), '還原用的前一版資料': '' }]);
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.VENUE);
     return adminVenue_();
   });
+}
+
+/** 好幾列借用 → 「10/14 09:00～12:00、10/21 09:00～12:00」（同一天合成一段；max 天以後寫「等 N 天」） */
+function venueGroupText_(rows, max) {
+  max = max || 4;
+  var byDate = {};
+  var dates = [];
+  rows.forEach(function (r) {
+    if (!byDate[r['日期']]) { byDate[r['日期']] = []; dates.push(r['日期']); }
+    byDate[r['日期']].push(r['時段']);
+  });
+  dates.sort();
+  return dates.slice(0, max).map(function (d) { return shortDate_(d) + ' ' + venueLabel_(byDate[d]); }).join('、') + (dates.length > max ? ' 等 ' + dates.length + ' 天' : '');
 }

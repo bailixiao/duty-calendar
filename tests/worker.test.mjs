@@ -146,10 +146,10 @@ test('借場地通知與後台推播：請求處理完一起送出（正式切�
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (url) => { calls.push(url); return new Response('', { status: 201 }); };
   try {
-    await call('POST', { action: 'requestVenue', dates: ['2026-10-13'], slots: ['晚上'], name: '測試甲', phone: '0912345678', purpose: '讀書會' });
+    await call('POST', { action: 'requestVenue', dates: ['2026-10-13'], slots: ['18:00', '19:00', '20:00'], name: '測試甲', phone: '0912345678', purpose: '讀書會' });
     assert.equal(calls.length, 0, '還沒正式切換不送');
     store.setProp('LIVE', '1');
-    await call('POST', { action: 'requestVenue', dates: ['2026-10-14'], slots: ['晚上'], name: '測試甲', phone: '0912345678', purpose: '讀書會' });
+    await call('POST', { action: 'requestVenue', dates: ['2026-10-14'], slots: ['18:00', '19:00', '20:00'], name: '測試甲', phone: '0912345678', purpose: '讀書會' });
     assert.deepEqual(calls, [ADMIN]);
     calls.length = 0;
     assert.equal((await call('POST', { action: 'pushSubscribe', endpoint: ADMIN })).ok, true);

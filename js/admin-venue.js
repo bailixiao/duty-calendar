@@ -38,7 +38,7 @@
     const tel = String(g.phone || '').replace(/[^\d+]/g, '');
     return `
       <li class="venue-req is-${g.status === '已同意' ? 'ok' : g.status === '待審核' ? 'wait' : 'no'}">
-        <div class="vr-head"><strong>${esc(dateText(g))}<br>${g.slots.map(esc).join('、')}</strong><span class="vr-status">${esc(g.status)}${g.cancelAsk ? '・申請取消' : ''}</span></div>
+        <div class="vr-head"><strong>${esc(dateText(g))}<br>${esc(VenueHours.label(g.slots))}</strong><span class="vr-status">${esc(g.status)}${g.cancelAsk ? '・申請取消' : ''}</span></div>
         <dl class="vr-info">
           <div><dt>用途</dt><dd>${esc(g.purpose)}${g.people ? `（約 ${esc(g.people)} 人）` : ''}</dd></div>
           ${g.applicantNote ? `<div><dt>備註</dt><dd>${esc(g.applicantNote)}</dd></div>` : ''}
@@ -59,7 +59,9 @@
     const approved = all.filter((g) => !g.cancelAsk && g.status === '已同意' && g.last >= today);
     const others = all.filter((g) => cancelAsks.indexOf(g) === -1 && pending.indexOf(g) === -1 && approved.indexOf(g) === -1);
     // 待審核的時段如果已經被同意給別人，提醒
-    const takenKey = new Set(data.requests.filter((r) => r.status === '已同意').map((r) => r.date + '|' + r.slot));
+    // 已同意的：日期｜小時（舊的早上／下午／晚上換算成小時）
+    const takenKey = new Set(data.requests.filter((r) => r.status === '已同意').flatMap((r) => VenueHours.hoursOf(r.slot).map((h) => r.date + '|' + h)));
+    const isTaken = (r) => VenueHours.hoursOf(r.slot).some((h) => takenKey.has(r.date + '|' + h));
     body.innerHTML = `
       ${AdminPage.staleNote(stale)}
       ${canDecide() ? '<div class="venue-watch" data-watch></div>' : ''}
@@ -71,17 +73,20 @@
       ${pending.length ? '<div data-repair-warn></div>' : ''}
       ${pending.length ? `<ul class="venue-reqs">${pending.map((g) => card(g, (x) => {
         // 已經借給別人的時段：同意時略過，只同意其他的
-        const clash = x.items.filter((r) => takenKey.has(r.date + '|' + r.slot));
+        const clash = x.items.filter(isTaken);
+        // 逐天審核：同一天的小時合成一列
+        const days = [];
+        x.items.forEach((r) => { let d = days.find((y) => y.date === r.date); if (!d) { d = { date: r.date, items: [] }; days.push(d); } d.items.push(r); });
         const okIds = x.items.filter((r) => clash.indexOf(r) === -1).map((r) => r.id);
-        return `${clash.length ? `<p class="vr-warn">⚠️ ${clash.map((r) => esc(Fmt.shortDate(r.date) + ' ' + r.slot)).join('、')}已經借給別人了${okIds.length ? '，按同意只會同意其他的' : ''}</p>` : ''}
+        return `${clash.length ? `<p class="vr-warn">⚠️ ${[...new Set(clash.map((r) => r.date))].sort().map((d) => esc(Fmt.shortDate(d) + ' ' + VenueHours.label(clash.filter((r) => r.date === d).map((r) => r.slot)))).join('、')} 已經借給別人了${okIds.length ? '，按同意只會同意其他的' : ''}</p>` : ''}
           <button type="button" class="btn btn-primary" data-ok="${esc(okIds.join(','))}"${okIds.length ? '' : ' disabled'}>同意${x.dates.length > 1 ? `（${x.dates.length} 天）` : ''}</button>
           <button type="button" class="btn btn-quiet-danger" data-no="${esc(x.ids.join(','))}">不同意</button>
-          ${x.items.length > 1 ? `<details class="vr-each">
+          ${days.length > 1 ? `<details class="vr-each">
             <summary>逐天審核（可以幾天同意、幾天不同意）</summary>
             <p class="hint">勾要處理的日期時段，再按下面的按鈕；沒處理的會留在待審核。</p>
-            <div class="vr-each-list">${x.items.map((r) => {
-              const taken = clash.indexOf(r) !== -1;
-              return `<label class="check${taken ? ' is-taken' : ''}"><input type="checkbox" data-each="${esc(r.id)}"${taken ? ' disabled' : ' checked'}> ${esc(Fmt.shortDate(r.date))} ${esc(r.slot)}${taken ? '（已借給別人）' : ''}</label>`;
+            <div class="vr-each-list">${days.map((d) => {
+              const taken = d.items.some((r) => clash.indexOf(r) !== -1);
+              return `<label class="check${taken ? ' is-taken' : ''}"><input type="checkbox" data-each="${esc(d.items.map((r) => r.id).join(','))}"${taken ? ' disabled' : ' checked'}> ${esc(Fmt.shortDate(d.date))} ${esc(VenueHours.label(d.items.map((r) => r.slot)))}${taken ? '（已借給別人）' : ''}</label>`;
             }).join('')}</div>
             <div class="vr-each-quick"><button type="button" class="link-btn" data-each-all>全選</button><button type="button" class="link-btn" data-each-none>都不選</button></div>
             <div class="vr-actions">
@@ -124,7 +129,7 @@
     // 逐天審核：只處理勾選的日期時段
     body.querySelectorAll('.vr-each').forEach((d) => {
       const boxes = () => [...d.querySelectorAll('[data-each]:not(:disabled)')];
-      const picked = () => boxes().filter((c) => c.checked).map((c) => c.dataset.each);
+      const picked = () => boxes().filter((c) => c.checked).flatMap((c) => c.dataset.each.split(','));
       d.querySelector('[data-each-all]').addEventListener('click', () => boxes().forEach((c) => { c.checked = true; }));
       d.querySelector('[data-each-none]').addEventListener('click', () => boxes().forEach((c) => { c.checked = false; }));
       d.querySelector('[data-each-ok]').addEventListener('click', () => {
@@ -135,7 +140,7 @@
       d.querySelector('[data-each-no]').addEventListener('click', () => {
         const ids = picked();
         if (!ids.length) return alert('請先勾不同意的日期時段');
-        askReason(`不同意勾選的 ${ids.length} 個時段`, (note) => decide(ids.join(','), '不同意', note));
+        askReason(`不同意勾選的 ${boxes().filter((c) => c.checked).length} 天`, (note) => decide(ids.join(','), '不同意', note));
       });
     });
     body.querySelectorAll('[data-cancel]').forEach((b) => b.addEventListener('click', () => askReason('取消這個借用', (note) => decide(b.dataset.cancel, '已取消', note))));
