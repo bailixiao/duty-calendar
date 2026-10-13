@@ -9,6 +9,9 @@
   const DOTS_MAX = { year: 3, month: 4 };
   const VENUE_ORDER = { 早上: '08:00', 下午: '13:00', 晚上: '18:00' }; // 場地借用排在當天的順序
   const RECENT_DAYS = 31; // 近期＝今天起一個月
+  const EASY_DAYS = 366; // 長輩模式的近期＝今天起一年，往下滑一直看
+  const EASY_CHUNK = 20; // 長輩模式一次多顯示幾天
+  const isEasy = () => document.documentElement.classList.contains('easy');
   // 類別篩選（勤務／道務／教育）：有道務或教育的項目時才顯示篩選列；記住上次的選擇
   const CAT_KEY = 'duty-calendar:cat';
   let catFilter = (() => { try { return localStorage.getItem(CAT_KEY) || '全部'; } catch (e) { return '全部'; } })();
@@ -222,7 +225,12 @@
 
   function loadRecent() {
     setTitle();
-    load(state.today, Fmt.addDays(state.today, RECENT_DAYS - 1));
+    load(state.today, Fmt.addDays(state.today, (isEasy() ? EASY_DAYS : RECENT_DAYS) - 1));
+  }
+
+  /** 長輩模式開關時，近期要換成一年／一個月 */
+  function easyChanged() {
+    if (state.view === 'recent' && state.today) loadRecent();
   }
 
   function setTitle() {
@@ -233,7 +241,7 @@
     } else if (state.view === 'month') {
       text = `${Fmt.rocYear(a)} 年 ${Number(a.slice(5, 7))} 月`;
     } else if (state.view === 'recent') {
-      text = '近一個月的行程';
+      text = isEasy() ? '往後的行程（往下滑看更多）' : '近一個月的行程';
     } else {
       const from = weekStart(a);
       const to = Fmt.addDays(from, 6);
@@ -257,6 +265,29 @@
   function windowYearFor(from, to) {
     const y = Number(from.slice(0, 4));
     return to <= windowRange(y).to ? y : y + 1;
+  }
+
+  /** from～to 需要哪幾個年份的資料（長輩模式看一整年會跨到明年） */
+  function yearsFor(from, to) {
+    const y = Number(from.slice(0, 4));
+    if (to <= windowRange(y).to) return [y];
+    if (from >= windowRange(y + 1).from) return [y + 1];
+    return [y, y + 1];
+  }
+
+  /** 把兩個年份的資料合成一份（跨年的勤務只留一筆，日期合併） */
+  function mergedData(entries) {
+    if (entries.length === 1) return entries[0].data;
+    const byId = new Map();
+    const venue = new Map();
+    entries.forEach((e) => {
+      e.data.duties.forEach((d) => {
+        const old = byId.get(d.id);
+        byId.set(d.id, old ? Object.assign({}, old, { days: Object.assign({}, old.days, d.days) }) : d);
+      });
+      (e.data.venue || []).forEach((v) => venue.set(v.id || [v.date, v.slot, v.from, v.name].join('|'), v));
+    });
+    return Object.assign({}, entries[0].data, { duties: [...byId.values()], venue: [...venue.values()] });
   }
 
   function ensureWindow(year) {
@@ -297,12 +328,12 @@
   async function load(from, to) {
     const token = ++loadToken;
     state.range = { from, to };
-    const year = windowYearFor(from, to);
-    const entry = ensureWindow(year);
+    const entries = yearsFor(from, to).map(ensureWindow);
+    const fresh = () => entries.every((e) => e.fresh);
 
-    if (entry.data) {
-      render(entry.data, from, to);
-      if (entry.fresh) hideStatus();
+    if (entries.every((e) => e.data)) {
+      render(mergedData(entries), from, to);
+      if (fresh()) hideStatus();
       else showStatus('refreshing');
     } else {
       state.loading = true;
@@ -311,16 +342,16 @@
       renderList();
     }
 
-    if (!entry.fresh) {
+    if (!fresh()) {
       try {
-        const data = await entry.promise;
+        await Promise.all(entries.map((e) => e.promise || e.data));
         if (token !== loadToken) return;
-        render(data, from, to);
+        render(mergedData(entries), from, to);
         hideStatus();
       } catch (err) {
         if (token !== loadToken) return;
         readyResolve();
-        if (entry.data) showStatus('error', '無法更新，目前顯示的是上次的資料');
+        if (entries.every((e) => e.data)) showStatus('error', '無法更新，目前顯示的是上次的資料');
         else showStatus('error', err.message || '無法載入行事曆資料');
       }
     }
@@ -631,21 +662,27 @@
 
   // ---------- 近期檢視 ----------
 
+  let recentObserver = null;
+  let recentShown = 0; // 重新整理後保留已經滑到的位置
+  let recentCheck = null; // 滑動時檢查是不是到底了（舊手機沒有 IntersectionObserver 也能用）
+  window.addEventListener('scroll', () => { if (recentCheck) recentCheck(); }, { passive: true });
+
   function renderRecent() {
     if (state.loading) {
       el.week.innerHTML = '<p class="panel-empty">載入中⋯</p>';
       return;
     }
     const dates = Fmt.datesBetween(state.range.from, state.range.to).filter((d) => (dayMap.get(d) || []).length);
-    const shortDates = dates.filter((d) => dayMap.get(d).some((it) => it.state.kind === 'short'));
+    const monthEnd = Fmt.addDays(state.today, RECENT_DAYS - 1); // 缺人提醒只看近一個月（長輩模式也是）
+    const shortDates = dates.filter((d) => d <= monthEnd && dayMap.get(d).some((it) => it.state.kind === 'short'));
     const alert = catFilter === '場地' ? '' : shortDates.length
       ? `<div class="notice notice-error recent-alert" role="status"><p><strong>近一個月有 ${shortDates.length} 天缺人</strong></p><p>${Fmt.shortDateList(shortDates)}</p><p class="muted">點勤務就可以報名幫忙</p>${Share.buttonsHtml()}</div>`
       : `<div class="notice recent-alert" role="status"><p>近一個月的勤務都不缺人</p></div>`;
     if (!dates.length) {
-      el.week.innerHTML = `<p class="panel-empty">近一個月沒有行程</p>`;
+      el.week.innerHTML = `<p class="panel-empty">${isEasy() ? '往後' : '近一個月'}沒有行程</p>`;
       return;
     }
-    const rows = dates.map((date) => {
+    const row = (date) => {
       const lunar = LunarUtil.lunarOf(date);
       return `
         <li class="week-day${date === state.today ? ' is-today' : ''}">
@@ -656,8 +693,35 @@
           </div>
           <div class="week-items">${dayMap.get(date).map((it) => cardHtml(it, date, true)).join('')}</div>
         </li>`;
-    });
-    el.week.innerHTML = alert + `<ol class="week-list">${rows.join('')}</ol>`;
+    };
+    // 長輩模式：先顯示一段，滑到底自動再多顯示（一年份一次畫完手機會卡）
+    let shown = isEasy() ? Math.min(dates.length, Math.max(EASY_CHUNK, recentShown)) : dates.length;
+    const moreHtml = () => (shown < dates.length
+      ? `<li class="recent-more"><button type="button" class="btn" data-recent-more>往下看更多勤務 ▼</button></li>`
+      : (isEasy() ? `<li class="recent-more"><p class="muted">再往後的勤務還沒排上去</p></li>` : ''));
+    el.week.innerHTML = alert + `<ol class="week-list">${dates.slice(0, shown).map(row).join('')}${moreHtml()}</ol>`;
+    if (recentObserver) recentObserver.disconnect();
+    recentCheck = null;
+    const more = () => {
+      const li = el.week.querySelector('.recent-more');
+      if (!li || shown >= dates.length) return;
+      const next = Math.min(dates.length, shown + EASY_CHUNK);
+      li.insertAdjacentHTML('beforebegin', dates.slice(shown, next).map(row).join(''));
+      shown = recentShown = next;
+      li.outerHTML = moreHtml();
+      watchMore();
+    };
+    const watchMore = () => {
+      const li = el.week.querySelector('.recent-more');
+      if (!li || shown >= dates.length) { recentCheck = null; return; }
+      recentCheck = () => { if (!el.week.hidden && li.isConnected && li.getBoundingClientRect().top < innerHeight + 400) more(); };
+      li.querySelector('[data-recent-more]').addEventListener('click', more);
+      if ('IntersectionObserver' in window) {
+        recentObserver = new IntersectionObserver((list) => { if (list.some((x) => x.isIntersecting)) more(); }, { rootMargin: '400px' });
+        recentObserver.observe(li);
+      }
+    };
+    watchMore();
     const all = [];
     dates.forEach((date) => dayMap.get(date).forEach((it) => { if (!it.venue) all.push({ duty: it.duty, date, state: it.state }); }));
     Share.bind(el.week, () => Share.shortageText(all));
@@ -776,14 +840,14 @@
       });
     });
     if (changed && state.range && !state.loading) {
-      const year = windowYearFor(state.range.from, state.range.to);
-      const entry = windows.get(year);
-      if (entry && entry.data) {
-        render(entry.data, state.range.from, state.range.to);
-        storeEvents(year, entry.data);
+      const years = yearsFor(state.range.from, state.range.to);
+      const entries = years.map((y) => windows.get(y));
+      if (entries.every((e) => e && e.data)) {
+        render(mergedData(entries), state.range.from, state.range.to);
+        years.forEach((y, i) => storeEvents(y, entries[i].data));
       }
     }
   }
 
-  window.CalendarPage = { init, refresh, onShow, peekDuty, peekRange, patchDuty, ready: () => ready, setView: switchView };
+  window.CalendarPage = { init, refresh, onShow, peekDuty, peekRange, patchDuty, ready: () => ready, setView: switchView, easyChanged };
 })();

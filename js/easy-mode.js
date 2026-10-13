@@ -1,4 +1,4 @@
-// 長輩模式（行事曆首頁「👴 長輩模式」）：只顯示近期的勤務和幾個大按鈕，隱藏年月週切換和類別篩選，字放大。記在這支手機。
+// 長輩模式（行事曆首頁「👴 長輩模式」）：只顯示今天以後的勤務（往下滑一直看到一年後）和幾個大按鈕，隱藏年月週切換和類別篩選，字放大。記在這支手機。
 (function () {
   'use strict';
 
@@ -22,6 +22,7 @@
     const bar = document.getElementById('easy-bar');
     if (bar) bar.hidden = !easy;
     window.dispatchEvent(new Event('resize'));
+    if (window.CalendarPage && CalendarPage.easyChanged) CalendarPage.easyChanged();
   }
 
   function set(v) {
@@ -41,7 +42,7 @@
       const bar = document.createElement('p');
       bar.id = 'easy-bar';
       bar.className = 'notice easy-bar';
-      bar.innerHTML = '👴 <strong>長輩模式</strong>：只顯示最近的勤務，點勤務就能報名。';
+      bar.innerHTML = '👴 <strong>長輩模式</strong>：往下滑可以一直看到以後的勤務，點勤務就能報名。';
       bar.hidden = true;
       const links = document.querySelector('#view-calendar .top-links');
       if (links) links.parentNode.insertBefore(bar, links);

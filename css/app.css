@@ -2375,3 +2375,7 @@ button.veg-chip:hover { border-color: var(--ok); }
 .person-alias { margin-left: 4px; font-size: .85rem; color: var(--ink-2); font-weight: 400; }
 .merge-choice { display: grid; gap: 6px; margin: 6px 0 10px; }
 .merge-opt small { margin-left: 6px; color: var(--ink-2); }
+
+/* 長輩模式：近期往下滑看更多 */
+.recent-more { list-style: none; text-align: center; padding: 16px 0 24px; }
+.recent-more .btn { width: 100%; max-width: 420px; }
