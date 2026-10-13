@@ -387,3 +387,44 @@ function adminVenueConvert_(body) {
     return Object.assign({ converted: old.length }, adminVenue_());
   });
 }
+
+/** body = { ids: [同一筆申請、好幾天的借用ID], from, to }：每一天都改成同樣的時間（日期不變、狀態不變） */
+function adminVenueEditAll_(body) {
+  var ids = Array.isArray(body.ids) ? body.ids : [];
+  var slots = venueHourRange_(cleanText_(body.from), cleanText_(body.to));
+  if (!ids.length) throw new ApiError_('BAD_REQUEST', '沒有選要改的借用');
+  if (!slots) throw new ApiError_('VALIDATION', '時間不對：開始要早於結束，07:00～22:00 之間');
+  return withSignupLock_(function () {
+    var rows = venueRows_();
+    var targets = ids.map(function (id) {
+      var r = rows.filter(function (x) { return x['借用ID'] === id; })[0];
+      if (!r) throw new ApiError_('NOT_FOUND', '找不到這筆借用，請重新整理');
+      return r;
+    });
+    if (targets.some(function (t) { return t['申請ID'] !== targets[0]['申請ID'] || t['狀態'] !== targets[0]['狀態']; })) throw new ApiError_('BAD_REQUEST', '一次只能改同一筆申請');
+    var byDate = {};
+    var dates = [];
+    targets.forEach(function (t) { if (!byDate[t['日期']]) { byDate[t['日期']] = []; dates.push(t['日期']); } byDate[t['日期']].push(t); });
+    dates.sort();
+    if (targets[0]['狀態'] === '已同意') {
+      var clash = [];
+      dates.forEach(function (d) {
+        var used = rows.filter(function (r) { return targets.indexOf(r) === -1 && r['日期'] === d && r['狀態'] === '已同意' && venueOverlap_([r['時段']], slots); });
+        if (used.length) clash.push(shortDate_(d) + ' ' + venueLabel_(used.map(function (r) { return r['時段']; })) + ' 已經借給' + used[0]['姓名']);
+      });
+      if (clash.length) throw new ApiError_('VALIDATION', '沒有改（這幾天和別人重疊）', clash.map(function (m) { return { message: m }; }));
+    }
+    var base = targets[0];
+    var before = venueLabel_(byDate[dates[0]].map(function (t) { return t['時段']; }));
+    var tag = Date.now().toString(36).slice(-5);
+    var fresh = [];
+    dates.forEach(function (d) { slots.forEach(function (h) { fresh.push(venueCopyRow_(byDate[d][0], d, h, tag)); }); });
+    deleteRows_(SHEETS.VENUE, targets.map(function (t) { return t._row; }));
+    invalidateTable_(SHEETS.VENUE);
+    appendRows_(SHEETS.VENUE, fresh);
+    writeDutyLog_('場地修改', base['姓名'] + '｜' + base['用途'] + '｜' + dates.length + ' 天一起改時間：' + before + ' → ' + venueLabel_(slots) + adminTag_());
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.VENUE);
+    return adminVenue_();
+  });
+}

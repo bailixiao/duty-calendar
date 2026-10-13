@@ -171,3 +171,22 @@ test('後台改場地的日期時間；舊的早上／下午／晚上一次換�
   assert.deepEqual([rows.map((x) => x.slot), rows[0].status, rows[0].group], [H(7, 12), '已同意', 'V-old']);
   assert.equal(env.get({ action: 'getEvents', from: '2026-10-24', to: '2026-10-24' }).data.venue[0].slot, '07:00～12:00');
 });
+
+test('後台好幾天的場地一起改時間（日期不變）；有一天重疊就整筆不改', () => {
+  const env = createEnv(OCT_1);
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const call = (action, body) => env.post(Object.assign({ action, token }, body));
+  const H = (a, b) => Array.from({ length: b - a }, (_, i) => String(a + i).padStart(2, '0') + ':00');
+  env.post({ action: 'requestVenue', dates: ['2026-10-17', '2026-10-24', '2026-10-31'], slots: H(8, 12), name: '測試甲', phone: '0912345678', purpose: '讀經班' });
+  env.post({ action: 'requestVenue', dates: ['2026-10-24'], slots: H(12, 13), name: '測試乙', phone: '0987654321', purpose: '練唱' });
+  const list = call('adminVenue', {}).data.requests;
+  call('adminVenueDecide', { ids: list.map((r) => r.id), decision: '已同意' });
+  const ids = list.filter((r) => r.name === '測試甲').map((r) => r.id);
+  const clash = call('adminVenueEdit', { allDays: true, ids, from: '07:00', to: '13:00' });
+  assert.equal(clash.error.code, 'VALIDATION');
+  assert.match(clash.error.details[0].message, /10\/24/);
+  const r = call('adminVenueEdit', { allDays: true, ids, from: '07:00', to: '12:00' });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  const mine = env.post({ action: 'myVenue', name: '測試甲' }).data.requests;
+  assert.deepEqual(mine.map((x) => [x.date, x.slot, x.status]), [['2026-10-17', '07:00～12:00', '已同意'], ['2026-10-24', '07:00～12:00', '已同意'], ['2026-10-31', '07:00～12:00', '已同意']]);
+});

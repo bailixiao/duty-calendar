@@ -170,8 +170,8 @@
       <h2 class="modal-title">✏️ 改日期時間</h2>
       <p class="modal-note">${esc(g.name)}・${esc(g.purpose)}（${esc(g.status)}）</p>
       <form class="modal-form" novalidate>
-        ${days.length > 1 ? `<label class="form-row"><span>要改哪一天</span><select class="input" name="which">${days.map((d) => `<option value="${d}">${esc(Fmt.shortDate(d) + ' ' + VenueHours.label(itemsOf(d).map((r) => r.slot)))}</option>`).join('')}</select></label>` : `<p>原本：${esc(Fmt.shortDate(days[0]) + ' ' + VenueHours.label(itemsOf(days[0]).map((r) => r.slot)))}</p>`}
-        <label class="form-row"><span>新的日期</span><input class="input" type="date" name="date" min="${todayStr}" value="${days[0]}"></label>
+        ${days.length > 1 ? `<label class="form-row"><span>要改哪一天</span><select class="input" name="which"><option value="all">全部 ${days.length} 天一起改時間（日期不變）</option>${days.map((d) => `<option value="${d}">${esc(Fmt.shortDate(d) + ' ' + VenueHours.label(itemsOf(d).map((r) => r.slot)))}</option>`).join('')}</select></label>` : `<p>原本：${esc(Fmt.shortDate(days[0]) + ' ' + VenueHours.label(itemsOf(days[0]).map((r) => r.slot)))}</p>`}
+        <label class="form-row" data-date-row><span>新的日期</span><input class="input" type="date" name="date" min="${todayStr}" value="${days[0]}"></label>
         <div class="form-row form-row-pair">
           <label><span>開始</span><select class="input" name="from"></select></label>
           <label><span>結束</span><select class="input" name="to"></select></label>
@@ -184,8 +184,10 @@
         </div>
       </form>`);
     const f = m.el.querySelector('form');
+    const isAll = () => f.elements.which && f.elements.which.value === 'all';
     const fill = () => {
-      const d = f.elements.which ? f.elements.which.value : days[0];
+      const d = isAll() ? days[0] : f.elements.which ? f.elements.which.value : days[0];
+      m.el.querySelector('[data-date-row]').hidden = isAll();
       const hs = [].concat(...itemsOf(d).map((r) => VenueHours.hoursOf(r.slot))).sort();
       f.elements.from.innerHTML = hourOptions(STARTS, hs[0] || '09:00');
       f.elements.to.innerHTML = hourOptions(ENDS, hs.length ? VenueHours.next(hs[hs.length - 1]) : '10:00');
@@ -196,12 +198,13 @@
     const info = async () => {
       const box = m.el.querySelector('[data-day-info]');
       const d = f.elements.date.value;
+      if (isAll()) { box.textContent = `${days.length} 天都會改成選的時間；和別人已借出的時間重疊的話，會列出是哪幾天。`; return; }
       if (!d) { box.textContent = ''; return; }
       box.textContent = '讀取那天的借用⋯';
       try {
         const res = await Api.getVenue(d, d);
-        const own = new Set(itemsOf(f.elements.which ? f.elements.which.value : days[0]).flatMap((r) => VenueHours.hoursOf(r.slot)));
-        const orig = f.elements.which ? f.elements.which.value : days[0];
+        const own = new Set(itemsOf(isAll() ? days[0] : f.elements.which ? f.elements.which.value : days[0]).flatMap((r) => VenueHours.hoursOf(r.slot)));
+        const orig = isAll() ? days[0] : f.elements.which ? f.elements.which.value : days[0];
         const busy = (res.days[d] || []).filter((x) => x.status !== '可以借' && !(d === orig && own.has(x.slot))); // 自己原本的時間不算
         box.innerHTML = busy.length ? '那天已有：' + busy.map((x) => `${esc(x.slot)} ${x.status === '已借出' ? esc(x.purpose + '（' + x.name + '）') : '有人申請中'}`).join('、') : '那天其他時間都還可以借。';
       } catch (e) { box.textContent = ''; }
@@ -212,12 +215,15 @@
     fill();
     f.addEventListener('submit', async (ev) => {
       ev.preventDefault();
-      const d = f.elements.which ? f.elements.which.value : days[0];
+      const all = isAll();
+      const d = all ? days[0] : f.elements.which ? f.elements.which.value : days[0];
       const err = f.querySelector('[data-err]');
       if (f.elements.to.value <= f.elements.from.value) { err.textContent = '結束要晚於開始'; err.hidden = false; return; }
       Busy.show('儲存中⋯');
       try {
-        const res = await Api.admin('adminVenueEdit', { ids: itemsOf(d).map((r) => r.id), date: f.elements.date.value, from: f.elements.from.value, to: f.elements.to.value });
+        const res = all
+          ? await Api.admin('adminVenueEdit', { allDays: true, ids: days.flatMap((x) => itemsOf(x).map((r) => r.id)), from: f.elements.from.value, to: f.elements.to.value })
+          : await Api.admin('adminVenueEdit', { ids: itemsOf(d).map((r) => r.id), date: f.elements.date.value, from: f.elements.from.value, to: f.elements.to.value });
         Busy.hide();
         m.close();
         AdminPage.clearMemo();
