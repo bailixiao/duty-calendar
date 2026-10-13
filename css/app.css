@@ -2243,6 +2243,16 @@ body.splash-on .text-size-btn { visibility: hidden; }
 .hour-picked { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 10px 0 4px; }
 .vm-failed-toggle { margin-top: 10px; min-height: 52px; font-size: 1.0625rem; font-weight: 700; }
 .vm-failed { margin-top: 8px; opacity: .85; }
+.mcal { max-width: 460px; }
+.mcal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.mcal-head strong { font-size: 1.0625rem; }
+.mcal-head small { margin-left: 8px; font-weight: 400; color: var(--accent); font-size: 0.875rem; }
+.mcal-head .btn { min-width: 44px; font-size: 1.25rem; }
+.mcal-week, .mcal-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.mcal-week li { text-align: center; font-size: 0.8125rem; color: var(--muted); padding: 2px 0; }
+.mcal-day { width: 100%; aspect-ratio: 1 / 1; max-height: 52px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); font: inherit; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer; }
+.mcal-day:disabled { background: transparent; border-color: transparent; color: var(--muted); opacity: .5; cursor: default; font-weight: 400; }
+.mcal-day.is-on { border-color: var(--accent); background: var(--accent); color: #fff; }
 .note-pop.is-edit { width: min(92vw, 300px); }
 .note-pop-label { display: block; margin: 6px 0 4px; font-size: 0.875rem; color: var(--ink-2); }
 .note-pop-input { width: 100%; }

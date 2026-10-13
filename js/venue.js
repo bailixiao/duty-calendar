@@ -31,7 +31,7 @@
     state = {
       tomorrow, last,
       mode: 'single', date: date && date >= tomorrow ? date : tomorrow,
-      dates: new Set(), slots: new Set(), sel: null, // sel：選的那段 { a, b }（HOURS 的位置）
+      dates: new Set(), slots: new Set(), sel: null, calMonth: tomorrow.slice(0, 7), // calMonth：方法二月曆顯示的月份（yyyy-MM） // sel：選的那段 { a, b }（HOURS 的位置）
       rule: { from: '', to: '', weekdays: [], freq: 'w1', dom: '' },
       status: {} // 日期 → [{ slot, status, name, purpose, activities }]
     };
@@ -139,11 +139,8 @@
         <button type="button" class="btn btn-block" data-rule-add>加入這些日期</button>
       </div>
       <div class="multi-box">
-        <p class="multi-title">方法二：一天一天加（不規則的日子）</p>
-        <div class="mine-row">
-          <input class="input" type="date" min="${state.tomorrow}" max="${state.last}" data-one aria-label="日期">
-          <button type="button" class="btn" data-one-add>加入</button>
-        </div>
+        <p class="multi-title">方法二：在月曆上點日子（點一下選、再點一下取消）</p>
+        ${monthGrid()}
       </div>
       <div class="form-error" data-pick-err hidden></div>
       ${list.length ? `
@@ -169,18 +166,62 @@
       if (state.dates.size > 60) return err('一次最多申請 60 天，請分兩次');
       drawPick();
     });
-    box.querySelector('[data-one-add]').addEventListener('click', () => {
-      const v = box.querySelector('[data-one]').value;
-      if (!v) return err('請先選日期');
-      if (v < state.tomorrow || v > state.last) return err('只能選明天到半年內的日期');
-      state.dates.add(v);
-      drawPick();
-    });
+    box.querySelectorAll('[data-cal-move]').forEach((b) => b.addEventListener('click', () => {
+      const [y, m] = state.calMonth.split('-').map(Number);
+      const d = new Date(Date.UTC(y, m - 1 + Number(b.dataset.calMove), 1));
+      state.calMonth = d.toISOString().slice(0, 7);
+      keepScroll(drawPick);
+    }));
+    box.querySelectorAll('[data-cal-day]').forEach((b) => b.addEventListener('click', () => {
+      const d = b.dataset.calDay;
+      if (state.dates.has(d)) state.dates.delete(d);
+      else {
+        if (state.dates.size >= 60) return err('一次最多申請 60 天，請分兩次');
+        state.dates.add(d);
+      }
+      keepScroll(drawPick);
+    }));
     box.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => { state.dates.delete(b.dataset.del); drawPick(); }));
     const clear = box.querySelector('[data-clear]');
     if (clear) clear.addEventListener('click', () => { state.dates.clear(); drawPick(); });
     bindHours(box.querySelector('[data-hours-multi]'), null, () => drawPick());
     if (list.length && state.slots.size) loadStatus(list).then(drawCheck);
+  }
+
+  /** 重畫時畫面不要跳（點月曆的日子會整區重畫） */
+  function keepScroll(fn) {
+    const y = window.scrollY;
+    fn();
+    window.scrollTo(0, y);
+  }
+
+  /** 方法二的月曆：一個月一張（星期日開頭）；明天到半年內的日子可以點 */
+  function monthGrid() {
+    const [y, m] = state.calMonth.split('-').map(Number);
+    const first = new Date(Date.UTC(y, m - 1, 1));
+    const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const pad = (n) => String(n).padStart(2, '0');
+    const cells = [];
+    for (let i = 0; i < first.getUTCDay(); i++) cells.push('<li class="mcal-blank"></li>');
+    for (let d = 1; d <= days; d++) {
+      const date = `${y}-${pad(m)}-${pad(d)}`;
+      const ok = date >= state.tomorrow && date <= state.last;
+      const on = state.dates.has(date);
+      cells.push(`<li><button type="button" class="mcal-day${on ? ' is-on' : ''}" ${ok ? `data-cal-day="${date}"` : 'disabled'} aria-pressed="${on}" aria-label="${m} 月 ${d} 日">${d}</button></li>`);
+    }
+    const prevOk = state.calMonth > state.tomorrow.slice(0, 7);
+    const nextOk = state.calMonth < state.last.slice(0, 7);
+    const inMonth = [...state.dates].filter((d) => d.slice(0, 7) === state.calMonth).length;
+    return `
+      <div class="mcal">
+        <div class="mcal-head">
+          <button type="button" class="btn btn-small" data-cal-move="-1"${prevOk ? '' : ' disabled'} aria-label="上個月">‹</button>
+          <strong>${y} 年 ${m} 月${inMonth ? `<small>選了 ${inMonth} 天</small>` : ''}</strong>
+          <button type="button" class="btn btn-small" data-cal-move="1"${nextOk ? '' : ' disabled'} aria-label="下個月">›</button>
+        </div>
+        <ol class="mcal-week">${DateList.WEEK.map((w) => `<li>${w}</li>`).join('')}</ol>
+        <ol class="mcal-grid">${cells.join('')}</ol>
+      </div>`;
   }
 
   /** 讀這些日期的狀態（一次最多 62 天的區間，超過就分段讀） */
