@@ -310,3 +310,80 @@ function venueGroupText_(rows, max) {
   dates.sort();
   return dates.slice(0, max).map(function (d) { return shortDate_(d) + ' ' + venueLabel_(byDate[d]); }).join('、') + (dates.length > max ? ' 等 ' + dates.length + ' 天' : '');
 }
+
+// ---------- 後台：改日期時間、舊格式換成小時 ----------
+
+/** 新的借用列（照舊那一列的申請人、用途、狀態⋯，換日期和小時） */
+function venueCopyRow_(base, date, hour, tag) {
+  var o = {};
+  SHEETS.VENUE.headers.forEach(function (k) { o[k] = base[k] === undefined ? '' : base[k]; });
+  o['借用ID'] = base['申請ID'] + '-' + date.replace(/-/g, '') + '-' + hour.slice(0, 2) + '-' + tag;
+  o['日期'] = date;
+  o['時段'] = hour;
+  return o;
+}
+function venueHourRange_(from, to) {
+  var a = VENUE_HOURS.indexOf(from);
+  var b = VENUE_HOURS.indexOf(to) === -1 && to === '22:00' ? VENUE_HOURS.length : VENUE_HOURS.indexOf(to);
+  if (a === -1 || b === -1 || b <= a) return null;
+  return VENUE_HOURS.slice(a, b);
+}
+
+/** body = { ids: [同一筆申請、同一天的借用ID], date, from, to }：改這一天的日期和時間（狀態不變） */
+function adminVenueEdit_(body) {
+  var ids = Array.isArray(body.ids) ? body.ids : [];
+  var date = cleanText_(body.date);
+  var slots = venueHourRange_(cleanText_(body.from), cleanText_(body.to));
+  if (!ids.length) throw new ApiError_('BAD_REQUEST', '沒有選要改的借用');
+  if (!isDateString_(date)) throw new ApiError_('VALIDATION', '日期格式不對');
+  if (!slots) throw new ApiError_('VALIDATION', '時間不對：開始要早於結束，07:00～22:00 之間');
+  return withSignupLock_(function () {
+    var rows = venueRows_();
+    var targets = ids.map(function (id) {
+      var r = rows.filter(function (x) { return x['借用ID'] === id; })[0];
+      if (!r) throw new ApiError_('NOT_FOUND', '找不到這筆借用，請重新整理');
+      return r;
+    });
+    var base = targets[0];
+    if (targets.some(function (t) { return t['申請ID'] !== base['申請ID'] || t['日期'] !== base['日期']; })) throw new ApiError_('BAD_REQUEST', '一次只能改同一筆申請的同一天');
+    if (base['狀態'] === '已同意') {
+      var clash = rows.filter(function (r) { return targets.indexOf(r) === -1 && r['日期'] === date && r['狀態'] === '已同意' && venueOverlap_([r['時段']], slots); });
+      if (clash.length) throw new ApiError_('VALIDATION', '沒有改', [{ message: shortDate_(date) + ' ' + venueLabel_(clash.map(function (r) { return r['時段']; })) + ' 已經借給' + clash[0]['姓名'] + '了' }]);
+    }
+    var before = shortDate_(base['日期']) + ' ' + venueLabel_(targets.map(function (t) { return t['時段']; }));
+    var tag = Date.now().toString(36).slice(-5);
+    deleteRows_(SHEETS.VENUE, targets.map(function (t) { return t._row; }));
+    invalidateTable_(SHEETS.VENUE);
+    appendRows_(SHEETS.VENUE, slots.map(function (h) { return venueCopyRow_(base, date, h, tag); }));
+    writeDutyLog_('場地修改', base['姓名'] + '｜' + base['用途'] + '｜' + before + ' → ' + shortDate_(date) + ' ' + venueLabel_(slots) + adminTag_());
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.VENUE);
+    return adminVenue_();
+  });
+}
+
+/** body = { map: { 早上: { from, to }, 下午: {...}, 晚上: {...} } }：舊的時段格式一次換成小時（狀態不變） */
+function adminVenueConvert_(body) {
+  var map = body.map || {};
+  var ranges = {};
+  Object.keys(VENUE_LEGACY).forEach(function (k) {
+    var m = map[k] || {};
+    var r = venueHourRange_(cleanText_(m.from), cleanText_(m.to));
+    if (!r) throw new ApiError_('VALIDATION', k + '的時間不對：開始要早於結束，07:00～22:00 之間');
+    ranges[k] = r;
+  });
+  return withSignupLock_(function () {
+    var old = venueRows_().filter(function (r) { return VENUE_LEGACY[r['時段']]; });
+    if (!old.length) return Object.assign({ converted: 0 }, adminVenue_());
+    var tag = Date.now().toString(36).slice(-5);
+    var fresh = [];
+    old.forEach(function (r) { ranges[r['時段']].forEach(function (h) { fresh.push(venueCopyRow_(r, r['日期'], h, tag)); }); });
+    deleteRows_(SHEETS.VENUE, old.map(function (r) { return r._row; }));
+    invalidateTable_(SHEETS.VENUE);
+    appendRows_(SHEETS.VENUE, fresh);
+    writeDutyLog_('場地修改', '舊的時段換成小時｜' + old.length + ' 筆｜' + Object.keys(ranges).map(function (k) { return k + ' ' + venueLabel_(ranges[k]); }).join('、') + adminTag_());
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.VENUE);
+    return Object.assign({ converted: old.length }, adminVenue_());
+  });
+}

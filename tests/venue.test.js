@@ -141,3 +141,33 @@ test('修繕回報：公開列表不含回報人電話；通知管理者；處�
   assert.deepEqual([after.items[0].status, after.costTotal], ['已修好', 1500]);
   assert.equal(env.get({ action: 'getRepairs' }).data.items[0].status, '已修好', '7 天內修好的還會顯示');
 });
+
+test('後台改場地的日期時間；舊的早上／下午／晚上一次換成小時', () => {
+  const env = createEnv(OCT_1);
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const call = (action, body) => env.post(Object.assign({ action, token }, body));
+  const H = (a, b) => Array.from({ length: b - a }, (_, i) => String(a + i).padStart(2, '0') + ':00');
+  env.post({ action: 'requestVenue', dates: ['2026-10-20'], slots: H(9, 12), name: '測試甲', phone: '0912345678', purpose: '讀經' });
+  env.post({ action: 'requestVenue', dates: ['2026-10-21'], slots: H(13, 15), name: '測試乙', phone: '0987654321', purpose: '書法' });
+  let list = call('adminVenue', {}).data.requests;
+  call('adminVenueDecide', { ids: list.map((r) => r.id), decision: '已同意' });
+  // 測試甲改到 10/21 14:00～16:00：和測試乙重疊，擋下
+  const ids = list.filter((r) => r.name === '測試甲').map((r) => r.id);
+  assert.equal(call('adminVenueEdit', { ids, date: '2026-10-21', from: '14:00', to: '16:00' }).error.code, 'VALIDATION');
+  assert.equal(call('adminVenueEdit', { ids, date: '2026-10-21', from: '15:00', to: '14:00' }).error.code, 'VALIDATION', '結束要晚於開始');
+  // 改到 10/21 15:00～17:00 可以
+  const r = call('adminVenueEdit', { ids, date: '2026-10-21', from: '15:00', to: '17:00' });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  const mine = env.post({ action: 'myVenue', name: '測試甲' }).data.requests;
+  assert.deepEqual(mine.map((x) => [x.date, x.slot, x.status]), [['2026-10-21', '15:00～17:00', '已同意']]);
+  // 舊格式換成小時
+  const VENUE = env.fn('SHEETS').VENUE;
+  env.fn('appendRows_')(VENUE, [{ '借用ID': 'V-old-1', '申請ID': 'V-old', '日期': '2026-10-24', '時段': '早上', '姓名': '測試丙', '電話': '0900000000', '用途': '舊資料', '狀態': '已同意' }]);
+  env.fn('invalidateTable_')(VENUE);
+  const c = call('adminVenueConvert', { map: { 早上: { from: '07:00', to: '12:00' }, 下午: { from: '13:00', to: '17:00' }, 晚上: { from: '18:00', to: '21:00' } } });
+  assert.equal(c.ok, true, JSON.stringify(c.error));
+  assert.equal(c.data.converted, 1);
+  const rows = c.data.requests.filter((x) => x.name === '測試丙');
+  assert.deepEqual([rows.map((x) => x.slot), rows[0].status, rows[0].group], [H(7, 12), '已同意', 'V-old']);
+  assert.equal(env.get({ action: 'getEvents', from: '2026-10-24', to: '2026-10-24' }).data.venue[0].slot, '07:00～12:00');
+});

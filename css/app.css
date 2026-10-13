@@ -2243,6 +2243,8 @@ body.splash-on .text-size-btn { visibility: hidden; }
 .hour-picked { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 10px 0 4px; }
 .vm-failed-toggle { margin-top: 10px; min-height: 52px; font-size: 1.0625rem; font-weight: 700; }
 .vm-failed { margin-top: 8px; opacity: .85; }
+.venue-legacy { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.venue-legacy p { margin: 0; }
 .mcal { max-width: 460px; }
 .mcal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
 .mcal-head strong { font-size: 1.0625rem; }

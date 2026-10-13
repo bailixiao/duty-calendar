@@ -343,6 +343,8 @@ function adminRun_(body) {
     case 'adminGoals': return adminGoals_(body);
     case 'adminVenue': return adminVenue_(body);
     case 'adminVenueDecide': return adminVenueDecide_(body);
+    case 'adminVenueEdit': return adminVenueEdit_(body);
+    case 'adminVenueConvert': return adminVenueConvert_(body);
     case 'adminSaveGoals': return adminSaveGoals_(body);
     case 'adminAddAttendee': return adminAddAttendee_(body);
     case 'adminStats': return adminStats_(body);

@@ -18,7 +18,7 @@
     const map = new Map();
     list.forEach((r) => {
       const k = r.group + '|' + r.status + '|' + (r.cancelAsk ? 'c' : '');
-      if (!map.has(k)) map.set(k, Object.assign({}, r, { ids: [], slots: [], dates: [], items: [] }));
+      if (!map.has(k)) map.set(k, Object.assign({}, r, { key: k, ids: [], slots: [], dates: [], items: [] }));
       const g = map.get(k);
       g.ids.push(r.id);
       g.items.push(r);
@@ -47,13 +47,16 @@
           ${g.cancelAsk ? `<div><dt>申請取消</dt><dd>${esc(g.cancelAsk)}</dd></div>` : ''}
           ${g.decidedAt ? `<div><dt>審核</dt><dd>${esc(g.decidedAt)}${g.decidedBy ? `（${esc(g.decidedBy)}）` : ''}${g.note ? `・${esc(g.note)}` : ''}</dd></div>` : ''}
         </dl>
-        ${actions && canDecide() ? `<div class="vr-actions">${actions(g)}</div>` : ''}
+        ${actions && canDecide() ? `<div class="vr-actions">${actions(g)}${(g.status === '待審核' || g.status === '已同意') && g.last >= todayStr ? `<button type="button" class="btn btn-small" data-edit="${esc(g.key)}">✏️ 改日期時間</button>` : ''}</div>` : ''}
       </li>`;
   }
 
+  let todayStr = '';
   function render(body, guard, data, stale) {
     const today = data.today;
+    todayStr = today;
     const all = groups(data.requests);
+    const legacy = data.requests.filter((r) => VenueHours.LEGACY[r.slot]);
     const cancelAsks = all.filter((g) => g.cancelAsk);
     const pending = all.filter((g) => !g.cancelAsk && g.status === '待審核' && g.last >= today);
     const approved = all.filter((g) => !g.cancelAsk && g.status === '已同意' && g.last >= today);
@@ -65,6 +68,7 @@
     body.innerHTML = `
       ${AdminPage.staleNote(stale)}
       ${canDecide() ? '<div class="venue-watch" data-watch></div>' : ''}
+      ${canDecide() && legacy.length ? `<div class="notice venue-legacy"><p>🕘 有 <strong>${legacy.length} 筆</strong>是舊的時段格式（早上／下午／晚上）。換成小時格式後，就能用「改日期時間」調整。</p><button type="button" class="btn" data-convert>換成小時格式</button></div>` : ''}
       ${cancelAsks.length ? `<h2 class="admin-sub">申請取消 <span class="badge badge-short">${cancelAsks.length} 筆</span></h2>
       <p class="hint">申請人想取消這些時段。同意取消後，行事曆上的「已借出」才會消失；不同意就維持原狀（可以寫原因給申請人看）。</p>
       <ul class="venue-reqs">${cancelAsks.map((g) => card(g, (x) => `<button type="button" class="btn btn-primary" data-cok="${esc(x.ids.join(','))}">同意取消</button>
@@ -144,6 +148,131 @@
       });
     });
     body.querySelectorAll('[data-cancel]').forEach((b) => b.addEventListener('click', () => askReason('取消這個借用', (note) => decide(b.dataset.cancel, '已取消', note))));
+    body.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => {
+      const g = all.find((x) => x.key === b.dataset.edit);
+      if (g) editVenue(g, (res) => render(body, guard, res, false), guard);
+    }));
+    const cv = body.querySelector('[data-convert]');
+    if (cv) cv.addEventListener('click', () => convertLegacy(legacy.length, (res) => render(body, guard, res, false), guard));
+  }
+
+  // ---------- 改日期時間、舊格式換成小時 ----------
+
+  const hourOptions = (list, cur) => list.map((h) => `<option value="${h}"${h === cur ? ' selected' : ''}>${h}</option>`).join('');
+  const STARTS = VenueHours.HOURS;
+  const ENDS = VenueHours.HOURS.map(VenueHours.next);
+
+  /** 改一筆借用的日期和時間（好幾天的先選哪一天） */
+  function editVenue(g, done, guard) {
+    const days = g.dates.slice().sort().filter((d) => d >= todayStr);
+    const itemsOf = (d) => g.items.filter((r) => r.date === d);
+    const m = Modal.open(`
+      <h2 class="modal-title">✏️ 改日期時間</h2>
+      <p class="modal-note">${esc(g.name)}・${esc(g.purpose)}（${esc(g.status)}）</p>
+      <form class="modal-form" novalidate>
+        ${days.length > 1 ? `<label class="form-row"><span>要改哪一天</span><select class="input" name="which">${days.map((d) => `<option value="${d}">${esc(Fmt.shortDate(d) + ' ' + VenueHours.label(itemsOf(d).map((r) => r.slot)))}</option>`).join('')}</select></label>` : `<p>原本：${esc(Fmt.shortDate(days[0]) + ' ' + VenueHours.label(itemsOf(days[0]).map((r) => r.slot)))}</p>`}
+        <label class="form-row"><span>新的日期</span><input class="input" type="date" name="date" min="${todayStr}" value="${days[0]}"></label>
+        <div class="form-row form-row-pair">
+          <label><span>開始</span><select class="input" name="from"></select></label>
+          <label><span>結束</span><select class="input" name="to"></select></label>
+        </div>
+        <div data-day-info class="hint"></div>
+        <div class="form-error" data-err hidden></div>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-primary btn-block">儲存</button>
+          <button type="button" class="btn btn-block" data-close>返回</button>
+        </div>
+      </form>`);
+    const f = m.el.querySelector('form');
+    const fill = () => {
+      const d = f.elements.which ? f.elements.which.value : days[0];
+      const hs = [].concat(...itemsOf(d).map((r) => VenueHours.hoursOf(r.slot))).sort();
+      f.elements.from.innerHTML = hourOptions(STARTS, hs[0] || '09:00');
+      f.elements.to.innerHTML = hourOptions(ENDS, hs.length ? VenueHours.next(hs[hs.length - 1]) : '10:00');
+      f.elements.date.value = d;
+      info();
+    };
+    // 那天其他人的借用（參考）
+    const info = async () => {
+      const box = m.el.querySelector('[data-day-info]');
+      const d = f.elements.date.value;
+      if (!d) { box.textContent = ''; return; }
+      box.textContent = '讀取那天的借用⋯';
+      try {
+        const res = await Api.getVenue(d, d);
+        const own = new Set(itemsOf(f.elements.which ? f.elements.which.value : days[0]).flatMap((r) => VenueHours.hoursOf(r.slot)));
+        const orig = f.elements.which ? f.elements.which.value : days[0];
+        const busy = (res.days[d] || []).filter((x) => x.status !== '可以借' && !(d === orig && own.has(x.slot))); // 自己原本的時間不算
+        box.innerHTML = busy.length ? '那天已有：' + busy.map((x) => `${esc(x.slot)} ${x.status === '已借出' ? esc(x.purpose + '（' + x.name + '）') : '有人申請中'}`).join('、') : '那天其他時間都還可以借。';
+      } catch (e) { box.textContent = ''; }
+    };
+    if (f.elements.which) f.elements.which.addEventListener('change', fill);
+    f.elements.date.addEventListener('change', info);
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    fill();
+    f.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const d = f.elements.which ? f.elements.which.value : days[0];
+      const err = f.querySelector('[data-err]');
+      if (f.elements.to.value <= f.elements.from.value) { err.textContent = '結束要晚於開始'; err.hidden = false; return; }
+      Busy.show('儲存中⋯');
+      try {
+        const res = await Api.admin('adminVenueEdit', { ids: itemsOf(d).map((r) => r.id), date: f.elements.date.value, from: f.elements.from.value, to: f.elements.to.value });
+        Busy.hide();
+        m.close();
+        AdminPage.clearMemo();
+        if (window.CalendarPage) CalendarPage.refresh();
+        done(res);
+      } catch (e) {
+        Busy.hide();
+        if (guard(e)) return;
+        err.innerHTML = `<strong>${esc(e.message || '沒有改成功')}</strong>${(e.details || []).map((x) => '<br>' + esc(x.message)).join('')}`;
+        err.hidden = false;
+      }
+    });
+  }
+
+  /** 舊的早上／下午／晚上一次換成小時 */
+  function convertLegacy(n, done, guard) {
+    const DEF = { 早上: ['07:00', '12:00'], 下午: ['13:00', '17:00'], 晚上: ['18:00', '21:00'] };
+    const m = Modal.open(`
+      <h2 class="modal-title">🕘 換成小時格式</h2>
+      <p class="modal-note">有 ${n} 筆是舊的時段格式。設定早上、下午、晚上各要換成幾點到幾點，按確定就一次換好（狀態、申請人不變）。</p>
+      <form class="modal-form" novalidate>
+        ${Object.keys(DEF).map((k) => `<div class="form-row"><span>${k}</span><div class="form-row-pair">
+          <label><span class="sr-only">${k}開始</span><select class="input" name="${k}-from">${hourOptions(STARTS, DEF[k][0])}</select></label>
+          <label><span class="sr-only">${k}結束</span><select class="input" name="${k}-to">${hourOptions(ENDS, DEF[k][1])}</select></label>
+        </div></div>`).join('')}
+        <div class="form-error" data-err hidden></div>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-primary btn-block">確定換成小時格式</button>
+          <button type="button" class="btn btn-block" data-close>返回</button>
+        </div>
+      </form>`);
+    const f = m.el.querySelector('form');
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    f.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const map = {};
+      Object.keys(DEF).forEach((k) => { map[k] = { from: f.elements[k + '-from'].value, to: f.elements[k + '-to'].value }; });
+      const err = f.querySelector('[data-err]');
+      const bad = Object.keys(map).find((k) => map[k].to <= map[k].from);
+      if (bad) { err.textContent = bad + '：結束要晚於開始'; err.hidden = false; return; }
+      Busy.show('換格式中⋯');
+      try {
+        const res = await Api.admin('adminVenueConvert', { map });
+        Busy.hide();
+        m.close();
+        AdminPage.clearMemo();
+        if (window.CalendarPage) CalendarPage.refresh();
+        done(res);
+      } catch (e) {
+        Busy.hide();
+        if (guard(e)) return;
+        err.textContent = e.message || '沒有成功';
+        err.hidden = false;
+      }
+    });
   }
 
   // ---------- 修繕（回報的問題、處理進度、費用與廠商） ----------
