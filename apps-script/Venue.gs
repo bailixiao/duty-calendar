@@ -544,12 +544,12 @@ function adminVenueChangeDecide_(body) {
 
 // ---------- 場地使用統計 ----------
 
-/** body = { month: 'yyyy-MM' }：這個月已同意的借用（同一筆申請同一天合成一筆） */
+/** body = { month: 'yyyy-MM' } 或 { year: 2026 }：這段期間已同意的借用（同一筆申請同一天合成一筆） */
 function adminVenueStats_(body) {
-  var month = /^\d{4}-\d{2}$/.test(String(body.month || '')) ? body.month : todayString_().slice(0, 7);
+  var month = /^\d{4}$/.test(String(body.year || '')) ? String(body.year) : /^\d{4}-\d{2}$/.test(String(body.month || '')) ? body.month : todayString_().slice(0, 7);
   var groups = {};
   var order = [];
-  venueRows_().filter(function (r) { return r['狀態'] === '已同意' && String(r['日期']).slice(0, 7) === month; }).forEach(function (r) {
+  venueRows_().filter(function (r) { return r['狀態'] === '已同意' && String(r['日期']).slice(0, month.length) === month; }).forEach(function (r) {
     var k = r['申請ID'] + '|' + r['日期'];
     if (!groups[k]) { groups[k] = { date: r['日期'], slots: [], name: r['姓名'], purpose: r['用途'] }; order.push(k); }
     groups[k].slots.push(r['時段']);

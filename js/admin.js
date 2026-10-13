@@ -139,6 +139,7 @@
     if (sub === 'groups') return PeoplePage.groups(shell('groups'), guard);
     if (sub === 'stats') return StatsPage.show(shell('stats'), guard);
     if (sub === 'history') return HistoryPage.show(shell('stats'), guard);
+    if (sub === 'report') return ReportPage.show(shell('report'), guard);
     if (sub === 'logs' && seesLogs()) return AdminPages.logs(shell('logs'), guard);
     if (sub === 'day' && seesRoster()) return AdminPages.day(shell('day'), guard);
     if (sub === 'push' && seesRoster()) return PushAdminPage.show(shell('push'), guard);
@@ -149,7 +150,7 @@
   function shell(active) {
     const who = Api.adminWho();
     const T = term();
-    const tabs = [['', '近期' + T], ['duties', T + '管理'], ['members', '成員'], ['groups', '分組'], ['stats', '統計'], ['logs', '操作紀錄'], ['day', '名單'], ['push', '📣 推播']];
+    const tabs = [['', '近期' + T], ['duties', T + '管理'], ['members', '成員'], ['groups', '分組'], ['stats', '統計'], ['report', '📑 年度總結'], ['logs', '操作紀錄'], ['day', '名單'], ['push', '📣 推播']];
     if (['總管理者', '唯讀'].indexOf(who.role) !== -1) tabs.push(['venue', '場地借用']);
     if (who.role === '總管理者') tabs.push(['accounts', '帳號']);
     if (who.role === '唯讀') tabs.splice(tabs.findIndex((t) => t[0] === 'duties'), 1); // 唯讀帳號：不顯示勤務管理
@@ -415,7 +416,7 @@
           </div>
           ${!d.signups ? '<p class="muted">載入名單中⋯</p>' : people.length ? `<ul class="people">${people.map((s) => `
             <li class="person-row${past && s.attend === '未到' ? ' is-absent' : ''}">
-              <span class="person"><span class="person-name">${s.leader ? '<span class="grid-star" title="組長">★</span>' : ''}${esc(s.name)}</span>${s.leader && d.leaderTitle ? `<span class="tag tag-leader">${esc(d.leaderTitle)}</span>` : ''}${s.temple ? `<span class="tag">${esc(s.temple)}</span>` : ''}
+              <span class="person"><span class="person-name">${s.leader ? '<span class="grid-star" title="組長">★</span>' : ''}${esc(s.name)}</span>${s.first ? '<span class="tag tag-new">🆕 新朋友</span>' : ''}${s.leader && d.leaderTitle ? `<span class="tag tag-leader">${esc(d.leaderTitle)}</span>` : ''}${s.temple ? `<span class="tag">${esc(s.temple)}</span>` : ''}
                 ${s.identity ? `<span class="tag">${esc(s.identity)}</span>` : '<span class="tag tag-warn">未填身分</span>'}
                 ${s.accompany ? '<span class="tag">陪同</span>' : ''}
                 ${past && s.attend === '未到' ? '<span class="tag tag-warn">未到</span>' : ''}

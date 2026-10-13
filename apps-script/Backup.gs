@@ -50,3 +50,19 @@ function backupFolder_() {
   props.setProperty('BACKUP_FOLDER_ID', folder.getId());
   return folder;
 }
+
+/** 後台「下載完整備份」（總管理者）：每個分頁的表頭與資料；帳號的密碼、推播的手機網址不放 */
+function adminBackup_() {
+  var skip = { ACCOUNTS: ['密碼雜湊', '鹽'], PUSH: ['端點'], PUSH_TARGETS: ['端點'] };
+  return {
+    at: nowString_(),
+    tables: Object.keys(SHEETS).map(function (key) {
+      var def = SHEETS[key];
+      var hide = skip[key] || [];
+      var headers = def.headers.filter(function (h) { return hide.indexOf(h) === -1; });
+      var rows;
+      try { rows = readTable_(def); } catch (e) { rows = []; }
+      return { name: def.name, headers: headers, rows: rows.map(function (r) { return headers.map(function (h) { return r[h] === undefined ? '' : r[h]; }); }) };
+    })
+  };
+}

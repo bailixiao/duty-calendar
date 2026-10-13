@@ -17,20 +17,43 @@
     Api.admin('adminAccounts', {}, true).then((data) => render(body, guard, data), (err) => guard(err, body));
   }
 
+  /** 超過 90 天沒登入（建立超過 90 天又從沒登入也算） */
+  function staleLogin(a) {
+    const t = a.lastLogin || a.createdAt;
+    if (!t) return false;
+    return Date.now() - new Date(String(t).replace(' ', 'T') + '+08:00').getTime() > 90 * 86400000;
+  }
+
   function render(body, guard, data, flash) {
     body.innerHTML = `
       ${flash || ''}
-      <div class="admin-toolbar"><button type="button" class="btn btn-primary" data-new>＋ 新增帳號</button></div>
+      <div class="admin-toolbar"><button type="button" class="btn btn-primary" data-new>＋ 新增帳號</button><button type="button" class="btn" data-backup>💾 下載完整備份</button></div>
+      <p class="hint">完整備份：所有資料存成一個 Excel 檔（不含帳號密碼、手機推播網址），建議每個月下載一次留在電腦裡。</p>
       <p class="hint">總管理者就是你現在用的帳號（帳號欄留空或填「總管理者」＋原本的管理密碼），不會列在下面。</p>
       ${data.accounts.length ? `<ul class="account-list">${data.accounts.map((a, i) => `
         <li class="account-item${a.active ? '' : ' is-off'}">
           <button type="button" class="account-main" data-edit="${i}">
             <span class="account-name">${esc(a.account)}${a.name ? `<small>${esc(a.name)}</small>` : ''}</span>
             <span class="account-role role-${esc(a.role)}">${esc(a.role)}</span>
-            <span class="account-meta">${a.active ? '' : '已停用・'}${a.lastLogin ? '最後登入 ' + esc(a.lastLogin) : '還沒登入過'}</span>
+            <span class="account-meta">${a.active ? '' : '已停用・'}${a.lastLogin ? '最後登入 ' + esc(a.lastLogin) : '還沒登入過'}${a.active && staleLogin(a) ? '<strong class="account-stale">⚠️ 很久沒登入，可以考慮停用</strong>' : ''}</span>
           </button>
         </li>`).join('')}</ul>` : '<p class="panel-empty">還沒有其他帳號，按上面的「＋ 新增帳號」建立。</p>'}`;
     body.querySelector('[data-new]').addEventListener('click', () => edit(null));
+    body.querySelector('[data-backup]').addEventListener('click', async (ev) => {
+      const btn = ev.target;
+      btn.disabled = true;
+      btn.textContent = '準備備份中⋯';
+      try {
+        const res = await Api.admin('adminBackup', {});
+        await StatsExport.backup(res);
+        btn.textContent = '已下載 ✓';
+      } catch (err) {
+        if (!guard(err)) alert(err.message || '備份失敗，請再試一次');
+        btn.textContent = '💾 下載完整備份';
+      }
+      btn.disabled = false;
+      setTimeout(() => { btn.textContent = '💾 下載完整備份'; }, 3000);
+    });
     body.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => edit(data.accounts[Number(b.dataset.edit)])));
 
     function edit(a) {

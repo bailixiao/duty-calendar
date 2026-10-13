@@ -276,3 +276,28 @@ function groupBy_(rows, key) {
   });
   return map;
 }
+
+/** 給分壇行事曆等其他網站讀的公開資料（不含人名、電話）：params = { from?, to? }，預設今天起 60 天，最多 120 天 */
+function publicFeed_(params) {
+  var today = todayString_();
+  var from = isDateString_(params.from) ? params.from : today;
+  var to = isDateString_(params.to) ? params.to : addDaysStr_(from, 59);
+  if (to < from) throw new ApiError_('BAD_REQUEST', '日期區間不對');
+  if (datesInRange_(from, to).length > 120) to = addDaysStr_(from, 119);
+  var ev = getEvents_({ from: from, to: to });
+  var labels = SITE.categoryLabels || {};
+  var out = [];
+  ev.duties.forEach(function (d) {
+    var dates = d.mode === '公告型' ? datesInRange_(d.start > from ? d.start : from, d.end < to ? d.end : to) : Object.keys(d.days || {});
+    dates.forEach(function (date) {
+      var day = (d.days || {})[date] || {};
+      var free = d.category === '道務' || d.category === '教育';
+      var status = d.mode === '公告型' ? '公告' : day.full ? '額滿' : !free && day.shortage > 0 ? '缺 ' + day.shortage + ' 人' : '已報 ' + (day.total || 0) + ' 人';
+      out.push({ id: d.id, date: date, title: d.name, category: labels[d.category] || d.category, nature: d.nature, mode: d.mode,
+        startTime: d.startTime || '', endTime: d.endTime || '', location: d.location || '', status: status,
+        url: SITE.siteUrl + '#/duty/' + encodeURIComponent(d.id) + '?date=' + date });
+    });
+  });
+  out.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : String(a.startTime).localeCompare(String(b.startTime)); });
+  return { org: SITE.org, site: SITE.name, from: from, to: to, events: out };
+}

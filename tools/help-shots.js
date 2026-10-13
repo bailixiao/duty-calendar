@@ -109,8 +109,8 @@ const SHOTS = [
     clip: `return __box('#cat-filter', 10);` },
   { name: 'recent', hash: '#/', js: `document.querySelector('[data-view=recent]').click(); document.querySelector('[data-cat="全部"]')?.click(); await __wait(600);`,
     clip: `const a = document.querySelector('#cat-filter'); a.scrollIntoView(); const r = a.getBoundingClientRect(); return { x: 0, y: r.top + scrollY - 6, width: innerWidth, height: 900 };` },
-  { name: 'signup-form', hash: null, js: `const d = (await __g({ action: 'getEvents', from: '2026-10-13', to: '2026-10-13' })).data.duties.find((x) => x.name.includes('志工輪值'));
-      location.hash = '#/duty/' + encodeURIComponent(d.id) + '?date=2026-10-13'; await __wait(2500);
+  { name: 'signup-form', hash: null, js: `const res = (await __g({ action: 'getEvents', from: '2026-10-13', to: '2026-11-30' })).data; const d = res.duties.find((x) => x.name.includes('志工輪值') && x.start > res.today); // 當天不能報名，挑之後的
+      location.hash = '#/duty/' + encodeURIComponent(d.id) + '?date=' + d.start; await __wait(2500);
       const inp = document.querySelector('#view-duty input[type=text], #view-duty input:not([type])'); inp.value = '測試乙'; inp.dispatchEvent(new Event('input', { bubbles: true }));
       const add = [...document.querySelectorAll('#view-duty button')].find((b) => b.textContent.trim() === '加入'); add.click(); await __wait(400);
       const idb = [...document.querySelectorAll('#view-duty button')].find((b) => b.textContent.trim() === '道親'); if (idb) idb.click(); await __wait(300);`,

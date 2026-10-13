@@ -10,7 +10,16 @@
 var ROLES = ['總管理者', '勤務', '道務', '教育', '唯讀', '場管']; // 場管＝區中心場管：只審核場地借用
 var CATEGORIES = ['勤務', '道務', '教育'];
 var SUPER_ACCOUNT = '總管理者';
-var PASSWORD_MIN = 6;
+var PASSWORD_MIN = 8;
+
+/** 太簡單的密碼：全部同一個字、連號、常見的 */
+function weakPassword_(p) {
+  var s = String(p || '').toLowerCase();
+  if (/^(.)\1+$/.test(s)) return true;
+  if ('0123456789012345678901234567890'.indexOf(s) !== -1 || '9876543210987654321098765432109'.indexOf(s) !== -1) return true;
+  if ('abcdefghijklmnopqrstuvwxyz'.indexOf(s) !== -1) return true;
+  return ['password', 'password1', 'qwerty123', 'qwertyui', 'iloveyou', 'admin123', 'aa123456', 'a1234567', '11223344', '88888888', '00000000'].indexOf(s) !== -1;
+}
 
 /** 目前這次請求的登入者（{ account, role }）；操作紀錄記下是誰做的 */
 var ADMIN_SESSION_ = null;
@@ -214,6 +223,7 @@ function adminSaveAccount_(body) {
   if (ROLES.indexOf(a.role) <= 0) errors.push('請選角色（勤務、道務、教育、唯讀或場管）');
   var password = String(a.password || '');
   if (password && password.length < PASSWORD_MIN) errors.push('密碼至少 ' + PASSWORD_MIN + ' 個字');
+  else if (password && weakPassword_(password)) errors.push('密碼太簡單了（例如 12345678、同一個字重複），請換一個');
   return withSignupLock_(function () {
     var rows = accountRows_();
     var original = String(a.original || '');

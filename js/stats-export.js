@@ -101,5 +101,28 @@
     X.writeFile(wb, safeFile(`統計_${cat}_${C.label(p)}`) + '.xlsx');
   }
 
-  window.StatsExport = { general, edu };
+  /** 年度總結（後台📑 年度總結） */
+  async function yearReport(m) {
+    const X = await lib();
+    const wb = X.utils.book_new();
+    const L = window.SITE.categoryLabels || {};
+    addSheet(X, wb, '總覽', [['年度', m.year], ['全年出席人次', m.total], ['新朋友', m.newcomers.length], [], ['類別', '場次', '人次', '不重複人數']].concat(m.byCat.map((c) => [L[c.cat] || c.cat, c.events, c.attend, c.unique]))
+      .concat(m.people ? [[], ['成員', m.people.members], ['道親', m.people.dao], ['已清口', m.people.veg], ['平均年齡', m.people.avg]] : [])
+      .concat(m.venue ? [[], [window.SITE.venue + '借出次數', m.venue.times], ['借出時數', m.venue.hours]] : []), [16, 10, 10, 12]);
+    addSheet(X, wb, '每月人次', [['月份', '人次']].concat(m.months.map((n, i) => [(i + 1) + ' 月', n])), [8, 8]);
+    addSheet(X, wb, '最常來的家人', [['名次', '姓名', '次數']].concat(m.top.map(([n, v], i) => [i + 1, n, v])), [6, 12, 8]);
+    addSheet(X, wb, '新朋友', [['姓名', '第一次', '今年次數']].concat(m.newcomers.map((x) => [x.name, x.date, x.times])), [12, 12, 10]);
+    if (m.goals) addSheet(X, wb, '道務目標', [['項目', '目前', '目標', '達成率']].concat(m.goals.map((g) => [g.item, g.current, g.target, g.rate === null ? '' : Math.round(g.rate * 100) + '%'])), [10, 8, 8, 8]);
+    X.writeFile(wb, safeFile(`年度總結_${m.year}`) + '.xlsx');
+  }
+
+  /** 完整備份（後台帳號頁）：一個分頁一張工作表 */
+  async function backup(data) {
+    const X = await lib();
+    const wb = X.utils.book_new();
+    data.tables.forEach((t) => addSheet(X, wb, t.name, [t.headers].concat(t.rows)));
+    X.writeFile(wb, safeFile(`${window.SITE.name}_完整備份_${data.at.slice(0, 10)}`) + '.xlsx');
+  }
+
+  window.StatsExport = { general, edu, yearReport, backup };
 })();

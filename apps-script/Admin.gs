@@ -63,8 +63,16 @@ function adminDuty_(body) {
   var data = getDuty_({ id: body.id });
   var byId = {};
   readTableCached_(SHEETS.SIGNUPS).forEach(function (s) { byId[s['報名ID']] = s; });
+  // 新朋友：這筆之前沒有任何報名紀錄（同名同佛堂）
+  var firstDate = {};
+  readTableCached_(SHEETS.SIGNUPS).forEach(function (s) {
+    if (s['狀態'] === '已取消' || !s['日期']) return;
+    var k = normalizeName_(s['姓名']) + '|' + (s['佛堂'] || '');
+    if (!firstDate[k] || s['日期'] < firstDate[k]) firstDate[k] = s['日期'];
+  });
   data.signups.forEach(function (s) {
     var row = byId[s.id] || {};
+    s.first = firstDate[normalizeName_(row['姓名'] || s.name) + '|' + (row['佛堂'] || '')] === s.date;
     s.identity = row['身分'] || '';
     s.createdAt = row['建立時間'] || '';
     s.attend = row['出席'] || '出席';
@@ -349,6 +357,7 @@ function adminRun_(body) {
     case 'adminVenueConvert': return adminVenueConvert_(body);
     case 'adminVenueChangeDecide': return adminVenueChangeDecide_(body);
     case 'adminVenueStats': return adminVenueStats_(body);
+    case 'adminBackup': return adminBackup_();
     case 'adminSaveGoals': return adminSaveGoals_(body);
     case 'adminAddAttendee': return adminAddAttendee_(body);
     case 'adminStats': return adminStats_(body);

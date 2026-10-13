@@ -2244,6 +2244,16 @@ body.splash-on .text-size-btn { visibility: hidden; }
 .vm-failed-toggle { margin-top: 10px; min-height: 52px; font-size: 1.0625rem; font-weight: 700; }
 .vm-failed { margin-top: 8px; opacity: .85; }
 .grid-locked { margin: 8px 0; }
+.tag.tag-new { background: #e8f3e3; color: #3d6b2e; border-color: #c4dcb8; }
+.account-stale { display: block; margin-top: 2px; color: #8a5a00; font-weight: 700; }
+.report-head { max-width: 420px; }
+.report-title { margin: 0; font-size: 1.375rem; text-align: center; }
+.report-title small { display: block; font-size: 0.875rem; font-weight: 400; color: var(--muted); }
+.report-recent { margin-bottom: 16px; }
+html.easy #view-calendar .toolbar, html.easy #cat-filter { display: none !important; }
+html.easy #view-calendar .top-links .btn { min-height: 60px; font-size: 1.1875rem; }
+.easy-bar { margin: 8px 0; font-size: 1.0625rem; }
+.top-links-row .easy-toggle { grid-column: 1 / -1; flex-basis: 100%; }
 .vm-change { margin-top: 6px; flex-basis: 100%; }
 .venue-stats { margin-top: 24px; }
 .vs-head { max-width: 360px; }
