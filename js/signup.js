@@ -12,6 +12,23 @@
     return String(name || '').replace(/^[\s　]+|[\s　]+$/g, '');
   }
 
+  // 從 LINE 貼上的名單常有編號：「1.百里 2.淳如」「①百里」「(1)百里」「1、百里」，編號都拿掉只留名字
+  const LIST_MARK = /[(（]?[0-9０-９]{1,2}[.．、)）:：](?![0-9０-９])|[(（][0-9０-９]{1,2}[)）]|[①-⑳]/g;
+  const cleanPart = (p) => normalize(String(p).replace(/^[\s　0-9０-９\-－]+|[\s　0-9０-９\-－]+$/g, ''));
+
+  /**
+   * 一格打了好幾個名字就拆開：王小明.測試甲、王小明 測試甲、一行一個、1.百里 2.淳如（編號拿掉）。
+   * 空白只在每段都是兩個字以上的中文時才算分隔（英文名字中間的空白不拆）。
+   */
+  function splitInput(raw) {
+    const text = String(raw || '').replace(LIST_MARK, '、').replace(/\r?\n/g, '、');
+    const byMark = text.split(/[、,，.。．\/／;；|]+/).map(cleanPart).filter(Boolean);
+    return byMark.flatMap((part) => {
+      const bySpace = part.split(/[\s　]+/).filter(Boolean);
+      return bySpace.length > 1 && bySpace.every((x) => /^[一-鿿]{2,}$/.test(x)) ? bySpace : [part];
+    });
+  }
+
   function mount(el, duty, defaultDate, onSuccess) {
     const allDates = Fmt.datesBetween(duty.start, duty.end);
     const openDates = allDates.filter((d) => d > duty.today); // 勤務當天（含）之後不能報名
@@ -325,15 +342,6 @@
       } catch (e) { /* 查不到就讓報名者自己選，伺服器存檔時仍會以成員名單為準 */ }
     }
 
-    /** 一格打了好幾個名字（王小明.測試甲、王小明 測試甲）就拆開；空白只在每段都是兩個字以上的中文時才算分隔 */
-    function splitInput(raw) {
-      const byMark = String(raw || '').split(/[、,，.。．\/／;；|]+/).map(normalize).filter(Boolean);
-      return byMark.flatMap((part) => {
-        const bySpace = part.split(/[\s　]+/).filter(Boolean);
-        return bySpace.length > 1 && bySpace.every((x) => /^[\u4e00-\u9fff]{2,}$/.test(x)) ? bySpace : [part];
-      });
-    }
-
     function addFromInput() {
       const parts = splitInput(input.value);
       if (parts.length > 1) {
@@ -353,7 +361,7 @@
         input.focus();
         return;
       }
-      if (addName(input.value)) {
+      if (addName(parts.length === 1 ? parts[0] : input.value)) { // 「1.百里」也只留「百里」
         input.value = '';
         clearSuggestions();
       }
@@ -728,5 +736,5 @@
     renderNames();
   }
 
-  window.SignupForm = { mount };
+  window.SignupForm = { mount, splitInput };
 })();
