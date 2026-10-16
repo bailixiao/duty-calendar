@@ -233,6 +233,8 @@
     cancel: (signupId) => post({ action: 'cancel', signupId }),
     reschedule: (payload) => post(Object.assign({ action: 'reschedule' }, payload)),
     setNote: (payload) => post(Object.assign({ action: 'setNote' }, payload)),
+    groupNote: (payload) => post(Object.assign({ action: 'groupNote' }, payload)),
+    groupNoteDelete: (payload) => post(Object.assign({ action: 'groupNoteDelete' }, payload)),
     gridMove: (payload) => post(Object.assign({ action: 'gridMove' }, payload)),
     gridNote: (payload) => post(Object.assign({ action: 'gridNote' }, payload)),
     // 手機提醒（推播）：只送瀏覽器產生的推播網址，沒有名字

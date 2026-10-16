@@ -7,7 +7,7 @@
 
 var RATE_LIMIT = 20;
 var RATE_WINDOW_SEC = 600;
-var RATE_ACTIONS = ['signup', 'cancel', 'reschedule', 'requestVenue', 'cancelVenue', 'venueWatch', 'reportRepair', 'repairWatch', 'repairUpload', 'pushSubscribe', 'pushUnsubscribe', 'pushSetName', 'pushTest', 'rollcallSet'];
+var RATE_ACTIONS = ['signup', 'cancel', 'reschedule', 'requestVenue', 'cancelVenue', 'venueWatch', 'reportRepair', 'repairWatch', 'repairUpload', 'pushSubscribe', 'pushUnsubscribe', 'pushSetName', 'pushTest', 'rollcallSet', 'groupNote', 'groupNoteDelete'];
 var MAX_SIGNUP_NAMES = 20;
 
 function rateLimit_(body) {

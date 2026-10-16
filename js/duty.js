@@ -156,6 +156,7 @@
       ${d.layout === '職司表' ? stagesSection(d) : ''}
       ${d.mergeHost ? mergeHostSection(d) : ''}
       ${d.mode === '公告型' && (d.group || d.groupInfo) ? groupSection(d) : ''}
+      ${Array.isArray(d.groupNotes) ? groupNotesSection(d) : ''}
       ${dm.length ? `
         <section class="detail-section">
           <h2>DM${dmImages.length ? '<span class="h2-sub">點圖片可以放大</span>' : ''}</h2>
@@ -179,6 +180,118 @@
         </section>` : ''}`;
     el.querySelectorAll('[data-img]').forEach((b) => b.addEventListener('click', () => openImage(images[Number(b.dataset.img)])));
     el.querySelectorAll('[data-dm-img]').forEach((b) => b.addEventListener('click', () => openImage(dmImages[Number(b.dataset.dmImg)])));
+    bindGroupNotes(el);
+  }
+
+  // ---------- 組員備註（負責組的家人留一句話，例如想改到哪一天；見 apps-script/GroupNote.gs） ----------
+
+  function groupNotesSection(d) {
+    const notes = d.groupNotes;
+    return `
+      <section class="detail-section group-notes">
+        <h2>📝 組員備註</h2>
+        <p class="hint">${esc(d.group)}的家人可以在這裡留言，例如這天不行、想改到哪一天，組長會收到通知。</p>
+        ${notes.length ? `<ul class="group-note-list">${notes.map((n) => `<li>
+            <span class="group-note-head"><strong>${esc(n.name)}</strong><small>${esc(Fmt.shortDate(n.date))}</small></span>
+            <span class="group-note-text">${esc(n.note)}</span>
+            <button type="button" class="link-btn group-note-del" data-gn-del="${esc(n.id)}" aria-label="刪除${esc(n.name)}的備註">刪除</button>
+          </li>`).join('')}</ul>` : '<p class="muted">還沒有人留備註。</p>'}
+        <button type="button" class="btn btn-block" data-gn-add>✏️ 我是${esc(d.group)}的，留備註</button>
+      </section>`;
+  }
+
+  function savedName() {
+    try { return localStorage.getItem('duty-calendar:mine-name') || localStorage.getItem('duty-calendar:push-name') || ''; } catch (e) { return ''; }
+  }
+
+  function bindGroupNotes(el) {
+    const add = el.querySelector('[data-gn-add]');
+    if (add) add.addEventListener('click', openGroupNote);
+    el.querySelectorAll('[data-gn-del]').forEach((b) => b.addEventListener('click', () => deleteGroupNote(b.dataset.gnDel)));
+  }
+
+  function afterGroupNote(res, msg) {
+    if (!page.data) return;
+    page.data.groupNotes = res.notes;
+    DutyCache.set(page.data.id, page.data);
+    renderExtra();
+    const box = document.getElementById('duty-flash');
+    if (box) box.innerHTML = `<div class="notice notice-success" role="status"><p><strong>${esc(msg)}</strong></p></div>`;
+    const sec = document.querySelector('.group-notes');
+    if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function openGroupNote() {
+    const d = page.data;
+    const today = d.today || Fmt.toDateStr(new Date());
+    const dates = Fmt.datesBetween(d.start, d.end || d.start).filter((x) => x >= today);
+    if (!dates.length) { alert('這個勤務已經過了'); return; }
+    const pick = dates.indexOf(page.viewDate) !== -1 ? page.viewDate : dates[0];
+    const m = Modal.open(`
+      <h2 class="modal-title">📝 留組員備註</h2>
+      <p class="modal-note">${esc(d.name)}・${esc(d.group)}</p>
+      <label class="field-label" for="gn-name">名字（要和成員名單一樣）</label>
+      <input id="gn-name" class="input" data-gn-name maxlength="20" value="${esc(savedName())}" placeholder="例如：王小明">
+      ${dates.length > 1 ? `<label class="field-label" for="gn-date">哪一天</label>
+        <select id="gn-date" class="input" data-gn-date>${dates.map((x) => `<option value="${x}"${x === pick ? ' selected' : ''}>${esc(Fmt.shortDate(x))}</option>`).join('')}</select>` : `<p class="hint">日期：${esc(Fmt.shortDate(pick))}</p>`}
+      <label class="field-label" for="gn-note">備註</label>
+      <textarea id="gn-note" class="input" data-gn-note rows="3" maxlength="100" placeholder="例如：這天有事，想改到 11/9"></textarea>
+      <p class="hint">大家都看得到，組長的手機也會收到通知。不要寫電話。</p>
+      <div class="form-error" data-gn-err hidden></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-primary btn-block" data-gn-save>送出備註</button>
+        <button type="button" class="btn btn-block" data-close>返回</button>
+      </div>`);
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    m.el.querySelector('[data-gn-save]').addEventListener('click', async () => {
+      const err = m.el.querySelector('[data-gn-err]');
+      const name = m.el.querySelector('[data-gn-name]').value.trim();
+      const note = m.el.querySelector('[data-gn-note]').value.trim();
+      const sel = m.el.querySelector('[data-gn-date]');
+      const date = sel ? sel.value : pick;
+      if (!name || !note) { err.textContent = !name ? '請輸入名字' : '請寫備註'; err.hidden = false; return; }
+      Busy.show('送出中⋯');
+      try {
+        const res = await Api.groupNote({ dutyId: d.id, date, name, note });
+        Busy.hide();
+        m.close();
+        afterGroupNote(res, '已留備註 ✓ 組長會收到通知');
+      } catch (e) {
+        Busy.hide();
+        err.textContent = e.message || '送出失敗，請再試一次';
+        err.hidden = false;
+      }
+    });
+  }
+
+  function deleteGroupNote(id) {
+    const n = (page.data.groupNotes || []).find((x) => x.id === id);
+    if (!n) return;
+    const m = Modal.open(`
+      <h2 class="modal-title">刪除備註</h2>
+      <p class="modal-note">${esc(Fmt.shortDate(n.date))}　${esc(n.name)}：${esc(n.note)}</p>
+      <label class="field-label" for="gn-del-name">只能刪自己留的，請打您的名字</label>
+      <input id="gn-del-name" class="input" data-gn-del-name maxlength="20" value="${esc(savedName())}">
+      <div class="form-error" data-gn-err hidden></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-quiet-danger btn-block" data-gn-del-go>確定刪除</button>
+        <button type="button" class="btn btn-block" data-close>返回</button>
+      </div>`);
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    m.el.querySelector('[data-gn-del-go]').addEventListener('click', async () => {
+      const err = m.el.querySelector('[data-gn-err]');
+      Busy.show('刪除中⋯');
+      try {
+        const res = await Api.groupNoteDelete({ dutyId: page.data.id, id, name: m.el.querySelector('[data-gn-del-name]').value.trim() });
+        Busy.hide();
+        m.close();
+        afterGroupNote(res, '已刪除備註');
+      } catch (e) {
+        Busy.hide();
+        err.textContent = e.message || '刪除失敗，請再試一次';
+        err.hidden = false;
+      }
+    });
   }
 
   /** 這個勤務的重點圖片（設定在 duty-images.js） */

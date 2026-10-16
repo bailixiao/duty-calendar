@@ -93,6 +93,7 @@ function dutyDetail_(duty, positions, signups) {
     };
   });
 
+  if (duty['負責組'] && duty['分組類型']) json.groupNotes = publicGroupNotes_(duty); // 組員備註（GroupNote.gs）
   if (duty['模式'] === '公告型' && duty['負責組']) {
     json.groupInfo = findGroup_(duty['分組類型'], duty['負責組']);
   }
