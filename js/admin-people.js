@@ -192,7 +192,7 @@
     body.innerHTML = `
       ${AdminPage.staleNote(stale)}
       ${flash}
-      ${pendingList.length ? `<div class="notice pending-banner" role="status"><p>🆕 <strong>有 ${pendingList.length} 位新成員待確認</strong>（報名時自動加入的新名字）</p>${memberState.filter === 'pending' ? '<p class="muted">確認每一位：沒問題按「保留」；其實是名單上的某人（寫法不同）按「合併到⋯」；打錯或不需要的按「刪除」。</p>' : '<button type="button" class="btn btn-primary" data-show-pending>查看待確認的人</button>'}</div>` : ''}
+      ${pendingList.length ? `<div class="notice pending-banner" role="status"><p>🆕 <strong>有 ${pendingList.length} 位新成員待確認</strong>（報名時自動加入的新名字）</p>${memberState.filter === 'pending' ? '<p class="muted">確認每一位：沒問題按「保留」；要改身分、佛堂、分組按「修改」（存檔就算保留）；其實是名單上的某人（寫法不同）按「合併到⋯」；打錯或不需要的按「刪除」。</p>' : '<button type="button" class="btn btn-primary" data-show-pending>查看待確認的人</button>'}</div>` : ''}
       ${canEditPeople() ? '<div class="admin-actions"><button type="button" class="btn btn-primary" data-add>＋ 新增成員</button><button type="button" class="btn" data-from-signups>從出勤紀錄加入成員</button><button type="button" class="btn" data-import-members>📋 匯入成員資料</button><button type="button" class="btn" data-same-name>👥 同名的舊紀錄</button></div>' : ''}
       <div class="list-filter">
         <select class="input" data-filter aria-label="狀態">
@@ -259,6 +259,7 @@
               ${near.length ? `<p class="pending-near">名單上相近的名字：${near.map((x) => esc(x.name)).join('、')}</p>` : ''}</div>
             ${isSuper ? `<div class="pending-actions">
               <button type="button" class="btn btn-small btn-primary" data-keep="${m.row}">✅ 保留</button>
+              <button type="button" class="btn btn-small" data-edit-pending="${m.row}">✏️ 修改</button>
               <button type="button" class="btn btn-small" data-merge="${m.row}">🔀 合併到⋯</button>
               <button type="button" class="btn btn-small btn-quiet-danger" data-drop="${m.row}">🗑 刪除</button>
             </div>` : ''}
@@ -267,7 +268,9 @@
       const find = (row) => data.members.find((m) => m.row === Number(row));
       const all = rows.querySelector('[data-confirm-all]');
       if (all) all.addEventListener('click', () => run('adminConfirmMembers', { rows: list.map((m) => ({ row: m.row, original: m.name })) }, `已保留 ${list.length} 位`));
-      rows.querySelectorAll('[data-keep]').forEach((b) => b.addEventListener('click', () => editMember(find(b.dataset.keep), data.groups, guard, reload)));
+      // 保留＝一按就確認；修改＝打開編輯視窗（身分、佛堂、分組⋯），存檔也算確認
+      rows.querySelectorAll('[data-keep]').forEach((b) => b.addEventListener('click', () => { const m = find(b.dataset.keep); run('adminConfirmMembers', { rows: [{ row: m.row, original: m.name }] }, '已保留「' + m.name + '」'); }));
+      rows.querySelectorAll('[data-edit-pending]').forEach((b) => b.addEventListener('click', () => editMember(find(b.dataset.editPending), data.groups, guard, reload)));
       rows.querySelectorAll('[data-drop]').forEach((b) => b.addEventListener('click', async () => {
         const m = find(b.dataset.drop);
         if (!(await Confirm.open({ title: '確定刪除「' + m.name + '」嗎？', rows: [['姓名', m.name]], note: '只從成員名單移除，出勤紀錄保留。', confirmText: '刪除', danger: true }))) return;

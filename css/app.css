@@ -2409,3 +2409,11 @@ button.veg-chip:hover { border-color: var(--ok); }
 .group-note-head small { color: var(--ink-2); }
 .group-note-text { grid-column: 1; line-height: 1.6; word-break: break-word; }
 .group-note-del { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
+
+/* 報名：按確認報名後跳出選身分 */
+.identity-ask-row { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.identity-ask-row:last-child { border-bottom: 0; }
+.identity-ask-name { font-weight: 700; font-size: 1.15em; margin: 0 0 8px; }
+.identity-ask .segment { min-height: 48px; font-size: 1.05em; }
+.identity-ask-acc { margin-top: 8px; }
+.identity-fixed .entry-btn { margin-left: 8px; }

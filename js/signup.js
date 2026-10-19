@@ -77,7 +77,7 @@
           <div class="suggestions" data-suggestions aria-live="polite"></div>
           <ul class="name-list" data-names></ul>
           ${duty.leaderTitle ? '<div class="leader-pick" data-leader-pick></div>' : ''}
-          <p class="hint">幫長輩或家人報名時，可以連續加入多個名字${perPerson ? '，每個名字下面各自勾項目' : duty.positions.length > 1 ? '；有人要報不同的了愿項目，按他名字下的<span class="nw">「這個人改報別的」</span>' : ''}。每個名字都要選<span class="nw">「道親」</span><span class="nw">「壇辦」</span>或<span class="nw">「未求道」</span>（成員名單上已登記的會自動帶入，不能改）。壇辦可選<span class="nw">「陪同」</span>，陪同不佔名額。</p>
+          <p class="hint">幫長輩或家人報名時，可以連續加入多個名字${perPerson ? '，每個名字下面各自勾項目' : duty.positions.length > 1 ? '；有人要報不同的了愿項目，按他名字下的<span class="nw">「這個人改報別的」</span>' : ''}。按<span class="nw">「確認報名」</span>後會跳出視窗，請每個人選<span class="nw">「道親」</span><span class="nw">「壇辦」</span>或<span class="nw">「未求道」</span>（成員名單上已登記的會自動帶入）。壇辦可選<span class="nw">「陪同」</span>，陪同不佔名額。</p>
         </fieldset>
         <div class="form-error" data-error role="alert" hidden></div>
         <button type="submit" class="btn btn-primary btn-block" data-submit>確認報名</button>
@@ -191,16 +191,11 @@
             <button type="button" class="btn-remove" data-remove="${i}" aria-label="移除 ${esc(e.name)}">×</button>
           </div>
           <div class="name-options">
-            <div class="option-row">
+            ${e.identity ? `<div class="option-row">
               <span class="option-label">身分</span>
               ${e.locked ? `<span class="identity-fixed"><strong>${esc(e.identity)}</strong><span class="muted">（成員名單登記的，不能改）</span></span>` : `
-              <div class="segmented segmented-3" role="radiogroup" aria-label="${esc(e.name)} 的身分">
-                ${IDENTITIES.map((id) => `
-                  <label class="segment${e.identity === id ? ' is-checked' : ''}">
-                    <input type="radio" name="identity-${i}" value="${id}" data-identity="${i}"${e.identity === id ? ' checked' : ''}>${id}
-                  </label>`).join('')}
-              </div>`}
-            </div>
+              <span class="identity-fixed"><strong>${esc(e.identity)}</strong><button type="button" class="btn btn-small entry-btn" data-identity-clear="${i}">改身分</button></span>`}
+            </div>` : ''}
             ${duty.positions.length > 1 ? (e.custom ? `<div class="option-row">
               <span class="option-label">項目</span>
               <div>
@@ -473,14 +468,14 @@
       if (!state.dates.size && (!state.entries.length || state.entries.some((e) => !e.datesCustom))) problems.push('請選擇日期');
       if (state.entries.some((e) => e.datesCustom && !e.dates.size)) problems.push('「這個人日期不一樣」的人，請勾他的日期');
       if (!state.entries.length) problems.push('請填寫名字，並按「加入」');
-      if (state.entries.some((e) => !e.identity)) {
-        problems.push('請為每個名字選擇「道親」「壇辦」或「未求道」');
-        state.showMissing = true;
-        renderNames();
-      }
       if (problems.length) {
         showError(problems.map(esc).join('<br>'));
         return;
+      }
+      // 身分：按「確認報名」後才跳出視窗一個一個選（成員名單上登記過的會自動帶入，不用選）
+      if (state.entries.some((e) => !e.identity)) {
+        if (!(await askIdentities(state.entries.filter((e) => !e.identity)))) return;
+        renderNames();
       }
 
       hideError();
@@ -683,11 +678,69 @@
         renderDates();
         return;
       }
+      // 改身分：跳出同一個選身分的視窗
+      const ic = ev.target.closest('[data-identity-clear]');
+      if (ic) {
+        askIdentities([state.entries[Number(ic.dataset.identityClear)]]).then((ok) => { if (ok) renderNames(); });
+        return;
+      }
       const btn = ev.target.closest('[data-remove]');
       if (!btn) return;
       state.entries.splice(Number(btn.dataset.remove), 1);
       renderNames();
     });
+
+    /**
+     * 選身分的視窗：每個名字一排大按鈕（道親／壇辦／未求道），壇辦再選了愿或陪同。
+     * 全部選好才能按「確定」；回傳 true＝選好了（已寫回 entries），false＝按了返回。
+     */
+    function askIdentities(list) {
+      return new Promise((resolve) => {
+        let done = false;
+        const finish = (ok) => { if (!done) { done = true; resolve(ok); } };
+        const picked = list.map((e) => ({ identity: e.identity || '', accompany: !!e.accompany }));
+        const m = Modal.open(`
+          <h2 class="modal-title">請選每個人的身分</h2>
+          <p class="modal-note">成員名單上已經登記的會自動帶入，這裡只列還不知道的。</p>
+          <div class="identity-ask" data-ask></div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-primary btn-block" data-ask-ok disabled>確定，送出報名</button>
+            <button type="button" class="btn btn-block" data-close>返回</button>
+          </div>`, () => finish(false)); // 按 Esc 或點外面關掉＝返回
+        if (list.length === 1 && state.entries.indexOf(list[0]) !== -1 && list[0].identity) m.el.querySelector('[data-ask-ok]').textContent = '確定';
+        const draw = () => {
+          m.el.querySelector('[data-ask]').innerHTML = list.map((e, i) => `
+            <div class="identity-ask-row">
+              <p class="identity-ask-name">${esc(e.name)}</p>
+              <div class="segmented segmented-3" role="radiogroup" aria-label="${esc(e.name)} 的身分">
+                ${IDENTITIES.map((id) => `<label class="segment${picked[i].identity === id ? ' is-checked' : ''}"><input type="radio" name="ask-id-${i}" value="${id}" data-ask-id="${i}"${picked[i].identity === id ? ' checked' : ''}>${id}</label>`).join('')}
+              </div>
+              ${picked[i].identity === '壇辦' && !freeJoin ? `<div class="segmented identity-ask-acc" role="radiogroup" aria-label="${esc(e.name)} 的參加方式">
+                ${[['了愿', false], ['陪同（不佔名額）', true]].map(([label, v]) => `<label class="segment${picked[i].accompany === v ? ' is-checked' : ''}"><input type="radio" name="ask-acc-${i}" value="${v}" data-ask-acc="${i}"${picked[i].accompany === v ? ' checked' : ''}>${label}</label>`).join('')}
+              </div>` : ''}
+            </div>`).join('');
+          m.el.querySelector('[data-ask-ok]').disabled = picked.some((p) => !p.identity);
+        };
+        draw();
+        m.el.querySelector('[data-ask]').addEventListener('change', (ev) => {
+          const t = ev.target;
+          if (t.dataset.askId !== undefined) {
+            const p = picked[Number(t.dataset.askId)];
+            p.identity = t.value;
+            if (p.identity !== '壇辦') p.accompany = false;
+          }
+          if (t.dataset.askAcc !== undefined) picked[Number(t.dataset.askAcc)].accompany = t.value === 'true';
+          draw();
+        });
+        m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+        m.el.querySelector('[data-ask-ok]').addEventListener('click', () => {
+          list.forEach((e, i) => { e.identity = picked[i].identity; e.accompany = picked[i].accompany; });
+          if (state.entries.every((e) => e.identity)) hideError();
+          finish(true);
+          m.close();
+        });
+      });
+    }
 
     const leaderBox = $('[data-leader-pick]');
     if (leaderBox) leaderBox.addEventListener('change', (ev) => {

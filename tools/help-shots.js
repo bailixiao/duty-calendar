@@ -93,10 +93,10 @@ const SEED = `
     const date = Object.keys(d.days).filter((x) => x > '2026-10-07')[0];
     await __p({ action: 'signup', dutyId: d.id, positionId: d.positions[0].id, dates: [date], entries: [{ name: '測試甲', identity: '道親' }, { name: '王小明', identity: '壇辦' }] });
   }
-  await __p({ action: 'requestVenue', dates: ['2026-10-17', '2026-10-24'], slots: ['18:00', '19:00', '20:00'], name: '測試甲', phone: '0900-000000', purpose: '讀書會', people: '15' });
+  await __p({ action: 'requestVenue', dates: ['2026-11-07', '2026-11-14'], slots: ['18:00', '19:00', '20:00'], name: '測試甲', phone: '0900-000000', purpose: '讀書會', people: '15' });
   const tok = (await __p({ action: 'adminLogin', password: 'test-pass' })).data.token;
-  await __p({ action: 'adminCreateDuties', token: tok, duties: [{ name: '研究班（示範）', category: '道務', nature: '課程', mode: '報名型', start: '2026-10-20', startTime: '19:30', location: '區中心', positions: [{ name: '參加', min: 0, max: null }] }] });
-  const vr = (await __p({ action: 'adminVenue', token: tok })).data.requests.filter((r) => r.date === '2026-10-24');
+  await __p({ action: 'adminCreateDuties', token: tok, duties: [{ name: '研究班（示範）', category: '道務', nature: '課程', mode: '報名型', start: '2026-11-03', startTime: '19:30', location: '區中心', positions: [{ name: '參加', min: 0, max: null }] }] });
+  const vr = (await __p({ action: 'adminVenue', token: tok })).data.requests.filter((r) => r.date === '2026-11-14');
   if (vr.length) await __p({ action: 'adminVenueDecide', token: tok, ids: vr.map((r) => r.id), decision: '已同意' });
   window.__seeded = true;
 `;
