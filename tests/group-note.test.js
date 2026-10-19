@@ -47,3 +47,14 @@ test('組員備註：後台改勤務不會把備註洗掉', () => {
   assert.equal(up.ok, true, JSON.stringify(up.error));
   assert.equal(env.get({ action: 'getDuty', id: v.id }).data.groupNotes.length, 1);
 });
+
+test('分組：近一年負責過幾筆勤務、之後還有幾筆', () => {
+  const env = createEnv(Date.UTC(2026, 10, 20, 2)); // 台北 11/20
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const groups = env.post({ action: 'adminGroups', token }).data.groups;
+  const g = groups.find((x) => x.type === '打掃組' && x.name === '第1組');
+  assert.deepEqual(g.year.map((x) => x.date), ['2026-10-10'], '只算今天以前、一年內的');
+  assert.equal(g.upcoming, g.duties - g.year.length, '其他都是之後的');
+  assert.ok(g.upcoming > 0);
+  assert.ok(g.year.every((x, i, a) => !i || a[i - 1].date >= x.date), '新的排前面');
+});

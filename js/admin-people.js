@@ -635,10 +635,10 @@
         const items = data.groups.filter((g) => g.type === t);
         return `
           <section class="admin-day">
-            <h2 class="admin-day-title">${esc(t)}<span class="h2-sub">${items.length} 組</span></h2>
+            <h2 class="admin-day-title">${esc(t)}<span class="h2-sub">${items.length} 組・近一年共負責 ${items.reduce((n, g) => n + (g.year || []).length, 0)} 筆</span></h2>
             <ul class="people-list">${items.map((g) => `
               <li><button type="button" class="person-card" data-row="${g.row}">
-                <span class="person-card-name">${esc(g.name)}${g.duties ? `<span class="tag">負責 ${g.duties} 筆勤務</span>` : ''}</span>
+                <span class="person-card-name">${esc(g.name)}<span class="tag">近一年負責 ${(g.year || []).length} 筆</span>${g.upcoming ? `<span class="tag">之後還有 ${g.upcoming} 筆</span>` : ''}</span>
                 <span class="person-card-meta">${esc(['組長：' + (g.leader || '未填'), g.assistant ? '佐理：' + g.assistant : '', g.phone || '未填電話', `組員 ${g.members.length} 人`].filter(Boolean).join('・'))}</span>
               </button></li>`).join('') || '<li class="muted">還沒有分組</li>'}</ul>
           </section>`;
@@ -658,7 +658,7 @@
     const deletable = g && !g.duties;
     const { m } = formModal(`
       <h2 class="modal-title">${g ? '編輯分組' : '新增分組'}</h2>
-      ${g ? `<p class="modal-note">分組類型：${esc(g.type)}${g.duties ? `・負責 ${g.duties} 筆勤務` : ''}</p>` : `
+      ${g ? `<p class="modal-note">分組類型：${esc(g.type)}・近一年負責 ${(g.year || []).length} 筆${g.upcoming ? `・之後還有 ${g.upcoming} 筆` : ''}</p>${(g.year || []).length ? `<details class="group-year"><summary>看近一年負責的勤務</summary><ul>${g.year.map((x) => `<li>${esc(Fmt.shortDate(x.date))}　${esc(x.name)}</li>`).join('')}</ul></details>` : ''}` : `
         <label class="form-row"><span>分組類型</span>
           <select class="input" name="type" required>
             <option value="">（請選）</option>

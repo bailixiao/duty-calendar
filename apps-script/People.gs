@@ -86,18 +86,33 @@ function adminSaveMember_(body) {
   });
 }
 
-/** 全部分組（含組長電話）與各組被幾筆勤務指定負責 */
+/**
+ * 全部分組（含組長電話）與各組被幾筆勤務指定負責：
+ *   duties＝全部（刪除檢查用）；year＝近一年（今天往前 365 天）負責過的勤務；upcoming＝明天以後的筆數。
+ */
 function adminGroups_() {
   var usage = {};
+  var today = todayString_();
+  var from = addDaysStr_(today, -364);
   readTableCached_(SHEETS.DUTIES).forEach(function (d) {
-    if (d['負責組']) usage[d['分組類型'] + '|' + d['負責組']] = (usage[d['分組類型'] + '|' + d['負責組']] || 0) + 1;
+    if (!d['負責組']) return;
+    var key = d['分組類型'] + '|' + d['負責組'];
+    var u = usage[key] || (usage[key] = { all: 0, year: [], upcoming: 0 });
+    var start = d['開始日'];
+    var end = d['結束日'] || start;
+    u.all++;
+    if (start > today) u.upcoming++;
+    else if (end >= from) u.year.push({ id: d['勤務ID'], name: d['名稱'], date: start });
   });
+  var none = { all: 0, year: [], upcoming: 0 };
   return {
     groups: readTable_(SHEETS.GROUPS).filter(function (g) { return g['組名']; }).map(function (g) {
       return {
         row: g._row, type: g['分組類型'], name: g['組名'], leader: g['組長或召集人'], assistant: g['佐理'],
         members: splitNames_(g['組員']), phone: g['組長電話'],
-        duties: usage[g['分組類型'] + '|' + g['組名']] || 0
+        duties: (usage[g['分組類型'] + '|' + g['組名']] || none).all,
+        year: (usage[g['分組類型'] + '|' + g['組名']] || none).year.sort(function (a, b) { return a.date < b.date ? 1 : -1; }),
+        upcoming: (usage[g['分組類型'] + '|' + g['組名']] || none).upcoming
       };
     })
   };
