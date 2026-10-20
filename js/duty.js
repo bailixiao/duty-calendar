@@ -133,7 +133,7 @@
     if (!isNotice) {
       renderRoster();
       mountSignup();
-      // 從職司表頁按「點我報名」過來：直接捲到報名表單
+      // 從職司表頁按「我要報名」過來：直接捲到報名表單
       if (sessionStorage.getItem('duty-calendar:to-signup') === d.id) {
         sessionStorage.removeItem('duty-calendar:to-signup');
         const box = document.getElementById('duty-signup');

@@ -1728,9 +1728,8 @@ body.on-grid .app-main { max-width: 1280px; }
 .grid-view .roster-grid { font-size: 1.125rem; }
 .grid-view .roster-grid th, .grid-view .roster-grid td { padding: 10px 12px; }
 .gp-desc { margin: 0 0 8px; font-size: 1.0625rem; line-height: 1.7; color: var(--ink-2); }
-.gp-foot { margin: 18px 0 90px; text-align: center; color: var(--muted); font-size: 0.875rem; }
-.gp-signup { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 20; min-width: 220px; padding: 14px 28px; border-radius: 999px; background: linear-gradient(180deg, #f6d36b, #e2a92b); color: #4a3200; font-size: 1.375rem; font-weight: 800; text-align: center; text-decoration: none; letter-spacing: 2px; box-shadow: 0 8px 22px rgba(120, 80, 0, .35); }
-.gp-signup:active { transform: translateX(-50%) scale(.97); }
+.gp-foot { margin: 18px 0 24px; text-align: center; color: var(--muted); font-size: 0.875rem; }
+.gp-signup-btn { max-width: 480px; margin: 8px auto 0; text-decoration: none; text-align: center; }
 @media (min-width: 720px) { .gp-hero { margin: 0; border-radius: 20px; padding: 32px 28px 26px; } .gp-when { font-size: 1.875rem; } .gp-title { font-size: 2.25rem; } }
 
 /* 職司表大頁面：階段進度條（膠囊，現在的階段白底） */

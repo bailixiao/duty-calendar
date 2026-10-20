@@ -1,5 +1,5 @@
 // 職司表大頁面（#/grid/<勤務ID>）：12人小組這類多天輪值的獨立頁面，可以單獨分享網址。
-// 上方大標題與階段、滿版職司表（一欄一天、一列一個了愿項目）、職司說明、浮動的「點我報名」。
+// 上方大標題與階段、滿版職司表（一欄一天、一列一個了愿項目）、職司說明、最下面的「我要報名」（不浮動，手機才不會擋到表格）。
 // 報名資料和勤務頁是同一份，每 30 秒自動更新。表格的 HTML 也給勤務頁共用（GridPage.tableHtml）。
 (function () {
   'use strict';
@@ -214,8 +214,8 @@
         <div class="rich-desc">${richDesc(d.description)}</div>
         ${d.attire ? `<p class="gp-desc"><strong>服裝：</strong>${esc(d.attire)}</p>` : ''}
       </section>` : ''}
-      <p class="gp-foot">每 30 秒自動更新　<a href="#/">回行事曆</a></p>
-      <a class="gp-signup" href="#/duty/${encodeURIComponent(d.id)}" data-signup>點我報名</a>`;
+      <a class="btn btn-primary btn-block gp-signup-btn" href="#/duty/${encodeURIComponent(d.id)}" data-signup>我要報名</a>
+      <p class="gp-foot">每 30 秒自動更新　<a href="#/">回行事曆</a></p>`;
     const wrap = root.querySelector('.grid-wrap');
     if (wrap && scrollX !== null) wrap.scrollLeft = scrollX; // 自動更新時保留左右滑的位置
     else if (wrap) { // 第一次打開：滑到今天那欄
