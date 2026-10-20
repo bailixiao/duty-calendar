@@ -78,6 +78,8 @@
       const time = Fmt.cardTime(duty, date);
       if (time) out.push(`⏰ 時段：${time}`);
       if (duty.location) out.push(`📍 地點：${duty.location}`);
+      if (duty.group) out.push(`👥 負責組：${duty.group}${duty.groupType ? `（${duty.groupType}）` : ''}`); // 有負責組、組長就一起寫上
+      if (duty.groupLeader) out.push(`👤 組長：${duty.groupLeader}`);
       out.push(`🙋 需要人數：${needText(duty, (duty.days || {})[date])}`);
       if (duty.leaderTitle && signups) {
         const ls = [...new Set(signups.filter((s) => s.date === date && s.leader).map((s) => s.name))];

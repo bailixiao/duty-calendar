@@ -58,3 +58,15 @@ test('分組：近一年負責過幾筆勤務、之後還有幾筆', () => {
   assert.ok(g.upcoming > 0);
   assert.ok(g.year.every((x, i, a) => !i || a[i - 1].date >= x.date), '新的排前面');
 });
+
+test('改了分組的組長，勤務資料馬上看到新的組長（同一份程式連續處理好幾個請求）', () => {
+  const env = createEnv(OCT_1);
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const find = () => env.get({ action: 'getEvents', from: '2026-10-01', to: '2026-10-31' }).data.duties.find((d) => d.groupType === '打掃組' && d.group === '第1組');
+  const before = find().groupLeader;
+  const g = env.post({ action: 'adminGroups', token }).data.groups.find((x) => x.type === '打掃組' && x.name === '第1組');
+  const r = env.post({ action: 'adminSaveGroup', token, row: g.row, original: g.name, group: { type: g.type, name: g.name, leader: '測試新組長', assistant: '', members: [], phone: '' } });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.notEqual(before, '測試新組長');
+  assert.equal(find().groupLeader, '測試新組長');
+});

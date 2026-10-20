@@ -115,6 +115,7 @@ function withContact_(message) {
 
 function respond_(fn) {
   var result;
+  groupLeaderMemo_ = null; // Cloudflare 版會一直沿用同一份程式，每個請求重讀組長（改了分組才會馬上看到）
   try {
     result = { ok: true, data: fn() };
   } catch (err) {
