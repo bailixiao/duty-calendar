@@ -24,6 +24,6 @@ test('複製通知：陪同的人也列出來，寫「（陪同）」，不算�
     { date: '2026-11-09', positionId: 'P-1', name: '測試甲', accompany: false },
     { date: '2026-11-09', positionId: 'P-1', name: '測試乙', accompany: true }
   ];
-  assert.deepEqual(S.rosterLines(duty({}), '2026-11-09', signups), ['・打掃（1／2）：測試甲、測試乙（陪同）']);
-  assert.deepEqual(S.rosterLines(duty({}), '2026-11-09', [signups[1]]), ['・打掃（0／2）：測試乙（陪同）']);
+  assert.deepEqual(S.rosterLines(duty({}), '2026-11-09', signups), ['・打掃了愿人員：測試甲、測試乙（陪同）']);
+  assert.deepEqual(S.rosterLines(duty({}), '2026-11-09', [signups[1]]), ['・打掃了愿人員：測試乙（陪同）']);
 });

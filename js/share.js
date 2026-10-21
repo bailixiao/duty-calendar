@@ -90,21 +90,19 @@
       out.push(`👉 報名：${siteUrl()}#/duty/${encodeURIComponent(duty.id)}?date=${date}&go=signup`);
       return out.join('\n');
     };
-    if (list.length === 1) return block(list[0]) + '\n\n歡迎家人們踴躍成全 🙏';
-    return [window.SITE.inviteTitle, '', list.map(block).join('\n\n'), '', '歡迎家人們踴躍成全，感謝慈悲 🙏😊'].join('\n');
+    if (list.length === 1) return block(list[0]) + '\n\n歡迎家人們踴躍參加 🙏';
+    return [window.SITE.inviteTitle, '', list.map(block).join('\n\n'), '', '歡迎家人們踴躍參加，感謝慈悲 🙏😊'].join('\n');
   }
 
-  /** 每個了愿項目一行：「・項目（已報／名額）：名字、名字」；signups 沒給（沒讀到名單）就不列 */
+  /** 每個了愿項目一行：「・項目了愿人員：名字、名字（陪同）」（人數寫在「需要人數」那行）；signups 沒給（沒讀到名單）就不列 */
   function rosterLines(duty, date, signups) {
     if (!signups || duty.mode === '公告型' || !duty.positions || !duty.positions.length) return [];
     return duty.positions.map((p) => {
       const names = signups.filter((s) => s.date === date && s.positionId === p.id && !s.accompany).map((s) => s.name);
       // 陪同也列出來（名字後面寫「（陪同）」，不算在人數裡）
       const acc = signups.filter((s) => s.date === date && s.positionId === p.id && s.accompany).map((s) => s.name + '（陪同）');
-      const cap = p.max !== null && p.max !== undefined ? p.max : Fmt.effectiveMin(p);
-      const full = p.max !== null && p.max !== undefined && names.length >= p.max;
       const all = names.concat(acc);
-      return `・${p.name}（${names.length}${cap ? '／' + cap : ''}）${full ? '✅' : ''}：${all.length ? all.join('、') : '還沒有人'}`;
+      return `・${p.name}了愿人員：${all.length ? all.join('、') : '還沒有人'}`;
     });
   }
 

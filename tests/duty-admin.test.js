@@ -548,7 +548,7 @@ test('可兼任＋共需人數：缺幾人＝共需人數－不重複人數；�
   const S = global.window.Share;
   assert.equal(global.Fmt.dayState(d, d.days['2026-10-24']).label, '缺 2 人');
   assert.match(S.needText(d, d.days['2026-10-24']), /還缺 2 位（共需 4 位，已報 2 位）/);
-  assert.deepEqual(S.rosterLines(d, '2026-10-24', d.signups), ['・淨手（1／2）：測試甲', '・茶水（2／8）：測試甲、測試乙']);
+  assert.deepEqual(S.rosterLines(d, '2026-10-24', d.signups), ['・淨手了愿人員：測試甲', '・茶水了愿人員：測試甲、測試乙']);
 });
 
 test('組長職稱：報名時可選一位當組長，一天一位；後台設新的組長會取消原本的', () => {
