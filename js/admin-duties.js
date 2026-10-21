@@ -296,6 +296,7 @@
         </select>
         <input class="input" type="search" data-q placeholder="搜尋${T()}名稱" value="${esc(listState.q)}">
       </div>
+      ${Share.noNeedHtml()}
       <div data-rows></div>
       <div class="invite-bar" data-invite-bar hidden>
         <span data-invite-count></span>
@@ -304,6 +305,7 @@
         <button type="button" class="link-btn" data-invite-clear>都不勾</button>
       </div>`;
     flash = '';
+    Share.bindNoNeed(body);
 
     const rows = body.querySelector('[data-rows]');
     function draw() {

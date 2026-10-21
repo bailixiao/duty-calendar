@@ -309,6 +309,7 @@
         ${['道務', '教育'].indexOf(Api.adminWho().role) !== -1 ? '' : shortDates.size
           ? `<div class="notice notice-error" role="status"><p><strong>近一個月有 ${shortDates.size} 天缺人</strong></p><p>${Fmt.shortDateList(shortDates)}</p>${Share.buttonsHtml()}</div>`
           : '<div class="notice notice-success" role="status"><p><strong>近一個月都不缺人</strong></p></div>'}
+        ${rows.some((r) => r.d.mode !== '公告型') ? Share.noNeedHtml() : ''}
         ${[...byDate.entries()].map(([date, items]) => `
           <section class="admin-day">
             <h2 class="admin-day-title">${Fmt.shortDate(date)}${date === data.today ? '<span class="h2-sub">今天</span>' : ''}</h2>
@@ -335,6 +336,7 @@
           <button type="button" class="btn btn-line" data-invite-line>傳到 LINE</button>
         </div>` : ''}`;
       Share.bind(body, () => Share.shortageText(rows.map((r) => ({ duty: r.d, date: r.date, state: r.st }))));
+      Share.bindNoNeed(body);
       // 邀請通知：一筆直接複製；勾好幾筆合成一則
       const rowOf = (key) => {
         const [id, date] = key.split('|');

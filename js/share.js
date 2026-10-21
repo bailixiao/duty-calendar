@@ -71,7 +71,35 @@
    * 邀請通知（後台近期勤務「複製通知」）：rows = [{ duty, date }]，一筆或好幾筆合成一則。
    * 只有名稱、日期、時段、地點、需要人數、報名連結（公開資料）。
    */
+  // 後台「複製通知不寫需要人數」勾選（記在這支手機）
+  const NO_NEED_KEY = 'duty-calendar:invite-no-need';
+  function noNeed() {
+    try { return localStorage.getItem(NO_NEED_KEY) === '1'; } catch (e) { return false; }
+  }
+  function setNoNeed(v) {
+    try { localStorage.setItem(NO_NEED_KEY, v ? '1' : ''); } catch (e) { /* 無痕模式：不記住 */ }
+  }
+  /** 勾選框（放在後台複製通知的上面） */
+  function noNeedHtml() {
+    return `<label class="check invite-opt"><input type="checkbox" data-no-need${noNeed() ? ' checked' : ''}> 複製通知不寫「需要人數」<small class="muted">（人數已經夠的，本來就不寫）</small></label>`;
+  }
+  function bindNoNeed(container) {
+    const box = container.querySelector('[data-no-need]');
+    if (box) box.addEventListener('change', () => setNoNeed(box.checked));
+  }
+
+  /** 勤務類的人數夠了沒（額滿、或每個項目都到最少人數／共需人數）；道務、教育看名額，不算 */
+  function needEnough(duty, day) {
+    if (duty.category === '道務' || duty.category === '教育') return false;
+    const d = day || { total: 0, counts: {}, full: false };
+    if (d.full) return true;
+    const counts = d.counts || {};
+    if (duty.totalNeed) return (d.people !== undefined ? d.people : d.total) >= duty.totalNeed;
+    return (duty.positions || []).every((p) => (counts[p.id] || 0) >= Fmt.effectiveMin(p));
+  }
+
   function inviteText(rows) {
+    const skipNeed = noNeed();
     const list = rows.slice().sort((a, b) => a.date.localeCompare(b.date) || (a.duty.startTime || '').localeCompare(b.duty.startTime || ''));
     const block = ({ duty, date, signups }) => {
       const out = [`【${duty.name}】`, `📅 日期：${Fmt.rocDate(date)}`];
@@ -80,7 +108,8 @@
       if (duty.location) out.push(`📍 地點：${duty.location}`);
       if (duty.group) out.push(`👥 負責組：${duty.group}${duty.groupType ? `（${duty.groupType}）` : ''}`); // 有負責組、組長就一起寫上
       if (duty.groupLeader) out.push(`👤 組長：${duty.groupLeader}`);
-      out.push(`🙋 需要人數：${needText(duty, (duty.days || {})[date])}`);
+      // 需要人數：人數夠了就不寫；後台勾了「不寫需要人數」也不寫
+      if (!skipNeed && !needEnough(duty, (duty.days || {})[date])) out.push(`🙋 需要人數：${needText(duty, (duty.days || {})[date])}`);
       if (duty.leaderTitle && signups) {
         const ls = [...new Set(signups.filter((s) => s.date === date && s.leader).map((s) => s.name))];
         out.push(`★ ${duty.leaderTitle}：${ls.length ? ls.join('、') : '還需要一位'}`);
@@ -164,5 +193,5 @@
     }
   }
 
-  window.Share = { siteUrl, shortageText, inviteText, inviteTextFull, rosterLines, needText, copyText, buttonsHtml, bind };
+  window.Share = { siteUrl, noNeedHtml, bindNoNeed, needEnough, shortageText, inviteText, inviteTextFull, rosterLines, needText, copyText, buttonsHtml, bind };
 })();

@@ -27,3 +27,15 @@ test('複製通知：陪同的人也列出來，寫「（陪同）」，不算�
   assert.deepEqual(S.rosterLines(duty({}), '2026-11-09', signups), ['・打掃了愿人員：測試甲、測試乙（陪同）']);
   assert.deepEqual(S.rosterLines(duty({}), '2026-11-09', [signups[1]]), ['・打掃了愿人員：測試乙（陪同）']);
 });
+
+test('需要人數：人數夠了自動不寫；後台勾了「不寫需要人數」就都不寫', () => {
+  const short = duty({ days: { '2026-11-09': { total: 1, counts: { 'P-1': 1 } } } });
+  const enough = duty({ days: { '2026-11-09': { total: 2, counts: { 'P-1': 2 } } } });
+  assert.match(S.inviteText([{ duty: short, date: '2026-11-09' }]), /🙋 需要人數：還缺 1 位/);
+  assert.doesNotMatch(S.inviteText([{ duty: enough, date: '2026-11-09' }]), /需要人數/);
+  const store = {};
+  global.localStorage = { getItem: (k) => store[k] || null, setItem: (k, v) => { store[k] = v; } };
+  store['duty-calendar:invite-no-need'] = '1';
+  assert.doesNotMatch(S.inviteText([{ duty: short, date: '2026-11-09' }]), /需要人數/);
+  delete global.localStorage;
+});

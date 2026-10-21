@@ -2419,3 +2419,4 @@ button.veg-chip:hover { border-color: var(--ok); }
 .group-year { margin: 4px 0 12px; }
 .group-year summary { cursor: pointer; color: var(--accent); font-weight: 600; }
 .group-year ul { margin: 6px 0 0; padding-left: 1.2em; line-height: 1.7; max-height: 240px; overflow-y: auto; }
+.invite-opt { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; margin: 4px 0 12px; }
