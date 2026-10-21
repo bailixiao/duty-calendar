@@ -99,9 +99,12 @@
     if (!signups || duty.mode === '公告型' || !duty.positions || !duty.positions.length) return [];
     return duty.positions.map((p) => {
       const names = signups.filter((s) => s.date === date && s.positionId === p.id && !s.accompany).map((s) => s.name);
+      // 陪同也列出來（名字後面寫「（陪同）」，不算在人數裡）
+      const acc = signups.filter((s) => s.date === date && s.positionId === p.id && s.accompany).map((s) => s.name + '（陪同）');
       const cap = p.max !== null && p.max !== undefined ? p.max : Fmt.effectiveMin(p);
       const full = p.max !== null && p.max !== undefined && names.length >= p.max;
-      return `・${p.name}（${names.length}${cap ? '／' + cap : ''}）${full ? '✅' : ''}：${names.length ? names.join('、') : '還沒有人'}`;
+      const all = names.concat(acc);
+      return `・${p.name}（${names.length}${cap ? '／' + cap : ''}）${full ? '✅' : ''}：${all.length ? all.join('、') : '還沒有人'}`;
     });
   }
 

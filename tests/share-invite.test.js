@@ -18,3 +18,12 @@ test('複製通知：有負責組和組長就寫進去，沒有就不寫', () =>
   const none = S.inviteText([{ duty: duty({}), date: '2026-11-09' }]);
   assert.doesNotMatch(none, /負責組|組長/);
 });
+
+test('複製通知：陪同的人也列出來，寫「（陪同）」，不算人數', () => {
+  const signups = [
+    { date: '2026-11-09', positionId: 'P-1', name: '測試甲', accompany: false },
+    { date: '2026-11-09', positionId: 'P-1', name: '測試乙', accompany: true }
+  ];
+  assert.deepEqual(S.rosterLines(duty({}), '2026-11-09', signups), ['・打掃（1／2）：測試甲、測試乙（陪同）']);
+  assert.deepEqual(S.rosterLines(duty({}), '2026-11-09', [signups[1]]), ['・打掃（0／2）：測試乙（陪同）']);
+});
