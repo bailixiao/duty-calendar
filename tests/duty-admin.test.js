@@ -680,3 +680,21 @@ test('職司表定案後家人們不能拖、不能改註記，管理者可以�
   assert.match(c.data.warnings.join(), /10\/25 測試課程：這段時間區中心已借給 測試丙（讀書會） 10:00～11:00/);
   assert.deepEqual(admin(env, token, 'adminVenue', {}).data.requests.find((r) => r.slot === '10:00').busy, ['測試課程']);
 });
+
+test('天道加披不算統計；草稿可以帶負責組', () => {
+  const env = createEnv(OCT_1);
+  const token = login(env);
+  const ids = admin(env, token, 'adminCreateDuties', { duties: [
+    base({ name: '測試前賢 天道加披', nature: '支援', start: '2026-10-11', groupType: '勤務了愿組', group: '第1組', positions: [{ name: '支援', max: '10' }] }),
+    base({ name: '測試一般支援', nature: '支援', start: '2026-10-11', positions: [{ name: '支援', max: '10' }] })
+  ] }).data.ids;
+  ids.forEach((id) => {
+    const d = env.get({ action: 'getDuty', id }).data;
+    assert.equal(admin(env, token, 'adminAddAttendee', { dutyId: id, positionId: d.positions[0].id, date: '2026-10-11', name: '測試甲', identity: '道親' }).ok, true);
+  });
+  assert.equal(env.get({ action: 'getDuty', id: ids[0] }).data.group, '第1組', '草稿帶的負責組有存進去');
+  env.clock.now = Date.UTC(2026, 9, 12, 2);
+  const events = admin(env, token, 'adminStats').data.events;
+  assert.ok(!events.some((e) => e.dutyId === ids[0]), '天道加披不算統計');
+  assert.ok(events.some((e) => e.dutyId === ids[1]), '一般支援照算');
+});

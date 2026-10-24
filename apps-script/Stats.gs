@@ -33,7 +33,7 @@ function statsEvents_() {
   readTableCached_(SHEETS.SIGNUPS).forEach(function (s) {
     if (s['狀態'] === '已取消' || !s['日期'] || s['日期'] > today) return;
     var duty = duties[s['勤務ID']];
-    if (!duty || duty['性質'] === '活動') return; // 活動只記錄參加者，不算勤務統計
+    if (!duty || statsExcluded_(duty)) return; // 活動、天道加披只記錄參加者，不算統計
     var key = s['勤務ID'] + '|' + s['日期'];
     var ev = byKey[key];
     if (!ev) {
@@ -218,4 +218,13 @@ function statsMultiTempleNames_() {
   var out = {};
   Object.keys(seen).forEach(function (n) { if (Object.keys(seen[n]).length > 1) out[n] = true; });
   return out;
+}
+
+// 名稱有這些字的勤務不算統計（2026/10/24：天道加披是支援喪禮，不列入出勤統計；報名、名單照常）
+var STATS_EXCLUDE_NAMES = ['天道加披'];
+
+function statsExcluded_(duty) {
+  if (duty['性質'] === '活動') return true;
+  var name = String(duty['名稱'] || '');
+  return STATS_EXCLUDE_NAMES.some(function (w) { return name.indexOf(w) !== -1; });
 }

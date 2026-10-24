@@ -159,15 +159,18 @@
     const createBtn = el.querySelector('[data-create]');
     // 成員名單（名字對照用）：打開視窗就先在背景讀
     const membersP = Api.admin('adminMembers', {}, true).then((r) => r.members || []).catch(() => []);
+    const groupsP = Api.admin('adminDutyList', {}, true).then((r) => r.groups || []).catch(() => []); // 負責組下拉選單
     let editor = null;
 
     async function showEditor(raw, msg) {
       const members = await membersP;
+      const groups = await groupsP;
       const box = el.querySelector('[data-editor]');
       const fresh = box.cloneNode(false); // 換一個新的容器，舊的事件不會重複
       box.replaceWith(fresh);
       editor = DraftEditor.mount(fresh, raw, {
         members,
+        groups,
         onChange: saveDraft,
         onCount: (n) => {
           createBtn.hidden = !n;

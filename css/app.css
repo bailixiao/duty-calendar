@@ -1599,6 +1599,7 @@ body.splash-on .header-back { display: none; }
 .de-notes { background: #fff6d6; border: 1px solid #f0d77a; border-radius: 10px; padding: 8px 12px; font-size: .95rem; }
 .de-notes ul { margin: 4px 0 0 1.2em; padding: 0; }
 .de-field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.de-field .input { width: 100%; min-width: 0; box-sizing: border-box; }
 .de-field > span { font-size: .9rem; color: var(--muted); }
 .de-row { display: flex; gap: 10px; flex-wrap: wrap; }
 .de-row > * { flex: 1 1 140px; }

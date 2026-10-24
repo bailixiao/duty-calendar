@@ -11,6 +11,8 @@
   const CATEGORIES = ['勤務', '道務', '教育'];
   const NATURES_BY_CAT = { 勤務: NATURES, 道務: ['法會', '課程', '會議'], 教育: ['課程', '活動'] };
   const isSimple = (c) => c === '道務' || c === '教育';
+  const GROUP_TYPES = ['勤務了愿組', '打掃組', '拜香輪值組'];
+  let groupList = []; // [{ type, name }]：後台的分組（負責組下拉選單用）
 
   // ---------- 農曆 → 國曆 ----------
 
@@ -63,6 +65,8 @@
       endTime: d.endTime || '',
       location: d.location || '',
       attire: d.attire || '',
+      groupType: GROUP_TYPES.indexOf(d.groupType) !== -1 ? d.groupType : '',
+      group: d.group || '',
       description: d.description || '',
       deadline: d.deadline || '',
       multi: d.multi === true || d.multi === '是',
@@ -101,6 +105,7 @@
       leaders: x.category === '道務' ? String(x.leaders || '').trim() : '',
       assistants: x.category === '道務' ? String(x.assistants || '').trim() : '',
       startTime: x.startTime, endTime: x.endTime, location: x.location.trim(), attire: x.attire.trim(),
+      groupType: isSimple(x.category) ? '' : (x.groupType || ''), group: isSimple(x.category) || !x.groupType ? '' : (x.group || ''),
       description: x.description.trim(), deadline: x.deadline, multi: x.multi,
       positions: x.positions.filter((p) => p.name.trim()).map((p) => ({ name: p.name.trim(), min: p.min, max: p.max }))
     };
@@ -151,6 +156,10 @@
         </div>
         ${f('地點', inp('location', 'text', 'list="opt-location"'))}
         ${f('服裝', inp('attire', 'text', 'list="opt-attire"'))}
+        ${isSimple(x.category) ? '' : `<div class="de-row">
+          ${f('分組類型', `<select class="input" data-k="groupType"><option value="">（不指定）</option>${GROUP_TYPES.map((n) => `<option${n === x.groupType ? ' selected' : ''}>${n}</option>`).join('')}</select>`)}
+          ${x.groupType ? f('負責組', `<select class="input" data-k="group"><option value="">（不指定）</option>${groupList.filter((g) => g.type === x.groupType).map((g) => `<option${g.name === x.group ? ' selected' : ''}>${esc(g.name)}</option>`).join('')}${x.group && !groupList.some((g) => g.type === x.groupType && g.name === x.group) ? `<option selected>${esc(x.group)}</option>` : ''}</select>`) : ''}
+        </div>`}
         <div class="de-row">
           ${f('報名截止日（選填）', inp('deadline', 'date'))}
           <label class="de-check"><input type="checkbox" data-k="multi"${x.multi ? ' checked' : ''}> 一人可兼任好幾項</label>
@@ -179,6 +188,7 @@
   function mount(container, raw, opts) {
     const today = Fmt.toDateStr(new Date());
     const members = (opts.members || []).filter((m) => m.active !== false);
+    groupList = opts.groups || [];
     let items = raw.map((d) => (d.people ? d : clean(d, today, members)));
     const changed = () => { if (opts.onChange) opts.onChange(items); };
 
@@ -193,6 +203,7 @@
       const x = items[Number(card.dataset.i)];
       const k = ev.target.dataset.k;
       if (k) x[k] = ev.target.type === 'checkbox' ? ev.target.checked : ev.target.value;
+      if (k === 'groupType') { x.group = ''; render(); changed(); return; } // 換分組類型：重選負責組
       if (k === 'category') {
         const ns = NATURES_BY_CAT[x.category] || NATURES;
         if (ns.indexOf(x.nature) === -1) x.nature = ns[0];
