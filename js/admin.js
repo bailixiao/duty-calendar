@@ -281,8 +281,10 @@
 
   // ---------- 近期勤務 ----------
 
+  let recentFresh = false; // 打開近期勤務時重新讀「最新報名」
   function showRecent() {
     const body = shell('');
+    recentFresh = true;
     // 行事曆已載入的資料可以先顯示（內容與 adminRecent 相同）
     const today = Fmt.toDateStr(new Date());
     const preview = window.CalendarPage && CalendarPage.peekRange(today, Fmt.addDays(today, 13));
@@ -306,6 +308,7 @@
 
       body.innerHTML = `
         ${staleNote(stale)}
+        ${Api.adminWho().role === '唯讀' ? '' : '<div data-recent-signups></div>'}
         ${['道務', '教育'].indexOf(Api.adminWho().role) !== -1 ? '' : shortDates.size
           ? `<div class="notice notice-error" role="status"><p><strong>近一個月有 ${shortDates.size} 天缺人</strong></p><p>${Fmt.shortDateList(shortDates)}</p>${Share.buttonsHtml()}</div>`
           : '<div class="notice notice-success" role="status"><p><strong>近一個月都不缺人</strong></p></div>'}
@@ -337,6 +340,8 @@
         </div>` : ''}`;
       Share.bind(body, () => Share.shortageText(rows.map((r) => ({ duty: r.d, date: r.date, state: r.st }))));
       Share.bindNoNeed(body);
+      RecentSignups.mount(body.querySelector('[data-recent-signups]'), guard, recentFresh);
+      recentFresh = false;
       // 邀請通知：一筆直接複製；勾好幾筆合成一則
       const rowOf = (key) => {
         const [id, date] = key.split('|');

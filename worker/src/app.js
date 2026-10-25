@@ -158,7 +158,11 @@ export function createApp(store, opts) {
       await flushPush();
       return res;
     }
-    return A.sendPushAll(gs, when);
+    const res = await A.sendPushAll(gs, when);
+    if (when === 'tomorrow') { // 晚上 8 點：順便送管理者的報名彙整（SignupDigest.gs）
+      try { gs.sendSignupDigest_(); await flushPush(); } catch (e) { console.error('報名彙整', e); }
+    }
+    return res;
   }
 
   return { gs, handle, cron };

@@ -82,7 +82,7 @@ function currentTokenKey_(account) {
 
 // 所有角色都能用的讀取
 var ADMIN_READ_ACTIONS = ['adminPing', 'adminLogout', 'adminMe', 'adminRecent', 'adminDuty', 'adminLogs', 'adminDay', 'adminRoster',
-  'adminDutyList', 'adminDutyForEdit', 'adminStats', 'adminMembers', 'adminGroups', 'adminGoals', 'adminVenue', 'adminVenueStats', 'adminPushList', 'adminFaq', 'adminRepairs'];
+  'adminDutyList', 'adminDutyForEdit', 'adminStats', 'adminMembers', 'adminGroups', 'adminGoals', 'adminVenue', 'adminVenueStats', 'adminPushList', 'adminFaq', 'adminRepairs', 'adminRecentSignups', 'adminSignupDigestWatch'];
 // 依勤務類別判斷的寫入（勤務／道務／教育帳號只能動自己類別）
 var ADMIN_CATEGORY_ACTIONS = ['adminCancel', 'adminReschedule', 'adminRestore', 'adminCreateDuties', 'adminUpdateDuty',
   'adminDeleteDuty', 'adminSetAttendance', 'adminAddAttendee', 'adminDraftFromImages', 'adminUpdateStatsSheet', 'adminSetTeachers', 'adminSaveGoals', 'adminVenueDecide', 'adminVenueEdit', 'adminVenueConvert', 'adminGridMove', 'adminGridNote', 'adminPushSave', 'adminPushDelete', 'adminAutoPushSave', 'adminRollcallLink', 'adminImportAttendance', 'adminSetMemberExtra', 'adminSplitSignup'];
@@ -137,7 +137,7 @@ function adminAuthorize_(session, body) {
     return;
   }
   // 唯讀不看操作紀錄、名單（有個資與聯絡細節）、勤務管理
-  if (role === '唯讀' && ['adminLogs', 'adminDay', 'adminRoster', 'adminDutyList', 'adminDutyForEdit'].indexOf(action) !== -1) denied();
+  if (role === '唯讀' && ['adminLogs', 'adminDay', 'adminRoster', 'adminDutyList', 'adminDutyForEdit', 'adminRecentSignups', 'adminSignupDigestWatch'].indexOf(action) !== -1) denied();
   // 操作紀錄、舊的單日名單只給總管理者（「名單」分頁的 adminRoster 勤務／道務／教育帳號也能用，只看自己類別）
   if (['adminLogs', 'adminDay'].indexOf(action) !== -1) denied();
   // 各佛堂道務目標：總管理者、道務、唯讀看得到；只有總管理者、道務能改
@@ -181,6 +181,7 @@ function adminScope_(session, action, result) {
       .filter(function (day) { return day.duties.length; });
   }
   if (action === 'adminStats' && Array.isArray(result.events)) result.events = result.events.filter(mine);
+  if (action === 'adminRecentSignups' && Array.isArray(result.items)) result.items = result.items.filter(mine);
   if (action === 'adminStats' && Array.isArray(result.eduSessions)) result.eduSessions = result.eduSessions.filter(mine);
   if (action === 'adminDutyForEdit' && Array.isArray(result.siblings)) result.siblings = result.siblings.filter(mine);
   return result;

@@ -2421,3 +2421,20 @@ button.veg-chip:hover { border-color: var(--ok); }
 .group-year summary { cursor: pointer; color: var(--accent); font-weight: 600; }
 .group-year ul { margin: 6px 0 0; padding-left: 1.2em; line-height: 1.7; max-height: 240px; overflow-y: auto; }
 .invite-opt { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; margin: 4px 0 12px; }
+
+/* 後台近期勤務：最新報名 */
+.recent-signups { border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); padding: 10px 14px; margin: 0 0 14px; }
+.recent-signups > summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; list-style: none; }
+.recent-signups > summary::-webkit-details-marker { display: none; }
+.recent-signups > summary::after { content: '▾'; margin-left: auto; color: var(--muted); }
+.recent-signups:not([open]) > summary::after { content: '▸'; }
+.rs-list { list-style: none; padding: 0; margin: 10px 0 6px; }
+.rs-item { display: grid; grid-template-columns: 24px 1fr auto; gap: 2px 8px; align-items: start; padding: 8px 0; border-top: 1px solid var(--line); }
+.rs-icon { font-weight: 800; text-align: center; line-height: 1.6; }
+.rs-add .rs-icon { color: var(--ok); }
+.rs-cancel .rs-icon { color: var(--accent); }
+.rs-move .rs-icon { color: var(--notice); }
+.rs-main { line-height: 1.5; min-width: 0; }
+.rs-where { display: block; color: var(--ink-2); word-break: break-word; }
+.rs-time { color: var(--muted); font-size: .85rem; white-space: nowrap; line-height: 1.6; }
+.rs-watch { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
