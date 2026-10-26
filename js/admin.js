@@ -309,6 +309,7 @@
       body.innerHTML = `
         ${staleNote(stale)}
         ${Api.adminWho().role === '唯讀' ? '' : '<div data-recent-signups></div>'}
+        ${['道務', '教育', '唯讀'].indexOf(Api.adminWho().role) !== -1 ? '' : '<div class="admin-actions"><button type="button" class="btn" data-general-notice>📢 總務佈達（初一十五打掃、拜香輪值）</button></div>'}
         ${['道務', '教育'].indexOf(Api.adminWho().role) !== -1 ? '' : shortDates.size
           ? `<div class="notice notice-error" role="status"><p><strong>近一個月有 ${shortDates.size} 天缺人</strong></p><p>${Fmt.shortDateList(shortDates)}</p>${Share.buttonsHtml()}</div>`
           : '<div class="notice notice-success" role="status"><p><strong>近一個月都不缺人</strong></p></div>'}
@@ -341,6 +342,8 @@
       Share.bind(body, () => Share.shortageText(rows.map((r) => ({ duty: r.d, date: r.date, state: r.st }))));
       Share.bindNoNeed(body);
       RecentSignups.mount(body.querySelector('[data-recent-signups]'), guard, recentFresh);
+      const gn = body.querySelector('[data-general-notice]');
+      if (gn) gn.addEventListener('click', () => GeneralNotice.open());
       recentFresh = false;
       // 邀請通知：一筆直接複製；勾好幾筆合成一則
       const rowOf = (key) => {
