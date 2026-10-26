@@ -105,19 +105,42 @@
       <button type="button" class="note-pop-x" aria-label="關閉">×</button>
       <p class="note-pop-head"><strong>報名這一格</strong><span>${esc(Fmt.shortDate(date))}${posName ? '・' + esc(posName) : ''}</span></p>
       <label class="note-pop-label" for="add-pop-name">名字</label>
-      <input class="input note-pop-input" id="add-pop-name" maxlength="20" value="${esc(saved)}" placeholder="例：王小明" autocomplete="name">
+      <input class="input note-pop-input" id="add-pop-name" maxlength="20" value="${esc(saved)}" placeholder="打一個字就會跳出名字" autocomplete="off">
+      <div class="add-pop-sug" data-sug aria-live="polite"></div>
       <div class="add-pop-id" role="radiogroup" aria-label="身分">${['道親', '壇辦', '未求道'].map((x) => `<button type="button" class="seg-btn" data-id="${x}">${x}</button>`).join('')}</div>
       <p class="add-pop-hint">成員名單上登記過身分的，不用選。</p>
       <div class="note-pop-actions"><button type="button" class="btn btn-primary btn-small" data-add-go>報名</button><span class="note-pop-msg" data-add-msg></span></div>`;
     document.body.appendChild(pop);
     const box = pop;
     box.querySelector('.note-pop-x').addEventListener('click', closeNote);
-    box.querySelectorAll('[data-id]').forEach((b) => b.addEventListener('click', () => {
-      identity = b.dataset.id;
-      box.querySelectorAll('[data-id]').forEach((x) => x.classList.toggle('is-on', x === b));
-    }));
     const nameEl = box.querySelector('#add-pop-name');
     const msg = box.querySelector('[data-add-msg]');
+    // 打字就從成員名單提示名字（同報名表單），點一下帶入名字和身分
+    const sugBox = box.querySelector('[data-sug]');
+    const pickId = (id) => { identity = id || ''; box.querySelectorAll('[data-id]').forEach((x) => x.classList.toggle('is-on', !!id && x.dataset.id === id)); };
+    let sugTimer = null;
+    let sugToken = 0;
+    nameEl.addEventListener('input', () => {
+      clearTimeout(sugTimer);
+      const q = nameEl.value.replace(/[\s　]+/g, '');
+      if (!q) { sugBox.innerHTML = ''; return; }
+      sugTimer = setTimeout(async () => {
+        const t = ++sugToken;
+        try {
+          const list = ((await Api.searchMembers(q)).members || []).slice(0, 8);
+          if (t !== sugToken || !box.isConnected) return;
+          sugBox.innerHTML = list.map((m, i) => `<button type="button" class="suggestion" data-sug-i="${i}">${esc(m.name)}${m.temple && m.dup ? `<small>${esc(m.temple)}</small>` : ''}</button>`).join('');
+          sugBox.querySelectorAll('[data-sug-i]').forEach((b) => b.addEventListener('click', (ev) => {
+            ev.stopPropagation(); // 名單清掉後按鈕不在小視窗裡了，不要被當成點外面而關掉
+            const m = list[Number(b.dataset.sugI)];
+            nameEl.value = m.name;
+            sugBox.innerHTML = '';
+            pickId(['道親', '壇辦', '未求道'].indexOf(m.identity) !== -1 ? m.identity : '');
+            msg.textContent = m.identity ? '已帶入成員名單的身分' : '';
+          }));
+        } catch (e) { /* 查不到就自己打完整名字 */ }
+      }, 250);
+    });
     const go = box.querySelector('[data-add-go]');
     const submit = async () => {
       const name = nameEl.value.replace(/[\s　]+/g, '');
@@ -145,6 +168,7 @@
         msg.textContent = detail || err.message || '報名失敗，請再試一次';
       }
     };
+    box.querySelectorAll('[data-id]').forEach((b) => b.addEventListener('click', () => pickId(b.dataset.id)));
     go.addEventListener('click', submit);
     nameEl.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && !ev.isComposing) { ev.preventDefault(); submit(); } });
     placePop(td);
@@ -168,9 +192,36 @@
         ${canEdit ? `<label class="note-pop-label" for="note-pop-input">註記</label>
           <input class="input note-pop-input" id="note-pop-input" maxlength="100" value="${esc(s.note || '')}" placeholder="例：8:00-19:00、代理人">
           <div class="note-pop-actions"><button type="button" class="btn btn-primary btn-small" data-note-save>存註記</button><span class="note-pop-msg" data-note-msg></span></div>`
-          : `<p class="note-pop-text">${s.note ? esc(s.note) : '<span class="muted">沒有註記</span>'}</p>`}`;
+          : `<p class="note-pop-text">${s.note ? esc(s.note) : '<span class="muted">沒有註記</span>'}</p>`}
+        ${editable && (s.date > d.today || Api.isAdmin()) ? '<button type="button" class="btn btn-quiet-danger btn-small note-pop-cancel" data-signup-cancel>取消這筆報名</button>' : ''}`;
       document.body.appendChild(pop);
       pop.querySelector('.note-pop-x').addEventListener('click', closeNote);
+      // 取消報名：先確認（顯示名字、日期、項目），明天以後的才可以；管理者登入時都可以
+      const cancelBtn = pop.querySelector('[data-signup-cancel]');
+      if (cancelBtn) cancelBtn.addEventListener('click', async () => {
+        closeNote();
+        const ok = await Confirm.open({
+          title: `確定要取消「${s.name}」的報名嗎？`,
+          rows: [['姓名', s.name + (s.accompany ? '（陪同）' : '')], ['日期', Fmt.rocDate(s.date)], ['項目', posName]],
+          note: '請確認是自己或幫忙報名的家人，不要取消到別人的。',
+          confirmText: '確定取消報名', cancelText: '不要取消', danger: true
+        });
+        if (!ok) return;
+        Busy.show('取消中⋯');
+        try {
+          if (Api.isAdmin()) await Api.admin('adminCancel', { signupId: s.id });
+          else await Api.retryBusy(() => Api.cancel(s.id), () => Busy.show('使用的人較多，正在排隊⋯'));
+          Busy.hide();
+          if (window.CalendarPage) CalendarPage.refresh();
+          const fresh = await DutyCache.fetch(d.id);
+          if (root && data && fresh.id === data.id) { data = fresh; updatedAt = new Date(); render(); }
+          const flashBox = root && root.querySelector('[data-grid-flash]');
+          if (flashBox) flashBox.innerHTML = `<p class="notice notice-success">已取消 ${esc(s.name)}：${esc(Fmt.shortDate(s.date))}${posName ? '・' + esc(posName) : ''}</p>`;
+        } catch (err) {
+          Busy.hide();
+          alert(err.message || '取消失敗，請再試一次');
+        }
+      });
       const save = pop.querySelector('[data-note-save]');
       if (save) {
         const inputEl = pop.querySelector('.note-pop-input');
@@ -300,7 +351,7 @@
       <section class="gp-section">
         <h2 class="gp-h2">職司表</h2>
         ${d.signups ? tableHtml(d) : '<p class="muted">載入職司表中⋯</p>'}
-        ${isLocked(d) ? `<p class="notice grid-locked">🔒 職司已在 ${lockText(d)} 定案，要調整請聯絡管理者。點名字可以看註記，點空格「—」可以直接報名。</p>` : `<p class="hint">表格可以左右滑動。<strong>點空格「—」</strong>可以直接打名字報名；<strong>點一下名字</strong>可以看、改註記；<strong>按住名字拖到別的格子</strong>可以調整（手機先按住一下再拖），拖到有人的格子會兩人互換，放下後會先問您。${d.gridLock ? `${lockText(d)} 定案後只有管理者能調整。` : ''}${Api.isAdmin() ? '（您已登入後台，定案後也可以調整）' : ''}</p>`}
+        ${isLocked(d) ? `<p class="notice grid-locked">🔒 職司已在 ${lockText(d)} 定案，要調整請聯絡管理者。點名字可以看註記，點空格「—」可以直接報名。</p>` : `<p class="hint">表格可以左右滑動。<strong>點空格「—」</strong>可以直接打名字報名；<strong>點一下名字</strong>可以看、改註記或取消；<strong>按住名字拖到別的格子</strong>可以調整（手機先按住一下再拖），拖到有人的格子會兩人互換，放下後會先問您。${d.gridLock ? `${lockText(d)} 定案後只有管理者能調整。` : ''}${Api.isAdmin() ? '（您已登入後台，定案後也可以調整）' : ''}</p>`}
       </section>
       ${d.description ? `
       <section class="gp-section">
@@ -311,6 +362,8 @@
       <a class="btn btn-primary btn-block gp-signup-btn" href="#/duty/${encodeURIComponent(d.id)}" data-signup>我要報名</a>
       <p class="gp-foot">每 30 秒自動更新　<a href="#/">回行事曆</a></p>`;
     const wrap = root.querySelector('.grid-wrap');
+    // 日期、人數兩列固定在上面：第二列要知道第一列多高
+    if (wrap) { const h1 = wrap.querySelector('thead tr'); if (h1) wrap.style.setProperty('--gh', h1.offsetHeight + 'px'); }
     if (wrap && scrollX !== null) wrap.scrollLeft = scrollX; // 自動更新時保留左右滑的位置
     else if (wrap) { // 第一次打開：滑到今天那欄
       const today = wrap.querySelector('th.is-today');

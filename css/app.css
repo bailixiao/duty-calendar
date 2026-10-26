@@ -2446,3 +2446,12 @@ button.veg-chip:hover { border-color: var(--ok); }
 .add-pop .seg-btn { min-height: 40px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); font: inherit; font-weight: 600; cursor: pointer; }
 .add-pop .seg-btn.is-on { background: var(--ink); color: var(--card); border-color: var(--ink); }
 .add-pop-hint { margin: 2px 0 8px; font-size: .85rem; color: var(--muted); }
+
+/* 大張職司表：往下捲時日期、人數固定在上面（表格在自己的框裡上下左右捲） */
+.gp-section .grid-wrap { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); overflow: auto; overscroll-behavior: contain; }
+.gp-section .roster-grid thead tr:first-child > * { position: sticky; top: 0; z-index: 3; }
+.gp-section .roster-grid thead .grid-total > * { position: sticky; top: var(--gh, 52px); z-index: 3; }
+.gp-section .roster-grid thead .grid-corner { z-index: 4; left: 0; }
+.add-pop-sug { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; max-height: 120px; overflow-y: auto; }
+.add-pop-sug .suggestion small { margin-left: 4px; color: var(--muted); }
+.note-pop-cancel { margin-top: 10px; width: 100%; }
