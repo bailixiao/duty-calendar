@@ -15,10 +15,12 @@
   /** 職司表的表格（勤務頁與大頁面共用） */
   function tableHtml(d) {
     const g = RosterGrid.build(d);
-    // 明天以後某一天這個項目已經沒有空格、但還沒額滿：多一列空格，點了可以報名
+    // 列數：了愿項目有填「最多」＝就顯示那麼多列（管理者改最多人數就能增減列數）；
+    // 沒填最多：照報名最多的那天，明天以後某天已經沒有空格時多一列，點了可以報名
     g.groups.forEach((grp) => {
       const max = grp.position.max;
-      if (g.dates.some((x) => x.date > d.today && grp.cells[x.date].length >= grp.rows && (max === null || max === undefined || grp.cells[x.date].length < max))) grp.rows += 1;
+      if (max !== null && max !== undefined && max > 0) grp.rows = Math.max(grp.rows, max);
+      else if (g.dates.some((x) => x.date > d.today && grp.cells[x.date].length >= grp.rows)) grp.rows += 1;
     });
     const head = g.dates.map((x) => `<th scope="col" class="${x.today ? 'is-today' : ''}">${Fmt.shortDate(x.date).replace('（', '<br>(').replace('）', ')')}${x.today ? '<small>今天</small>' : ''}</th>`).join('');
     const totals = g.dates.map((x) => `<td class="${x.today ? 'is-today' : ''}">${x.total} 人</td>`).join('');
