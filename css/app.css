@@ -2438,3 +2438,11 @@ button.veg-chip:hover { border-color: var(--ok); }
 .rs-where { display: block; color: var(--ink-2); word-break: break-word; }
 .rs-time { color: var(--muted); font-size: .85rem; white-space: nowrap; line-height: 1.6; }
 .rs-watch { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+
+/* 大張職司表：點空格報名 */
+.roster-grid td.grid-empty.is-open { cursor: pointer; color: var(--accent); }
+.roster-grid td.grid-empty.is-open:hover, .roster-grid td.grid-empty.is-open:focus { background: var(--accent-soft); }
+.add-pop .add-pop-id { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 10px 0 4px; }
+.add-pop .seg-btn { min-height: 40px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); font: inherit; font-weight: 600; cursor: pointer; }
+.add-pop .seg-btn.is-on { background: var(--ink); color: var(--card); border-color: var(--ink); }
+.add-pop-hint { margin: 2px 0 8px; font-size: .85rem; color: var(--muted); }

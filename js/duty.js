@@ -124,8 +124,10 @@
         <dl class="detail-info">
           ${info.map((row) => `<div><dt>${row[0]}</dt><dd>${esc(row[1])}</dd></div>`).join('')}
         </dl>
-        <div id="duty-extra"></div>
-        ${isNotice ? '' : '<section id="duty-roster" class="detail-section"></section><section id="duty-signup" class="detail-section"></section>'}
+        ${d.layout === '職司表' && !isNotice
+          // 職司表（12人小組）：階段、職司表、我要報名放前面，說明、DM 放最後（2026/10/26）
+          ? '<div id="duty-extra-top"></div><section id="duty-roster" class="detail-section"></section><section id="duty-signup" class="detail-section"></section><div id="duty-extra"></div>'
+          : `<div id="duty-extra"></div>${isNotice ? '' : '<section id="duty-roster" class="detail-section"></section><section id="duty-signup" class="detail-section"></section>'}`}
       </article>
       <a class="btn btn-block back-bottom" href="#/">‹ 回行事曆</a>`;
 
@@ -152,8 +154,10 @@
     const dm = Array.isArray(d.dm) ? d.dm : [];
     const dmImages = dm.filter((x) => /^image\//.test(x.mime)).map((x) => ({ src: Api.fileUrl(x.id), caption: '' }));
     const dmPdfs = dm.filter((x) => x.mime === 'application/pdf');
+    const top = document.getElementById('duty-extra-top');
+    if (top) top.innerHTML = stagesSection(d);
     el.innerHTML = `
-      ${d.layout === '職司表' ? stagesSection(d) : ''}
+      ${d.layout === '職司表' && !top ? stagesSection(d) : ''}
       ${d.mergeHost ? mergeHostSection(d) : ''}
       ${d.mode === '公告型' && (d.group || d.groupInfo) ? groupSection(d) : ''}
       ${Array.isArray(d.groupNotes) ? groupNotesSection(d) : ''}

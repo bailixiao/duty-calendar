@@ -15,6 +15,11 @@
   /** 職司表的表格（勤務頁與大頁面共用） */
   function tableHtml(d) {
     const g = RosterGrid.build(d);
+    // 明天以後某一天這個項目已經沒有空格、但還沒額滿：多一列空格，點了可以報名
+    g.groups.forEach((grp) => {
+      const max = grp.position.max;
+      if (g.dates.some((x) => x.date > d.today && grp.cells[x.date].length >= grp.rows && (max === null || max === undefined || grp.cells[x.date].length < max))) grp.rows += 1;
+    });
     const head = g.dates.map((x) => `<th scope="col" class="${x.today ? 'is-today' : ''}">${Fmt.shortDate(x.date).replace('（', '<br>(').replace('）', ')')}${x.today ? '<small>今天</small>' : ''}</th>`).join('');
     const totals = g.dates.map((x) => `<td class="${x.today ? 'is-today' : ''}">${x.total} 人</td>`).join('');
     const body = g.groups.map((grp, gi) => Array.from({ length: grp.rows }, (_, r) => `
@@ -43,7 +48,7 @@
     if (pop) { pop.remove(); pop = null; }
   }
   document.addEventListener('click', (ev) => {
-    if (pop && !pop.contains(ev.target) && !ev.target.closest('[data-note]') && !ev.target.closest('.grid-name[data-sid]')) closeNote();
+    if (pop && !pop.contains(ev.target) && !ev.target.closest('[data-note]') && !ev.target.closest('.grid-name[data-sid]') && !ev.target.closest('.grid-empty.is-open')) closeNote();
   });
   window.addEventListener('hashchange', closeNote);
   window.addEventListener('resize', closeNote);
@@ -56,6 +61,94 @@
       const s = (d.signups || []).find((x) => x.id === btn.dataset.note);
       if (s) openPop(btn, s, d, editable);
     }));
+  }
+
+  /** 空格「—」：明天以後的可以點一下直接打名字報名（2026/10/26） */
+  function bindAdd(el, d) {
+    el.querySelectorAll('td.grid-empty[data-date]').forEach((td) => {
+      if (td.dataset.date <= d.today) return; // 當天和以前不能自己報名
+      td.classList.add('is-open');
+      td.title = '點一下報名這一格';
+      td.addEventListener('click', (ev) => { ev.stopPropagation(); openAddPop(td, d); });
+    });
+  }
+
+  function placePop(anchor) {
+    const r = anchor.getBoundingClientRect();
+    const w = pop.offsetWidth;
+    const h = pop.offsetHeight;
+    const left = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), window.innerWidth - w - 8);
+    const below = r.bottom + 10 + h < window.innerHeight;
+    pop.style.left = left + window.scrollX + 'px';
+    pop.style.top = (below ? r.bottom + 10 : Math.max(8, r.top - h - 10)) + window.scrollY + 'px';
+    pop.style.setProperty('--arrow', Math.min(Math.max(16, r.left + r.width / 2 - left), w - 16) + 'px');
+    pop.classList.add(below ? 'is-below' : 'is-above');
+  }
+
+  /** 空格旁邊的小視窗：打名字、選身分（成員名單上登記過的自動帶入），按「報名」 */
+  function openAddPop(td, d) {
+    const key = 'add|' + td.dataset.date + '|' + td.dataset.pos;
+    const same = pop && pop.dataset.id === key;
+    closeNote();
+    if (same) return;
+    const date = td.dataset.date;
+    const posId = td.dataset.pos;
+    const posName = (d.positions.find((x) => x.id === posId) || {}).name || '';
+    let identity = '';
+    let saved = '';
+    try { saved = localStorage.getItem('duty-calendar:mine-name') || ''; } catch (e) { /* 無痕模式 */ }
+    pop = document.createElement('div');
+    pop.className = 'note-pop is-edit add-pop';
+    pop.dataset.id = key;
+    pop.setAttribute('role', 'dialog');
+    pop.innerHTML = `
+      <button type="button" class="note-pop-x" aria-label="關閉">×</button>
+      <p class="note-pop-head"><strong>報名這一格</strong><span>${esc(Fmt.shortDate(date))}${posName ? '・' + esc(posName) : ''}</span></p>
+      <label class="note-pop-label" for="add-pop-name">名字</label>
+      <input class="input note-pop-input" id="add-pop-name" maxlength="20" value="${esc(saved)}" placeholder="例：王小明" autocomplete="name">
+      <div class="add-pop-id" role="radiogroup" aria-label="身分">${['道親', '壇辦', '未求道'].map((x) => `<button type="button" class="seg-btn" data-id="${x}">${x}</button>`).join('')}</div>
+      <p class="add-pop-hint">成員名單上登記過身分的，不用選。</p>
+      <div class="note-pop-actions"><button type="button" class="btn btn-primary btn-small" data-add-go>報名</button><span class="note-pop-msg" data-add-msg></span></div>`;
+    document.body.appendChild(pop);
+    const box = pop;
+    box.querySelector('.note-pop-x').addEventListener('click', closeNote);
+    box.querySelectorAll('[data-id]').forEach((b) => b.addEventListener('click', () => {
+      identity = b.dataset.id;
+      box.querySelectorAll('[data-id]').forEach((x) => x.classList.toggle('is-on', x === b));
+    }));
+    const nameEl = box.querySelector('#add-pop-name');
+    const msg = box.querySelector('[data-add-msg]');
+    const go = box.querySelector('[data-add-go]');
+    const submit = async () => {
+      const name = nameEl.value.replace(/[\s　]+/g, '');
+      if (name.length < 2) { msg.textContent = '請輸入完整的名字'; return; }
+      go.disabled = true;
+      msg.textContent = '報名中⋯';
+      try {
+        let id = identity;
+        if (!id) { // 沒選身分：看成員名單有沒有登記
+          const m = ((await Api.searchMembers(name)).members || []).filter((x) => x.name === name && !x.dup)[0];
+          id = m && m.identity ? m.identity : '';
+        }
+        if (!id) { go.disabled = false; msg.textContent = '請選身分（道親、壇辦或未求道）'; return; }
+        await Api.retryBusy(() => Api.signup({ dutyId: d.id, positionId: posId, positionIds: [posId], dates: [date], entries: [{ name, identity: id, dates: [date], positionIds: [posId] }] }), () => { msg.textContent = '使用的人較多，排隊中⋯'; });
+        try { localStorage.setItem('duty-calendar:mine-name', name); } catch (e) { /* 無痕模式 */ }
+        closeNote();
+        if (window.CalendarPage) CalendarPage.refresh();
+        const fresh = await DutyCache.fetch(d.id);
+        if (root && data && fresh.id === data.id) { data = fresh; updatedAt = new Date(); render(); }
+        const flashBox = root && root.querySelector('[data-grid-flash]');
+        if (flashBox) flashBox.innerHTML = `<p class="notice notice-success">✅ ${esc(name)} 報名好了：${esc(Fmt.shortDate(date))}${posName ? '・' + esc(posName) : ''}</p>`;
+      } catch (err) {
+        go.disabled = false;
+        const detail = err.details && err.details.length ? err.details.map((x) => x.message).join('；') : '';
+        msg.textContent = detail || err.message || '報名失敗，請再試一次';
+      }
+    };
+    go.addEventListener('click', submit);
+    nameEl.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && !ev.isComposing) { ev.preventDefault(); submit(); } });
+    placePop(td);
+    nameEl.focus();
   }
 
   /** 名字旁邊的小視窗：看註記；editable 而且今天以後的，可以直接改 */
@@ -202,11 +295,12 @@
             <span class="gp-stage-text">${esc(s.text)}</span>
           </li>`).join('')}</ol>` : ''}
       </header>
+      <div data-grid-flash></div>
       <p class="gp-updated">${updatedAt ? `最近更新：${updatedAt.toLocaleTimeString('zh-TW', { hour12: false })}` : '更新中⋯'}<span class="gp-legend"><span class="grid-star">★</span> 組長　<span class="grid-note gp-legend-note">註</span> 點了看註記</span></p>
       <section class="gp-section">
         <h2 class="gp-h2">職司表</h2>
         ${d.signups ? tableHtml(d) : '<p class="muted">載入職司表中⋯</p>'}
-        ${isLocked(d) ? `<p class="notice grid-locked">🔒 職司已在 ${lockText(d)} 定案，要調整請聯絡管理者。點名字可以看註記。</p>` : `<p class="hint">表格可以左右滑動。<strong>點一下名字</strong>可以看、改註記；<strong>按住名字拖到別的格子</strong>可以調整（手機先按住一下再拖），拖到有人的格子會兩人互換，放下後會先問您。${d.gridLock ? `${lockText(d)} 定案後只有管理者能調整。` : ''}${Api.isAdmin() ? '（您已登入後台，定案後也可以調整）' : ''}</p>`}
+        ${isLocked(d) ? `<p class="notice grid-locked">🔒 職司已在 ${lockText(d)} 定案，要調整請聯絡管理者。點名字可以看註記，點空格「—」可以直接報名。</p>` : `<p class="hint">表格可以左右滑動。<strong>點空格「—」</strong>可以直接打名字報名；<strong>點一下名字</strong>可以看、改註記；<strong>按住名字拖到別的格子</strong>可以調整（手機先按住一下再拖），拖到有人的格子會兩人互換，放下後會先問您。${d.gridLock ? `${lockText(d)} 定案後只有管理者能調整。` : ''}${Api.isAdmin() ? '（您已登入後台，定案後也可以調整）' : ''}</p>`}
       </section>
       ${d.description ? `
       <section class="gp-section">
@@ -223,6 +317,7 @@
       if (today) wrap.scrollLeft = Math.max(0, today.offsetLeft - 120);
     }
     bindNotes(root, d, !isLocked(d));
+    bindAdd(root, d);
     if (!isLocked(d)) bindDrag(root, d);
     root.querySelector('[data-signup]').addEventListener('click', () => {
       // 到勤務頁後直接捲到報名表單
