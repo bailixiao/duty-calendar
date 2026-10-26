@@ -358,8 +358,24 @@
     prefetchNeighbor(state.anchor);
   }
 
+  /** 首頁上面的大按鈕：後台勾「放到首頁」、還沒結束的勤務或活動（2026/10/26） */
+  function renderPins(data) {
+    const box = document.getElementById('home-pins');
+    if (!box) return;
+    const seen = new Set();
+    const pins = data.duties.filter((d) => d.pinned && (d.end || d.start) >= state.today && !seen.has(d.id) && seen.add(d.id))
+      .sort((a, b) => a.start.localeCompare(b.start));
+    box.hidden = !pins.length;
+    box.innerHTML = pins.map((d) => {
+      const md = (s) => `${Number(s.slice(5, 7))}/${Number(s.slice(8, 10))}`;
+      const when = d.end && d.end !== d.start ? `${md(d.start)}–${md(d.end)}` : md(d.start);
+      return `<a class="btn mine-link pin-link" href="#/duty/${encodeURIComponent(d.id)}">📌 ${Fmt.esc(d.name)}<small>${Fmt.esc(when)}${d.mode === '公告型' ? '' : '・點我報名'}</small></a>`;
+    }).join('');
+  }
+
   function render(data, from, to) {
     readyResolve();
+    renderPins(data);
     Fmt.setContact(data.contact);
     indexEvents(data, from, to);
     state.loading = false;

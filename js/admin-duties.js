@@ -671,6 +671,12 @@
             <textarea class="input textarea" name="description" rows="4" placeholder="工作項目、注意事項⋯">${esc(s.description)}</textarea>
           </fieldset>
 
+          <fieldset class="form-block">
+            <legend>📌 放到首頁</legend>
+            <label class="check"><input type="checkbox" name="pinned"${s.pinned === true || s.pinned === '是' ? ' checked' : ''}> 在行事曆首頁上面放一個大按鈕（例如 12人小組報名、特別活動）</label>
+            <p class="hint">按鈕點了就到這個${T()}的報名頁；${T()}最後一天過了會自動不顯示。</p>
+          </fieldset>
+
           ${lunar || st.dateType === 'multi' ? '<div data-preview></div>' : ''}
           <div class="form-error" data-error hidden></div>
           <div class="form-actions">
@@ -867,6 +873,7 @@
       if (radio('dateType')) st.dateType = radio('dateType');
       if (radio('groupMode')) st.lunar.groupMode = radio('groupMode');
       if (f.elements.multi) s.multi = f.elements.multi.checked;
+      if (f.elements.pinned) s.pinned = f.elements.pinned.checked;
       if (f.elements.totalNeed) s.totalNeed = f.elements.totalNeed.value.trim();
       if (f.elements.leaderTitle) s.leaderTitle = f.elements.leaderTitle.value.trim();
       if (f.elements.layout) s.layout = f.elements.layout.checked ? '職司表' : '';
@@ -981,6 +988,7 @@
         layout: s.mode === '公告型' || isSimple(s.category) ? '' : (s.layout || ''),
         stages: s.mode === '公告型' || isSimple(s.category) || s.layout !== '職司表' ? '' : (s.stages || ''),
         multi: s.mode === '公告型' ? false : !!(s.multi === true || s.multi === '是'),
+        pinned: !!(s.pinned === true || s.pinned === '是'),
         totalNeed: s.mode !== '公告型' && (s.multi === true || s.multi === '是') ? String(s.totalNeed || '') : '',
         leaderTitle: s.mode !== '公告型' && (s.category || '勤務') === '勤務' ? String(s.leaderTitle || '') : '',
         positions: s.mode === '公告型' ? [] : isSimple(s.category)

@@ -698,3 +698,17 @@ test('天道加披不算統計；草稿可以帶負責組', () => {
   assert.ok(!events.some((e) => e.dutyId === ids[0]), '天道加披不算統計');
   assert.ok(events.some((e) => e.dutyId === ids[1]), '一般支援照算');
 });
+
+test('放到首頁：勾了會存、行事曆資料有 pinned；修改其他欄位不會被洗掉', () => {
+  const env = createEnv(OCT_1);
+  const token = login(env);
+  const id = admin(env, token, 'adminCreateDuties', { duties: [base({ name: '測試特別活動', start: '2026-10-20', pinned: true })] }).data.ids[0];
+  const find = () => env.get({ action: 'getEvents', from: '2026-10-20', to: '2026-10-20' }).data.duties.find((d) => d.id === id);
+  assert.equal(find().pinned, true);
+  const edit = admin(env, token, 'adminDutyForEdit', { id }).data;
+  assert.equal(edit.duty.pinned, '是');
+  assert.equal(admin(env, token, 'adminUpdateDuty', { id, duty: Object.assign({}, edit.duty, { attire: '白上衣' }) }).ok, true);
+  assert.equal(find().pinned, true, '改服裝不影響首頁置頂');
+  assert.equal(admin(env, token, 'adminUpdateDuty', { id, duty: Object.assign({}, edit.duty, { pinned: false }) }).ok, true);
+  assert.equal(find().pinned, false);
+});

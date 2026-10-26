@@ -2455,3 +2455,9 @@ button.veg-chip:hover { border-color: var(--ok); }
 .add-pop-sug { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; max-height: 120px; overflow-y: auto; }
 .add-pop-sug .suggestion small { margin-left: 4px; color: var(--muted); }
 .note-pop-cancel { margin-top: 10px; width: 100%; }
+
+/* 首頁置頂的大按鈕 */
+.home-pins { display: flex; flex-direction: column; gap: 8px; }
+.home-pins[hidden] { display: none; }
+.pin-link { flex-direction: column; gap: 2px; border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.pin-link small { font-size: .85rem; font-weight: 600; color: var(--ink-2); }

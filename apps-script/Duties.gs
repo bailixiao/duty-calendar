@@ -207,6 +207,7 @@ function dutyToJson_(d, positions) {
     mode: d['模式'] || '報名型',
     deadline: d['報名截止日'] || '',
     multi: d['可兼任'] === '是',
+    pinned: d['首頁置頂'] === '是', // 首頁上面的大按鈕
     leaderTitle: d['組長職稱'] || '',
     gridLock: d['版面'] === '職司表' ? gridLockDate_(d) : '', // 職司表定案日（過了只有管理者能調整） // 每天要一位組長（例：勤務組長），空白＝不需要
     totalNeed: d['可兼任'] === '是' ? Number(d['共需人數']) || 0 : 0, // 可兼任時這一天總共需要幾位（0＝照各項目最少人數）
