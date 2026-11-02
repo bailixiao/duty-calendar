@@ -2521,6 +2521,7 @@ button.veg-chip:hover { border-color: var(--ok); }
 .celebrate-glow { position: relative; display: flex; justify-content: center; animation: celebrate-float 3s ease-in-out infinite; }
 .celebrate-glow::before { content: ''; position: absolute; left: 50%; top: 30%; width: min(70vw, 300px); aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(circle, #fff6c9 0, rgba(255, 224, 138, .75) 45%, rgba(255, 209, 102, 0) 70%); animation: celebrate-glow 2.4s ease-in-out infinite; }
 .celebrate-art { position: relative; height: min(46vh, 380px); width: auto; max-width: 100%; object-fit: contain; display: block; }
+.celebrate-art.is-soft { height: min(54vh, 450px); margin: 0 0 -3vh; } /* 四周淡出的圖：邊緣是空的，放大一點 */
 .celebrate-bubble {
   display: inline-block; position: relative; margin-bottom: 14px;
   padding: 10px 22px; border-radius: 999px;

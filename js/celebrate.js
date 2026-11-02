@@ -7,7 +7,7 @@
   // 三位仙佛隨機出現一位（使用者提供的 AI 圖，已去背，2026/11/3）
   const ARTS = [
     { src: 'img/guanyin.webp', alt: '觀世音菩薩', w: 471, h: 720 },
-    { src: 'img/jigong.webp', alt: '濟公活佛', w: 488, h: 720 },
+    { src: 'img/jigong.webp', alt: '濟公活佛', w: 672, h: 760, soft: true }, // 雲朵背景、四周淡出（白蓮花和白雲同色，去背會吃掉蓮花）
     { src: 'img/maitreya.webp', alt: '彌勒祖師', w: 660, h: 720 }
   ];
   let next = null; // 這次要出現的（打開報名表時先選好、先下載）
@@ -24,7 +24,7 @@
     preload();
     const a = next;
     next = null; // 下次報名再重新抽
-    return '<div class="celebrate-glow"><img class="celebrate-art" src="' + a.src + '" alt="' + a.alt + '" width="' + a.w + '" height="' + a.h + '"></div>';
+    return '<div class="celebrate-glow"><img class="celebrate-art' + (a.soft ? ' is-soft' : '') + '" src="' + a.src + '" alt="' + a.alt + '" width="' + a.w + '" height="' + a.h + '"></div>';
   }
 
   let current = null;
