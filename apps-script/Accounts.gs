@@ -82,7 +82,7 @@ function currentTokenKey_(account) {
 
 // 所有角色都能用的讀取
 var ADMIN_READ_ACTIONS = ['adminPing', 'adminLogout', 'adminMe', 'adminRecent', 'adminDuty', 'adminLogs', 'adminDay', 'adminRoster',
-  'adminDutyList', 'adminDutyForEdit', 'adminStats', 'adminMembers', 'adminGroups', 'adminGoals', 'adminVenue', 'adminVenueStats', 'adminPushList', 'adminFaq', 'adminRepairs', 'adminRecentSignups', 'adminSignupDigestWatch'];
+  'adminDutyList', 'adminDutyForEdit', 'adminStats', 'adminMembers', 'adminGroups', 'adminGoals', 'adminVenue', 'adminVenueStats', 'adminPushList', 'adminFaq', 'adminRepairs', 'adminRecentSignups', 'adminSignupDigestWatch', 'adminNoticeTail'];
 // 依勤務類別判斷的寫入（勤務／道務／教育帳號只能動自己類別）
 var ADMIN_CATEGORY_ACTIONS = ['adminCancel', 'adminReschedule', 'adminRestore', 'adminCreateDuties', 'adminUpdateDuty',
   'adminDeleteDuty', 'adminSetAttendance', 'adminAddAttendee', 'adminDraftFromImages', 'adminUpdateStatsSheet', 'adminSetTeachers', 'adminSaveGoals', 'adminVenueDecide', 'adminVenueEdit', 'adminVenueConvert', 'adminGridMove', 'adminGridNote', 'adminPushSave', 'adminPushDelete', 'adminAutoPushSave', 'adminRollcallLink', 'adminImportAttendance', 'adminSetMemberExtra', 'adminSplitSignup'];

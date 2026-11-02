@@ -56,13 +56,20 @@
     return lines.join('\n');
   }
 
-  // 每次佈達都加在最後的話（例：母殿報到提醒、聯絡人）：記在這支手機，不放進程式（裡面可能有電話）
-  const TAIL_KEY = 'duty-calendar:notice-tail';
-  function tail() {
-    try { return localStorage.getItem(TAIL_KEY) || ''; } catch (e) { return ''; }
-  }
-  function setTail(v) {
-    try { localStorage.setItem(TAIL_KEY, v); } catch (e) { /* 無痕模式：不記住 */ }
+  // 每次佈達都加在最後的話（例：母殿報到提醒、聯絡人）：存在後台（adminNoticeTail），大家共用；不放進程式（裡面可能有電話）
+  const OLD_TAIL_KEY = 'duty-calendar:notice-tail'; // 以前記在手機上的，第一次打開時搬到後台
+  const canEditTail = () => ['總管理者', '勤務'].indexOf(Api.adminWho().role) !== -1;
+  async function loadTail() {
+    let t = '';
+    try { t = (await Api.admin('adminNoticeTail', {}, true)).text || ''; } catch (e) { return { text: '', failed: true }; }
+    let old = '';
+    try { old = localStorage.getItem(OLD_TAIL_KEY) || ''; } catch (e) { /* 沒有就算了 */ }
+    if (old && !t && canEditTail()) {
+      try { t = (await Api.admin('adminNoticeTail', { text: old })).text; localStorage.removeItem(OLD_TAIL_KEY); } catch (e) { t = old; }
+    } else if (old && t) {
+      try { localStorage.removeItem(OLD_TAIL_KEY); } catch (e) { /* 不影響 */ }
+    }
+    return { text: t };
   }
 
   /** 佈達的內容（選日期、文字框、複製、傳到 LINE）放進 box：後台「📢 通知」頁和彈出視窗共用；讀今天起 60 天的勤務，預設最近的一天 */
@@ -70,8 +77,9 @@
     const today = Fmt.toDateStr(new Date());
     box.innerHTML = '<p class="muted">整理中⋯</p>';
     let duties;
+    let saved;
     try {
-      duties = (await Api.getEvents(today, Fmt.addDays(today, 60))).duties;
+      [duties, saved] = await Promise.all([Api.getEvents(today, Fmt.addDays(today, 60)).then((r) => r.duties), loadTail()]);
     } catch (err) {
       box.innerHTML = `<p class="form-error">${Fmt.esc(err.message || '讀不到勤務')}</p>`;
       return;
@@ -82,9 +90,9 @@
       <label class="form-row"><span>日期</span>
         <select class="input" data-date>${dates.map((d) => `<option value="${d}">${Fmt.esc(Fmt.shortDate(d))}　農曆${Fmt.esc(LunarUtil.lunarOf(d).full)}</option>`).join('')}</select></label>
       <textarea class="day-text" rows="14" data-text aria-label="佈達文字（可以修改）"></textarea>
-      <details class="notice-tail"${tail() ? '' : ' open'}><summary>📝 每次都要加在最後的話（例：母殿報到提醒）</summary>
-        <textarea class="input textarea" rows="5" data-tail placeholder="例：母殿打掃記得先到一樓工具間報到⋯">${Fmt.esc(tail())}</textarea>
-        <p class="hint">記在這支手機，之後每次佈達都會自動加在最後；清空就不加。</p></details>
+      <details class="notice-tail"${saved.text ? '' : ' open'}><summary>📝 每次都要加在最後的話（例：母殿報到提醒）</summary>
+        <textarea class="input textarea" rows="6" data-tail maxlength="1000" placeholder="例：母殿打掃記得先到一樓工具間報到⋯"${canEditTail() ? '' : ' readonly'}>${Fmt.esc(saved.text)}</textarea>
+        <p class="hint" data-tail-msg>${saved.failed ? '讀不到後台存的內容，請重新整理再試。' : '存在後台，所有總管理者、勤務帳號共用；打完會自動存，之後每次佈達都會加在最後；清空就不加。'}</p></details>
       <div class="share-actions">
         <button type="button" class="btn btn-primary" data-copy>複製佈達</button>
         <button type="button" class="btn btn-line" data-line>傳到 LINE</button>
@@ -94,7 +102,22 @@
     const area = box.querySelector('[data-text]');
     const tailBox = box.querySelector('[data-tail]');
     const fill = () => { const t = tailBox.value.trim(); area.value = text(sel.value, duties, LunarUtil.lunarOf(sel.value)) + (t ? '\n' + t : ''); };
-    tailBox.addEventListener('input', () => { setTail(tailBox.value.trim()); fill(); });
+    const tailMsg = box.querySelector('[data-tail-msg]');
+    let saveTimer = null;
+    tailBox.addEventListener('input', () => {
+      fill();
+      if (!canEditTail() || saved.failed) return;
+      clearTimeout(saveTimer);
+      tailMsg.textContent = '打完會自動存⋯';
+      saveTimer = setTimeout(async () => {
+        try {
+          await Api.admin('adminNoticeTail', { text: tailBox.value });
+          tailMsg.textContent = '已存到後台 ✓（大家共用）';
+        } catch (e) {
+          tailMsg.textContent = '存不進去：' + (e.message || '請再試一次');
+        }
+      }, 1000);
+    });
     sel.addEventListener('change', fill);
     fill();
     const copy = box.querySelector('[data-copy]');

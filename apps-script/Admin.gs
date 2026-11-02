@@ -338,6 +338,7 @@ function adminRun_(body) {
     case 'adminSystemWatch': return adminSystemWatch_(body);
     case 'adminRecentSignups': return adminRecentSignups_(body);
     case 'adminSignupDigestWatch': return adminSignupDigestWatch_(body);
+    case 'adminNoticeTail': return adminNoticeTail_(body);
     case 'adminRollcallLink': return adminRollcallLink_(body);
     case 'adminImportAttendance': return adminImportAttendance_(body);
     case 'adminRepairs': return adminRepairs_(body);
