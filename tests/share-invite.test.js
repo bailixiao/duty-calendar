@@ -39,3 +39,16 @@ test('需要人數：人數夠了自動不寫；後台勾了「不寫需要人�
   assert.doesNotMatch(S.inviteText([{ duty: short, date: '2026-11-09' }]), /需要人數/);
   delete global.localStorage;
 });
+
+test('複製通知：好幾天的勤務（12人小組）整週合成一則，寫還缺人的日子，不一天一天列', () => {
+  const week = duty({ id: 'W-1', name: '12人小組輪值', start: '2026-11-08', end: '2026-11-10', location: '宏宗',
+    days: { '2026-11-08': { total: 2, counts: { 'P-1': 2 } }, '2026-11-09': { total: 0, counts: {} }, '2026-11-10': { total: 1, counts: { 'P-1': 1 } } } });
+  const rows = ['2026-11-08', '2026-11-09', '2026-11-10'].map((date) => ({ duty: week, date, signups: [] }));
+  const t = S.inviteText(rows);
+  assert.equal((t.match(/【12人小組輪值】/g) || []).length, 1);
+  assert.match(t, /📅 日期：115\/11\/8（日）～11\/10（二）/);
+  assert.match(t, /🙋 還需要人手：11\/9（一）、11\/10（二）/);
+  assert.match(t, /#\/duty\/W-1\?go=signup/);
+  assert.doesNotMatch(t, /了愿人員/);
+  assert.match(t, /歡迎家人們踴躍參加 🙏$/);
+});

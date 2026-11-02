@@ -119,8 +119,26 @@
       out.push(`👉 報名：${siteUrl()}#/duty/${encodeURIComponent(duty.id)}?date=${date}&go=signup`);
       return out.join('\n');
     };
-    if (list.length === 1) return block(list[0]) + '\n\n歡迎家人們踴躍參加 🙏';
-    return [window.SITE.inviteTitle, '', list.map(block).join('\n\n'), '', '歡迎家人們踴躍參加，感謝慈悲 🙏😊'].join('\n');
+    // 好幾天的勤務（例：12人小組一週輪值）不一天一天寫：整段期間合成一則，寫還缺人的日子，報名連結不帶日期
+    const weekBlock = ({ duty, date }) => {
+      const out = [`【${duty.name}】`, `📅 日期：${Fmt.rocDate(duty.start)}～${Fmt.shortDate(duty.end)}`];
+      const time = Fmt.timeRange(duty);
+      if (time) out.push(`⏰ 時段：${time}`);
+      if (duty.location) out.push(`📍 地點：${duty.location}`);
+      if (duty.group) out.push(`👥 負責組：${duty.group}${duty.groupType ? `（${duty.groupType}）` : ''}`);
+      if (duty.groupLeader) out.push(`👤 組長：${duty.groupLeader}`);
+      const left = Fmt.datesBetween(date, duty.end);
+      const short = left.filter((x) => !needEnough(duty, (duty.days || {})[x]));
+      if (!skipNeed && short.length) out.push(`🙋 還需要人手：${short.length === left.length ? '每天都還需要' : short.map((x) => Fmt.shortDate(x)).join('、')}`);
+      out.push(`👉 報名：${siteUrl()}#/duty/${encodeURIComponent(duty.id)}?go=signup`);
+      return out.join('\n');
+    };
+    const isWeek = (duty) => duty.end && duty.end !== duty.start;
+    const seen = new Set();
+    const items = list.filter(({ duty }) => !isWeek(duty) || (!seen.has(duty.id) && seen.add(duty.id)));
+    const one = (r) => (isWeek(r.duty) ? weekBlock(r) : block(r));
+    if (items.length === 1) return one(items[0]) + '\n\n歡迎家人們踴躍參加 🙏';
+    return [window.SITE.inviteTitle, '', items.map(one).join('\n\n'), '', '歡迎家人們踴躍參加，感謝慈悲 🙏😊'].join('\n');
   }
 
   /** 每個了愿項目一行：「・項目了愿人員：名字、名字（陪同）」（人數寫在「需要人數」那行）；signups 沒給（沒讀到名單）就不列 */
