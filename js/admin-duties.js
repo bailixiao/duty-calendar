@@ -467,20 +467,26 @@
     body.innerHTML = '<p class="panel-empty">載入中⋯</p>';
     let source = null;
     let groups = [];
+    let duties = [];
     try {
+      // 勤務列表：算「建議負責組」用（各組近一年負責過幾筆）
+      const listP = Api.admin('adminDutyList', {}, true);
       if (opts.id || opts.fromId) {
+        listP.catch(() => {});
         source = await Api.admin('adminDutyForEdit', { id: opts.id || opts.fromId }, true);
         groups = source.groups;
+        duties = await listP.then((r) => r.duties || []).catch(() => []);
       } else {
-        const listData = await Api.admin('adminDutyList', {}, true);
+        const listData = await listP;
         groups = listData.groups;
+        duties = listData.duties || [];
       }
     } catch (err) {
       guard(err, body);
       return;
     }
     if (form.token !== t) return;
-    DutyForm(body, { editing: !!opts.id, source, groups, guard });
+    DutyForm(body, { editing: !!opts.id, source, groups, duties, guard });
   }
 
   const CATEGORIES = ['勤務', '道務', '教育'];
@@ -533,6 +539,27 @@
 
     function groupsOf(type) {
       return ctx.groups.filter((g) => g.type === type).map((g) => g.name);
+    }
+
+    /** 建議負責組：類別是勤務時，依各組近一年負責過的筆數排出比較公平的順序（沒選分組類型就看勤務了愿組） */
+    function fairHtml() {
+      const none = '<div data-fair-box hidden></div>';
+      if (s.category !== '勤務') return none;
+      const type = s.groupType || '勤務了愿組';
+      const names = groupsOf(type);
+      if (!names.length) return none;
+      const list = GroupFair.rank(names, type, ctx.duties || [], s.start, editing ? s.id : '', today);
+      const best = list[0];
+      const picked = (g) => s.groupType === type && s.group === g.name;
+      const why = (g) => `近一年 ${g.count} 筆${g.last ? `・最近 ${Fmt.shortDate(g.last)}` : '・還沒負責過'}${g.busy ? '・<strong>當天已有勤務</strong>' : ''}`;
+      const pick = (g, label) => (picked(g) ? '<span class="tag">已選</span>' : `<button type="button" class="btn btn-small" data-fair="${esc(g.name)}" data-fair-type="${esc(type)}">${label}</button>`);
+      return `<div class="fair-box" data-fair-box>
+        <p class="fair-best">💡 建議${s.groupType ? '' : `「${esc(type)}」`}：<strong>${esc(best.name)}</strong>（${why(best)}）${pick(best, '用這組')}</p>
+        <details><summary>看各組負責次數（少的排前面）</summary>
+          <ul class="fair-list">${list.map((g) => `<li><span class="fair-name">${esc(g.name)}</span><span class="muted">${why(g)}</span>${pick(g, '選')}</li>`).join('')}</ul>
+        </details>
+        ${s.start ? '' : '<p class="hint">先填日期，才能避開當天已有勤務的組。</p>'}
+      </div>`;
     }
 
     function render() {
@@ -600,6 +627,7 @@
                   <option value="">（不指定）</option>
                   ${groupsOf(s.groupType).map((x) => `<option${x === s.group ? ' selected' : ''}>${esc(x)}</option>`).join('')}
                 </select></label>`) : ''}
+            ${lunar ? '' : fairHtml()}
           </fieldset>`}
 
           ${isNotice ? '' : simple ? `
@@ -912,6 +940,22 @@
         if (n === 'groupType') { s.group = ''; st.lunar.rotation = []; st.lunar.rotationStart = 0; }
         if (n === 'dateType' && st.dateType === 'range' && !s.end) s.end = s.start;
         render();
+      });
+      // 建議負責組：按「用這組」直接選好；日期或負責組改了就重新排
+      f.addEventListener('click', (ev) => {
+        const b = ev.target.closest('[data-fair]');
+        if (!b) return;
+        sync();
+        s.groupType = b.dataset.fairType;
+        s.group = b.dataset.fair;
+        render();
+      });
+      f.addEventListener('change', (ev) => {
+        if (['start', 'end', 'group'].indexOf(ev.target.name) === -1) return;
+        const box = f.querySelector('[data-fair-box]');
+        if (!box) return;
+        sync();
+        box.outerHTML = fairHtml();
       });
       const planBtn = f.querySelector('[data-plan-teachers]');
       if (planBtn) planBtn.addEventListener('click', () => { sync(); planTeachers(); });
