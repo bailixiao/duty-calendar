@@ -602,10 +602,10 @@
           <fieldset class="form-block">
             <legend>時段與地點</legend>
             <div class="form-row form-row-pair">
-              <label><span>開始時間</span><input class="input" type="time" name="startTime" value="${esc(s.startTime)}"></label>
-              <label><span>結束時間</span><input class="input" type="time" name="endTime" value="${esc(s.endTime)}"></label>
+              <div class="time-field"><label for="f-startTime">開始時間</label><span class="time-wrap"><input class="input" type="time" id="f-startTime" name="startTime" value="${esc(s.startTime)}"><button type="button" class="link-btn time-clear" data-clear-time="startTime"${s.startTime ? '' : ' hidden'}>清除</button></span></div>
+              <div class="time-field"><label for="f-endTime">結束時間</label><span class="time-wrap"><input class="input" type="time" id="f-endTime" name="endTime" value="${esc(s.endTime)}"><button type="button" class="link-btn time-clear" data-clear-time="endTime"${s.endTime ? '' : ' hidden'}>清除</button></span></div>
             </div>
-            <p class="hint">結束時間早於開始時間代表到隔天（例：21:00 – 08:00）。</p>
+            <p class="hint">結束時間早於開始時間代表到隔天（例：21:00 – 08:00）。時間填錯要拿掉，按旁邊的「清除」。</p>
             <label class="form-row"><span>地點</span>
               <input class="input" name="location" list="opt-location" value="${esc(s.location)}"></label>
             <label class="form-row"><span>服裝</span>
@@ -940,6 +940,18 @@
         if (n === 'groupType') { s.group = ''; st.lunar.rotation = []; st.lunar.rotationStart = 0; }
         if (n === 'dateType' && st.dateType === 'range' && !s.end) s.end = s.start;
         render();
+      });
+      // 時間清除：手機的時間選擇器常常沒有清除鍵
+      f.querySelectorAll('[data-clear-time]').forEach((b) => b.addEventListener('click', () => {
+        const input = f.elements[b.dataset.clearTime];
+        input.value = '';
+        s[b.dataset.clearTime] = '';
+        b.hidden = true;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }));
+      ['startTime', 'endTime'].forEach((n) => {
+        const input = f.elements[n];
+        if (input) input.addEventListener('input', () => { const b = f.querySelector(`[data-clear-time="${n}"]`); if (b) b.hidden = !input.value; });
       });
       // 建議負責組：按「用這組」直接選好；日期或負責組改了就重新排
       f.addEventListener('click', (ev) => {

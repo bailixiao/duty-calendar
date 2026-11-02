@@ -2480,3 +2480,10 @@ button.veg-chip:hover { border-color: var(--ok); }
 .notify-cat { margin: 0 0 12px; }
 .notify-general { margin: 0 0 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
 .notify-general > summary { cursor: pointer; font-weight: 700; color: var(--ink-2); padding: 4px 0; }
+
+/* 勤務表單：時間旁邊的「清除」 */
+.time-field { display: grid; gap: 6px; min-width: 0; }
+.time-field > label { font-size: .9rem; color: var(--ink-2); }
+.form-row-pair .time-wrap { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 1rem; color: inherit; }
+.time-wrap .input { flex: 1 1 auto; min-width: 0; }
+.time-clear { flex: 0 0 auto; white-space: nowrap; }
