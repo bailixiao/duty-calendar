@@ -366,7 +366,7 @@
     const g = d.groupInfo || { name: d.group, leader: '', assistant: '', members: [] };
     const rows = [
       ['輪值組', g.name || d.group],
-      ['組長', g.leader],
+      [Fmt.leaderWord(d.groupType), g.leader],
       ['佐理', g.assistant]
     ].filter((row) => row[1]);
     return `

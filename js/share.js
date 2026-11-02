@@ -109,7 +109,7 @@
       if (time) out.push(`⏰ 時段：${time}`);
       if (duty.location) out.push(`📍 地點：${duty.location}`);
       if (duty.group) out.push(`👥 負責組：${duty.group}${duty.groupType ? `（${duty.groupType}）` : ''}`); // 有負責組、組長就一起寫上
-      if (duty.groupLeader) out.push(`👤 組長：${duty.groupLeader}`);
+      if (duty.groupLeader) out.push(`👤 ${Fmt.leaderWord(duty.groupType)}：${duty.groupLeader}`);
       // 需要人數：人數夠了就不寫；後台勾了「不寫需要人數」也不寫
       if (!skipNeed && !needEnough(duty, (duty.days || {})[date])) out.push(`🙋 需要人數：${needText(duty, (duty.days || {})[date])}`);
       if (duty.leaderTitle && signups) {
@@ -128,7 +128,7 @@
       if (time) out.push(`⏰ 時段：${time}`);
       if (duty.location) out.push(`📍 地點：${duty.location}`);
       if (duty.group) out.push(`👥 負責組：${duty.group}${duty.groupType ? `（${duty.groupType}）` : ''}`);
-      if (duty.groupLeader) out.push(`👤 組長：${duty.groupLeader}`);
+      if (duty.groupLeader) out.push(`👤 ${Fmt.leaderWord(duty.groupType)}：${duty.groupLeader}`);
       const left = Fmt.datesBetween(date, duty.end);
       const short = left.filter((x) => !needEnough(duty, (duty.days || {})[x]));
       if (!skipNeed && short.length) out.push(`🙋 還需要人手：${short.length === left.length ? '每天都還需要' : short.map((x) => Fmt.shortDate(x)).join('、')}`);
@@ -144,7 +144,7 @@
       if (time) out.push(`⏰ 時段：${time}`);
       if (duty.location) out.push(`📍 地點：${duty.location}`);
       if (duty.group) out.push(`👥 負責組：${duty.group}${duty.groupType ? `（${duty.groupType}）` : ''}`);
-      if (duty.groupLeader) out.push(`👤 組長：${duty.groupLeader}`);
+      if (duty.groupLeader) out.push(`👤 ${Fmt.leaderWord(duty.groupType)}：${duty.groupLeader}`);
       return out.join('\n');
     };
     const isWeek = (duty) => duty.end && duty.end !== duty.start;

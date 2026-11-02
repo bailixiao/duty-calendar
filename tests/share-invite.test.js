@@ -14,7 +14,8 @@ const duty = (extra) => Object.assign({ id: 'D-1', name: '測試勤務', categor
 test('複製通知：有負責組和組長就寫進去，沒有就不寫', () => {
   const t = S.inviteText([{ duty: duty({ group: '第1組', groupType: '打掃組', groupLeader: '測試組長' }), date: '2026-11-09' }]);
   assert.match(t, /👥 負責組：第1組（打掃組）/);
-  assert.match(t, /👤 組長：測試組長/);
+  assert.match(t, /👤 召集人：測試組長/, '打掃組叫召集人');
+  assert.match(S.inviteText([{ duty: duty({ group: '第1組', groupType: '勤務了愿組', groupLeader: '測試組長' }), date: '2026-11-09' }]), /👤 組長：測試組長/);
   const none = S.inviteText([{ duty: duty({}), date: '2026-11-09' }]);
   assert.doesNotMatch(none, /負責組|組長/);
 });
@@ -58,7 +59,7 @@ test('複製通知：初一十五打掃寫「初一打掃」或「十五打掃�
   global.window.LunarUtil = { lunarOf: (d) => ({ isFirst: d === '2026-11-09', isFifteenth: d === '2026-11-23' }) };
   const signups = [{ date: '2026-11-09', positionId: 'P-1', name: '測試甲', accompany: false }];
   const t = S.inviteText([{ duty: duty({ name: '初一十五打掃（區中心）', group: '第2組', groupType: '打掃組', groupLeader: '測試組長' }), date: '2026-11-09', signups }]);
-  assert.match(t, /^【初一打掃（區中心）】\n📅 日期：115\/11\/9（一）\n📍 地點：區中心\n👥 負責組：第2組（打掃組）\n👤 組長：測試組長/);
+  assert.match(t, /^【初一打掃（區中心）】\n📅 日期：115\/11\/9（一）\n📍 地點：區中心\n👥 負責組：第2組（打掃組）\n👤 召集人：測試組長/);
   assert.doesNotMatch(t, /需要人數|目前報名|報名：|測試甲/);
   const d15 = duty({ name: '初一十五打掃（區中心）', start: '2026-11-23', end: '2026-11-23', days: { '2026-11-23': { total: 0, counts: {} } } });
   assert.match(S.inviteText([{ duty: d15, date: '2026-11-23' }]), /【十五打掃（區中心）】/);

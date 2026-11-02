@@ -639,7 +639,7 @@
             <ul class="people-list">${items.map((g) => `
               <li><button type="button" class="person-card" data-row="${g.row}">
                 <span class="person-card-name">${esc(g.name)}<span class="tag">近一年負責 ${(g.year || []).length} 筆</span>${g.upcoming ? `<span class="tag">之後還有 ${g.upcoming} 筆</span>` : ''}</span>
-                <span class="person-card-meta">${esc(['組長：' + (g.leader || '未填'), g.assistant ? '佐理：' + g.assistant : '', g.phone || '未填電話', `組員 ${g.members.length} 人`].filter(Boolean).join('・'))}</span>
+                <span class="person-card-meta">${esc([Fmt.leaderWord(t) + '：' + (g.leader || '未填'), g.assistant ? '佐理：' + g.assistant : '', g.phone || '未填電話', `組員 ${g.members.length} 人`].filter(Boolean).join('・'))}</span>
               </button></li>`).join('') || '<li class="muted">還沒有分組</li>'}</ul>
           </section>`;
       }).join('')}

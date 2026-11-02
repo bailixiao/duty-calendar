@@ -456,7 +456,7 @@
         ${Fmt.timeRange(d) ? `<div><dt>時段</dt><dd>${esc(Fmt.timeRange(d))}</dd></div>` : ''}
         ${d.location ? `<div><dt>地點</dt><dd>${esc(d.location)}</dd></div>` : ''}
         ${d.group ? `<div><dt>負責組</dt><dd>${esc(d.group)}</dd></div>` : ''}
-        ${contact && (contact.leader || contact.phone) ? `<div><dt>組長</dt><dd>${esc(contact.leader || '')}${contact.phone ? `　<a href="tel:${esc(contact.phone.replace(/[^\d+]/g, ''))}">${esc(contact.phone)}</a>` : ''}</dd></div>` : ''}
+        ${contact && (contact.leader || contact.phone) ? `<div><dt>${Fmt.leaderWord(d.groupType)}</dt><dd>${esc(contact.leader || '')}${contact.phone ? `　<a href="tel:${esc(contact.phone.replace(/[^\d+]/g, ''))}">${esc(contact.phone)}</a>` : ''}</dd></div>` : ''}
       </dl>
       ${isNotice ? '<p class="hint">公告型勤務不需報名。</p>' : `
         <section class="detail-section">

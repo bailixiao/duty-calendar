@@ -121,8 +121,13 @@
   }
 
   /** 卡片上顯示的負責組與組長或召集人（12人小組不顯示，規格第 4 節） */
+  /** 負責組的帶頭人怎麼稱呼：打掃組叫「召集人」，其他叫「組長」 */
+  function leaderWord(groupType) {
+    return groupType === '打掃組' ? '召集人' : '組長';
+  }
+
   function groupText(duty) {
-    if (duty.mode === '公告型') return duty.groupLeader ? `組長：${duty.groupLeader}` : ''; // 輪值組已在標籤上
+    if (duty.mode === '公告型') return duty.groupLeader ? `${leaderWord(duty.groupType)}：${duty.groupLeader}` : ''; // 輪值組已在標籤上
     if (!duty.group || duty.name.indexOf('12人小組') !== -1) return '';
     return `負責：${duty.group}${duty.groupLeader ? `（${duty.groupLeader}）` : ''}`;
   }
@@ -172,6 +177,6 @@
 
   window.Fmt = {
     esc, toDateStr, parseDate, addDays, datesBetween, rocYear, weekday, shortDate, rocDate, catLabel,
-    timeRange, cardTime, effectiveMin, dayState, groupText, sameName, byStroke, setContact, askAdmin, shortDateList
+    timeRange, cardTime, effectiveMin, dayState, groupText, leaderWord, sameName, byStroke, setContact, askAdmin, shortDateList
   };
 })();
