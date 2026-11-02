@@ -535,6 +535,8 @@
     // 名額（道務、教育）：用第一個了愿項目的「最多」；空白＝不限
     st.quotaMax = (s.positions[0] && s.positions[0].max) || '';
     st.quota = st.quotaMax ? 'limit' : 'none';
+    // 只要名額、不用了愿項目：道務、教育；勤務類性質選「活動」也是（原本已有好幾個了愿項目的照舊，2026/11/2）
+    const quotaOnly = () => isSimple(s.category) || (s.nature === '活動' && s.positions.filter((p) => p.id || String(p.name || '').trim()).length <= 1);
     const today = Fmt.toDateStr(new Date());
 
     function groupsOf(type) {
@@ -630,7 +632,7 @@
             ${lunar ? '' : fairHtml()}
           </fieldset>`}
 
-          ${isNotice ? '' : simple ? `
+          ${isNotice ? '' : quotaOnly() ? `
           <fieldset class="form-block">
             <legend>名額</legend>
             ${segmented('quotaMode', [['none', '不限名額'], ['limit', '限定人數']], st.quota)}
@@ -942,7 +944,7 @@
       // 會改變表單結構的選項：讀回目前的值後重畫
       f.addEventListener('change', (ev) => {
         const n = ev.target.name;
-        if (['mode', 'dateType', 'groupType', 'groupMode', 'rotation', 'category', 'quotaMode', 'layout', 'multiFreq', 'multi'].indexOf(n) === -1) return;
+        if (['mode', 'dateType', 'groupType', 'groupMode', 'rotation', 'category', 'nature', 'quotaMode', 'layout', 'multiFreq', 'multi'].indexOf(n) === -1) return;
         sync();
         if (n === 'groupType') { s.group = ''; st.lunar.rotation = []; st.lunar.rotationStart = 0; }
         if (n === 'dateType' && st.dateType === 'range' && !s.end) s.end = s.start;
@@ -1048,14 +1050,14 @@
         lecturers: s.category === '道務' ? (s.lecturers || '') : '',
         leaders: s.category === '道務' ? (s.leaders || '') : '',
         assistants: s.category === '道務' ? (s.assistants || '') : '',
-        layout: s.mode === '公告型' || isSimple(s.category) ? '' : (s.layout || ''),
-        stages: s.mode === '公告型' || isSimple(s.category) || s.layout !== '職司表' ? '' : (s.stages || ''),
-        multi: s.mode === '公告型' ? false : !!(s.multi === true || s.multi === '是'),
+        layout: s.mode === '公告型' || quotaOnly() ? '' : (s.layout || ''),
+        stages: s.mode === '公告型' || quotaOnly() || s.layout !== '職司表' ? '' : (s.stages || ''),
+        multi: s.mode === '公告型' || quotaOnly() ? false : !!(s.multi === true || s.multi === '是'),
         pinned: !!(s.pinned === true || s.pinned === '是'),
         templePick: s.mode !== '公告型' && !!(s.templePick === true || s.templePick === '是'),
-        totalNeed: s.mode !== '公告型' && (s.multi === true || s.multi === '是') ? String(s.totalNeed || '') : '',
-        leaderTitle: s.mode !== '公告型' && (s.category || '勤務') === '勤務' ? String(s.leaderTitle || '') : '',
-        positions: s.mode === '公告型' ? [] : isSimple(s.category)
+        totalNeed: s.mode !== '公告型' && !quotaOnly() && (s.multi === true || s.multi === '是') ? String(s.totalNeed || '') : '',
+        leaderTitle: s.mode !== '公告型' && !quotaOnly() && (s.category || '勤務') === '勤務' ? String(s.leaderTitle || '') : '',
+        positions: s.mode === '公告型' ? [] : quotaOnly()
           ? [{ id: s.positions[0] && s.positions[0].id, name: (s.positions[0] && s.positions[0].name) || '參加', slot: '', min: '0', max: st.quota === 'limit' ? String(st.quotaMax || '').trim() : '' }]
           : s.positions.filter((p) => p.id || p.name.trim() || p.min || p.max)
           .map((p) => ({ id: p.id, name: p.name, slot: p.slot, min: p.min, max: p.max }))

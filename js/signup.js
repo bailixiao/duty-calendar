@@ -55,10 +55,10 @@
     let step = 1;
     // 可兼任（可報多項）的勤務：上面只顯示名額，每個人在自己的名字卡勾項目，不會上下兩處都能選
     const perPerson = !!duty.multi && duty.positions.length > 1;
-    // 道務、教育的活動只有一個「參加」：不用選項目，直接填名字
-    const single = (duty.category === '道務' || duty.category === '教育') && duty.positions.length === 1;
-    // 道務、教育：壇辦不用選了愿／陪同，一律是報名
-    const freeJoin = duty.category === '道務' || duty.category === '教育';
+    // 道務、教育的活動、勤務類的「活動」只有一個「參加」：不用選項目，直接填名字
+    const single = (duty.category === '道務' || duty.category === '教育' || duty.nature === '活動') && duty.positions.length === 1;
+    // 道務、教育、活動：壇辦不用選了愿／陪同，一律是報名
+    const freeJoin = duty.category === '道務' || duty.category === '教育' || (duty.nature === '活動' && duty.positions.length === 1);
 
     el.innerHTML = `
       <h2>我要報名</h2>
