@@ -186,6 +186,19 @@
 
     // ---------- 名字 ----------
 
+    /** 登記張數的勤務（例：園遊券）：每個人各自填幾張，有面額就算金額 */
+    function ticketRow(e, i) {
+      return `<div class="option-row">
+        <span class="option-label">張數</span>
+        <span class="ticket-step">
+          <button type="button" class="btn btn-small" data-tk="${i}" data-step="-1" aria-label="少一張"${e.tickets <= 1 ? ' disabled' : ''}>－</button>
+          <strong class="ticket-n">${e.tickets}</strong> 張
+          <button type="button" class="btn btn-small" data-tk="${i}" data-step="1" aria-label="多一張"${e.tickets >= 99 ? ' disabled' : ''}>＋</button>
+          ${duty.price ? `<span class="muted">共 ${e.tickets * duty.price} 元</span>` : ''}
+        </span>
+      </div>`;
+    }
+
     function renderNames() {
       if (duty.templePick && temples.length) paintTemple();
       $('[data-names]').innerHTML = state.entries.map((e, i) => {
@@ -198,6 +211,7 @@
             <button type="button" class="btn-remove" data-remove="${i}" aria-label="移除 ${esc(e.name)}">×</button>
           </div>
           <div class="name-options">
+            ${duty.tickets ? ticketRow(e, i) : ""}
             ${e.identity ? `<div class="option-row">
               <span class="option-label">身分</span>
               ${e.locked ? `<span class="identity-fixed"><strong>${esc(e.identity)}</strong><span class="muted">（成員名單登記的，不能改）</span></span>` : `
@@ -277,7 +291,7 @@
       const known = identity !== undefined ? identity : knownIdentity.get(name + '|');
       const fixed = KNOWN_IDENTITIES.indexOf(known) !== -1 ? known : '';
       // 項目先用上面選的；之後可以在名字卡各自改（custom＝改過，上面再改就不跟著變）
-      const entry = { name, temple, identity: fixed, accompany: false, locked: !!fixed, positionIds: perPerson ? new Set() : new Set(state.positionIds), custom: perPerson, datesCustom: false, dates: new Set() };
+      const entry = { name, temple, identity: fixed, accompany: false, locked: !!fixed, positionIds: perPerson ? new Set() : new Set(state.positionIds), custom: perPerson, datesCustom: false, dates: new Set(), tickets: 1 };
       state.entries.push(entry);
       hideError();
       renderNames();
@@ -553,7 +567,7 @@
         positionId: chosen[0].id,
         positionIds: chosen.map((p) => p.id),
         dates: [...new Set(state.entries.flatMap((e) => [...(e.datesCustom ? e.dates : state.dates)]))].sort(),
-        entries: state.entries.map((e) => ({ dates: [...(e.datesCustom ? e.dates : state.dates)].sort(), name: e.name, temple: e.temple || '', identity: e.identity, accompany: e.accompany, leader: !!duty.leaderTitle && !e.accompany && e.name === state.leader, note: duty.layout === '職司表' ? String(e.note || '').trim() : '', positionIds: duty.positions.filter((p) => e.positionIds.has(p.id)).map((p) => p.id) }))
+        entries: state.entries.map((e) => ({ dates: [...(e.datesCustom ? e.dates : state.dates)].sort(), name: e.name, temple: e.temple || '', identity: e.identity, accompany: e.accompany, leader: !!duty.leaderTitle && !e.accompany && e.name === state.leader, note: duty.layout === '職司表' ? String(e.note || '').trim() : '', tickets: duty.tickets ? e.tickets : undefined, positionIds: duty.positions.filter((p) => e.positionIds.has(p.id)).map((p) => p.id) }))
       };
       // 每個人報的項目不一樣時，成功訊息逐人列出
       const same = payload.entries.every((e) => e.positionIds.join() === payload.entries[0].positionIds.join());
@@ -704,6 +718,14 @@
     });
 
     $('[data-names]').addEventListener('click', (ev) => {
+      // 登記張數：＋／－（1～99 張）
+      const tk = ev.target.closest('[data-tk]');
+      if (tk) {
+        const entry = state.entries[Number(tk.dataset.tk)];
+        entry.tickets = Math.min(99, Math.max(1, entry.tickets + Number(tk.dataset.step)));
+        renderNames();
+        return;
+      }
       // 這個人改報別的項目：展開自己的選擇（先帶入上面選的）
       const custom = ev.target.closest('[data-pos-custom]');
       if (custom) {

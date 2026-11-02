@@ -126,6 +126,11 @@
     return groupType === '打掃組' ? '召集人' : '組長';
   }
 
+  /** 登記張數的勤務：這幾筆報名一共幾張（沒記張數的算 1 張） */
+  function ticketSum(signups) {
+    return signups.reduce((n, s) => n + (Number(s.tickets) || 1), 0);
+  }
+
   function groupText(duty) {
     if (duty.mode === '公告型') return duty.groupLeader ? `${leaderWord(duty.groupType)}：${duty.groupLeader}` : ''; // 輪值組已在標籤上
     if (!duty.group || duty.name.indexOf('12人小組') !== -1) return '';
@@ -177,6 +182,6 @@
 
   window.Fmt = {
     esc, toDateStr, parseDate, addDays, datesBetween, rocYear, weekday, shortDate, rocDate, catLabel,
-    timeRange, cardTime, effectiveMin, dayState, groupText, leaderWord, sameName, byStroke, setContact, askAdmin, shortDateList
+    timeRange, cardTime, effectiveMin, dayState, groupText, leaderWord, ticketSum, sameName, byStroke, setContact, askAdmin, shortDateList
   };
 })();

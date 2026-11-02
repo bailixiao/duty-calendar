@@ -33,6 +33,11 @@ function signup_(body) {
 
   var duty = readTableCached_(SHEETS.DUTIES).filter(function (d) { return d['勤務ID'] === body.dutyId; })[0];
   var positions = duty ? readTableCached_(SHEETS.POSITIONS).filter(function (p) { return p['勤務ID'] === duty['勤務ID']; }) : [];
+  // 登記張數的勤務：每位填 1～99 張
+  if (duty && duty['登記張數'] === '是') {
+    var badTickets = entries.filter(function (e) { return e.tickets !== undefined && e.tickets !== '' && !/^\d{1,2}$/.test(String(e.tickets).trim()) || String(e.tickets).trim() === '0'; });
+    if (badTickets.length) throw new ApiError_('BAD_REQUEST', '張數請填 1～99：「' + badTickets.map(function (e) { return normalizeName_(e.name); }).join('、') + '」');
+  }
   // 報名選佛堂的勤務：每位都要有佛堂
   if (duty && duty['報名選佛堂'] === '是') {
     var noTemple = entries.filter(function (e) { return !e.temple; }).map(function (e) { return normalizeName_(e.name); });
@@ -107,6 +112,7 @@ function signup_(body) {
             '建立時間': now,
             '更新時間': now
           };
+          if (duty['登記張數'] === '是') row['張數'] = String(ticketCount_(e.tickets));
           if (duty['版面'] === '職司表' && e.note) row['註記'] = cleanText_(e.note).replace(/[\r\n]+/g, ' ').slice(0, 100);
           signupRows.push(row);
           logRows.push({
@@ -116,7 +122,7 @@ function signup_(body) {
             '內容摘要': [name + '（' + e.identity + (accompany ? '・陪同' : '') + '）', date, duty['名稱'], position['了愿項目名稱']].join('｜'),
             '還原用的前一版資料': ''
           });
-          created.push({ id: id, date: date, name: name, identity: e.identity, accompany: accompany, positionId: position['了愿項目ID'] });
+          created.push({ id: id, date: date, name: name, identity: e.identity, accompany: accompany, positionId: position['了愿項目ID'], tickets: Number(row['張數']) || 0 });
         });
       });
      });
@@ -173,6 +179,12 @@ function uniqueList_(list) {
     seen[x] = true;
     return true;
   });
+}
+
+/** 登記的張數：1～99，沒填算 1 張 */
+function ticketCount_(v) {
+  var n = Number(String(v === undefined || v === null ? '' : v).trim());
+  return n >= 1 && n <= 99 && Math.floor(n) === n ? n : 1;
 }
 
 /** 報名的每個名字：成員名單（啟用中）上完全同名且有登記身分的，身分改用名單上的 */

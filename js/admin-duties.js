@@ -637,6 +637,9 @@
             <legend>名額</legend>
             ${segmented('quotaMode', [['none', '不限名額'], ['limit', '限定人數']], st.quota)}
             ${st.quota === 'limit' ? `<label class="form-row"><span>最多幾人</span><input class="input" name="quotaMax" inputmode="numeric" value="${esc(st.quotaMax)}" placeholder="例：30"></label>` : '<p class="hint">不限人數，大家都可以報名。</p>'}
+            <label class="check"><input type="checkbox" name="tickets"${s.tickets === true || s.tickets === '是' ? ' checked' : ''}> 報名時填張數（例：園遊券、餐券）</label>
+            ${s.tickets === true || s.tickets === '是' ? `<label class="form-row"><span>每張面額（元，可空白）</span><input class="input" name="price" inputmode="numeric" maxlength="6" value="${esc(s.price ? String(s.price) : '')}" placeholder="例：100"></label>
+            <p class="hint">每個人報名時填要幾張；名單上會算總張數${s.price ? '和總金額' : '，填了面額也會算總金額'}。</p>` : ''}
           </fieldset>` : `
           <fieldset class="form-block">
             <legend>了愿項目與名額</legend>
@@ -911,6 +914,8 @@
       if (f.elements.multi) s.multi = f.elements.multi.checked;
       if (f.elements.pinned) s.pinned = f.elements.pinned.checked;
       if (f.elements.templePick) s.templePick = f.elements.templePick.checked;
+      if (f.elements.tickets) s.tickets = f.elements.tickets.checked;
+      if (f.elements.price) s.price = f.elements.price.value.trim();
       if (f.elements.totalNeed) s.totalNeed = f.elements.totalNeed.value.trim();
       if (f.elements.leaderTitle) s.leaderTitle = f.elements.leaderTitle.value.trim();
       if (f.elements.layout) s.layout = f.elements.layout.checked ? '職司表' : '';
@@ -944,7 +949,7 @@
       // 會改變表單結構的選項：讀回目前的值後重畫
       f.addEventListener('change', (ev) => {
         const n = ev.target.name;
-        if (['mode', 'dateType', 'groupType', 'groupMode', 'rotation', 'category', 'nature', 'quotaMode', 'layout', 'multiFreq', 'multi'].indexOf(n) === -1) return;
+        if (['mode', 'dateType', 'groupType', 'groupMode', 'rotation', 'category', 'nature', 'tickets', 'quotaMode', 'layout', 'multiFreq', 'multi'].indexOf(n) === -1) return;
         sync();
         if (n === 'groupType') { s.group = ''; st.lunar.rotation = []; st.lunar.rotationStart = 0; }
         if (n === 'dateType' && st.dateType === 'range' && !s.end) s.end = s.start;
@@ -1054,6 +1059,8 @@
         stages: s.mode === '公告型' || quotaOnly() || s.layout !== '職司表' ? '' : (s.stages || ''),
         multi: s.mode === '公告型' || quotaOnly() ? false : !!(s.multi === true || s.multi === '是'),
         pinned: !!(s.pinned === true || s.pinned === '是'),
+        tickets: s.mode !== '公告型' && quotaOnly() && !!(s.tickets === true || s.tickets === '是'),
+        price: s.mode !== '公告型' && quotaOnly() && (s.tickets === true || s.tickets === '是') ? String(s.price || '') : '',
         templePick: s.mode !== '公告型' && !!(s.templePick === true || s.templePick === '是'),
         totalNeed: s.mode !== '公告型' && !quotaOnly() && (s.multi === true || s.multi === '是') ? String(s.totalNeed || '') : '',
         leaderTitle: s.mode !== '公告型' && !quotaOnly() && (s.category || '勤務') === '勤務' ? String(s.leaderTitle || '') : '',

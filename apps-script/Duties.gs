@@ -89,7 +89,8 @@ function dutyDetail_(duty, positions, signups) {
       temple: s['佛堂'] || '',
       accompany: s['陪同'] === '是',
       leader: s['組長'] === '是', // 職司表的組長 ★
-      note: s['註記'] || ''
+      note: s['註記'] || '',
+      tickets: Number(s['張數']) || 0 // 登記張數的勤務：這個人登記幾張
     };
   });
 
@@ -224,6 +225,8 @@ function dutyToJson_(d, positions) {
     multi: d['可兼任'] === '是',
     pinned: d['首頁置頂'] === '是', // 首頁上面的大按鈕
     templePick: d['報名選佛堂'] === '是', // 報名時先選佛堂、再點這個佛堂的家人
+    tickets: d['登記張數'] === '是', // 報名時每人填張數（例：園遊券）
+    price: d['登記張數'] === '是' ? Number(d['面額']) || 0 : 0, // 每張面額（元；0＝沒填）
     leaderTitle: d['組長職稱'] || '',
     gridLock: d['版面'] === '職司表' ? gridLockDate_(d) : '', // 職司表定案日（過了只有管理者能調整） // 每天要一位組長（例：勤務組長），空白＝不需要
     totalNeed: d['可兼任'] === '是' ? Number(d['共需人數']) || 0 : 0, // 可兼任時這一天總共需要幾位（0＝照各項目最少人數）

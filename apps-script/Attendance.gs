@@ -19,6 +19,11 @@ function adminSetAttendance_(body) {
     changes['註記'] = cleanText_(body.note).replace(/\s*\n\s*/g, ' ');
     if (changes['註記'].length > 100) throw new ApiError_('BAD_REQUEST', '註記最多 100 字');
   }
+  // 登記張數的勤務：改張數（1～99）
+  if (body.tickets !== undefined) {
+    if (!/^\d{1,2}$/.test(String(body.tickets).trim()) || Number(body.tickets) < 1) throw new ApiError_('BAD_REQUEST', '張數請填 1～99');
+    changes['張數'] = String(Number(body.tickets));
+  }
   if (!Object.keys(changes).length) throw new ApiError_('BAD_REQUEST', '沒有要修改的內容');
 
   var duties = readTableCached_(SHEETS.DUTIES);
@@ -41,6 +46,7 @@ function adminSetAttendance_(body) {
     if (changes['出席'] && changes['出席'] !== before['出席']) what.push('改為' + changes['出席']);
     if (changes['陪同'] && changes['陪同'] !== before['陪同']) what.push(changes['陪同'] === '是' ? '改為陪同' : '改為了愿');
     if (changes['組長'] !== undefined && changes['組長'] !== (before['組長'] || '')) what.push(changes['組長'] ? '設為組長' : '取消組長');
+    if (changes['張數'] !== undefined && changes['張數'] !== (before['張數'] || '')) what.push('張數：' + (before['張數'] || '0') + ' → ' + changes['張數']);
     if (changes['註記'] !== undefined && changes['註記'] !== (before['註記'] || '')) what.push(changes['註記'] ? '註記：' + changes['註記'] : '刪除註記');
     appendRows_(SHEETS.LOGS, [{
       '時間': now,
@@ -84,6 +90,7 @@ function adminAddAttendee_(body) {
       '姓名': normalizeName_(entry.name), '身分': entry.identity, '佛堂': entry.temple || '', '陪同': entry.accompany ? '是' : '否',
       '出席': '出席', '狀態': '有效', '建立時間': now, '更新時間': now
     };
+    if (duty['登記張數'] === '是') row['張數'] = String(ticketCount_(body.tickets));
     if (duty['版面'] === '職司表' && body.note) row['註記'] = cleanText_(body.note).slice(0, 100);
     appendRows_(SHEETS.SIGNUPS, [row]);
     addPendingMembers_([row], duty['名稱']);

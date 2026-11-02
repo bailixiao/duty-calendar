@@ -38,3 +38,29 @@ test('報名選佛堂：勾了才能列佛堂家人；每位都要有佛堂；�
   const rows = admin('adminDuty', { id: ev.id }).data.signups.map((s) => [s.name, s.temple]).sort();
   assert.deepEqual(rows, [['測試丁', '測試佛堂B'], ['測試甲', '測試佛堂A']]);
 });
+
+test('登記張數：報名填張數、名單回傳張數、管理者可改；面額存在勤務上', () => {
+  const env = createEnv(Date.UTC(2026, 9, 1, 2, 0, 0));
+  const sup = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const admin = (action, body) => env.post(Object.assign({ action, token: sup }, body));
+  const made = admin('adminCreateDuties', { duties: [{ name: '測試園遊券', category: '勤務', nature: '活動', mode: '報名型', start: '2026-12-06', positions: [{ name: '參加', min: 0, max: null }], tickets: true, price: '100' }] });
+  assert.equal(made.ok, true, JSON.stringify(made.error));
+  const id = made.data.ids[0];
+  const duty = env.get({ action: 'getDuty', id }).data;
+  assert.deepEqual([duty.tickets, duty.price], [true, 100]);
+  assert.equal(admin('adminCreateDuties', { duties: [{ name: '測試園遊券二', category: '勤務', nature: '活動', mode: '報名型', start: '2026-12-06', positions: [{ name: '參加', min: 0, max: null }], tickets: true, price: '一百' }] }).error.code, 'VALIDATION');
+
+  const pid = duty.positions[0].id;
+  assert.equal(env.post({ action: 'signup', dutyId: id, positionId: pid, dates: ['2026-12-06'], entries: [{ name: '測試甲', identity: '道親', tickets: 0 }] }).error.code, 'BAD_REQUEST');
+  const ok = env.post({ action: 'signup', dutyId: id, positionId: pid, dates: ['2026-12-06'], entries: [{ name: '測試甲', identity: '道親', tickets: 3 }, { name: '測試乙', identity: '道親' }] });
+  assert.equal(ok.ok, true, JSON.stringify(ok.error));
+  const rows = () => env.get({ action: 'getDuty', id }).data.signups.map((s) => [s.name, s.tickets]).sort();
+  assert.deepEqual(rows(), [['測試乙', 1], ['測試甲', 3]], '沒填算 1 張');
+
+  const sid = env.get({ action: 'getDuty', id }).data.signups.find((s) => s.name === '測試乙').id;
+  assert.equal(admin('adminSetAttendance', { signupId: sid, tickets: 5 }).ok, true);
+  assert.equal(admin('adminSetAttendance', { signupId: sid, tickets: 100 }).error.code, 'BAD_REQUEST');
+  assert.deepEqual(rows(), [['測試乙', 5], ['測試甲', 3]]);
+  const edit = admin('adminDutyForEdit', { id }).data.duty;
+  assert.deepEqual([edit.tickets, edit.price], ['是', '100']);
+});

@@ -424,6 +424,7 @@
             <span class="position-name">${esc(p.name)}</span>
             <span class="badge badge-ok">${past ? '出席 ' : ''}${count}${p.max !== null ? '／' + p.max : ''} 人${!past && count < Fmt.effectiveMin(p) ? `・缺 ${Fmt.effectiveMin(p) - count}` : ''}</span>
           </div>
+          ${d.tickets && people.length ? `<p class="ticket-total">共 <strong>${Fmt.ticketSum(people)}</strong> 張${d.price ? `・面額 ${d.price} 元・合計 <strong>${Fmt.ticketSum(people) * d.price}</strong> 元` : ''}</p>` : ''}
           ${!d.signups ? '<p class="muted">載入名單中⋯</p>' : people.length ? `<ul class="people">${people.map((s) => `
             <li class="person-row${past && s.attend === '未到' ? ' is-absent' : ''}">
               <span class="person"><span class="person-name">${s.leader ? '<span class="grid-star" title="組長">★</span>' : ''}${esc(s.name)}</span>${s.first ? '<span class="tag tag-new">🆕 新朋友</span>' : ''}${s.leader && d.leaderTitle ? `<span class="tag tag-leader">${esc(d.leaderTitle)}</span>` : ''}${s.temple ? `<span class="tag">${esc(s.temple)}</span>` : ''}
@@ -431,11 +432,13 @@
                 ${s.accompany ? '<span class="tag">陪同</span>' : ''}
                 ${past && s.attend === '未到' ? '<span class="tag tag-warn">未到</span>' : ''}
                 ${s.note ? `<span class="tag">註：${esc(s.note)}</span>` : ''}
+                ${d.tickets ? `<span class="tag tag-ticket">${s.tickets || 1} 張${d.price ? '・' + (s.tickets || 1) * d.price + ' 元' : ''}</span>` : ''}
               </span>
               ${canEdit ? `<span class="person-actions">
                 ${past ? `<button type="button" class="btn btn-small" data-attend="${esc(s.id)}">${s.attend === '未到' ? '改出席' : '改未到'}</button>
                   ${s.identity === '壇辦' ? `<button type="button" class="btn btn-small" data-acc="${esc(s.id)}">${s.accompany ? '改了愿' : '改陪同'}</button>` : ''}` : ''}
                 ${d.layout === '職司表' || (d.leaderTitle && !s.accompany) ? `<button type="button" class="btn btn-small" data-leader="${esc(s.id)}">${s.leader ? '取消組長' : '★ 設組長'}</button>` : ''}
+                ${d.tickets ? `<button type="button" class="btn btn-small" data-tickets="${esc(s.id)}">改張數</button>` : ''}
                 ${d.layout === '職司表' ? `<button type="button" class="btn btn-small" data-note="${esc(s.id)}">${s.note ? '改註記' : '加註記'}</button>` : ''}
                 ${/[、,，.。．\/／;；|]/.test(s.name) || /^[\u4e00-\u9fff]{2,}([\s　]+[\u4e00-\u9fff]{2,})+$/.test(s.name) ? `<button type="button" class="btn btn-small btn-primary" data-split="${esc(s.id)}">拆成多人</button>` : ''}
                 ${d.nature === '活動' ? '' : `<button type="button" class="btn btn-small" data-reschedule="${esc(s.id)}">改期</button>`}
@@ -509,6 +512,7 @@
       setAttendance(s, { leader: !s.leader }, `${s.name}：${s.leader ? '取消組長' : '設為組長 ★'}`);
     }));
     body.querySelectorAll('[data-note]').forEach((b) => b.addEventListener('click', () => editNote(find(b.dataset.note))));
+    body.querySelectorAll('[data-tickets]').forEach((b) => b.addEventListener('click', () => editTickets(find(b.dataset.tickets))));
     body.querySelectorAll('[data-acc]').forEach((b) => b.addEventListener('click', () => {
       const s = find(b.dataset.acc);
       setAttendance(s, { accompany: !s.accompany }, `${s.name}：${s.accompany ? '改為了愿' : '改為陪同'}`);
@@ -572,6 +576,38 @@
     });
   }
 
+  /** 登記張數的勤務：改這個人登記的張數（1～99） */
+  function editTickets(s) {
+    if (!s) return;
+    const price = dutyPage.data.price;
+    const m = Modal.open(`
+      <form class="modal-form" novalidate>
+        <h2 class="modal-title">${esc(s.name)} 的張數</h2>
+        <p class="modal-note">${esc(Fmt.shortDate(s.date))}${price ? `・每張 ${price} 元` : ''}</p>
+        <label class="form-row"><span>張數（1～99）</span><input class="input" name="tickets" inputmode="numeric" maxlength="2" value="${esc(String(s.tickets || 1))}"></label>
+        <div class="form-error" data-error hidden></div>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-block btn-primary">存檔</button>
+          <button type="button" class="btn btn-block" data-close>返回</button>
+        </div>
+      </form>`);
+    const f = m.el.querySelector('form');
+    f.elements.tickets.select();
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    f.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      const n = Number(f.elements.tickets.value.trim());
+      if (!(n >= 1 && n <= 99 && Math.floor(n) === n)) {
+        const e = f.querySelector('[data-error]');
+        e.textContent = '張數請填 1～99';
+        e.hidden = false;
+        return;
+      }
+      m.close();
+      setAttendance(s, { tickets: n }, `${s.name}：${n} 張${price ? `（${n * price} 元）` : ''}`);
+    });
+  }
+
   /** 點名連結：產生（或拿回）這個勤務這一天的點名碼，複製「連結＋點名碼」傳給組長 */
   async function rollcallLink(d, date) {
     Busy.show('產生點名連結⋯');
@@ -619,6 +655,7 @@
           <label class="seg-item"><input type="radio" name="identity" value="未求道"><span>未求道</span></label>
         </div></div>
         <label class="check" data-acc-row hidden><input type="checkbox" name="accompany"> 陪同（不算人數）</label>
+        ${d.tickets ? '<label class="form-row"><span>張數</span><input class="input" name="tickets" inputmode="numeric" maxlength="2" value="1"></label>' : ''}
         ${d.layout === '職司表' ? '<label class="form-row"><span>註記（可空白）</span><input class="input" name="note" maxlength="100" placeholder="例：8:00-19:00、代理人"></label>' : ''}
         <div class="form-error" data-error hidden></div>
         <div class="modal-actions">
@@ -675,7 +712,7 @@
       m.el.setAttribute('data-locked', '');
       Busy.show(word + '中⋯');
       try {
-        const res = await Api.admin('adminAddAttendee', { dutyId: d.id, positionId: p.id, date, name, temple: f.dataset.temple || '', identity: identity.value, accompany: f.elements.accompany.checked, note: f.elements.note ? f.elements.note.value.trim() : '' });
+        const res = await Api.admin('adminAddAttendee', { dutyId: d.id, positionId: p.id, date, name, temple: f.dataset.temple || '', identity: identity.value, accompany: f.elements.accompany.checked, note: f.elements.note ? f.elements.note.value.trim() : '', tickets: f.elements.tickets ? f.elements.tickets.value.trim() : undefined });
         Busy.hide();
         m.close();
         dutyPage.flash = notice('success', '已' + word, `${name}・${Fmt.shortDate(date)}・${p.name}${res.warnings.length ? '（注意：' + res.warnings.join('；') + '）' : ''}`);

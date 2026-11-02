@@ -17,7 +17,7 @@ var DUTY_FIELD_MAP_ = {
   startTime: '開始時間', endTime: '結束時間', location: '地點',
   groupType: '分組類型', group: '負責組', attire: '服裝', description: '說明', deadline: '報名截止日', multi: '可兼任', totalNeed: '共需人數', leaderTitle: '組長職稱', category: '類別', dm: 'DM',
   layout: '版面', stages: '階段', teachers: '師資', merge: '合併顯示',
-  lecturers: '講師', leaders: '帶班', assistants: '助理帶班', pinned: '首頁置頂', templePick: '報名選佛堂'
+  lecturers: '講師', leaders: '帶班', assistants: '助理帶班', pinned: '首頁置頂', templePick: '報名選佛堂', tickets: '登記張數', price: '面額'
 };
 
 // 道務的負責人員欄位（統計「負責人員」用）
@@ -95,6 +95,11 @@ function normalizeDutyInput_(input, ctx) {
   duty['可兼任'] = input.multi === true || input.multi === '是' || input.multi === 'true' ? '是' : '';
   // 首頁置頂：首頁上面放大按鈕（是／空白，2026/10/26）
   duty['首頁置頂'] = input.pinned === true || input.pinned === '是' || input.pinned === 'true' ? '是' : '';
+  // 登記張數：報名時每人填張數；面額＝每張幾元（整數，可空白，2026/11/2）
+  duty['登記張數'] = input.tickets === true || input.tickets === '是' || input.tickets === 'true' ? '是' : '';
+  var price = String(input.price === undefined || input.price === null ? '' : input.price).trim();
+  if (price && !/^\d{1,6}$/.test(price)) errors.push('面額請填數字（元）');
+  duty['面額'] = duty['登記張數'] && /^\d{1,6}$/.test(price) ? String(Number(price)) : '';
   // 報名選佛堂：報名時每位都要選佛堂（是／空白，2026/11/2）
   duty['報名選佛堂'] = input.templePick === true || input.templePick === '是' || input.templePick === 'true' ? '是' : '';
   // 共需人數：可兼任時這一天總共需要幾位（不重複的人）；空白＝照各項目最少人數
@@ -255,7 +260,9 @@ function mergeBulkInput_(target, targetPositions, sourceOldName, sourceOldPositi
     totalNeed: has('positions') ? src['共需人數'] : target['共需人數'],
     leaderTitle: has('positions') ? src['組長職稱'] : target['組長職稱'],
     pinned: target['首頁置頂'] || '', // 首頁置頂照各筆原本的
-    templePick: has('positions') ? src['報名選佛堂'] : target['報名選佛堂'] // 報名選佛堂跟著了愿項目一起改
+    templePick: has('positions') ? src['報名選佛堂'] : target['報名選佛堂'], // 報名選佛堂跟著了愿項目一起改
+    tickets: has('positions') ? src['登記張數'] : target['登記張數'], // 登記張數、面額也跟著了愿項目一起改
+    price: has('positions') ? src['面額'] : target['面額']
   };
 
   var current = targetPositions.map(function (p) {

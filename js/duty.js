@@ -416,7 +416,7 @@
       const names = !d.signups ? '<span class="muted">載入名單中⋯</span>' : people.length
         ? `<ul class="people">${people.map((s) => `
             <li class="person-row">
-              <span class="person">${s.leader ? '<span class="grid-star" title="組長">★</span>' : ''}${esc(s.name)}${s.leader && d.leaderTitle ? `<span class="tag tag-leader">${esc(d.leaderTitle)}</span>` : ''}${s.temple && (d.signups || []).some((o) => o !== s && o.name === s.name) ? `<span class="tag">${esc(s.temple)}</span>` : ''}${s.accompany ? '<span class="tag">陪同</span>' : ''}</span>
+              <span class="person">${s.leader ? '<span class="grid-star" title="組長">★</span>' : ''}${esc(s.name)}${s.leader && d.leaderTitle ? `<span class="tag tag-leader">${esc(d.leaderTitle)}</span>` : ''}${s.temple && (d.signups || []).some((o) => o !== s && o.name === s.name) ? `<span class="tag">${esc(s.temple)}</span>` : ''}${s.accompany ? '<span class="tag">陪同</span>' : ''}${d.tickets && s.tickets ? `<span class="tag">${s.tickets} 張</span>` : ''}</span>
             </li>`).join('')}</ul>`
         : '<span class="muted">還沒有人報名</span>';
       return `
@@ -425,6 +425,7 @@
             <span class="position-name">${esc(p.name)}${p.slot && p.name.indexOf(p.slot) === -1 ? `<small>${esc(p.slot)}</small>` : ''}</span>
             <span class="badge badge-${label.kind}">${esc(label.text)}</span>
           </div>
+          ${d.tickets && people.length ? `<p class="ticket-total">共 <strong>${Fmt.ticketSum(people)}</strong> 張${d.price ? `・${Fmt.ticketSum(people) * d.price} 元` : ''}</p>` : ''}
           <div class="position-people">${names}</div>
         </li>`;
     }).join('');
@@ -509,7 +510,7 @@
 
   function onSignedUp(result, res) {
     try { if (result.entries[0]) localStorage.setItem(LAST_NAME_KEY, result.entries[0].name); } catch (e) { /* 無痕模式 */ }
-    const who = (e) => `${e.name}（${e.identity}${e.accompany ? '・陪同' : ''}）`;
+    const who = (e) => `${e.name}（${e.identity}${e.accompany ? '・陪同' : ''}${e.tickets ? '・' + e.tickets + ' 張' : ''}）`;
     const dates = result.dates.map(Fmt.shortDate).join('、');
     // 大家報同樣的項目：一行名字＋項目；各報各的：逐人列出
     const body = result.sameDates === false
@@ -528,7 +529,7 @@
     if (!page.data || page.data.id !== result.dutyId) return; // 報名期間已離開這頁（例如按了瀏覽器返回）
     if (!page.data.signups) { load(token, flash); return; } // 名單還沒載入：直接重新讀取
     res.created.forEach((c) => page.data.signups.push({
-      id: c.id, date: c.date, positionId: c.positionId || result.positionId, name: c.name, accompany: c.accompany, leader: !!c.leader, temple: c.temple || ''
+      id: c.id, date: c.date, positionId: c.positionId || result.positionId, name: c.name, accompany: c.accompany, leader: !!c.leader, temple: c.temple || '', tickets: c.tickets || 0
     }));
     Object.assign(page.data.days, res.days);
     DutyCache.set(page.data.id, page.data);
