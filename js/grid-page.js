@@ -353,6 +353,7 @@
       <section class="gp-section">
         <h2 class="gp-h2">職司表</h2>
         ${d.signups ? tableHtml(d) : '<p class="muted">載入職司表中⋯</p>'}
+        ${d.signups ? '<button type="button" class="btn btn-block gp-image-btn" data-grid-image>🖼️ 職司表存成圖片（傳到 LINE）</button>' : ''}
         ${isLocked(d) ? `<p class="notice grid-locked">🔒 職司已在 ${lockText(d)} 定案，要調整請聯絡管理者。點名字可以看註記，點空格「—」可以直接報名。</p>` : `<p class="hint">表格可以左右滑動。<strong>點空格「—」</strong>可以直接打名字報名；<strong>點一下名字</strong>可以看、改註記或取消；<strong>按住名字拖到別的格子</strong>可以調整（手機先按住一下再拖），拖到有人的格子會兩人互換，放下後會先問您。${d.gridLock ? `${lockText(d)} 定案後只有管理者能調整。` : ''}${Api.isAdmin() ? '（您已登入後台，定案後也可以調整）' : ''}</p>`}
       </section>
       ${d.description ? `
@@ -371,6 +372,8 @@
       const today = wrap.querySelector('th.is-today');
       if (today) wrap.scrollLeft = Math.max(0, today.offsetLeft - 120);
     }
+    const imgBtn = root.querySelector('[data-grid-image]');
+    if (imgBtn) imgBtn.addEventListener('click', () => GridImage.onButton(imgBtn, async () => data));
     bindNotes(root, d, !isLocked(d));
     bindAdd(root, d);
     if (!isLocked(d)) bindDrag(root, d);

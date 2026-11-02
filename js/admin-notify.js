@@ -57,6 +57,7 @@
         <div class="roster-dates">${rows.map((r, i) => `<label class="check roster-date"><input type="checkbox" data-invite-row value="${i}">
           <span><strong>${esc(r.duty.name)}</strong><br><small>${esc(when(r))}</small><br><small class="invite-short">還缺 ${r.short} 位${r.dates.length > 1 ? `（${r.dates.length} 天合計）` : ''}</small></span></label>`).join('')}</div>
         <textarea class="day-text" rows="14" data-text aria-label="邀請通知（可以修改）" placeholder="勾上面的勤務，這裡會出現邀請通知"></textarea>
+        <div data-grid-images></div>
         <div class="share-actions">
           <button type="button" class="btn btn-primary" data-copy>複製</button>
           <button type="button" class="btn btn-line" data-line>傳到 LINE</button>
@@ -68,12 +69,20 @@
       const update = async () => {
         const t = ++token;
         const picked = boxes().filter((c) => c.checked).map((c) => rows[Number(c.value)]);
+        paintImages(picked);
         if (!picked.length) { area.value = ''; return; }
         area.value = '產生中⋯';
         let text;
         try { text = await Share.inviteTextFull(picked.map((r) => ({ duty: r.duty, date: r.date }))); } catch (e) { text = '讀取失敗，請再勾一次'; }
         if (t === token) area.value = text;
       };
+      // 勾到職司表的勤務（12人小組）：多一個「職司表存成圖片」，可以跟通知一起傳
+      const imgBox = box.querySelector('[data-grid-images]');
+      function paintImages(picked) {
+        const grids = picked.filter((r) => r.duty.layout === '職司表');
+        imgBox.innerHTML = grids.map((r) => `<button type="button" class="btn btn-block gp-image-btn" data-grid-image="${esc(r.duty.id)}">🖼️ ${esc(r.duty.name)} 職司表存成圖片</button>`).join('');
+        imgBox.querySelectorAll('[data-grid-image]').forEach((b) => b.addEventListener('click', () => GridImage.onButton(b, () => DutyCache.fetch(b.dataset.gridImage))));
+      }
       boxes().forEach((c) => c.addEventListener('change', update));
       Share.bindNoNeed(box);
       box.querySelector('[data-no-need]').addEventListener('change', update);
