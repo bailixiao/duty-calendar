@@ -4,8 +4,8 @@
   'use strict';
 
   const DAYS = 366; // 不限這一個月：今天起一年（2026/11/2）
-  // 初一十五打掃不列（用上面的「初一十五總務佈達」，2026/11/2）
-  const SKIP = /初一十五打掃/;
+  // 初一十五打掃、拜香輪值不列（都在上面的「初一十五總務佈達」裡，2026/11/2）
+  const SKIP = /初一十五打掃|拜香輪值/;
   const CATS = [['勤務', '總務'], ['道務', '道務'], ['教育', '教育']];
   const CAT_KEY = 'duty-calendar:notify-cat';
   const PAGE = 30;
@@ -20,7 +20,7 @@
 
   /**
    * 可以佈達的項目（純計算，Node 測試也用）：cat＝勤務（總務）／道務／教育；舊資料沒有類別的算勤務。
-   * 總務的初一十五打掃不列（用上面的「初一十五總務佈達」）。好幾天的勤務（12人小組）合成一列。
+   * 總務的初一十五打掃、拜香輪值不列（用上面的「初一十五總務佈達」）。好幾天的勤務（12人小組）合成一列。
    * 回傳 [{ key, duty, date, dates, short }]（dates＝還缺人的日子；short＝還缺幾位，道務、教育、公告型是 0），依日期排。
    */
   function listRows(duties, today, to, cat) {
@@ -89,7 +89,7 @@
             <summary>📢 初一十五總務佈達（打掃輪值、拜香輪值）</summary>
             <div data-general-body></div>
           </details>` : ''}
-          <p class="hint">今天起一年內的${esc(catName)}${cat === '勤務' ? '勤務（初一十五打掃用上面的總務佈達）' : '活動'}，依日期排。勾要佈達的（可以勾好幾個合成一則），下面的文字會跟著變，按「複製」或「傳到 LINE」。</p>
+          <p class="hint">今天起一年內的${esc(catName)}${cat === '勤務' ? '勤務（初一十五打掃、拜香輪值用上面的總務佈達）' : '活動'}，依日期排。勾要佈達的（可以勾好幾個合成一則），下面的文字會跟著變，按「複製」或「傳到 LINE」。</p>
           ${rows.length ? `
           ${cat === '勤務' ? Share.noNeedHtml() : ''}
           <div class="roster-quick"><button type="button" class="link-btn" data-none>都不選</button></div>
