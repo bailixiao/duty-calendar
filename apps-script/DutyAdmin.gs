@@ -378,3 +378,27 @@ function bulkFieldLabel_(f) {
     attire: '服裝', description: '說明', positions: '了愿項目'
   })[f] || f;
 }
+
+/**
+ * body = { id, to }：一天的勤務整筆搬到別的日期，報名（含已取消的）一起搬（例：舊統計表匯入時年份打錯，2026/11/2）。
+ * 只有總管理者能用；寫操作紀錄。
+ */
+function adminMoveDuty_(body) {
+  var to = String(body.to || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(to) || isNaN(new Date(to + 'T00:00:00').getTime())) throw new ApiError_('BAD_REQUEST', '日期格式不對');
+  return withSignupLock_(function () {
+    var duty = findById_(readTable_(SHEETS.DUTIES), '勤務ID', body.id);
+    if (!duty) throw new ApiError_('NOT_FOUND', '找不到這個勤務，可能已被刪除');
+    var from = duty['開始日'];
+    if (duty['結束日'] && duty['結束日'] !== from) throw new ApiError_('BAD_REQUEST', '好幾天的勤務不能整筆搬，請用編輯勤務改日期');
+    if (from === to) throw new ApiError_('BAD_REQUEST', '日期一樣，不用搬');
+    var signups = readTable_(SHEETS.SIGNUPS).filter(function (s) { return s['勤務ID'] === duty['勤務ID'] && s['日期'] === from; });
+    updateRow_(SHEETS.DUTIES, duty, { '開始日': to, '結束日': to });
+    signups.forEach(function (s) { updateRow_(SHEETS.SIGNUPS, s, { '日期': to, '更新時間': nowString_() }); });
+    writeDutyLog_('勤務搬日期', duty['名稱'] + '｜' + from + ' → ' + to + '（報名 ' + signups.length + ' 筆一起搬）', { id: duty['勤務ID'], from: from, to: to });
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.DUTIES);
+    invalidateTable_(SHEETS.SIGNUPS);
+    return { id: duty['勤務ID'], from: from, to: to, moved: signups.length };
+  });
+}

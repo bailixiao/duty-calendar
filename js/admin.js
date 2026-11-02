@@ -469,6 +469,7 @@
         <a class="btn btn-primary admin-link-btn" href="#/admin/duties/edit/${encodeURIComponent(d.id)}">✏️ 編輯${d.category && d.category !== '勤務' ? '活動' : '勤務'}</a>
         <a class="btn admin-link-btn" href="#/duty/${encodeURIComponent(d.id)}?date=${date}">👀 看家人們看到的頁面</a>
         ${!isNotice && date >= d.today && Api.adminWho().role !== '唯讀' ? `<button type="button" class="btn admin-link-btn" data-rollcall>📋 點名連結（${esc(Fmt.shortDate(date))}）</button>` : ''}
+        ${d.start === d.end && Api.adminWho().role === '總管理者' ? '<button type="button" class="btn admin-link-btn" data-move-duty>📅 整筆搬到別的日期（年份打錯時用）</button>' : ''}
       </div>`;
 
     body.querySelectorAll('[data-date]').forEach((b) => b.addEventListener('click', () => {
@@ -478,6 +479,8 @@
     }));
     const rc = body.querySelector('[data-rollcall]');
     if (rc) rc.addEventListener('click', () => rollcallLink(d, date));
+    const mv = body.querySelector('[data-move-duty]');
+    if (mv) mv.addEventListener('click', () => moveDuty(d));
     const find = (id) => (d.signups || []).find((s) => s.id === id);
     body.querySelectorAll('[data-cancel]').forEach((b) => b.addEventListener('click', () => adminCancel(find(b.dataset.cancel))));
     body.querySelectorAll('[data-split]').forEach((b) => b.addEventListener('click', async () => {
@@ -683,6 +686,42 @@
         if (err.code === 'UNAUTHORIZED') { m.close(); guard(err); return; }
         box.innerHTML = `<strong>${esc(err.message)}</strong>${(err.details || []).map((x) => '<br>' + esc(x.message)).join('')}`;
         box.hidden = false;
+      }
+    });
+  }
+
+  /** 一天的勤務整筆搬到別的日期（報名一起搬）：舊統計表匯入時年份打錯用，預設前一年同一天（總管理者） */
+  function moveDuty(d) {
+    const lastYear = `${Number(d.start.slice(0, 4)) - 1}${d.start.slice(4)}`;
+    const m = Modal.open(`
+      <h2 class="modal-title">📅 整筆搬到別的日期</h2>
+      <p class="modal-note">「${esc(d.name)}」（${esc(Fmt.rocDate(d.start))}）連同報名 ${(d.signups || []).length} 筆，一起搬到新的日期。年份打錯（例如去年的紀錄被當成今年）時用。</p>
+      <label class="form-row"><span>新的日期</span><input class="input" type="date" data-to value="${lastYear}"></label>
+      <p class="form-error" data-err hidden></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-primary btn-block" data-go>搬過去</button>
+        <button type="button" class="btn btn-block" data-close>取消</button>
+      </div>`);
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    const go = m.el.querySelector('[data-go]');
+    go.addEventListener('click', async () => {
+      const to = m.el.querySelector('[data-to]').value;
+      const err = m.el.querySelector('[data-err]');
+      if (!to) { err.textContent = '請選日期'; err.hidden = false; return; }
+      go.disabled = true;
+      go.textContent = '搬移中⋯';
+      try {
+        const r = await Api.admin('adminMoveDuty', { id: d.id, to });
+        m.close();
+        dutyPage.viewDate = r.to;
+        dutyPage.flash = notice('success', '已搬到新的日期', `${Fmt.rocDate(r.from)} → ${Fmt.rocDate(r.to)}・報名 ${r.moved} 筆一起搬`);
+        afterChange();
+      } catch (e) {
+        if (guard(e)) { m.close(); return; }
+        err.textContent = e.message || '搬移失敗';
+        err.hidden = false;
+        go.disabled = false;
+        go.textContent = '搬過去';
       }
     });
   }
