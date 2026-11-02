@@ -4,6 +4,8 @@
   'use strict';
 
   const DAYS = 30;
+  // 初一十五打掃不列（用「總務佈達」通知，2026/11/2）
+  const SKIP = /初一十五打掃/;
 
   /** 這一天還缺幾位（totalNeed＝共需人數；不然每個項目差到最少人數的總和） */
   function shortNum(duty, day) {
@@ -21,7 +23,7 @@
   function shortRows(duties, today, to, role) {
     const rows = [];
     duties.forEach((d) => {
-      if (d.mode === '公告型' || d.category === '道務' || d.category === '教育') return;
+      if (d.mode === '公告型' || d.category === '道務' || d.category === '教育' || SKIP.test(d.name)) return;
       if (['勤務', '道務', '教育'].indexOf(role) !== -1 && (d.category || '勤務') !== role) return;
       const end = d.end || d.start;
       const days = Fmt.datesBetween(d.start > today ? d.start : today, end < to ? end : to);
@@ -49,7 +51,7 @@
         ? `${Fmt.shortDate(r.duty.start)}～${Fmt.shortDate(r.duty.end)}`
         : Fmt.shortDate(r.date));
       box.innerHTML = `
-        <p class="hint">今天起一個月<strong>還缺人</strong>的勤務，缺最多的排前面。勾要邀請的（可以勾好幾個合成一則），下面的文字會跟著變，按「複製」或「傳到 LINE」。</p>
+        <p class="hint">今天起一個月<strong>還缺人</strong>的勤務（初一十五打掃請用「總務佈達」），缺最多的排前面。勾要邀請的（可以勾好幾個合成一則），下面的文字會跟著變，按「複製」或「傳到 LINE」。</p>
         ${Share.noNeedHtml()}
         <div class="roster-quick"><button type="button" class="link-btn" data-all>全選</button><button type="button" class="link-btn" data-none>都不選</button></div>
         <div class="roster-dates">${rows.map((r, i) => `<label class="check roster-date"><input type="checkbox" data-invite-row value="${i}">
