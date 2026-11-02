@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>報名</title>
+<script>
+// 短的報名網址（j/?261001e6d044 或 j/?261001e6d044-261109）：轉到報名頁，並請 LINE 用手機瀏覽器打開。
+// 代碼＝勤務ID（D-20261001-e6d044）去掉「D-20」和「-」；後面「-yyMMdd」是報名哪一天（可省略）。
+(function () {
+  var m = /^\??(\d{6})([0-9a-f]{6})(?:-(\d{6}))?/.exec(location.search);
+  var base = location.pathname.replace(/j\/(index\.html)?$/, '');
+  var url = base + '?openExternalBrowser=1';
+  if (m) {
+    var d = m[3];
+    url += '#/duty/D-20' + m[1] + '-' + m[2] + '?' + (d ? 'date=20' + d.slice(0, 2) + '-' + d.slice(2, 4) + '-' + d.slice(4, 6) + '&' : '') + 'go=signup';
+  }
+  location.replace(url);
+})();
+</script>
+</head>
+<body><p style="font:18px sans-serif;text-align:center;margin-top:30vh">打開報名頁中⋯</p></body>
+</html>

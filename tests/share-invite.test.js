@@ -66,3 +66,9 @@ test('複製通知：初一十五打掃寫「初一打掃」或「十五打掃�
   delete global.window.Solar;
   delete global.window.LunarUtil;
 });
+
+test('報名連結改短：j/?代碼（勤務ID去掉 D-20 和 -），指定哪一天再加 -yyMMdd；ID 格式不同用原本的網址', () => {
+  assert.equal(S.signupUrl('D-20261001-e6d044'), 'https://example.test/j/?261001e6d044');
+  assert.equal(S.signupUrl('D-20261001-e6d044', '2026-11-09'), 'https://example.test/j/?261001e6d044-261109');
+  assert.equal(S.signupUrl('W-1', '2026-11-09'), 'https://example.test/?openExternalBrowser=1#/duty/W-1?date=2026-11-09&go=signup');
+});

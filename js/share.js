@@ -8,6 +8,17 @@
     return location.origin + location.pathname + '?openExternalBrowser=1';
   }
 
+  /**
+   * 報名連結（2026/11/2 改短）：…/j/?261001e6d044（勤務ID D-20261001-e6d044 去掉「D-20」和「-」），
+   * 指定哪一天再加「-261109」；j/index.html 會轉到報名頁並請 LINE 用手機瀏覽器打開。ID 格式不同就用原本的長網址。
+   */
+  function signupUrl(id, date) {
+    const m = /^D-20(\d{6})-([0-9a-f]{6})$/.exec(id || '');
+    const d = /^20(\d{2})-(\d{2})-(\d{2})$/.exec(date || '');
+    if (!m) return `${siteUrl()}#/duty/${encodeURIComponent(id)}?${date ? `date=${date}&` : ''}go=signup`;
+    return `${location.origin}${location.pathname}j/?${m[1]}${m[2]}${d ? `-${d[1]}${d[2]}${d[3]}` : ''}`;
+  }
+
   /** 依勤務名稱配一個小圖示，讓通知比較生動 */
   function dutyEmoji(duty) {
     const n = duty.name || '';
@@ -40,7 +51,7 @@
       }
       const meta = [Fmt.cardTime(duty, date), duty.location].filter(Boolean).join('・');
       lines.push(`${dutyEmoji(duty)} ${duty.name}　🙋 ${state.label}${meta ? `（📍${meta}）` : ''}`);
-      lines.push(`👉 ${siteUrl()}#/duty/${encodeURIComponent(duty.id)}?date=${date}&go=signup`);
+      lines.push(`👉 ${signupUrl(duty.id, date)}`);
     });
     lines.push('', `🗓️ 行事曆：${siteUrl()}`, '', '感謝大家歡喜了愿，感謝慈悲 🙏😊');
     return lines.join('\n');
@@ -118,7 +129,7 @@
       }
       const roster = rosterLines(duty, date, signups);
       if (roster.length) out.push('📋 目前報名：', ...roster);
-      out.push(`👉 報名：${siteUrl()}#/duty/${encodeURIComponent(duty.id)}?date=${date}&go=signup`);
+      out.push(`👉 報名：${signupUrl(duty.id, date)}`);
       return out.join('\n');
     };
     // 好幾天的勤務（例：12人小組一週輪值）不一天一天寫：整段期間合成一則，寫還缺人的日子，報名連結不帶日期
@@ -132,7 +143,7 @@
       const left = Fmt.datesBetween(date, duty.end);
       const short = left.filter((x) => !needEnough(duty, (duty.days || {})[x]));
       if (!skipNeed && short.length) out.push(`🙋 還需要人手：${short.length === left.length ? '每天都還需要' : short.map((x) => Fmt.shortDate(x)).join('、')}`);
-      out.push(`👉 報名：${siteUrl()}#/duty/${encodeURIComponent(duty.id)}?go=signup`);
+      out.push(`👉 報名：${signupUrl(duty.id)}`);
       return out.join('\n');
     };
     // 初一十五打掃：佈達用，不寫需要人數、目前報名、報名網址；名稱依那天寫「初一打掃」或「十五打掃」
@@ -225,5 +236,5 @@
     }
   }
 
-  window.Share = { siteUrl, noNeedHtml, bindNoNeed, needEnough, shortageText, inviteText, inviteTextFull, rosterLines, needText, copyText, buttonsHtml, bind };
+  window.Share = { siteUrl, signupUrl, noNeedHtml, bindNoNeed, needEnough, shortageText, inviteText, inviteTextFull, rosterLines, needText, copyText, buttonsHtml, bind };
 })();

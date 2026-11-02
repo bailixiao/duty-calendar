@@ -31,6 +31,7 @@ self.addEventListener('fetch', (ev) => {
   const sameOrigin = url.origin === self.location.origin;
   if (!sameOrigin && CDN_HOSTS.indexOf(url.hostname) === -1) return; // API 等其他網址：不處理
   if (sameOrigin && /\/api$/.test(url.pathname)) return; // 本機測試用的假 API
+  if (sameOrigin && /\/j\/(index\.html)?$/.test(url.pathname)) return; // 短的報名網址（轉址頁）：不能當成網頁本身存起來
 
   if (req.mode === 'navigate') {
     ev.respondWith(networkFirst(req));
