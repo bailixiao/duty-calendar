@@ -511,7 +511,11 @@
 
   function onSignedUp(result, res) {
     try { if (result.entries[0]) localStorage.setItem(LAST_NAME_KEY, result.entries[0].name); } catch (e) { /* 無痕模式 */ }
-    const who = (e) => `${e.name}（${e.identity}${e.accompany ? '・陪同' : ''}${e.tickets ? '・' + e.tickets + ' 張' : ''}）`;
+    // 登記張數：已經登記過的人是加上去（寫加幾張、共幾張）
+    const added = new Map(((res && res.added) || []).map((a) => [a.name, a]));
+    const who = (e) => added.has(e.name)
+      ? `${e.name}（加 ${added.get(e.name).added} 張，共 ${added.get(e.name).tickets} 張）`
+      : `${e.name}（${e.identity}${e.accompany ? '・陪同' : ''}${e.tickets ? '・' + e.tickets + ' 張' : ''}）`;
     const dates = result.dates.map(Fmt.shortDate).join('、');
     // 大家報同樣的項目：一行名字＋項目；各報各的：逐人列出
     const body = result.sameDates === false
@@ -532,6 +536,7 @@
     res.created.forEach((c) => page.data.signups.push({
       id: c.id, date: c.date, positionId: c.positionId || result.positionId, name: c.name, accompany: c.accompany, leader: !!c.leader, temple: c.temple || '', tickets: c.tickets || 0
     }));
+    (res.added || []).forEach((a) => { const s = page.data.signups.find((x) => x.id === a.id); if (s) s.tickets = a.tickets; }); // 登記張數：累計到原本的報名
     Object.assign(page.data.days, res.days);
     DutyCache.set(page.data.id, page.data);
     render(flash);

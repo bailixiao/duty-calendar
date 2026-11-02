@@ -21,7 +21,7 @@ function adminSetAttendance_(body) {
   }
   // 登記張數的勤務：改張數（1～99）
   if (body.tickets !== undefined) {
-    if (!/^\d{1,2}$/.test(String(body.tickets).trim()) || Number(body.tickets) < 1) throw new ApiError_('BAD_REQUEST', '張數請填 1～99');
+    if (!/^\d{1,3}$/.test(String(body.tickets).trim()) || Number(body.tickets) < 1) throw new ApiError_('BAD_REQUEST', '張數請填 1～999');
     changes['張數'] = String(Number(body.tickets));
   }
   if (!Object.keys(changes).length) throw new ApiError_('BAD_REQUEST', '沒有要修改的內容');

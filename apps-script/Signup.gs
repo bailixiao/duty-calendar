@@ -52,6 +52,25 @@ function signup_(body) {
   try {
     var signups = duty ? readTable_(SHEETS.SIGNUPS).filter(function (s) { return s['勤務ID'] === duty['勤務ID']; }) : [];
 
+    // 登記張數的勤務（園遊券）：同一人同一天已經登記過，就把張數加上去，不算重複報名（2026/11/3）
+    var accumulate = [];
+    if (duty && duty['登記張數'] === '是') {
+      var today = todayString_();
+      var closed = function (date) { return date <= today || (duty['報名截止日'] && today > duty['報名截止日']); };
+      entries = entries.filter(function (e) {
+        if (e.accompany) return true;
+        var rest = e._dates.filter(function (date) {
+          if (closed(date)) return true; // 截止、當天以後照原本的規則擋
+          var had = signups.filter(function (x) { return x['日期'] === date && x['狀態'] !== '已取消' && x['陪同'] !== '是' && samePerson_(x['姓名'], x['佛堂'], e.name, e.temple); })[0];
+          if (!had) return true;
+          accumulate.push({ row: had, add: ticketCount_(e.tickets), name: normalizeName_(e.name) });
+          return false;
+        });
+        e._dates = rest;
+        return rest.length > 0;
+      });
+    }
+
     // 每個名字可以各自選了愿項目（entry.positionIds），沒選的用整批的 positionIds／positionId。
     // 可兼任的勤務每人可以報好幾項；其他勤務每人只能一項（不同人可以不同項）。
     var defaults = uniqueList_(Array.isArray(body.positionIds) && body.positionIds.length ? body.positionIds : [body.positionId]);
@@ -151,6 +170,21 @@ function signup_(body) {
       throw new ApiError_('VALIDATION', '報名沒有完成，請看下面的說明', errors);
     }
 
+    var added = accumulate.map(function (a) {
+      var before = rowSnapshot_(SHEETS.SIGNUPS, a.row);
+      var total = Math.min(TICKET_TOTAL_MAX, (Number(a.row['張數']) || 1) + a.add);
+      updateRow_(SHEETS.SIGNUPS, a.row, { '張數': String(total), '更新時間': now });
+      a.row['張數'] = String(total);
+      logRows.push({
+        '時間': now,
+        '動作': '加張數',
+        '報名ID': a.row['報名ID'],
+        '內容摘要': [normalizeName_(a.row['姓名']), a.row['日期'], duty['名稱'], '加 ' + a.add + ' 張，共 ' + total + ' 張'].join('｜'),
+        '還原用的前一版資料': JSON.stringify(before)
+      });
+      return { id: a.row['報名ID'], date: a.row['日期'], name: normalizeName_(a.row['姓名']), added: a.add, tickets: total };
+    });
+
     appendRows_(SHEETS.SIGNUPS, signupRows);
     appendRows_(SHEETS.LOGS, logRows);
     addPendingMembers_(signupRows, duty['名稱']);
@@ -160,6 +194,7 @@ function signup_(body) {
     var all = signups.concat(signupRows);
     return {
       created: created,
+      added: added, // 登記張數：加到原本報名上的（{ id, date, name, added, tickets＝加完的總張數 }）
       days: daysStatus_(duty, positions, all.filter(function (s) { return s['狀態'] !== '已取消'; }), dates)
     };
   } finally {
@@ -180,6 +215,8 @@ function uniqueList_(list) {
     return true;
   });
 }
+
+var TICKET_TOTAL_MAX = 999; // 同一人同一天累計最多幾張
 
 /** 登記的張數：1～99，沒填算 1 張 */
 function ticketCount_(v) {

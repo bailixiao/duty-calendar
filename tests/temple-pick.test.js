@@ -59,8 +59,17 @@ test('登記張數：報名填張數、名單回傳張數、管理者可改；�
 
   const sid = env.get({ action: 'getDuty', id }).data.signups.find((s) => s.name === '測試乙').id;
   assert.equal(admin('adminSetAttendance', { signupId: sid, tickets: 5 }).ok, true);
-  assert.equal(admin('adminSetAttendance', { signupId: sid, tickets: 100 }).error.code, 'BAD_REQUEST');
+  assert.equal(admin('adminSetAttendance', { signupId: sid, tickets: 1000 }).error.code, 'BAD_REQUEST');
   assert.deepEqual(rows(), [['測試乙', 5], ['測試甲', 3]]);
   const edit = admin('adminDutyForEdit', { id }).data.duty;
   assert.deepEqual([edit.tickets, edit.price], ['是', '100']);
+
+  // 同一人再登記一次：張數加上去，不算重複
+  const again = env.post({ action: 'signup', dutyId: id, positionId: pid, dates: ['2026-12-06'], entries: [{ name: '測試甲', identity: '道親', tickets: 2 }, { name: '測試丙', identity: '道親', tickets: 1 }] });
+  assert.equal(again.ok, true, JSON.stringify(again.error));
+  assert.deepEqual(again.data.added.map((a) => [a.name, a.added, a.tickets]), [['測試甲', 2, 5]]);
+  assert.deepEqual(again.data.created.map((c) => c.name), ['測試丙']);
+  assert.deepEqual(rows(), [['測試丙', 1], ['測試乙', 5], ['測試甲', 5]]);
+  const logs = admin('adminLogs', { offset: 0, limit: 5 }).data.logs;
+  assert.ok(logs.some((l) => l.action === '加張數'));
 });

@@ -584,7 +584,7 @@
       <form class="modal-form" novalidate>
         <h2 class="modal-title">${esc(s.name)} 的張數</h2>
         <p class="modal-note">${esc(Fmt.shortDate(s.date))}${price ? `・每張 ${price} 元` : ''}</p>
-        <label class="form-row"><span>張數（1～99）</span><input class="input" name="tickets" inputmode="numeric" maxlength="2" value="${esc(String(s.tickets || 1))}"></label>
+        <label class="form-row"><span>張數（1～999）</span><input class="input" name="tickets" inputmode="numeric" maxlength="3" value="${esc(String(s.tickets || 1))}"></label>
         <div class="form-error" data-error hidden></div>
         <div class="modal-actions">
           <button type="submit" class="btn btn-block btn-primary">存檔</button>
@@ -597,9 +597,9 @@
     f.addEventListener('submit', (ev) => {
       ev.preventDefault();
       const n = Number(f.elements.tickets.value.trim());
-      if (!(n >= 1 && n <= 99 && Math.floor(n) === n)) {
+      if (!(n >= 1 && n <= 999 && Math.floor(n) === n)) {
         const e = f.querySelector('[data-error]');
-        e.textContent = '張數請填 1～99';
+        e.textContent = '張數請填 1～999';
         e.hidden = false;
         return;
       }
