@@ -17,7 +17,7 @@ var DUTY_FIELD_MAP_ = {
   startTime: '開始時間', endTime: '結束時間', location: '地點',
   groupType: '分組類型', group: '負責組', attire: '服裝', description: '說明', deadline: '報名截止日', multi: '可兼任', totalNeed: '共需人數', leaderTitle: '組長職稱', category: '類別', dm: 'DM',
   layout: '版面', stages: '階段', teachers: '師資', merge: '合併顯示',
-  lecturers: '講師', leaders: '帶班', assistants: '助理帶班', pinned: '首頁置頂'
+  lecturers: '講師', leaders: '帶班', assistants: '助理帶班', pinned: '首頁置頂', templePick: '報名選佛堂'
 };
 
 // 道務的負責人員欄位（統計「負責人員」用）
@@ -95,6 +95,8 @@ function normalizeDutyInput_(input, ctx) {
   duty['可兼任'] = input.multi === true || input.multi === '是' || input.multi === 'true' ? '是' : '';
   // 首頁置頂：首頁上面放大按鈕（是／空白，2026/10/26）
   duty['首頁置頂'] = input.pinned === true || input.pinned === '是' || input.pinned === 'true' ? '是' : '';
+  // 報名選佛堂：報名時每位都要選佛堂（是／空白，2026/11/2）
+  duty['報名選佛堂'] = input.templePick === true || input.templePick === '是' || input.templePick === 'true' ? '是' : '';
   // 共需人數：可兼任時這一天總共需要幾位（不重複的人）；空白＝照各項目最少人數
   var need = String(input.totalNeed === undefined || input.totalNeed === null ? '' : input.totalNeed).trim();
   if (need && !/^\d{1,3}$/.test(need)) errors.push('共需人數請填數字');
@@ -252,7 +254,8 @@ function mergeBulkInput_(target, targetPositions, sourceOldName, sourceOldPositi
     multi: has('positions') ? src['可兼任'] : target['可兼任'], // 可兼任跟著了愿項目一起改
     totalNeed: has('positions') ? src['共需人數'] : target['共需人數'],
     leaderTitle: has('positions') ? src['組長職稱'] : target['組長職稱'],
-    pinned: target['首頁置頂'] || '' // 首頁置頂照各筆原本的
+    pinned: target['首頁置頂'] || '', // 首頁置頂照各筆原本的
+    templePick: has('positions') ? src['報名選佛堂'] : target['報名選佛堂'] // 報名選佛堂跟著了愿項目一起改
   };
 
   var current = targetPositions.map(function (p) {

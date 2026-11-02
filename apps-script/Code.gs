@@ -21,6 +21,7 @@ function doGet(e) {
       case 'getDuty': return cachedRead_('getDuty', p, function () { return getDuty_(p); });
       case 'getBundle': return cachedRead_('getBundle', p, function () { return getBundle_(p); });
       case 'searchMembers': return searchMembers_(p);
+      case 'templeMembers': return templeMembers_(p);
       case 'getSiblings': return getSiblings_(p);
       case 'pushKey': return pushKey_();
       case 'loginAccounts': return loginAccounts_();

@@ -33,6 +33,11 @@ function signup_(body) {
 
   var duty = readTableCached_(SHEETS.DUTIES).filter(function (d) { return d['勤務ID'] === body.dutyId; })[0];
   var positions = duty ? readTableCached_(SHEETS.POSITIONS).filter(function (p) { return p['勤務ID'] === duty['勤務ID']; }) : [];
+  // 報名選佛堂的勤務：每位都要有佛堂
+  if (duty && duty['報名選佛堂'] === '是') {
+    var noTemple = entries.filter(function (e) { return !e.temple; }).map(function (e) { return normalizeName_(e.name); });
+    if (noTemple.length) throw new ApiError_('BAD_REQUEST', '這個勤務報名要選佛堂：「' + noTemple.join('、') + '」還沒選佛堂');
+  }
 
   // 同時報名的人多時要排隊；最多等 30 秒，等不到就回 BUSY（確定沒寫入，前端會自動重試）
   var lock = LockService.getScriptLock();

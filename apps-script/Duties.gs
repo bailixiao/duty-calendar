@@ -177,6 +177,21 @@ function searchMembers_(params) {
   return { members: matched.slice(0, MEMBER_SEARCH_LIMIT) };
 }
 
+/**
+ * 「報名選佛堂」的勤務：params = { dutyId, temple? }。回傳 { temples: 佛堂清單, members: [{ name, identity }] }
+ * （有給 temple 才列這個佛堂的家人：啟用中、非待確認，依名字排）。只有勾了「報名選佛堂」的勤務能用（2026/11/2）。
+ */
+function templeMembers_(params) {
+  var duty = readTableCached_(SHEETS.DUTIES).filter(function (d) { return d['勤務ID'] === params.dutyId; })[0];
+  if (!duty || duty['報名選佛堂'] !== '是') throw new ApiError_('BAD_REQUEST', '這個勤務報名不用選佛堂');
+  var temple = cleanText_(params.temple || '');
+  var members = !temple ? [] : readTableCached_(SHEETS.MEMBERS)
+    .filter(function (m) { return m['姓名'] && m['啟用中'] !== '否' && m['待確認'] !== '是' && m['佛堂'] === temple; })
+    .map(function (m) { return { name: normalizeName_(m['姓名']), identity: OPTIONS.identity.indexOf(m['身分']) !== -1 ? m['身分'] : '' }; })
+    .sort(function (a, b) { return a.name.localeCompare(b.name, 'zh-Hant'); });
+  return { temples: templeList_(), members: members };
+}
+
 /** 排序：負責組組員優先，其次名字開頭相符 */
 function memberRank_(m, q, params) {
   var inGroup = params.groupType && params.group && m.groups[params.groupType] === params.group;
@@ -208,6 +223,7 @@ function dutyToJson_(d, positions) {
     deadline: d['報名截止日'] || '',
     multi: d['可兼任'] === '是',
     pinned: d['首頁置頂'] === '是', // 首頁上面的大按鈕
+    templePick: d['報名選佛堂'] === '是', // 報名時先選佛堂、再點這個佛堂的家人
     leaderTitle: d['組長職稱'] || '',
     gridLock: d['版面'] === '職司表' ? gridLockDate_(d) : '', // 職司表定案日（過了只有管理者能調整） // 每天要一位組長（例：勤務組長），空白＝不需要
     totalNeed: d['可兼任'] === '是' ? Number(d['共需人數']) || 0 : 0, // 可兼任時這一天總共需要幾位（0＝照各項目最少人數）

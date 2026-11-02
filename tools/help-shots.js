@@ -115,6 +115,17 @@ const SHOTS = [
       const add = [...document.querySelectorAll('#view-duty button')].find((b) => b.textContent.trim() === '加入'); add.click(); await __wait(400);
       const idb = [...document.querySelectorAll('#view-duty button')].find((b) => b.textContent.trim() === '道親'); if (idb) idb.click(); await __wait(300);`,
     clip: `const h = [...document.querySelectorAll('#view-duty h2')].find((x) => x.textContent.includes('我要報名')); const r = h.getBoundingClientRect(); h.scrollIntoView(); const r2 = h.getBoundingClientRect(); const end = [...document.querySelectorAll('#view-duty button')].find((b) => b.textContent.includes('確認報名')).getBoundingClientRect(); return { x: 0, y: r2.top + scrollY - 8, width: innerWidth, height: end.bottom - r2.top + 20 };` },
+  { name: 'signup-temple', hash: null, js: `const tok = (await __p({ action: 'adminLogin', password: 'test-pass' })).data.token;
+      for (const [n, t, i] of [['測試戊', '測試佛堂A', '道親'], ['測試己', '測試佛堂A', '壇辦'], ['測試庚', '測試佛堂A', '道親'], ['測試辛', '測試佛堂B', '道親']]) await __p({ action: 'adminSaveMember', token: tok, member: { name: n, identity: i, temple: t } });
+      const res = (await __g({ action: 'getEvents', from: '2026-10-13', to: '2026-11-30' })).data; const d = res.duties.find((x) => x.name.includes('志工輪值') && x.start > res.today);
+      const edit = (await __p({ action: 'adminDutyForEdit', token: tok, id: d.id })).data.duty;
+      await __p({ action: 'adminUpdateDuty', token: tok, id: d.id, duty: Object.assign({}, edit, { templePick: true }) });
+      localStorage.setItem('duty-calendar:signup-temple', '測試佛堂A');
+      location.hash = '#/duty/' + encodeURIComponent(d.id) + '?date=' + d.start; await __wait(3000);
+      for (let i = 0; i < 30 && !document.querySelector('[data-temple-member="測試戊"]'); i++) await __wait(300);
+      document.querySelector('[data-temple-member="測試戊"]').click(); await __wait(400);`,
+    clip: `const h = [...document.querySelectorAll('#view-duty legend')].find((x) => x.textContent.includes('填名字')); const f = h.closest('fieldset'); return __box(f, 8);` },
+  { name: 'signup-done', hash: '#/', js: `await __wait(800); Celebrate.show(['測試甲', '測試乙']); await __wait(1200);` },
   { name: 'mine-list', hash: '#/mine', js: `localStorage.setItem('duty-calendar:mine-name', '測試甲'); location.hash = '#/'; await __wait(200); location.hash = '#/mine'; await __wait(2000);`,
     clip: `return { x: 0, y: 0, width: innerWidth, height: 1000 };` },
   { name: 'mine-multi', hash: '#/mine', js: `localStorage.setItem('duty-calendar:mine-name', '測試甲'); location.hash = '#/'; await __wait(200); location.hash = '#/mine'; await __wait(2000);

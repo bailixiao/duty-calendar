@@ -524,6 +524,7 @@
         ${calButtons(result)}
       </div>`;
     if (window.CalendarPage) CalendarPage.refresh();
+    if (window.Celebrate) Celebrate.show(result.entries.map((e) => e.name)); // 全螢幕「了愿快樂」
     if (!page.data || page.data.id !== result.dutyId) return; // 報名期間已離開這頁（例如按了瀏覽器返回）
     if (!page.data.signups) { load(token, flash); return; } // 名單還沒載入：直接重新讀取
     res.created.forEach((c) => page.data.signups.push({

@@ -43,6 +43,11 @@
       showMissing: false, // 送出時有人沒選身分，標示出來
       submitting: false
     };
+    // 報名選佛堂的勤務：先選佛堂，再點這個佛堂的家人（2026/11/2）
+    const TEMPLE_KEY = 'duty-calendar:signup-temple';
+    const templeCache = new Map(); // 佛堂 → 家人 [{ name, identity }]（讀不到是 null）
+    let temples = [];
+    state.temple = '';
     const searchCache = new Map(); // 查詢字 → 成員陣列
     const knownIdentity = new Map(); // 提示中出現過的成員 → 成員名單上的身分
     let searchToken = 0;
@@ -70,6 +75,7 @@
         </fieldset>` : ''}
         <fieldset class="field">
           <legend><span class="step">${step++}</span>填名字<small>可一次加入多人</small></legend>
+          ${duty.templePick ? '<div class="temple-pick" data-temple-pick><p class="muted small">佛堂讀取中⋯</p></div>' : ''}
           <div class="name-row">
             <input type="text" class="input" data-name-input placeholder="輸入名字" autocomplete="off" enterkeyhint="done" aria-label="名字">
             <button type="button" class="btn" data-add>加入</button>
@@ -181,6 +187,7 @@
     // ---------- 名字 ----------
 
     function renderNames() {
+      if (duty.templePick && temples.length) paintTemple();
       $('[data-names]').innerHTML = state.entries.map((e, i) => {
         const missing = state.showMissing && !e.identity;
         const posMissing = state.showMissing && e.custom && !e.positionIds.size;
@@ -259,6 +266,8 @@
       const name = normalize(raw);
       if (!name) return false;
       temple = temple || '';
+      if (duty.templePick && !temple) temple = state.temple;
+      if (duty.templePick && !temple) { showError('請先選佛堂'); return false; }
       // 同一人：名字相近，且佛堂沒有不同（兩邊都有佛堂又不同就是兩個人）
       const same = state.entries.find((e) => Fmt.sameName(e.name, name) && !(e.temple && temple && e.temple !== temple));
       if (same) {
@@ -361,6 +370,58 @@
         clearSuggestions();
       }
       input.focus();
+    }
+
+    // ---------- 報名選佛堂 ----------
+
+    function paintTemple() {
+      const box = $('[data-temple-pick]');
+      const list = templeCache.get(state.temple);
+      const taken = new Set(state.entries.map((e) => e.name + '|' + (e.temple || '')));
+      const left = (list || []).filter((m) => !taken.has(m.name + '|' + state.temple));
+      let members = '';
+      if (state.temple) {
+        if (list === undefined) members = '<p class="muted small">名單讀取中⋯</p>';
+        else if (list === null) members = '<p class="muted small">讀不到名單，請直接在下面打名字按「加入」</p>';
+        else members = `
+          <p class="temple-label">點名字加入<small>${esc(state.temple)}的家人；名單上沒有的，在下面打名字按「加入」</small></p>
+          <div class="temple-members">${left.map((m) => `<button type="button" class="suggestion" data-temple-member="${esc(m.name)}" data-identity="${esc(m.identity)}">${esc(m.name)}</button>`).join('')
+            || `<span class="muted small">${list.length ? '這個佛堂的家人都加入了' : '名單上還沒有這個佛堂的家人，請在下面打名字'}</span>`}</div>`;
+      }
+      box.innerHTML = `
+        <p class="temple-label">先選佛堂</p>
+        <div class="temple-choices">${temples.map((t) => `<button type="button" class="temple-btn${t === state.temple ? ' is-checked' : ''}" data-temple="${esc(t)}" aria-pressed="${t === state.temple}">${esc(t)}</button>`).join('')}</div>
+        ${members}`;
+    }
+
+    async function pickTemple(temple) {
+      state.temple = temple;
+      try { localStorage.setItem(TEMPLE_KEY, temple); } catch (e) { /* 不記住也沒關係 */ }
+      paintTemple();
+      if (templeCache.has(temple)) return;
+      try { templeCache.set(temple, (await Api.templeMembers(duty.id, temple)).members); } catch (e) { templeCache.set(temple, null); }
+      if (state.temple === temple) paintTemple();
+    }
+
+    async function initTemple() {
+      const box = $('[data-temple-pick]');
+      let saved = '';
+      try { saved = localStorage.getItem(TEMPLE_KEY) || ''; } catch (e) { /* 沒記過 */ }
+      try {
+        const res = await Api.templeMembers(duty.id, saved);
+        temples = res.temples || [];
+        if (saved && temples.indexOf(saved) !== -1) { state.temple = saved; templeCache.set(saved, res.members); }
+      } catch (e) {
+        box.innerHTML = '<p class="muted small">佛堂清單讀不到，請重新整理再試一次</p>';
+        return;
+      }
+      paintTemple();
+      box.addEventListener('click', (ev) => {
+        const t = ev.target.closest('[data-temple]');
+        if (t) { pickTemple(t.dataset.temple); return; }
+        const m = ev.target.closest('[data-temple-member]');
+        if (m) addName(m.dataset.templeMember, m.dataset.identity, state.temple);
+      });
     }
 
     // ---------- 名字自動提示（至少一個字才查詢） ----------
@@ -622,6 +683,7 @@
     }
 
     $('[data-add]').addEventListener('click', addFromInput);
+    if (duty.templePick) initTemple();
     input.addEventListener('input', onInput);
     input.addEventListener('focus', () => { if (!searchCache.size) Api.warmUp(); }, { once: true });
     // 鍵盤上的「✓／Enter」不加入名字（注音選字時常按到，會把還沒打完的字加進去，甚至送出報名），只收起鍵盤；

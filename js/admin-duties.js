@@ -699,6 +699,12 @@
             <textarea class="input textarea" name="description" rows="4" placeholder="工作項目、注意事項⋯">${esc(s.description)}</textarea>
           </fieldset>
 
+          ${isNotice ? '' : `<fieldset class="form-block">
+            <legend>🏠 報名選佛堂</legend>
+            <label class="check"><input type="checkbox" name="templePick"${s.templePick === true || s.templePick === '是' ? ' checked' : ''}> 報名時先選佛堂，再點這個佛堂的家人</label>
+            <p class="hint">報名頁會列出佛堂按鈕，選了就出現那個佛堂的家人名字，點一下就加入；每位都會記下佛堂。</p>
+          </fieldset>`}
+
           <fieldset class="form-block">
             <legend>📌 放到首頁</legend>
             <label class="check"><input type="checkbox" name="pinned"${s.pinned === true || s.pinned === '是' ? ' checked' : ''}> 在行事曆首頁上面放一個大按鈕（例如 12人小組報名、特別活動）</label>
@@ -902,6 +908,7 @@
       if (radio('groupMode')) st.lunar.groupMode = radio('groupMode');
       if (f.elements.multi) s.multi = f.elements.multi.checked;
       if (f.elements.pinned) s.pinned = f.elements.pinned.checked;
+      if (f.elements.templePick) s.templePick = f.elements.templePick.checked;
       if (f.elements.totalNeed) s.totalNeed = f.elements.totalNeed.value.trim();
       if (f.elements.leaderTitle) s.leaderTitle = f.elements.leaderTitle.value.trim();
       if (f.elements.layout) s.layout = f.elements.layout.checked ? '職司表' : '';
@@ -1045,6 +1052,7 @@
         stages: s.mode === '公告型' || isSimple(s.category) || s.layout !== '職司表' ? '' : (s.stages || ''),
         multi: s.mode === '公告型' ? false : !!(s.multi === true || s.multi === '是'),
         pinned: !!(s.pinned === true || s.pinned === '是'),
+        templePick: s.mode !== '公告型' && !!(s.templePick === true || s.templePick === '是'),
         totalNeed: s.mode !== '公告型' && (s.multi === true || s.multi === '是') ? String(s.totalNeed || '') : '',
         leaderTitle: s.mode !== '公告型' && (s.category || '勤務') === '勤務' ? String(s.leaderTitle || '') : '',
         positions: s.mode === '公告型' ? [] : isSimple(s.category)

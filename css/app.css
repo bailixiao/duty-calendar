@@ -2487,3 +2487,71 @@ button.veg-chip:hover { border-color: var(--ok); }
 .form-row-pair .time-wrap { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 1rem; color: inherit; }
 .time-wrap .input { flex: 1 1 auto; min-width: 0; }
 .time-clear { flex: 0 0 auto; white-space: nowrap; }
+
+/* 報名選佛堂：先選佛堂，再點這個佛堂的家人（2026/11/2） */
+.temple-pick { margin-bottom: 12px; }
+.temple-label { margin: 0 0 6px; font-weight: 700; }
+.temple-label small { display: block; font-weight: 400; color: var(--muted); }
+.temple-choices, .temple-members { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.temple-members { max-height: 260px; overflow-y: auto; }
+.temple-btn {
+  min-height: var(--tap);
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.temple-btn.is-checked { background: var(--ink); border-color: var(--ink); color: var(--paper); font-weight: 700; }
+
+/* 報名成功的全螢幕祝福：小觀世音菩薩說「了愿快樂」（js/celebrate.js，2026/11/2） */
+.celebrate {
+  position: fixed; inset: 0; z-index: 3000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  background: radial-gradient(circle at 50% 40%, #fff8e1, #fde2ec);
+  animation: celebrate-in .35s ease-out;
+  overflow: hidden;
+  cursor: pointer;
+}
+.celebrate.is-leaving { animation: celebrate-out .3s ease-in forwards; }
+.celebrate-card { position: relative; text-align: center; max-width: 360px; width: 100%; }
+.celebrate-art { width: min(68vw, 280px); height: auto; display: block; margin: 0 auto; animation: celebrate-float 3s ease-in-out infinite; }
+.celebrate-halo { animation: celebrate-glow 2.4s ease-in-out infinite; transform-origin: 100px 92px; }
+.celebrate-bubble {
+  display: inline-block; position: relative; margin-bottom: 4px;
+  padding: 10px 22px; border-radius: 999px;
+  background: #fff; color: #c2185b; box-shadow: 0 4px 14px rgba(194, 24, 91, .18);
+  font-family: var(--serif); font-size: 1.7rem; font-weight: 700; letter-spacing: .08em;
+  animation: celebrate-pop .6s .2s cubic-bezier(.3, 1.6, .5, 1) both;
+}
+.celebrate-bubble::after {
+  content: ''; position: absolute; left: 50%; bottom: -9px; margin-left: -9px;
+  border: 9px solid transparent; border-top-color: #fff; border-bottom: 0;
+}
+.celebrate-title { margin: 6px 0 2px; font-size: 1.3rem; font-weight: 700; color: #5d4037; }
+.celebrate-who { margin: 0 0 14px; color: #6d5a50; }
+.celebrate-ok { min-width: 140px; }
+.celebrate-petals { position: absolute; inset: 0; pointer-events: none; }
+.celebrate-petal {
+  position: absolute; top: -24px; width: 14px; height: 20px;
+  border-radius: 80% 0 80% 0; background: #f8bbd0; opacity: .85;
+  animation-name: celebrate-fall; animation-timing-function: linear; animation-iteration-count: infinite;
+}
+.celebrate-petal:nth-child(3n) { background: #ffe082; }
+.celebrate-petal:nth-child(4n) { background: #f48fb1; width: 10px; height: 15px; }
+@keyframes celebrate-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes celebrate-out { to { opacity: 0; } }
+@keyframes celebrate-pop { from { transform: scale(.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes celebrate-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes celebrate-glow { 0%, 100% { opacity: .75; transform: scale(1); } 50% { opacity: 1; transform: scale(1.06); } }
+@keyframes celebrate-fall {
+  0% { transform: translateY(0) rotate(0); }
+  100% { transform: translateY(110vh) translateX(40px) rotate(320deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .celebrate, .celebrate-art, .celebrate-halo, .celebrate-bubble { animation: none; }
+  .celebrate-petals { display: none; }
+}
