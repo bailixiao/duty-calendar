@@ -111,7 +111,7 @@
       if (duty.group) out.push(`👥 負責組：${duty.group}${duty.groupType ? `（${duty.groupType}）` : ''}`); // 有負責組、組長就一起寫上
       if (duty.groupLeader) out.push(`👤 ${Fmt.leaderWord(duty.groupType)}：${duty.groupLeader}`);
       // 需要人數：人數夠了就不寫；後台勾了「不寫需要人數」也不寫
-      if (!skipNeed && !needEnough(duty, (duty.days || {})[date])) out.push(`🙋 需要人數：${needText(duty, (duty.days || {})[date])}`);
+      if (!skipNeed && duty.mode !== '公告型' && !needEnough(duty, (duty.days || {})[date])) out.push(`🙋 需要人數：${needText(duty, (duty.days || {})[date])}`);
       if (duty.leaderTitle && signups) {
         const ls = [...new Set(signups.filter((s) => s.date === date && s.leader).map((s) => s.name))];
         out.push(`★ ${duty.leaderTitle}：${ls.length ? ls.join('、') : '還需要一位'}`);

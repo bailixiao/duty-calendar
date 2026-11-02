@@ -2477,3 +2477,6 @@ button.veg-chip:hover { border-color: var(--ok); }
 .notice-tail { margin: 10px 0; }
 .notice-tail summary { cursor: pointer; color: var(--accent); font-weight: 600; padding: 6px 0; }
 .gp-image-btn { margin-top: 12px; }
+.notify-cat { margin: 0 0 12px; }
+.notify-general { margin: 0 0 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.notify-general > summary { cursor: pointer; font-weight: 700; color: var(--ink-2); padding: 4px 0; }
