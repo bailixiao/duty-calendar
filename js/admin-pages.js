@@ -134,40 +134,55 @@
   }
 
   // ---------- 名單 ----------
-  // 今天起一個月有勤務或活動的日期（還沒有人報名的也列），勾選（可全選）後產生貼到 LINE 的文字：
+  // 今天起一個月的勤務或活動（還沒有人報名的也列；初一十五打掃不列），依勤務分開，勾選（可全選）後產生貼到 LINE 的文字：
   //   教全區
-  //   11/14（六）
-  //   勤務名稱人員:名字、名字
+  //   【勤務名稱】
+  //   11/14（六）：名字、名字
+
+  /** 名單不需要的勤務：初一十五打掃（2026/11/2） */
+  const ROSTER_SKIP = /初一十五打掃/;
+
+  /** 把「每天的勤務」改成「每個勤務的日期」：同名的勤務合在一起，依第一次的日期排序 */
+  function byDuty(days) {
+    const map = new Map();
+    days.forEach((d) => d.duties.forEach((x) => {
+      if (ROSTER_SKIP.test(x.name)) return;
+      if (!map.has(x.name)) map.set(x.name, { name: x.name, dates: [] });
+      map.get(x.name).dates.push({ date: d.date, names: x.names, notice: x.notice, group: x.group });
+    }));
+    return [...map.values()];
+  }
 
   function day(body, guard) {
     AdminPage.swr('roster', () => Api.admin('adminRoster', {}, true), (data, stale) => renderRoster(body, data, stale), body);
   }
 
   function renderRoster(body, data, stale) {
-    if (!data.days.length) {
+    const duties = byDuty(data.days);
+    if (!duties.length) {
       body.innerHTML = `${AdminPage.staleNote(stale)}<p class="panel-empty">今天起一個月沒有勤務或活動。</p>`;
       return;
     }
     const tomorrow = Fmt.addDays(data.today, 1);
-    const prev = new Set([...body.querySelectorAll('[data-roster-date]:checked')].map((c) => c.value));
-    const first = !body.querySelector('[data-roster-date]');
+    const prev = new Set([...body.querySelectorAll('[data-roster-duty]:checked')].map((c) => c.value));
+    const first = !body.querySelector('[data-roster-duty]');
+    const dateTag = (x) => esc(Fmt.shortDate(x.date).replace(/（.）$/, '')) + (x.notice || x.names.length ? '' : '（0）');
     body.innerHTML = `
       ${AdminPage.staleNote(stale)}
-      <p class="hint">勾要產生名單的日期（今天起一個月所有的勤務、活動；還沒有人報名的會寫「還沒有人報名」），下面的文字會跟著變，按「複製文字」貼到 LINE。</p>
+      <p class="hint">勾要產生名單的勤務（今天起一個月的勤務、活動，初一十五打掃不列；還沒有人報名的寫「還沒有人報名」），下面的文字會跟著變，按「複製文字」貼到 LINE。</p>
       <div class="roster-quick"><button type="button" class="link-btn" data-all>全選</button><button type="button" class="link-btn" data-none>都不選</button></div>
-      <div class="roster-dates">${data.days.map((d) => {
-        const on = first ? d.date === tomorrow : prev.has(d.date);
-        return `<label class="check roster-date"><input type="checkbox" data-roster-date value="${d.date}"${on ? ' checked' : ''}>
-          <span><strong>${esc(Fmt.shortDate(d.date))}</strong>${d.date === data.today ? '<small>今天</small>' : d.date === tomorrow ? '<small>明天</small>' : ''}<br><small>${esc(d.duties.map((x) => x.name + (x.notice || x.names.length ? '' : '（0）')).join('、'))}</small></span></label>`;
+      <div class="roster-dates">${duties.map((g, i) => {
+        const on = first ? g.dates.some((x) => x.date === tomorrow) : prev.has(String(i));
+        return `<label class="check roster-date"><input type="checkbox" data-roster-duty value="${i}"${on ? ' checked' : ''}>
+          <span><strong>${esc(g.name)}</strong><br><small>${g.dates.map(dateTag).join('、')}</small></span></label>`;
       }).join('')}</div>
       <textarea class="day-text" rows="14" aria-label="名單文字（可修改）"></textarea>
       <button type="button" class="btn btn-primary btn-block" data-copy>複製文字</button>
       <p class="hint">可以先在框內修改，再按「複製文字」。名單不含電話。</p>`;
     const area = body.querySelector('textarea');
-    const boxes = () => [...body.querySelectorAll('[data-roster-date]')];
+    const boxes = () => [...body.querySelectorAll('[data-roster-duty]')];
     const update = () => {
-      const picked = new Set(boxes().filter((c) => c.checked).map((c) => c.value));
-      area.value = rosterText(data.days.filter((d) => picked.has(d.date)));
+      area.value = rosterText(boxes().filter((c) => c.checked).map((c) => duties[Number(c.value)]));
     };
     boxes().forEach((c) => c.addEventListener('change', update));
     body.querySelector('[data-all]').addEventListener('click', () => { boxes().forEach((c) => { c.checked = true; }); update(); });
@@ -176,13 +191,13 @@
     update();
   }
 
-  /** 名單文字：教全區＋每個日期一段，每個勤務一行「名稱人員:名字、名字」 */
-  function rosterText(days) {
-    if (!days.length) return '';
+  /** 名單文字：教全區＋每個勤務一段「【名稱】」，每天一行「日期：名字、名字」 */
+  function rosterText(duties) {
+    if (!duties.length) return '';
     const lines = [window.SITE.org];
-    days.forEach((d) => {
-      lines.push(Fmt.shortDate(d.date));
-      d.duties.forEach((x) => lines.push(x.notice ? `${x.name}：${x.group ? x.group + '輪值' : '公告'}` : `${x.name}人員:${x.names.length ? x.names.join('、') : '還沒有人報名'}`));
+    duties.forEach((g) => {
+      lines.push(`【${g.name}】`);
+      g.dates.forEach((x) => lines.push(`${Fmt.shortDate(x.date)}：${x.notice ? (x.group ? x.group + '輪值' : '公告') : x.names.length ? x.names.join('、') : '還沒有人報名'}`));
     });
     return lines.join('\n');
   }
@@ -202,5 +217,5 @@
     setTimeout(() => { button.textContent = '複製文字'; }, 2500);
   }
 
-  window.AdminPages = { logs, day, rosterText };
+  window.AdminPages = { logs, day, rosterText, byDuty };
 })();

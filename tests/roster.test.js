@@ -24,7 +24,13 @@ test('名單：今天起一個月有人報名的日期，同名只列一次；�
   global.window = { SITE: { org: '教全區' } };
   global.Fmt = { shortDate: (d) => d, esc: (x) => x };
   const AP = require('../js/admin-pages.js');
-  assert.match((global.window.AdminPages || AP).rosterText([{ date: '2026-10-02', duties: [{ name: '測試勤務', names: [] }, { name: '輪值', notice: true, group: '第二組', names: [] }] }]), /測試勤務人員:還沒有人報名\n輪值：第二組輪值/);
+  const P = global.window.AdminPages || AP;
+  const list = P.byDuty([
+    { date: '2026-10-02', duties: [{ name: '測試勤務', names: [] }, { name: '輪值', notice: true, group: '第二組', names: [] }, { name: '初一十五打掃（宏宗）', names: [] }] },
+    { date: '2026-10-03', duties: [{ name: '測試勤務', names: ['測試甲', '測試乙'] }] }
+  ]);
+  assert.deepEqual(list.map((g) => g.name), ['測試勤務', '輪值'], '依勤務分開，初一十五打掃不列');
+  assert.equal(P.rosterText(list), '教全區\n【測試勤務】\n2026-10-02：還沒有人報名\n2026-10-03：測試甲、測試乙\n【輪值】\n2026-10-02：第二組輪值');
   const dw = env.post({ action: 'adminLogin', account: '道務組', password: 'abc12345' }).data.token;
   const mine = env.post({ action: 'adminRoster', token: dw }).data;
   assert.ok(mine.days.every((d) => d.duties.every((x) => x.category === '道務')), '道務帳號只看到道務');
