@@ -72,3 +72,12 @@ test('報名連結改短：j/?代碼（勤務ID去掉 D-20 和 -），指定哪�
   assert.equal(S.signupUrl('D-20261001-e6d044', '2026-11-09'), 'https://example.test/j/?261001e6d044-261109');
   assert.equal(S.signupUrl('W-1', '2026-11-09'), 'https://example.test/?openExternalBrowser=1#/duty/W-1?date=2026-11-09&go=signup');
 });
+
+test('複製通知：勤務有說明就多一行「📝 說明」（併成一行、太長截斷）；職司表不寫', () => {
+  const t = S.inviteText([{ duty: duty({ description: '可以和初一十五的**彌勒山母殿打掃**一起報名\n記得簽名' }), date: '2026-11-09' }]);
+  assert.match(t, /📝 說明：可以和初一十五的彌勒山母殿打掃一起報名　記得簽名\n/);
+  const long = S.inviteText([{ duty: duty({ description: '測'.repeat(100) }), date: '2026-11-09' }]);
+  assert.match(long, /📝 說明：測{80}⋯（詳見報名頁）/);
+  assert.doesNotMatch(S.inviteText([{ duty: duty({ description: '職司說明', layout: '職司表' }), date: '2026-11-09' }]), /說明/);
+  assert.doesNotMatch(S.inviteText([{ duty: duty({}), date: '2026-11-09' }]), /📝/);
+});

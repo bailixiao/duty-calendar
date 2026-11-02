@@ -110,6 +110,14 @@
   }
 
   const CLEAN = /初一十五打掃/;
+  const DESC_MAX = 80;
+
+  /** 通知裡的說明（2026/11/2）：勤務說明併成一行（去掉【標題】、**粗體**記號），太長就截斷，寫「詳見報名頁」；職司表的說明很長，不寫 */
+  function descLine(duty) {
+    if (duty.layout === '職司表') return '';
+    const t = String(duty.description || '').replace(/\*\*/g, '').replace(/【(.+?)】/g, '$1：').split(/\r?\n/).map((x) => x.trim()).filter(Boolean).join('　');
+    return t.length > DESC_MAX ? t.slice(0, DESC_MAX) + '⋯（詳見報名頁）' : t;
+  }
 
   function inviteText(rows) {
     const skipNeed = noNeed();
@@ -121,6 +129,7 @@
       if (duty.location) out.push(`📍 地點：${duty.location}`);
       if (duty.group) out.push(`👥 負責組：${duty.group}${duty.groupType ? `（${duty.groupType}）` : ''}`); // 有負責組、組長就一起寫上
       if (duty.groupLeader) out.push(`👤 ${Fmt.leaderWord(duty.groupType)}：${duty.groupLeader}`);
+      if (descLine(duty)) out.push(`📝 說明：${descLine(duty)}`);
       // 需要人數：人數夠了就不寫；後台勾了「不寫需要人數」也不寫
       if (!skipNeed && duty.mode !== '公告型' && !needEnough(duty, (duty.days || {})[date])) out.push(`🙋 需要人數：${needText(duty, (duty.days || {})[date])}`);
       if (duty.leaderTitle && signups) {
@@ -140,6 +149,7 @@
       if (duty.location) out.push(`📍 地點：${duty.location}`);
       if (duty.group) out.push(`👥 負責組：${duty.group}${duty.groupType ? `（${duty.groupType}）` : ''}`);
       if (duty.groupLeader) out.push(`👤 ${Fmt.leaderWord(duty.groupType)}：${duty.groupLeader}`);
+      if (descLine(duty)) out.push(`📝 說明：${descLine(duty)}`);
       const left = Fmt.datesBetween(date, duty.end);
       const short = left.filter((x) => !needEnough(duty, (duty.days || {})[x]));
       if (!skipNeed && short.length) out.push(`🙋 還需要人手：${short.length === left.length ? '每天都還需要' : short.map((x) => Fmt.shortDate(x)).join('、')}`);
@@ -156,6 +166,7 @@
       if (duty.location) out.push(`📍 地點：${duty.location}`);
       if (duty.group) out.push(`👥 負責組：${duty.group}${duty.groupType ? `（${duty.groupType}）` : ''}`);
       if (duty.groupLeader) out.push(`👤 ${Fmt.leaderWord(duty.groupType)}：${duty.groupLeader}`);
+      if (descLine(duty)) out.push(`📝 說明：${descLine(duty)}`);
       return out.join('\n');
     };
     const isWeek = (duty) => duty.end && duty.end !== duty.start;
