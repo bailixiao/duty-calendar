@@ -7,7 +7,7 @@
 //   #/admin/members   成員名單管理、#/admin/groups 分組管理（見 admin-people.js）
 //   #/admin/stats     統計（見 admin-stats.js）、#/admin/history 匯入歷史資料（見 admin-history.js）
 //   #/admin/logs      操作紀錄與還原
-//   #/admin/day       名單（今天起一個月，勾日期產生文字）
+//   #/admin/day       📢 通知（邀請報名、名單、總務佈達：產生貼到 LINE 的文字）
 //   #/admin/push      推播（見 admin-push.js）
 //   #/admin/help      教學（常見問題的管理者題目與編輯，見 help.js）
 (function () {
@@ -150,7 +150,7 @@
   function shell(active) {
     const who = Api.adminWho();
     const T = term();
-    const tabs = [['', '近期' + T], ['duties', T + '管理'], ['members', '成員'], ['groups', '分組'], ['stats', '統計'], ['report', '📑 年度總結'], ['logs', '操作紀錄'], ['day', '名單'], ['push', '📣 推播']];
+    const tabs = [['', '近期' + T], ['day', '📢 通知'], ['duties', T + '管理'], ['members', '成員'], ['groups', '分組'], ['stats', '統計'], ['report', '📑 年度總結'], ['logs', '操作紀錄'], ['push', '📣 推播']];
     if (['總管理者', '唯讀'].indexOf(who.role) !== -1) tabs.push(['venue', '場地借用']);
     if (who.role === '總管理者') tabs.push(['accounts', '帳號']);
     if (who.role === '唯讀') tabs.splice(tabs.findIndex((t) => t[0] === 'duties'), 1); // 唯讀帳號：不顯示勤務管理

@@ -153,8 +153,31 @@
     return [...map.values()];
   }
 
+  // ---------- 📢 通知（2026/11/2）：要貼到 LINE 的文字都在這裡：邀請報名、名單、總務佈達 ----------
+  const NOTIFY_KEY = 'duty-calendar:notify-tab';
+
   function day(body, guard) {
-    AdminPage.swr('roster', () => Api.admin('adminRoster', {}, true), (data, stale) => renderRoster(body, data, stale), body);
+    const parts = [['invite', '🙋 邀請報名'], ['roster', '📋 名單']];
+    if (['總管理者', '勤務'].indexOf(Api.adminWho().role) !== -1) parts.push(['notice', '📢 總務佈達']);
+    let cur = 'invite';
+    try { cur = localStorage.getItem(NOTIFY_KEY) || cur; } catch (e) { /* 無痕模式：用預設 */ }
+    if (!parts.some((p) => p[0] === cur)) cur = 'invite';
+    body.innerHTML = `
+      <div class="seg notify-seg" role="radiogroup" aria-label="通知種類">${parts.map(([k, label]) => `<label class="seg-item"><input type="radio" name="notify" value="${k}"${k === cur ? ' checked' : ''}><span>${label}</span></label>`).join('')}</div>
+      <div data-notify></div>`;
+    const show = (k) => {
+      const old = body.querySelector('[data-notify]');
+      const box = old.cloneNode(false); // 換新的容器：切換時上一個還在讀的資料不會蓋過來
+      old.replaceWith(box);
+      if (k === 'invite') InviteBoard.mount(box);
+      else if (k === 'notice') GeneralNotice.mount(box);
+      else AdminPage.swr('roster', () => Api.admin('adminRoster', {}, true), (data, stale) => { if (box.isConnected) renderRoster(box, data, stale); }, box);
+    };
+    body.querySelectorAll('input[name="notify"]').forEach((r) => r.addEventListener('change', () => {
+      try { localStorage.setItem(NOTIFY_KEY, r.value); } catch (e) { /* 不記住也沒關係 */ }
+      show(r.value);
+    }));
+    show(cur);
   }
 
   function renderRoster(body, data, stale) {

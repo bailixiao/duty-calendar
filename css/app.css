@@ -2470,3 +2470,7 @@ button.veg-chip:hover { border-color: var(--ok); }
 .fair-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 6px 0; border-top: 1px solid var(--line); }
 .fair-list .fair-name { font-weight: 700; min-width: 4.5em; }
 .fair-list .btn-small, .fair-list .tag { margin-left: auto; }
+
+/* 後台「📢 通知」 */
+.notify-seg { margin: 4px 0 14px; }
+.roster-date .invite-short { color: var(--accent); font-weight: 700; }

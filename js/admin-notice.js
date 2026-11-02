@@ -56,52 +56,54 @@
     return lines.join('\n');
   }
 
-  /** 打開佈達視窗：讀今天起 60 天的勤務，預設最近的一天 */
-  async function open() {
+  /** 佈達的內容（選日期、文字框、複製、傳到 LINE）放進 box：後台「📢 通知」頁和彈出視窗共用；讀今天起 60 天的勤務，預設最近的一天 */
+  async function mount(box) {
     const today = Fmt.toDateStr(new Date());
-    const m = Modal.open(`
-      <h2 class="modal-title">📢 總務佈達</h2>
-      <p class="modal-note">初一、十五的打掃輪值和拜香輪值，自動整理好，可以直接貼到 LINE。</p>
-      <div data-notice-body><p class="muted">整理中⋯</p></div>
-      <div class="modal-actions">
-        <button type="button" class="btn btn-primary btn-block" data-copy disabled>複製佈達</button>
-        <button type="button" class="btn btn-line btn-block" data-line disabled>傳到 LINE</button>
-        <button type="button" class="btn btn-block" data-close>返回</button>
-      </div>`);
-    m.el.classList.add('modal-wide');
-    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
-    const body = m.el.querySelector('[data-notice-body]');
+    box.innerHTML = '<p class="muted">整理中⋯</p>';
     let duties;
     try {
       duties = (await Api.getEvents(today, Fmt.addDays(today, 60))).duties;
     } catch (err) {
-      body.innerHTML = `<p class="form-error">${Fmt.esc(err.message || '讀不到勤務')}</p>`;
+      box.innerHTML = `<p class="form-error">${Fmt.esc(err.message || '讀不到勤務')}</p>`;
       return;
     }
     const dates = datesOf(duties, today);
-    if (!dates.length) { body.innerHTML = '<p class="muted">60 天內沒有打掃輪值或拜香輪值。</p>'; return; }
-    body.innerHTML = `
+    if (!dates.length) { box.innerHTML = '<p class="muted">60 天內沒有打掃輪值或拜香輪值。</p>'; return; }
+    box.innerHTML = `
       <label class="form-row"><span>日期</span>
         <select class="input" data-date>${dates.map((d) => `<option value="${d}">${Fmt.esc(Fmt.shortDate(d))}　農曆${Fmt.esc(LunarUtil.lunarOf(d).full)}</option>`).join('')}</select></label>
       <textarea class="day-text" rows="14" data-text aria-label="佈達文字（可以修改）"></textarea>
+      <div class="share-actions">
+        <button type="button" class="btn btn-primary" data-copy>複製佈達</button>
+        <button type="button" class="btn btn-line" data-line>傳到 LINE</button>
+      </div>
       <p class="hint">可以先在框裡修改再複製。組別、召集人來自勤務的「負責組」和後台「分組」的組長或召集人，不對的話到那邊改。</p>`;
-    const sel = body.querySelector('[data-date]');
-    const area = body.querySelector('[data-text]');
+    const sel = box.querySelector('[data-date]');
+    const area = box.querySelector('[data-text]');
     const fill = () => { area.value = text(sel.value, duties, LunarUtil.lunarOf(sel.value)); };
     sel.addEventListener('change', fill);
     fill();
-    const copy = m.el.querySelector('[data-copy]');
-    const line = m.el.querySelector('[data-line]');
-    copy.disabled = false;
-    line.disabled = false;
+    const copy = box.querySelector('[data-copy]');
     copy.addEventListener('click', async () => {
       copy.textContent = (await Share.copyText(area.value)) ? '已複製 ✓' : '複製失敗';
       setTimeout(() => { copy.textContent = '複製佈達'; }, 2500);
     });
-    line.addEventListener('click', () => window.open('https://line.me/R/msg/text/?' + encodeURIComponent(area.value), '_blank', 'noopener'));
+    box.querySelector('[data-line]').addEventListener('click', () => window.open('https://line.me/R/msg/text/?' + encodeURIComponent(area.value), '_blank', 'noopener'));
   }
 
-  const api = { open, text, datesOf, zhGroup, placeOf };
+  /** 打開佈達視窗（近期勤務的按鈕） */
+  function open() {
+    const m = Modal.open(`
+      <h2 class="modal-title">📢 總務佈達</h2>
+      <p class="modal-note">初一、十五的打掃輪值和拜香輪值，自動整理好，可以直接貼到 LINE。</p>
+      <div data-notice-body></div>
+      <div class="modal-actions"><button type="button" class="btn btn-block" data-close>返回</button></div>`);
+    m.el.classList.add('modal-wide');
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    mount(m.el.querySelector('[data-notice-body]'));
+  }
+
+  const api = { open, mount, text, datesOf, zhGroup, placeOf };
   if (typeof module !== 'undefined') module.exports = api;
   else window.GeneralNotice = api;
 })();
