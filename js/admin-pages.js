@@ -153,11 +153,11 @@
     return [...map.values()];
   }
 
-  // ---------- 📢 通知（2026/11/2）：要貼到 LINE 的文字都在這裡：邀請報名、名單、總務佈達 ----------
+  // ---------- 📢 通知（2026/11/2）：要貼到 LINE 的文字都在這裡：佈達（邀請報名）、給分壇名單、總務佈達 ----------
   const NOTIFY_KEY = 'duty-calendar:notify-tab';
 
   function day(body, guard) {
-    const parts = [['invite', '🙋 邀請報名'], ['roster', '📋 名單']];
+    const parts = [['invite', '📣 佈達'], ['roster', '📋 給分壇名單']];
     if (['總管理者', '勤務'].indexOf(Api.adminWho().role) !== -1) parts.push(['notice', '📢 總務佈達']);
     let cur = 'invite';
     try { cur = localStorage.getItem(NOTIFY_KEY) || cur; } catch (e) { /* 無痕模式：用預設 */ }
