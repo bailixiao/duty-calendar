@@ -2518,10 +2518,11 @@ button.veg-chip:hover { border-color: var(--ok); }
 }
 .celebrate.is-leaving { animation: celebrate-out .3s ease-in forwards; }
 .celebrate-card { position: relative; text-align: center; max-width: 360px; width: 100%; }
-.celebrate-art { width: min(68vw, 280px); height: auto; display: block; margin: 0 auto; animation: celebrate-float 3s ease-in-out infinite; }
-.celebrate-halo { animation: celebrate-glow 2.4s ease-in-out infinite; transform-origin: 100px 92px; }
+.celebrate-glow { position: relative; display: flex; justify-content: center; animation: celebrate-float 3s ease-in-out infinite; }
+.celebrate-glow::before { content: ''; position: absolute; left: 50%; top: 30%; width: min(70vw, 300px); aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(circle, #fff6c9 0, rgba(255, 224, 138, .75) 45%, rgba(255, 209, 102, 0) 70%); animation: celebrate-glow 2.4s ease-in-out infinite; }
+.celebrate-art { position: relative; height: min(46vh, 380px); width: auto; display: block; }
 .celebrate-bubble {
-  display: inline-block; position: relative; margin-bottom: 4px;
+  display: inline-block; position: relative; margin-bottom: 14px;
   padding: 10px 22px; border-radius: 999px;
   background: #fff; color: #c2185b; box-shadow: 0 4px 14px rgba(194, 24, 91, .18);
   font-family: var(--serif); font-size: 1.7rem; font-weight: 700; letter-spacing: .08em;
@@ -2546,13 +2547,13 @@ button.veg-chip:hover { border-color: var(--ok); }
 @keyframes celebrate-out { to { opacity: 0; } }
 @keyframes celebrate-pop { from { transform: scale(.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @keyframes celebrate-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
-@keyframes celebrate-glow { 0%, 100% { opacity: .75; transform: scale(1); } 50% { opacity: 1; transform: scale(1.06); } }
+@keyframes celebrate-glow { 0%, 100% { opacity: .75; transform: translate(-50%, -50%) scale(1); } 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); } }
 @keyframes celebrate-fall {
   0% { transform: translateY(0) rotate(0); }
   100% { transform: translateY(110vh) translateX(40px) rotate(320deg); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .celebrate, .celebrate-art, .celebrate-halo, .celebrate-bubble { animation: none; }
+  .celebrate, .celebrate-glow, .celebrate-glow::before, .celebrate-bubble { animation: none; }
   .celebrate-petals { display: none; }
 }
 

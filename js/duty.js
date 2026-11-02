@@ -476,6 +476,7 @@
       return;
     }
     SignupForm.mount(el, d, page.viewDate, onSignedUp);
+    if (window.Celebrate) Celebrate.preload(); // 報名成功的觀世音菩薩圖先下載
     goSignup(el);
   }
 
