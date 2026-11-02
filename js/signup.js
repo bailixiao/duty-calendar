@@ -192,9 +192,9 @@
         <span class="option-label">張數</span>
         <span class="ticket-step">
           <button type="button" class="btn btn-small" data-tk="${i}" data-step="-1" aria-label="少一張"${e.tickets <= 1 ? ' disabled' : ''}>－</button>
-          <strong class="ticket-n">${e.tickets}</strong> 張
+          <input class="input ticket-n" type="number" inputmode="numeric" min="1" max="99" data-tk-input="${i}" value="${e.tickets}" aria-label="${esc(e.name)} 的張數"> 張
           <button type="button" class="btn btn-small" data-tk="${i}" data-step="1" aria-label="多一張"${e.tickets >= 99 ? ' disabled' : ''}>＋</button>
-          ${duty.price ? `<span class="muted">共 ${e.tickets * duty.price} 元</span>` : ''}
+          ${duty.price ? `<span class="muted" data-tk-sum="${i}">共 ${e.tickets * duty.price} 元</span>` : ''}
         </span>
       </div>`;
     }
@@ -830,8 +830,23 @@
     if (leaderBox) leaderBox.addEventListener('change', (ev) => {
       if (ev.target.dataset.leaderName !== undefined) { state.leader = ev.target.value; renderLeader(); }
     });
+    // 張數直接打數字：打的時候只更新金額（不重畫，鍵盤不會收起來）；打完（change）再整理成 1～99
+    const typedTickets = (v) => Math.min(99, Math.max(1, Math.floor(Number(v)) || 1));
+    $('[data-names]').addEventListener('input', (ev) => {
+      const t = ev.target;
+      if (t.dataset.tkInput === undefined) return;
+      const i = Number(t.dataset.tkInput);
+      state.entries[i].tickets = typedTickets(t.value);
+      const sum = $(`[data-tk-sum="${i}"]`);
+      if (sum) sum.textContent = `共 ${state.entries[i].tickets * duty.price} 元`;
+    });
     $('[data-names]').addEventListener('change', (ev) => {
       const t = ev.target;
+      if (t.dataset.tkInput !== undefined) {
+        state.entries[Number(t.dataset.tkInput)].tickets = typedTickets(t.value);
+        renderNames();
+        return;
+      }
       if (t.dataset.entryDate !== undefined) {
         const entry = state.entries[Number(t.dataset.entryDate)];
         if (t.checked) entry.dates.add(t.value); else entry.dates.delete(t.value);

@@ -2559,6 +2559,6 @@ button.veg-chip:hover { border-color: var(--ok); }
 /* 登記張數（例：園遊券，2026/11/2） */
 .ticket-step { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ticket-step .btn { min-width: 40px; font-size: 1.1rem; }
-.ticket-n { min-width: 1.5em; text-align: center; font-size: 1.15rem; }
+.ticket-step .ticket-n { flex: none; width: 4.2em; min-height: 40px; padding: 0 6px; text-align: center; font-size: 1.15rem; font-weight: 700; }
 .ticket-total { margin: 4px 0 8px; color: var(--ink-2); }
 .tag-ticket { background: #fff1c2; color: #5a4300; }
