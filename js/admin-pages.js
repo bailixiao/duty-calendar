@@ -149,7 +149,7 @@
       if (ROSTER_SKIP.test(x.name)) return;
       if (cat && (x.category || '勤務') !== cat) return; // 分總務／道務／教育（舊資料沒有類別的算總務）
       if (!map.has(x.name)) map.set(x.name, { name: x.name, dates: [] });
-      map.get(x.name).dates.push({ date: d.date, names: x.names, notice: x.notice, group: x.group });
+      map.get(x.name).dates.push({ date: d.date, names: x.names, notice: x.notice, group: x.group, tickets: x.tickets, price: x.price });
     }));
     return [...map.values()];
   }
@@ -240,7 +240,15 @@
     const lines = [window.SITE.org];
     duties.forEach((g) => {
       lines.push(`【${g.name}】`);
-      g.dates.forEach((x) => lines.push(`${Fmt.shortDate(x.date)}：${x.notice ? (x.group ? x.group + '輪值' : '公告') : x.names.length ? x.names.join('、') : '還沒有人報名'}`));
+      g.dates.forEach((x) => {
+        // 登記張數的勤務（園遊券）：名字後面寫張數，下一行寫總張數、合計金額
+        const who = x.tickets ? x.names.map((n) => `${n} ${x.tickets[n] || 1}張`) : x.names;
+        lines.push(`${Fmt.shortDate(x.date)}：${x.notice ? (x.group ? x.group + '輪值' : '公告') : who.length ? who.join('、') : '還沒有人報名'}`);
+        if (x.tickets && x.names.length) {
+          const sum = x.names.reduce((n, k) => n + (x.tickets[k] || 1), 0);
+          lines.push(`　共 ${sum} 張${x.price ? `・${sum * x.price} 元` : ''}`);
+        }
+      });
     });
     return lines.join('\n');
   }

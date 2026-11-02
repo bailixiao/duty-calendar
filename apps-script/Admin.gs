@@ -280,6 +280,7 @@ function adminRoster_() {
   var entry = function (d, date) {
     if (!days[date]) days[date] = {};
     if (!days[date][d.id]) days[date][d.id] = { id: d.id, name: d.name, category: d.category, startTime: d.startTime, names: [], notice: d.mode === '公告型', group: d.group || '' };
+    if (d.tickets && !days[date][d.id].tickets) { days[date][d.id].tickets = {}; days[date][d.id].price = d.price || 0; } // 登記張數：名字 → 張數
     return days[date][d.id];
   };
   // 一個月內所有的勤務、活動都列出來（還沒有人報名的也列，2026/10/13）
@@ -291,6 +292,8 @@ function adminRoster_() {
     var d = byDuty[s['勤務ID']];
     var list = entry(d, date).names;
     if (list.indexOf(s['姓名']) === -1) list.push(s['姓名']);
+    var t = entry(d, date).tickets;
+    if (t) t[s['姓名']] = (t[s['姓名']] || 0) + (Number(s['張數']) || 1);
   });
   return {
     today: today,

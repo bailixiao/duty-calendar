@@ -40,3 +40,16 @@ test('名單：今天起一個月有人報名的日期，同名只列一次；�
   const ro = env.post({ action: 'adminLogin', account: '看看', password: 'abc12345' }).data.token;
   assert.equal(env.post({ action: 'adminRoster', token: ro }).error.code, 'FORBIDDEN');
 });
+
+test('名單：登記張數的勤務寫每人幾張、總張數和合計金額', () => {
+  const env = createEnv(OCT_1);
+  const tok = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const id = env.post({ action: 'adminCreateDuties', token: tok, duties: [{ name: '測試園遊券', category: '勤務', nature: '活動', mode: '報名型', start: '2026-10-20', positions: [{ name: '參加', min: 0, max: null }], tickets: true, price: '100' }] }).data.ids[0];
+  const pid = env.get({ action: 'getDuty', id }).data.positions[0].id;
+  assert.equal(env.post({ action: 'signup', dutyId: id, positionId: pid, dates: ['2026-10-20'], entries: [{ name: '測試甲', identity: '道親', tickets: 3 }, { name: '測試乙', identity: '道親' }] }).ok, true);
+  const x = env.post({ action: 'adminRoster', token: tok }).data.days.find((d) => d.date === '2026-10-20').duties.find((d) => d.id === id);
+  assert.deepEqual([x.tickets, x.price], [{ 測試甲: 3, 測試乙: 1 }, 100]);
+  if (!global.window || !global.window.AdminPages) { global.window = { SITE: { org: '教全區' } }; global.Fmt = { shortDate: (d) => d, esc: (v) => v }; require('../js/admin-pages.js'); }
+  const P = global.window.AdminPages;
+  assert.equal(P.rosterText(P.byDuty([{ date: '2026-10-20', duties: [x] }])), '教全區\n【測試園遊券】\n2026-10-20：測試甲 3張、測試乙 1張\n　共 4 張・400 元');
+});
