@@ -1,20 +1,30 @@
-// 報名成功的全螢幕祝福：小觀世音菩薩（img/guanyin.webp）說「了愿快樂」，飄蓮花瓣；點一下或按「好」關掉（2026/11/2）。
+// 報名成功的全螢幕祝福：觀世音菩薩、濟公活佛、彌勒祖師隨機一位說「了愿快樂」，飄蓮花瓣；點一下或按「好」關掉（2026/11/2）。
 (function () {
   'use strict';
 
   const PETALS = 14;
 
-  // 小觀世音菩薩：img/guanyin.webp（白衣、坐白蓮花、拿楊柳與淨瓶；已去背，2026/11/2 換成這張）
-  const ART = 'img/guanyin.webp';
-  const GUANYIN = '<div class="celebrate-glow"><img class="celebrate-art" src="' + ART + '" alt="小觀世音菩薩" width="471" height="720"></div>';
+  // 三位仙佛隨機出現一位（使用者提供的 AI 圖，已去背，2026/11/3）
+  const ARTS = [
+    { src: 'img/guanyin.webp', alt: '觀世音菩薩', w: 471, h: 720 },
+    { src: 'img/jigong.webp', alt: '濟公活佛', w: 488, h: 720 },
+    { src: 'img/maitreya.webp', alt: '彌勒祖師', w: 660, h: 720 }
+  ];
+  let next = null; // 這次要出現的（打開報名表時先選好、先下載）
 
-  /** 先下載圖片（打開報名表時呼叫），報名成功時馬上出現 */
-  let preloaded = false;
+  /** 選好這次出現哪一位並先下載（打開報名表時呼叫），報名成功時馬上出現 */
   function preload() {
-    if (preloaded) return;
-    preloaded = true;
+    if (next) return;
+    next = ARTS[Math.floor(Math.random() * ARTS.length)];
     const img = new Image();
-    img.src = ART;
+    img.src = next.src;
+  }
+
+  function artHtml() {
+    preload();
+    const a = next;
+    next = null; // 下次報名再重新抽
+    return '<div class="celebrate-glow"><img class="celebrate-art" src="' + a.src + '" alt="' + a.alt + '" width="' + a.w + '" height="' + a.h + '"></div>';
   }
 
   let current = null;
@@ -45,7 +55,7 @@
       <div class="celebrate-petals" aria-hidden="true">${petals}</div>
       <div class="celebrate-card">
         <div class="celebrate-bubble">了愿快樂！🙏</div>
-        ${GUANYIN}
+        ${artHtml()}
         <p class="celebrate-title">報名成功</p>
         ${who.length ? `<p class="celebrate-who">${Fmt.esc(who.length > 3 ? who.slice(0, 3).join('、') + ` 等 ${who.length} 位` : who.join('、'))}，感恩發心</p>` : ''}
         <button type="button" class="btn btn-primary celebrate-ok">好</button>

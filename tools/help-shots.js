@@ -125,7 +125,7 @@ const SHOTS = [
       for (let i = 0; i < 30 && !document.querySelector('[data-temple-member="測試戊"]'); i++) await __wait(300);
       document.querySelector('[data-temple-member="測試戊"]').click(); await __wait(400);`,
     clip: `const h = [...document.querySelectorAll('#view-duty legend')].find((x) => x.textContent.includes('填名字')); const f = h.closest('fieldset'); return __box(f, 8);` },
-  { name: 'signup-done', hash: '#/', js: `await __wait(800); Celebrate.show(['測試甲', '測試乙']); await __wait(1200);` },
+  { name: 'signup-done', hash: '#/', js: `await __wait(800); const rnd = Math.random; Math.random = () => 0; Celebrate.show(['測試甲', '測試乙']); Math.random = rnd; await __wait(1200);` }, // 截圖固定用觀世音菩薩
   { name: 'mine-list', hash: '#/mine', js: `localStorage.setItem('duty-calendar:mine-name', '測試甲'); location.hash = '#/'; await __wait(200); location.hash = '#/mine'; await __wait(2000);`,
     clip: `return { x: 0, y: 0, width: innerWidth, height: 1000 };` },
   { name: 'mine-multi', hash: '#/mine', js: `localStorage.setItem('duty-calendar:mine-name', '測試甲'); location.hash = '#/'; await __wait(200); location.hash = '#/mine'; await __wait(2000);
