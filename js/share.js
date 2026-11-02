@@ -98,6 +98,8 @@
     return (duty.positions || []).every((p) => (counts[p.id] || 0) >= Fmt.effectiveMin(p));
   }
 
+  const CLEAN = /初一十五打掃/;
+
   function inviteText(rows) {
     const skipNeed = noNeed();
     const list = rows.slice().sort((a, b) => a.date.localeCompare(b.date) || (a.duty.startTime || '').localeCompare(b.duty.startTime || ''));
@@ -133,10 +135,22 @@
       out.push(`👉 報名：${siteUrl()}#/duty/${encodeURIComponent(duty.id)}?go=signup`);
       return out.join('\n');
     };
+    // 初一十五打掃：佈達用，不寫需要人數、目前報名、報名網址；名稱依那天寫「初一打掃」或「十五打掃」
+    const cleanBlock = ({ duty, date }) => {
+      const l = window.LunarUtil && window.Solar ? window.LunarUtil.lunarOf(date) : null;
+      const word = l && l.isFirst ? '初一' : l && l.isFifteenth ? '十五' : '初一十五';
+      const out = [`【${duty.name.replace(CLEAN, word + '打掃')}】`, `📅 日期：${Fmt.rocDate(date)}`];
+      const time = Fmt.cardTime(duty, date);
+      if (time) out.push(`⏰ 時段：${time}`);
+      if (duty.location) out.push(`📍 地點：${duty.location}`);
+      if (duty.group) out.push(`👥 負責組：${duty.group}${duty.groupType ? `（${duty.groupType}）` : ''}`);
+      if (duty.groupLeader) out.push(`👤 組長：${duty.groupLeader}`);
+      return out.join('\n');
+    };
     const isWeek = (duty) => duty.end && duty.end !== duty.start;
     const seen = new Set();
     const items = list.filter(({ duty }) => !isWeek(duty) || (!seen.has(duty.id) && seen.add(duty.id)));
-    const one = (r) => (isWeek(r.duty) ? weekBlock(r) : block(r));
+    const one = (r) => (CLEAN.test(r.duty.name) ? cleanBlock(r) : isWeek(r.duty) ? weekBlock(r) : block(r));
     if (items.length === 1) return one(items[0]) + '\n\n歡迎家人們踴躍參加 🙏';
     return [window.SITE.inviteTitle, '', items.map(one).join('\n\n'), '', '歡迎家人們踴躍參加，感謝慈悲 🙏😊'].join('\n');
   }

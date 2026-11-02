@@ -56,6 +56,15 @@
     return lines.join('\n');
   }
 
+  // 每次佈達都加在最後的話（例：母殿報到提醒、聯絡人）：記在這支手機，不放進程式（裡面可能有電話）
+  const TAIL_KEY = 'duty-calendar:notice-tail';
+  function tail() {
+    try { return localStorage.getItem(TAIL_KEY) || ''; } catch (e) { return ''; }
+  }
+  function setTail(v) {
+    try { localStorage.setItem(TAIL_KEY, v); } catch (e) { /* 無痕模式：不記住 */ }
+  }
+
   /** 佈達的內容（選日期、文字框、複製、傳到 LINE）放進 box：後台「📢 通知」頁和彈出視窗共用；讀今天起 60 天的勤務，預設最近的一天 */
   async function mount(box) {
     const today = Fmt.toDateStr(new Date());
@@ -73,6 +82,9 @@
       <label class="form-row"><span>日期</span>
         <select class="input" data-date>${dates.map((d) => `<option value="${d}">${Fmt.esc(Fmt.shortDate(d))}　農曆${Fmt.esc(LunarUtil.lunarOf(d).full)}</option>`).join('')}</select></label>
       <textarea class="day-text" rows="14" data-text aria-label="佈達文字（可以修改）"></textarea>
+      <details class="notice-tail"${tail() ? '' : ' open'}><summary>📝 每次都要加在最後的話（例：母殿報到提醒）</summary>
+        <textarea class="input textarea" rows="5" data-tail placeholder="例：母殿打掃記得先到一樓工具間報到⋯">${Fmt.esc(tail())}</textarea>
+        <p class="hint">記在這支手機，之後每次佈達都會自動加在最後；清空就不加。</p></details>
       <div class="share-actions">
         <button type="button" class="btn btn-primary" data-copy>複製佈達</button>
         <button type="button" class="btn btn-line" data-line>傳到 LINE</button>
@@ -80,7 +92,9 @@
       <p class="hint">可以先在框裡修改再複製。組別、召集人來自勤務的「負責組」和後台「分組」的組長或召集人，不對的話到那邊改。</p>`;
     const sel = box.querySelector('[data-date]');
     const area = box.querySelector('[data-text]');
-    const fill = () => { area.value = text(sel.value, duties, LunarUtil.lunarOf(sel.value)); };
+    const tailBox = box.querySelector('[data-tail]');
+    const fill = () => { const t = tailBox.value.trim(); area.value = text(sel.value, duties, LunarUtil.lunarOf(sel.value)) + (t ? '\n' + t : ''); };
+    tailBox.addEventListener('input', () => { setTail(tailBox.value.trim()); fill(); });
     sel.addEventListener('change', fill);
     fill();
     const copy = box.querySelector('[data-copy]');

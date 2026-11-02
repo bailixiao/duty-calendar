@@ -2474,3 +2474,5 @@ button.veg-chip:hover { border-color: var(--ok); }
 /* 後台「📢 通知」 */
 .notify-seg { margin: 4px 0 14px; }
 .roster-date .invite-short { color: var(--accent); font-weight: 700; }
+.notice-tail { margin: 10px 0; }
+.notice-tail summary { cursor: pointer; color: var(--accent); font-weight: 600; padding: 6px 0; }
