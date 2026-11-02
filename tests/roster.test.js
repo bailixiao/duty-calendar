@@ -30,6 +30,9 @@ test('名單：今天起一個月有人報名的日期，同名只列一次；�
     { date: '2026-10-03', duties: [{ name: '測試勤務', names: ['測試甲', '測試乙'] }] }
   ]);
   assert.deepEqual(list.map((g) => g.name), ['測試勤務', '輪值'], '依勤務分開，初一十五打掃不列');
+  const mixed = [{ date: '2026-10-02', duties: [{ name: '測試勤務', names: [] }, { name: '測試法會', category: '道務', names: [] }, { name: '測試課程', category: '教育', names: [] }] }];
+  assert.deepEqual(P.byDuty(mixed, '勤務').map((g) => g.name), ['測試勤務'], '沒有類別的算總務');
+  assert.deepEqual(P.byDuty(mixed, '道務').map((g) => g.name), ['測試法會']);
   assert.equal(P.rosterText(list), '教全區\n【測試勤務】\n2026-10-02：還沒有人報名\n2026-10-03：測試甲、測試乙\n【輪值】\n2026-10-02：第二組輪值');
   const dw = env.post({ action: 'adminLogin', account: '道務組', password: 'abc12345' }).data.token;
   const mine = env.post({ action: 'adminRoster', token: dw }).data;

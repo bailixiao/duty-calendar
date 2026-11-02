@@ -143,10 +143,11 @@
   const ROSTER_SKIP = /初一十五打掃/;
 
   /** 把「每天的勤務」改成「每個勤務的日期」：同名的勤務合在一起，依第一次的日期排序 */
-  function byDuty(days) {
+  function byDuty(days, cat) {
     const map = new Map();
     days.forEach((d) => d.duties.forEach((x) => {
       if (ROSTER_SKIP.test(x.name)) return;
+      if (cat && (x.category || '勤務') !== cat) return; // 分總務／道務／教育（舊資料沒有類別的算總務）
       if (!map.has(x.name)) map.set(x.name, { name: x.name, dates: [] });
       map.get(x.name).dates.push({ date: d.date, names: x.names, notice: x.notice, group: x.group });
     }));
@@ -178,10 +179,32 @@
     show(cur);
   }
 
-  function renderRoster(body, data, stale) {
-    const duties = byDuty(data.days);
+  /** 給分壇名單：上面選總務／道務／教育（總管理者三類都能選、和佈達記同一個；類別帳號只有自己的類別） */
+  function renderRoster(box, data, stale) {
+    const cats = InviteBoard.catsFor(Api.adminWho().role);
+    const CAT_KEY = 'duty-calendar:notify-cat';
+    let cat = cats[0][0];
+    try { const saved = localStorage.getItem(CAT_KEY); if (cats.some((c) => c[0] === saved)) cat = saved; } catch (e) { /* 用預設 */ }
+    const keep = box.querySelector('[data-roster-body]');
+    box.innerHTML = `
+      ${AdminPage.staleNote(stale)}
+      ${cats.length > 1 ? `<div class="seg notify-cat" role="radiogroup" aria-label="哪一類的名單">${cats.map(([v, label]) => `<label class="seg-item"><input type="radio" name="rosterCat" value="${v}"${v === cat ? ' checked' : ''}><span>${label}</span></label>`).join('')}</div>` : ''}
+      <div data-roster-body></div>`;
+    if (keep) box.querySelector('[data-roster-body]').replaceWith(keep); // 自動更新時保留勾選
+    box.querySelectorAll('input[name="rosterCat"]').forEach((r) => r.addEventListener('change', () => {
+      cat = r.value;
+      try { localStorage.setItem(CAT_KEY, cat); } catch (e) { /* 不記住也沒關係 */ }
+      const fresh = box.querySelector('[data-roster-body]').cloneNode(false);
+      box.querySelector('[data-roster-body]').replaceWith(fresh);
+      paintRoster(fresh, data, cat);
+    }));
+    paintRoster(box.querySelector('[data-roster-body]'), data, cat);
+  }
+
+  function paintRoster(body, data, cat) {
+    const duties = byDuty(data.days, cat);
     if (!duties.length) {
-      body.innerHTML = `${AdminPage.staleNote(stale)}<p class="panel-empty">今天起一個月沒有勤務或活動。</p>`;
+      body.innerHTML = '<p class="panel-empty">今天起一個月沒有這一類的勤務或活動。</p>';
       return;
     }
     const tomorrow = Fmt.addDays(data.today, 1);
@@ -189,7 +212,6 @@
     const first = !body.querySelector('[data-roster-duty]');
     const dateTag = (x) => esc(Fmt.shortDate(x.date).replace(/（.）$/, '')) + (x.notice || x.names.length ? '' : '（0）');
     body.innerHTML = `
-      ${AdminPage.staleNote(stale)}
       <p class="hint">勾要產生名單的勤務（今天起一個月的勤務、活動，初一十五打掃不列；還沒有人報名的寫「還沒有人報名」），下面的文字會跟著變，按「複製文字」貼到 LINE。</p>
       <div class="roster-quick"><button type="button" class="link-btn" data-all>全選</button><button type="button" class="link-btn" data-none>都不選</button></div>
       <div class="roster-dates">${duties.map((g, i) => {
