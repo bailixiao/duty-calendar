@@ -413,11 +413,19 @@
     const rows = d.positions.map((p) => {
       const label = positionLabel(p, day);
       const people = d.signups ? d.signups.filter((s) => s.date === date && s.positionId === p.id) : [];
-      const names = !d.signups ? '<span class="muted">載入名單中⋯</span>' : people.length
-        ? `<ul class="people">${people.map((s) => `
+      const row = (s) => `
             <li class="person-row">
-              <span class="person">${s.leader ? '<span class="grid-star" title="組長">★</span>' : ''}${esc(s.name)}${s.leader && d.leaderTitle ? `<span class="tag tag-leader">${esc(d.leaderTitle)}</span>` : ''}${s.temple && (d.signups || []).some((o) => o !== s && o.name === s.name) ? `<span class="tag">${esc(s.temple)}</span>` : ''}${s.accompany ? '<span class="tag">陪同</span>' : ''}${d.tickets && s.tickets ? `<span class="tag">${s.tickets} 張</span>` : ''}</span>
-            </li>`).join('')}</ul>`
+              <span class="person">${s.leader ? '<span class="grid-star" title="組長">★</span>' : ''}${esc(s.name)}${s.leader && d.leaderTitle ? `<span class="tag tag-leader">${esc(d.leaderTitle)}</span>` : ''}${!d.tickets && s.temple && (d.signups || []).some((o) => o !== s && o.name === s.name) ? `<span class="tag">${esc(s.temple)}</span>` : ''}${s.accompany ? '<span class="tag">陪同</span>' : ''}${d.tickets && s.tickets ? `<span class="tag">${s.tickets} 張</span>` : ''}</span>
+            </li>`;
+      // 登記張數（園遊券）：依佛堂分組，佛堂一行、底下名字和張數、最後佛堂小計
+      const ticketList = () => Fmt.ticketGroups(people).map((g) => `
+        <div class="ticket-group">
+          <p class="ticket-temple">${esc(g.temple || '未填佛堂')}</p>
+          <ul class="people">${g.people.map(row).join('')}</ul>
+          <p class="ticket-sub">小計 <strong>${g.sum}</strong> 張${d.price ? `・${g.sum * d.price} 元` : ''}</p>
+        </div>`).join('');
+      const names = !d.signups ? '<span class="muted">載入名單中⋯</span>' : people.length
+        ? (d.tickets ? ticketList() : `<ul class="people">${people.map(row).join('')}</ul>`)
         : '<span class="muted">還沒有人報名</span>';
       return `
         <li class="position">

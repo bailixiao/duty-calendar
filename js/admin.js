@@ -418,16 +418,9 @@
     const positions = d.positions.map((p) => {
       const people = d.signups ? d.signups.filter((s) => s.date === date && s.positionId === p.id) : [];
       const count = d.signups ? people.filter((s) => !s.accompany && (!past || s.attend !== '未到')).length : ((d.days[date] && d.days[date].counts[p.id]) || 0);
-      return `
-        <li class="position">
-          <div class="position-head">
-            <span class="position-name">${esc(p.name)}</span>
-            <span class="badge badge-ok">${past ? '出席 ' : ''}${count}${p.max !== null ? '／' + p.max : ''} 人${!past && count < Fmt.effectiveMin(p) ? `・缺 ${Fmt.effectiveMin(p) - count}` : ''}</span>
-          </div>
-          ${d.tickets && people.length ? `<p class="ticket-total">共 <strong>${Fmt.ticketSum(people)}</strong> 張${d.price ? `・面額 ${d.price} 元・合計 <strong>${Fmt.ticketSum(people) * d.price}</strong> 元` : ''}</p>` : ''}
-          ${!d.signups ? '<p class="muted">載入名單中⋯</p>' : people.length ? `<ul class="people">${people.map((s) => `
+      const row = (s) => `
             <li class="person-row${past && s.attend === '未到' ? ' is-absent' : ''}">
-              <span class="person"><span class="person-name">${s.leader ? '<span class="grid-star" title="組長">★</span>' : ''}${esc(s.name)}</span>${s.first ? '<span class="tag tag-new">🆕 新朋友</span>' : ''}${s.leader && d.leaderTitle ? `<span class="tag tag-leader">${esc(d.leaderTitle)}</span>` : ''}${s.temple ? `<span class="tag">${esc(s.temple)}</span>` : ''}
+              <span class="person"><span class="person-name">${s.leader ? '<span class="grid-star" title="組長">★</span>' : ''}${esc(s.name)}</span>${s.first ? '<span class="tag tag-new">🆕 新朋友</span>' : ''}${s.leader && d.leaderTitle ? `<span class="tag tag-leader">${esc(d.leaderTitle)}</span>` : ''}${s.temple && !d.tickets ? `<span class="tag">${esc(s.temple)}</span>` : ''}
                 ${s.identity ? `<span class="tag">${esc(s.identity)}</span>` : '<span class="tag tag-warn">未填身分</span>'}
                 ${s.accompany ? '<span class="tag">陪同</span>' : ''}
                 ${past && s.attend === '未到' ? '<span class="tag tag-warn">未到</span>' : ''}
@@ -444,7 +437,22 @@
                 ${d.nature === '活動' ? '' : `<button type="button" class="btn btn-small" data-reschedule="${esc(s.id)}">改期</button>`}
                 <button type="button" class="btn btn-small btn-quiet-danger" data-cancel="${esc(s.id)}">取消</button>
               </span>` : ''}
-            </li>`).join('')}</ul>` : `<p class="muted">${past ? '沒有人報名' : '還沒有人報名'}</p>`}
+            </li>`;
+      // 登記張數（園遊券）：依佛堂分組，佛堂一行、底下名字和張數、最後佛堂小計與金額
+      const ticketList = () => Fmt.ticketGroups(people).map((g) => `
+          <div class="ticket-group">
+            <p class="ticket-temple">${esc(g.temple || '未填佛堂')}</p>
+            <ul class="people">${g.people.map(row).join('')}</ul>
+            <p class="ticket-sub">小計 <strong>${g.sum}</strong> 張${d.price ? `・${g.sum * d.price} 元` : ''}</p>
+          </div>`).join('');
+      return `
+        <li class="position">
+          <div class="position-head">
+            <span class="position-name">${esc(p.name)}</span>
+            <span class="badge badge-ok">${past ? '出席 ' : ''}${count}${p.max !== null ? '／' + p.max : ''} 人${!past && count < Fmt.effectiveMin(p) ? `・缺 ${Fmt.effectiveMin(p) - count}` : ''}</span>
+          </div>
+          ${d.tickets && people.length ? `<p class="ticket-total">共 <strong>${Fmt.ticketSum(people)}</strong> 張${d.price ? `・面額 ${d.price} 元・合計 <strong>${Fmt.ticketSum(people) * d.price}</strong> 元` : ''}</p>` : ''}
+          ${!d.signups ? '<p class="muted">載入名單中⋯</p>' : people.length ? (d.tickets ? ticketList() : `<ul class="people">${people.map(row).join('')}</ul>`) : `<p class="muted">${past ? '沒有人報名' : '還沒有人報名'}</p>`}
           ${canEdit ? `<button type="button" class="btn btn-small" data-walkin="${esc(p.id)}">${past ? '＋ 補登沒報名但有來的人' : '＋ 幫人報名'}</button>` : ''}
         </li>`;
     }).join('');

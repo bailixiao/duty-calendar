@@ -49,7 +49,8 @@ test('名單：登記張數的勤務寫每人幾張、總張數和合計金額',
   assert.equal(env.post({ action: 'signup', dutyId: id, positionId: pid, dates: ['2026-10-20'], entries: [{ name: '測試甲', identity: '道親', tickets: 3 }, { name: '測試乙', identity: '道親' }] }).ok, true);
   const x = env.post({ action: 'adminRoster', token: tok }).data.days.find((d) => d.date === '2026-10-20').duties.find((d) => d.id === id);
   assert.deepEqual([x.tickets, x.price], [{ 測試甲: 3, 測試乙: 1 }, 100]);
+  assert.deepEqual(x.temples, { 測試甲: '', 測試乙: '' });
   if (!global.window || !global.window.AdminPages) { global.window = { SITE: { org: '教全區' } }; global.Fmt = { shortDate: (d) => d, esc: (v) => v }; require('../js/admin-pages.js'); }
   const P = global.window.AdminPages;
-  assert.equal(P.rosterText(P.byDuty([{ date: '2026-10-20', duties: [x] }])), '教全區\n【測試園遊券】\n2026-10-20：測試甲 3張、測試乙 1張\n　共 4 張・400 元');
+  assert.equal(P.rosterText(P.byDuty([{ date: '2026-10-20', duties: [x] }])), '教全區\n【測試園遊券】\n2026-10-20\n未填佛堂\n測試甲 3張、測試乙 1張\n小計 4 張・400 元\n共 4 張・400 元');
 });

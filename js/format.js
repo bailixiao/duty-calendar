@@ -131,6 +131,19 @@
     return signups.reduce((n, s) => n + (Number(s.tickets) || 1), 0);
   }
 
+  /** 登記張數的名單：依佛堂分組（照第一次出現的順序，沒填佛堂的放最後），每組有小計張數 */
+  function ticketGroups(signups) {
+    const map = new Map();
+    signups.forEach((x) => {
+      const k = x.temple || '';
+      if (!map.has(k)) map.set(k, { temple: k, people: [], sum: 0 });
+      const g = map.get(k);
+      g.people.push(x);
+      g.sum += Number(x.tickets) || 1;
+    });
+    return [...map.values()].sort((a, b) => (a.temple ? 0 : 1) - (b.temple ? 0 : 1));
+  }
+
   function groupText(duty) {
     if (duty.mode === '公告型') return duty.groupLeader ? `${leaderWord(duty.groupType)}：${duty.groupLeader}` : ''; // 輪值組已在標籤上
     if (!duty.group || duty.name.indexOf('12人小組') !== -1) return '';
@@ -182,6 +195,6 @@
 
   window.Fmt = {
     esc, toDateStr, parseDate, addDays, datesBetween, rocYear, weekday, shortDate, rocDate, catLabel,
-    timeRange, cardTime, effectiveMin, dayState, groupText, leaderWord, ticketSum, sameName, byStroke, setContact, askAdmin, shortDateList
+    timeRange, cardTime, effectiveMin, dayState, groupText, leaderWord, ticketSum, ticketGroups, sameName, byStroke, setContact, askAdmin, shortDateList
   };
 })();
