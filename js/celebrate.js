@@ -4,18 +4,26 @@
 
   const PETALS = 14;
 
-  // 三位仙佛隨機出現一位（使用者提供的 AI 圖，已去背，2026/11/3）
+  // 三位仙佛輪流出現（使用者提供的 AI 圖，2026/11/3；隨機常連續出現同一位，改成這支手機記住上次是誰、每次換下一位）
   const ARTS = [
     { src: 'img/guanyin.webp', alt: '觀世音菩薩', w: 471, h: 720 },
     { src: 'img/jigong.webp', alt: '濟公活佛', w: 672, h: 760, soft: true }, // 雲朵背景、四周淡出（白蓮花和白雲同色，去背會吃掉蓮花）
     { src: 'img/maitreya.webp', alt: '彌勒祖師', w: 660, h: 720 }
   ];
+  const TURN_KEY = 'duty-calendar:celebrate-turn';
   let next = null; // 這次要出現的（打開報名表時先選好、先下載）
+
+  function nextIndex() {
+    let i = -1;
+    try { i = Number(localStorage.getItem(TURN_KEY)); } catch (e) { /* 沒記過 */ }
+    if (!(i >= 0 && i < ARTS.length)) i = Math.floor(Math.random() * ARTS.length) - 1; // 第一次：隨機起頭
+    return (i + 1 + ARTS.length) % ARTS.length;
+  }
 
   /** 選好這次出現哪一位並先下載（打開報名表時呼叫），報名成功時馬上出現 */
   function preload() {
     if (next) return;
-    next = ARTS[Math.floor(Math.random() * ARTS.length)];
+    next = ARTS[nextIndex()];
     const img = new Image();
     img.src = next.src;
   }
@@ -23,7 +31,8 @@
   function artHtml() {
     preload();
     const a = next;
-    next = null; // 下次報名再重新抽
+    next = null;
+    try { localStorage.setItem(TURN_KEY, String(ARTS.indexOf(a))); } catch (e) { /* 記不住就隨機 */ } // 下次換下一位
     return '<div class="celebrate-glow"><img class="celebrate-art' + (a.soft ? ' is-soft' : '') + '" src="' + a.src + '" alt="' + a.alt + '" width="' + a.w + '" height="' + a.h + '"></div>';
   }
 
