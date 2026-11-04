@@ -337,6 +337,8 @@
     const stages = RosterGrid.parseStages(RosterGrid.stagesText(d), d.start, d.today); // 階段留空就自動推算
     const keep = root.querySelector('.grid-wrap');
     const scrollX = keep ? keep.scrollLeft : null;
+    const scrollY = keep ? keep.scrollTop : null;
+    const pageY = window.scrollY;
     root.innerHTML = `
       <header class="gp-hero">
         <p class="gp-when">${esc(dateRange(d))}</p>
@@ -367,7 +369,11 @@
     const wrap = root.querySelector('.grid-wrap');
     // 日期、人數兩列固定在上面：第二列要知道第一列多高
     if (wrap) { const h1 = wrap.querySelector('thead tr'); if (h1) wrap.style.setProperty('--gh', h1.offsetHeight + 'px'); }
-    if (wrap && scrollX !== null) wrap.scrollLeft = scrollX; // 自動更新時保留左右滑的位置
+    if (wrap && scrollX !== null) { // 自動更新時保留表格左右、上下滑的位置，整頁也不跳回最上面
+      wrap.scrollLeft = scrollX;
+      wrap.scrollTop = scrollY;
+      if (window.scrollY !== pageY) window.scrollTo(0, pageY);
+    }
     else if (wrap) { // 第一次打開：滑到今天那欄
       const today = wrap.querySelector('th.is-today');
       if (today) wrap.scrollLeft = Math.max(0, today.offsetLeft - 120);
