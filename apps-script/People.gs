@@ -658,3 +658,35 @@ function adminAssignSignupTemple_(body) {
     return { updated: done };
   });
 }
+
+/**
+ * 合併佛堂（2026/11/5）：同一個佛堂有兩種寫法（例：某某、某某公共），把 from 全部改成 to。
+ * body = { from, to }。成員名單、報名紀錄的「佛堂」一起改；道務目標的列不動（要到道務目標頁改），只回報還有幾列。
+ */
+function adminMergeTemple_(body) {
+  var from = cleanText_(body.from);
+  var to = cleanText_(body.to);
+  if (!from || !to) throw new ApiError_('BAD_REQUEST', '請選要合併的兩個佛堂');
+  if (from === to) throw new ApiError_('BAD_REQUEST', '兩個佛堂一樣，不用合併');
+  if (templeList_().indexOf(to) === -1) throw new ApiError_('BAD_REQUEST', '佛堂清單沒有「' + to + '」');
+  return withSignupLock_(function () {
+    var now = nowString_();
+    var members = 0, signups = 0;
+    readTable_(SHEETS.MEMBERS).forEach(function (m) {
+      if (m['佛堂'] !== from) return;
+      updateRow_(SHEETS.MEMBERS, m, { '佛堂': to });
+      members++;
+    });
+    readTable_(SHEETS.SIGNUPS).forEach(function (s) {
+      if (s['佛堂'] !== from) return;
+      updateRow_(SHEETS.SIGNUPS, s, { '佛堂': to, '更新時間': now });
+      signups++;
+    });
+    var goals = readTable_(SHEETS.GOALS).filter(function (r) { return r['佛堂'] === from; }).length;
+    writeDutyLog_('成員', '合併佛堂｜「' + from + '」改成「' + to + '」（成員 ' + members + ' 位、報名紀錄 ' + signups + ' 筆）');
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.MEMBERS);
+    invalidateTable_(SHEETS.SIGNUPS);
+    return { members: members, signups: signups, goals: goals };
+  });
+}

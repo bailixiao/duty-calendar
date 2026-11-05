@@ -315,3 +315,21 @@ test('一次補身分、成全紀錄；同名的舊報名紀錄可以指給正�
   assert.equal(call('adminAssignSignupTemple', { items: [{ id: sid, temple: '測試佛堂B' }] }).data.updated, 1);
   assert.deepEqual(call('adminSameNameSignups').data.items, []);
 });
+
+test('合併佛堂：成員和報名紀錄的佛堂一起改', () => {
+  const { env, call } = setup();
+  call('adminSaveMember', { member: { name: '測試甲', temple: '測試佛堂A' } });
+  call('adminSaveMember', { member: { name: '測試乙', temple: '測試佛堂B' } });
+  const ev = env.get({ action: 'getEvents', from: '2026-10-13', to: '2026-10-13' }).data.duties.find((d) => d.mode !== '公告型');
+  const s = env.post({ action: 'signup', dutyId: ev.id, positionId: ev.positions[0].id, dates: ['2026-10-13'], entries: [{ name: '測試甲', identity: '道親', temple: '測試佛堂A' }] });
+  assert.equal(s.ok, true, JSON.stringify(s.error));
+  assert.equal(call('adminMergeTemple', { from: '測試佛堂A', to: '測試佛堂A' }).error.code, 'BAD_REQUEST');
+  assert.equal(call('adminMergeTemple', { from: '測試佛堂A', to: '沒有的佛堂' }).error.code, 'BAD_REQUEST');
+  const r = call('adminMergeTemple', { from: '測試佛堂A', to: '測試佛堂B' });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.deepEqual([r.data.members, r.data.signups], [1, 1]);
+  const a = call('adminMembers').data.members.find((m) => m.name === '測試甲');
+  assert.equal(a.temple, '測試佛堂B');
+  const SG = env.fn('SHEETS').SIGNUPS;
+  assert.equal(env.fn('readTable_')(SG).find((x) => x['報名ID'] === s.data.created[0].id)['佛堂'], '測試佛堂B');
+});

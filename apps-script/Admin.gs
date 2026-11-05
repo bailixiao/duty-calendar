@@ -351,6 +351,7 @@ function adminRun_(body) {
     case 'adminImportMembers': return adminImportMembers_(body);
     case 'adminSameNameSignups': return adminSameNameSignups_();
     case 'adminAssignSignupTemple': return adminAssignSignupTemple_(body);
+    case 'adminMergeTemple': return adminMergeTemple_(body);
     case 'adminRepairUpdate': return adminRepairUpdate_(body);
     case 'adminConfirmMembers': return adminConfirmMembers_(body);
     case 'adminMergePendingMember': return adminMergePendingMember_(body);

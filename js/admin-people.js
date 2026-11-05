@@ -162,6 +162,42 @@
     });
   }
 
+  /** 合併佛堂：同一個佛堂有兩種寫法，把其中一個全部改成另一個（成員、報名紀錄一起改） */
+  function mergeTemple(list, guard, reload) {
+    const count = (t) => list.filter((m) => m.temple === t).length;
+    const opts = (sel) => templeOptions.map((t) => `<option value="${esc(t)}"${t === sel ? ' selected' : ''}>${esc(t)}（${count(t)} 位）</option>`).join('');
+    const md = Modal.open(`
+      <h2 class="modal-title">🏠 合併佛堂</h2>
+      <p class="modal-note">同一個佛堂有兩種寫法時用。上面那個佛堂的成員和報名紀錄，會全部改成下面那個。</p>
+      <label class="form-row"><span>要改掉的寫法</span><select class="input" data-from><option value="">（請選）</option>${opts('')}</select></label>
+      <label class="form-row"><span>改成（留下這個）</span><select class="input" data-to><option value="">（請選）</option>${opts('')}</select></label>
+      <div class="form-error" data-error hidden></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-block btn-primary" data-go>合併</button>
+        <button type="button" class="btn btn-block" data-close>返回</button>
+      </div>`);
+    const el = md.el;
+    el.querySelector('[data-close]').addEventListener('click', () => md.close());
+    el.querySelector('[data-go]').addEventListener('click', async () => {
+      const from = el.querySelector('[data-from]').value;
+      const to = el.querySelector('[data-to]').value;
+      const err = el.querySelector('[data-error]');
+      if (!from || !to || from === to) { err.textContent = !from || !to ? '請選兩個佛堂' : '兩個佛堂一樣，不用合併'; err.hidden = false; return; }
+      md.close();
+      if (!(await Confirm.open({ title: '確定合併佛堂嗎？', rows: [['改掉', from], ['改成', to]], note: `「${from}」的 ${count(from)} 位成員和他們的報名紀錄，都會改成「${to}」。`, confirmText: '確定合併' }))) return;
+      Busy.show('合併中⋯');
+      try {
+        const res = await Api.admin('adminMergeTemple', { from, to });
+        Busy.hide();
+        notice(AdminPage.notice('success', '佛堂已合併', `「${from}」改成「${to}」：成員 ${res.members} 位、報名紀錄 ${res.signups} 筆${res.goals ? `。道務目標還有「${from}」，請到道務目標頁刪掉或改名` : ''}`));
+        afterWrite(reload);
+      } catch (e) {
+        Busy.hide();
+        if (!guard(e)) { notice(`<div class="notice notice-error" role="alert"><p>${errorHtml(e)}</p></div>`); reload(); }
+      }
+    });
+  }
+
   /** 可以編輯成員、分組的帳號：總管理者、道務、教育 */
   function canEditPeople() {
     return ['總管理者', '道務', '教育'].indexOf(Api.adminWho().role) !== -1;
@@ -193,7 +229,7 @@
       ${AdminPage.staleNote(stale)}
       ${flash}
       ${pendingList.length ? `<div class="notice pending-banner" role="status"><p>🆕 <strong>有 ${pendingList.length} 位新成員待確認</strong>（報名時自動加入的新名字）</p>${memberState.filter === 'pending' ? '<p class="muted">確認每一位：沒問題按「保留」；要改身分、佛堂、分組按「修改」（存檔就算保留）；其實是名單上的某人（寫法不同）按「合併到⋯」；打錯或不需要的按「刪除」。</p>' : '<button type="button" class="btn btn-primary" data-show-pending>查看待確認的人</button>'}</div>` : ''}
-      ${canEditPeople() ? '<div class="admin-actions"><button type="button" class="btn btn-primary" data-add>＋ 新增成員</button><button type="button" class="btn" data-from-signups>從出勤紀錄加入成員</button><button type="button" class="btn" data-import-members>📋 匯入成員資料</button><button type="button" class="btn" data-same-name>👥 同名的舊紀錄</button></div>' : ''}
+      ${canEditPeople() ? '<div class="admin-actions"><button type="button" class="btn btn-primary" data-add>＋ 新增成員</button><button type="button" class="btn" data-from-signups>從出勤紀錄加入成員</button><button type="button" class="btn" data-import-members>📋 匯入成員資料</button><button type="button" class="btn" data-same-name>👥 同名的舊紀錄</button><button type="button" class="btn" data-merge-temple>🏠 合併佛堂</button></div>' : ''}
       <div class="list-filter">
         <select class="input" data-filter aria-label="狀態">
           ${pendingList.length ? `<option value="pending"${memberState.filter === 'pending' ? ' selected' : ''}>🆕 待確認（${pendingList.length}）</option>` : ''}
@@ -321,6 +357,7 @@
       body.querySelector('[data-from-signups]').addEventListener('click', () => fromSignups(guard, reload));
       body.querySelector('[data-import-members]').addEventListener('click', () => importMembers(guard, reload));
       body.querySelector('[data-same-name]').addEventListener('click', () => sameNameSignups(guard));
+      body.querySelector('[data-merge-temple]').addEventListener('click', () => mergeTemple(data.members, guard, reload));
     }
     rows.addEventListener('click', (ev) => {
       const b = ev.target.closest('[data-row]');
