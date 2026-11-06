@@ -13,6 +13,8 @@
   const isSimple = (c) => c === '道務' || c === '教育';
   const GROUP_TYPES = ['勤務了愿組', '打掃組', '拜香輪值組'];
   let groupList = []; // [{ type, name }]：後台的分組（負責組下拉選單用）
+  let dutyList = []; // 勤務列表（建議負責組用：各組近一年負責過幾筆）
+  let drafts = []; // 這次的全部草稿（建議負責組時，別筆草稿已選的組也算進去）
 
   // ---------- 農曆 → 國曆 ----------
 
@@ -127,6 +129,28 @@
     return `<li class="nm-chip nm-${e.status}"><span class="nm-name">${esc(e.name)}</span>${label}<button type="button" class="nm-del" data-del="${ci}" aria-label="移除 ${esc(e.name)}">×</button></li>`;
   }
 
+  /** 建議負責組（跟新增勤務表單一樣）：類別是勤務時，依各組近一年負責過的筆數排出比較公平的順序；這次其他草稿選的組也算 */
+  function fairHtml(x, i) {
+    if (x.category !== '勤務' || !window.GroupFair) return '';
+    const type = x.groupType || '勤務了愿組';
+    const names = groupList.filter((g) => g.type === type).map((g) => g.name);
+    if (!names.length) return '';
+    const today = Fmt.toDateStr(new Date());
+    const others = drafts.filter((d, di) => di !== i && d.group && d.start).map((d) => ({ groupType: d.groupType, group: d.group, start: d.start, end: d.end || d.start }));
+    const list = GroupFair.rank(names, type, dutyList.concat(others), x.start, '', today);
+    const best = list[0];
+    const picked = (g) => x.groupType === type && x.group === g.name;
+    const why = (g) => `近一年 ${g.count} 筆${g.last ? `・最近 ${Fmt.shortDate(g.last)}` : '・還沒負責過'}${g.busy ? '・<strong>當天已有勤務</strong>' : ''}`;
+    const pick = (g, label) => (picked(g) ? '<span class="tag">已選</span>' : `<button type="button" class="btn btn-small" data-fair="${esc(g.name)}" data-fair-type="${esc(type)}">${label}</button>`);
+    return `<div class="fair-box">
+        <p class="fair-best">💡 建議${x.groupType ? '' : `「${esc(type)}」`}：<strong>${esc(best.name)}</strong>（${why(best)}）${pick(best, '用這組')}</p>
+        <details><summary>看各組負責次數（少的排前面）</summary>
+          <ul class="fair-list">${list.map((g) => `<li><span class="fair-name">${esc(g.name)}</span><span class="muted">${why(g)}</span>${pick(g, '選')}</li>`).join('')}</ul>
+        </details>
+        ${x.start ? '' : '<p class="hint">先填日期，才能避開當天已有勤務的組。</p>'}
+      </div>`;
+  }
+
   function cardHtml(x, i) {
     const f = (label, html) => `<label class="de-field"><span>${label}</span>${html}</label>`;
     const inp = (key, type, extra) => `<input class="input" type="${type || 'text'}" data-k="${key}" value="${esc(x[key])}" ${extra || ''}>`;
@@ -159,7 +183,8 @@
         ${isSimple(x.category) ? '' : `<div class="de-row">
           ${f('分組類型', `<select class="input" data-k="groupType"><option value="">（不指定）</option>${GROUP_TYPES.map((n) => `<option${n === x.groupType ? ' selected' : ''}>${n}</option>`).join('')}</select>`)}
           ${x.groupType ? f('負責組', `<select class="input" data-k="group"><option value="">（不指定）</option>${groupList.filter((g) => g.type === x.groupType).map((g) => `<option${g.name === x.group ? ' selected' : ''}>${esc(g.name)}</option>`).join('')}${x.group && !groupList.some((g) => g.type === x.groupType && g.name === x.group) ? `<option selected>${esc(x.group)}</option>` : ''}</select>`) : ''}
-        </div>`}
+        </div>
+        ${fairHtml(x, i)}`}
         <div class="de-row">
           ${f('報名截止日（選填）', inp('deadline', 'date'))}
           <label class="de-check"><input type="checkbox" data-k="multi"${x.multi ? ' checked' : ''}> 一人可兼任好幾項</label>
@@ -189,10 +214,12 @@
     const today = Fmt.toDateStr(new Date());
     const members = (opts.members || []).filter((m) => m.active !== false);
     groupList = opts.groups || [];
+    dutyList = opts.duties || [];
     let items = raw.map((d) => (d.people ? d : clean(d, today, members)));
     const changed = () => { if (opts.onChange) opts.onChange(items); };
 
     function render() {
+      drafts = items;
       container.innerHTML = items.length ? items.map(cardHtml).join('') : '<p class="panel-empty">沒有草稿了</p>';
       if (opts.onCount) opts.onCount(items.length);
     }
@@ -223,7 +250,10 @@
       }
       changed();
     });
-    container.addEventListener('change', (ev) => { if (ev.target.type === 'checkbox' || ev.target.tagName === 'SELECT') container.dispatchEvent(new Event('input', { bubbles: true })); });
+    container.addEventListener('change', (ev) => {
+      if (ev.target.type === 'checkbox' || ev.target.tagName === 'SELECT') container.dispatchEvent(new Event('input', { bubbles: true }));
+      if (['start', 'end', 'group'].indexOf(ev.target.dataset.k) !== -1) render(); // 建議負責組跟著日期、已選的組重新排
+    });
 
     container.addEventListener('click', (ev) => {
       const card = ev.target.closest('.de-card');
@@ -235,6 +265,7 @@
       const list = p ? (x.people[p.name] = x.people[p.name] || []) : null;
       const t = ev.target;
       if (t.matches('[data-remove]')) items.splice(i, 1);
+      else if (t.matches('[data-fair]')) { x.groupType = t.dataset.fairType; x.group = t.dataset.fair; }
       else if (t.matches('[data-pos-add]')) x.positions.push({ name: '', min: '', max: '' });
       else if (t.matches('[data-pos-del]')) { delete x.people[p.name]; x.positions.splice(Number(pEl.dataset.pi), 1); }
       else if (t.matches('[data-del]')) list.splice(Number(t.dataset.del), 1);
