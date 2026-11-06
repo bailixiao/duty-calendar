@@ -267,12 +267,12 @@
             const items = x.items.filter((it) => it.batch === bi);
             if (!items.length) return;
             lines.push(`第${bi + 1}批（${bi ? md(Fmt.addDays(x.batches[bi - 1], 1)) : ''}～${md(end)}）`);
-            if (!x.tickets) { lines.push(items.map((it) => it.name).join('、')); return; }
+            if (!x.tickets) { lines.push(items.map((it) => it.name).join('、')); lines.push(`第${bi + 1}批共 ${items.length} 位`); total += items.length; return; }
             const sub = ticketLines(items);
             total += sub;
             lines.push(`第${bi + 1}批共 ${sub} 張${money(sub)}`);
           });
-          if (x.tickets) lines.push(`共 ${total} 張${money(total)}`);
+          lines.push(x.tickets ? `共 ${total} 張${money(total)}` : `共 ${total} 位`);
           return;
         }
         // 登記張數的勤務（園遊券）：依佛堂分組，最後寫總張數、合計金額

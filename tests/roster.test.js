@@ -54,3 +54,15 @@ test('名單：登記張數的勤務寫每人幾張、總張數和合計金額',
   const P = global.window.AdminPages;
   assert.equal(P.rosterText(P.byDuty([{ date: '2026-10-20', duties: [x] }])), '教全區\n【測試園遊券】\n2026-10-20\n未填佛堂\n測試甲 3張、測試乙 1張\n小計 4 張・400 元\n共 4 張・400 元');
 });
+
+test('給分壇名單：分批但不登記張數的勤務，各批寫共幾位，最後寫總共幾位', () => {
+  if (!global.window || !global.window.AdminPages) { global.window = { SITE: { org: '教全區' } }; global.Fmt = { shortDate: (d) => d, esc: (v) => v }; require('../js/admin-pages.js'); }
+  const prevFmt = global.Fmt;
+  global.Fmt = { shortDate: (d) => d, esc: (v) => v, addDays: (d, n) => new Date(Date.parse(d + 'T00:00:00Z') + n * 864e5).toISOString().slice(0, 10) };
+  const P = global.window.AdminPages;
+  const x = { id: 'D1', name: '測試觀禮', names: ['測試甲', '測試乙', '測試丙'], batches: ['2026-11-06', '2026-11-10'],
+    items: [{ name: '測試甲', batch: 0 }, { name: '測試乙', batch: 0 }, { name: '測試丙', batch: 1 }] };
+  assert.equal(P.rosterText(P.byDuty([{ date: '2026-12-06', duties: [x] }])),
+    ['教全區', '【測試觀禮】', '2026-12-06', '第1批（～11/6）', '測試甲、測試乙', '第1批共 2 位', '第2批（11/7～11/10）', '測試丙', '第2批共 1 位', '共 3 位'].join('\n'));
+  global.Fmt = prevFmt;
+});
