@@ -312,11 +312,11 @@ function dutyInputFromRow_(d, positions, counts) {
   return input;
 }
 
-/** 分組類型與組名（不含組長、電話），表單的負責組選單用 */
+/** 分組類型、組名與組長（不含電話），表單的負責組選單、建議負責組用（只有後台） */
 function groupList_() {
   return readTableCached_(SHEETS.GROUPS)
     .filter(function (g) { return g['分組類型'] && g['組名']; })
-    .map(function (g) { return { type: g['分組類型'], name: g['組名'] }; });
+    .map(function (g) { return { type: g['分組類型'], name: g['組名'], leader: g['組長或召集人'] || '' }; });
 }
 
 /** 成員名單上登記的身分（姓名 → 身分） */

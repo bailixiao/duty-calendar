@@ -559,12 +559,14 @@
       const list = GroupFair.rank(names, type, ctx.duties || [], s.start, editing ? s.id : '', today);
       const best = list[0];
       const picked = (g) => s.groupType === type && s.group === g.name;
+      const leaderOf = (n) => (ctx.groups.find((g) => g.type === type && g.name === n) || {}).leader || '';
+      const lead = (n) => (leaderOf(n) ? `<span class="fair-leader">組長 ${esc(leaderOf(n))}</span>` : '');
       const why = (g) => `近一年 ${g.count} 筆${g.last ? `・最近 ${Fmt.shortDate(g.last)}` : '・還沒負責過'}${g.busy ? '・<strong>當天已有勤務</strong>' : ''}`;
       const pick = (g, label) => (picked(g) ? '<span class="tag">已選</span>' : `<button type="button" class="btn btn-small" data-fair="${esc(g.name)}" data-fair-type="${esc(type)}">${label}</button>`);
       return `<div class="fair-box" data-fair-box>
-        <p class="fair-best">💡 建議${s.groupType ? '' : `「${esc(type)}」`}：<strong>${esc(best.name)}</strong>（${why(best)}）${pick(best, '用這組')}</p>
+        <p class="fair-best">💡 建議${s.groupType ? '' : `「${esc(type)}」`}：<strong>${esc(best.name)}</strong>${lead(best.name)}（${why(best)}）${pick(best, '用這組')}</p>
         <details><summary>看各組負責次數（少的排前面）</summary>
-          <ul class="fair-list">${list.map((g) => `<li><span class="fair-name">${esc(g.name)}</span><span class="muted">${why(g)}</span>${pick(g, '選')}</li>`).join('')}</ul>
+          <ul class="fair-list">${list.map((g) => `<li><span class="fair-name">${esc(g.name)}</span>${lead(g.name)}<span class="muted">${why(g)}</span>${pick(g, '選')}</li>`).join('')}</ul>
         </details>
         ${s.start ? '' : '<p class="hint">先填日期，才能避開當天已有勤務的組。</p>'}
       </div>`;
