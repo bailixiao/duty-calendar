@@ -149,7 +149,7 @@
       if (ROSTER_SKIP.test(x.name)) return;
       if (cat && (x.category || '勤務') !== cat) return; // 分總務／道務／教育（舊資料沒有類別的算總務）
       if (!map.has(x.name)) map.set(x.name, { name: x.name, dates: [] });
-      map.get(x.name).dates.push({ date: d.date, names: x.names, notice: x.notice, group: x.group, tickets: x.tickets, temples: x.temples, price: x.price });
+      map.get(x.name).dates.push({ date: d.date, names: x.names, notice: x.notice, group: x.group, tickets: x.tickets, temples: x.temples, price: x.price, batches: x.batches, items: x.items });
     }));
     return [...map.values()];
   }
@@ -241,22 +241,44 @@
     duties.forEach((g) => {
       lines.push(`【${g.name}】`);
       g.dates.forEach((x) => {
-        // 登記張數的勤務（園遊券）：依佛堂分組——佛堂一行、下一行名字和張數、再一行佛堂小計；最後寫總張數、合計金額
-        if (x.tickets && x.names.length) {
-          const money = (n) => (x.price ? `・${n * x.price} 元` : '');
+        const money = (n) => (x.price ? `・${n * x.price} 元` : '');
+        // 登記張數：依佛堂分組——佛堂一行、下一行名字和張數、再一行佛堂小計；回傳總張數
+        const ticketLines = (items) => {
           const groups = new Map();
-          x.names.forEach((n) => { const t = (x.temples || {})[n] || ''; if (!groups.has(t)) groups.set(t, []); groups.get(t).push(n); });
+          items.forEach((it) => { const t = it.temple || ''; if (!groups.has(t)) groups.set(t, []); groups.get(t).push(it); });
           const order = [...groups.keys()].sort((a, b) => (a ? 0 : 1) - (b ? 0 : 1));
-          lines.push(Fmt.shortDate(x.date));
           let sum = 0;
           order.forEach((t) => {
-            const names = groups.get(t);
-            const sub = names.reduce((n, k) => n + (x.tickets[k] || 1), 0);
+            const list = groups.get(t);
+            const sub = list.reduce((n, it) => n + (it.tickets || 1), 0);
             sum += sub;
             lines.push(t || '未填佛堂');
-            lines.push(names.map((n) => `${n} ${x.tickets[n] || 1}張`).join('、'));
+            lines.push(list.map((it) => `${it.name} ${it.tickets || 1}張`).join('、'));
             lines.push(`小計 ${sub} 張${money(sub)}`);
           });
+          return sum;
+        };
+        // 分批的勤務（2026/11/6）：依報名時間分第幾批，各批分開列（登記張數的各批有小計，最後寫總共）
+        if ((x.batches || []).length && (x.items || []).length) {
+          const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+          lines.push(Fmt.shortDate(x.date));
+          let total = 0;
+          x.batches.forEach((end, bi) => {
+            const items = x.items.filter((it) => it.batch === bi);
+            if (!items.length) return;
+            lines.push(`第${bi + 1}批（${bi ? md(Fmt.addDays(x.batches[bi - 1], 1)) : ''}～${md(end)}）`);
+            if (!x.tickets) { lines.push(items.map((it) => it.name).join('、')); return; }
+            const sub = ticketLines(items);
+            total += sub;
+            lines.push(`第${bi + 1}批共 ${sub} 張${money(sub)}`);
+          });
+          if (x.tickets) lines.push(`共 ${total} 張${money(total)}`);
+          return;
+        }
+        // 登記張數的勤務（園遊券）：依佛堂分組，最後寫總張數、合計金額
+        if (x.tickets && x.names.length) {
+          lines.push(Fmt.shortDate(x.date));
+          const sum = ticketLines(x.names.map((n) => ({ name: n, temple: (x.temples || {})[n] || '', tickets: x.tickets[n] || 1 })));
           lines.push(`共 ${sum} 張${money(sum)}`);
           return;
         }

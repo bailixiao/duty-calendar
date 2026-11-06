@@ -17,7 +17,7 @@ var DUTY_FIELD_MAP_ = {
   startTime: '開始時間', endTime: '結束時間', location: '地點',
   groupType: '分組類型', group: '負責組', attire: '服裝', description: '說明', deadline: '報名截止日', multi: '可兼任', totalNeed: '共需人數', leaderTitle: '組長職稱', category: '類別', dm: 'DM',
   layout: '版面', stages: '階段', teachers: '師資', merge: '合併顯示',
-  lecturers: '講師', leaders: '帶班', assistants: '助理帶班', pinned: '首頁置頂', templePick: '報名選佛堂', tickets: '登記張數', price: '面額'
+  lecturers: '講師', leaders: '帶班', assistants: '助理帶班', pinned: '首頁置頂', templePick: '報名選佛堂', tickets: '登記張數', price: '面額', batches: '分批截止日'
 };
 
 // 道務的負責人員欄位（統計「負責人員」用）
@@ -100,6 +100,17 @@ function normalizeDutyInput_(input, ctx) {
   var price = String(input.price === undefined || input.price === null ? '' : input.price).trim();
   if (price && !/^\d{1,6}$/.test(price)) errors.push('面額請填數字（元）');
   duty['面額'] = duty['登記張數'] && /^\d{1,6}$/.test(price) ? String(Number(price)) : '';
+  // 分批截止日：依報名時間分第幾批（名單分開），最後一個日期也是報名截止日（2026/11/6）
+  var batchIn = Array.isArray(input.batches) ? input.batches : String(input.batches || '').split(/[、,，\s]+/);
+  var batches = [];
+  batchIn.map(function (x) { return cleanText_(x); }).filter(Boolean).forEach(function (x) {
+    if (!isDateString_(x)) { errors.push('分批截止日格式錯誤：' + x); return; }
+    if (batches.indexOf(x) === -1) batches.push(x);
+  });
+  batches.sort();
+  if (batches.length > 5) errors.push('分批截止日最多 5 個');
+  duty['分批截止日'] = batches.length > 1 ? batches.join('、') : '';
+  if (batches.length > 1) duty['報名截止日'] = batches[batches.length - 1];
   // 報名選佛堂：報名時每位都要選佛堂（是／空白，2026/11/2）
   duty['報名選佛堂'] = input.templePick === true || input.templePick === '是' || input.templePick === 'true' ? '是' : '';
   // 共需人數：可兼任時這一天總共需要幾位（不重複的人）；空白＝照各項目最少人數
@@ -262,7 +273,8 @@ function mergeBulkInput_(target, targetPositions, sourceOldName, sourceOldPositi
     pinned: target['首頁置頂'] || '', // 首頁置頂照各筆原本的
     templePick: has('positions') ? src['報名選佛堂'] : target['報名選佛堂'], // 報名選佛堂跟著了愿項目一起改
     tickets: has('positions') ? src['登記張數'] : target['登記張數'], // 登記張數、面額也跟著了愿項目一起改
-    price: has('positions') ? src['面額'] : target['面額']
+    price: has('positions') ? src['面額'] : target['面額'],
+    batches: target['分批截止日'] || '' // 分批截止日每筆各自設定，一起改時不動
   };
 
   var current = targetPositions.map(function (p) {

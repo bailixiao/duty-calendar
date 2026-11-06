@@ -61,7 +61,7 @@ function signup_(body) {
         if (e.accompany) return true;
         var rest = e._dates.filter(function (date) {
           if (closed(date)) return true; // 截止、當天以後照原本的規則擋
-          var had = signups.filter(function (x) { return x['日期'] === date && x['狀態'] !== '已取消' && x['陪同'] !== '是' && samePerson_(x['姓名'], x['佛堂'], e.name, e.temple); })[0];
+          var had = signups.filter(function (x) { return x['日期'] === date && x['狀態'] !== '已取消' && x['陪同'] !== '是' && !earlierBatch_(duty, x, today) && samePerson_(x['姓名'], x['佛堂'], e.name, e.temple); })[0]; // 分批：只加到這一批的那行
           if (!had) return true;
           accumulate.push({ row: had, add: ticketCount_(e.tickets), name: normalizeName_(e.name) });
           return false;

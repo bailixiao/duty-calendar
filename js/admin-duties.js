@@ -525,7 +525,9 @@
       s.start = '';
       s.end = '';
       s.positions = s.positions.map((p) => ({ name: p.name, slot: p.slot, min: p.min, max: p.max }));
+      s.batches = [];
     }
+    s.batches = Array.isArray(s.batches) ? s.batches.slice() : [];
     const st = {
       dateType: s.start && s.end && s.start !== s.end ? 'range' : 'single',
       lunar: { from: '', to: '', first: true, fifteenth: true, leap: true, prefix: true, groupMode: 'fixed', rotation: [], rotationStart: 0 },
@@ -600,9 +602,10 @@
                 <input class="input" type="date" name="start" value="${esc(s.start)}"></label>
               ${st.dateType === 'range' ? `<label class="form-row"><span>結束日</span>
                 <input class="input" type="date" name="end" value="${esc(s.end)}"></label>` : ''}`}
-            ${st.dateType === 'multi' ? '<p class="hint">多個日期時不設報名截止日（每筆都是前一天都能報名），之後可以個別編輯。</p>' : `<label class="form-row"><span>報名截止日（可空白）</span>
+            ${st.dateType === 'multi' ? '<p class="hint">多個日期時不設報名截止日（每筆都是前一天都能報名），之後可以個別編輯。</p>' : s.batches.length ? batchFields() : `<label class="form-row"><span>報名截止日（可空白）</span>
               <input class="input" type="date" name="deadline" value="${esc(s.deadline || '')}"></label>
-            <p class="hint">空白＝${F()}前一天都能報名。填了日期，過了那天網頁就不能再報名（管理者仍可補登）。</p>`}
+            <p class="hint">空白＝${F()}前一天都能報名。填了日期，過了那天網頁就不能再報名（管理者仍可補登）。</p>
+            ${s.mode === '公告型' ? '' : '<button type="button" class="link-btn" data-batch-add>＋ 名單要分批（例：11/6 前第 1 批、11/10 前第 2 批）</button>'}`}
           </fieldset>
 
           <fieldset class="form-block">
@@ -899,6 +902,15 @@
             </select></label>`}`;
     }
 
+    /** 分批截止日（2026/11/6）：依報名時間分第幾批，後台名單、給分壇名單分批列；最後一批的日期就是報名截止日 */
+    function batchFields() {
+      return `<div class="form-row batch-block"><span>分批截止日</span>
+        ${s.batches.map((b, i) => `<div class="batch-row"><span class="batch-label">第 ${i + 1} 批截止</span><input class="input" type="date" name="batch" value="${esc(b || '')}"><button type="button" class="nm-del" data-batch-del="${i}" aria-label="刪除第 ${i + 1} 批">×</button></div>`).join('')}
+        ${s.batches.length < 5 ? '<button type="button" class="link-btn" data-batch-add>＋ 再加一批</button>' : ''}
+        <p class="hint">例：第 1 批 11/6、第 2 批 11/10：11/6（含）以前報的是第 1 批，11/7～11/10 報的是第 2 批，11/10 過後就不能報名。後台名單、給分壇名單會分批列；登記張數的人第 2 批再加，會在第 2 批另列一行。全部刪掉就回到一般的報名截止日。</p>
+      </div>`;
+    }
+
     /** 把畫面上的值讀回 s／st（重畫前呼叫，避免打的字不見） */
     function sync() {
       const f = body.querySelector('form');
@@ -920,6 +932,7 @@
       if (f.elements.templePick) s.templePick = f.elements.templePick.checked;
       if (f.elements.tickets) s.tickets = f.elements.tickets.checked;
       if (f.elements.price) s.price = f.elements.price.value.trim();
+      if (f.querySelector('[name=batch]')) s.batches = [...f.querySelectorAll('[name=batch]')].map((x) => x.value);
       if (f.elements.totalNeed) s.totalNeed = f.elements.totalNeed.value.trim();
       if (f.elements.leaderTitle) s.leaderTitle = f.elements.leaderTitle.value.trim();
       if (f.elements.layout) s.layout = f.elements.layout.checked ? '職司表' : '';
@@ -970,6 +983,21 @@
       ['startTime', 'endTime'].forEach((n) => {
         const input = f.elements[n];
         if (input) input.addEventListener('input', () => { const b = f.querySelector(`[data-clear-time="${n}"]`); if (b) b.hidden = !input.value; });
+      });
+      // 分批截止日：加一批、刪一批
+      f.addEventListener('click', (ev) => {
+        const add = ev.target.closest('[data-batch-add]');
+        const del = ev.target.closest('[data-batch-del]');
+        if (!add && !del) return;
+        sync();
+        if (add) {
+          if (!s.batches.length) s.batches = [s.deadline || '', ''];
+          else s.batches.push('');
+        } else {
+          s.batches.splice(Number(del.dataset.batchDel), 1);
+          if (s.batches.length === 1) { s.deadline = s.batches[0]; s.batches = []; } // 只剩一個：變回一般的報名截止日
+        }
+        render();
       });
       // 建議負責組：按「用這組」直接選好；日期或負責組改了就重新排
       f.addEventListener('click', (ev) => {
@@ -1052,7 +1080,7 @@
         name: s.name, nature: s.nature, mode: s.mode, category: s.category || myCategory(),
         start: s.start, end: st.dateType === 'range' ? s.end : s.start,
         startTime: s.startTime, endTime: s.endTime, location: s.location,
-        groupType: isSimple(s.category) ? '' : s.groupType, group: !isSimple(s.category) && s.groupType ? s.group : '', attire: s.attire, description: s.description, deadline: s.deadline || '',
+        groupType: isSimple(s.category) ? '' : s.groupType, group: !isSimple(s.category) && s.groupType ? s.group : '', attire: s.attire, description: s.description, deadline: (s.batches.filter(Boolean).sort().slice(-1)[0] || s.deadline) || '',
         dm: s.dm,
         merge: String(s.merge || '').trim(),
         teachers: s.category === '教育' ? (s.teachers || '') : '',
@@ -1065,6 +1093,7 @@
         pinned: !!(s.pinned === true || s.pinned === '是'),
         tickets: s.mode !== '公告型' && quotaOnly() && !!(s.tickets === true || s.tickets === '是'),
         price: s.mode !== '公告型' && quotaOnly() && (s.tickets === true || s.tickets === '是') ? String(s.price || '') : '',
+        batches: s.mode !== '公告型' && st.dateType !== 'multi' ? s.batches.filter(Boolean) : [],
         templePick: s.mode !== '公告型' && !!(s.templePick === true || s.templePick === '是'),
         totalNeed: s.mode !== '公告型' && !quotaOnly() && (s.multi === true || s.multi === '是') ? String(s.totalNeed || '') : '',
         leaderTitle: s.mode !== '公告型' && !quotaOnly() && (s.category || '勤務') === '勤務' ? String(s.leaderTitle || '') : '',

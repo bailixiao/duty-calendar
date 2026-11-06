@@ -190,6 +190,7 @@ function validateSignup_(req) {
       var dup = active.filter(function (s) {
         // 可兼任的勤務：同一人可報不同了愿項目，只擋同一個項目重複
         if (duty['可兼任'] === '是' && s['了愿項目ID'] !== req.positionId) return false;
+        if (earlierBatch_(duty, s, req.today)) return false; // 分批：以前批次報過的，這一批可以再報（名單分開）
         return s['陪同'] !== '是' && samePerson_(s['姓名'], s['佛堂'], e.name, e.temple);
       })[0];
       if (dup) {
@@ -219,6 +220,29 @@ function validateSignup_(req) {
   });
 
   return errors;
+}
+
+/** 分批截止日（2026/11/6）：['yyyy-MM-dd', ...]，沒分批＝[] */
+function dutyBatches_(duty) {
+  return String((duty && duty['分批截止日']) || '').split('、').filter(isDateString_);
+}
+
+/** day（yyyy-MM-dd）是第幾批（0 起算）：第一個截止日還沒過的那批；都過了算最後一批 */
+function batchIndex_(batches, day) {
+  for (var i = 0; i < batches.length; i++) if (day <= batches[i]) return i;
+  return batches.length - 1;
+}
+
+/** 這筆報名是第幾批（依建立時間）；沒分批＝-1 */
+function signupBatch_(duty, s) {
+  var b = dutyBatches_(duty);
+  return b.length ? batchIndex_(b, String(s['建立時間'] || '').slice(0, 10)) : -1;
+}
+
+/** 登記張數＋分批的勤務：以前批次的報名不算重複（這一批另列一行） */
+function earlierBatch_(duty, s, today) {
+  var b = dutyBatches_(duty);
+  return !!(b.length && duty['登記張數'] === '是' && signupBatch_(duty, s) < batchIndex_(b, today));
 }
 
 /** 一般使用者能不能自己取消、改期：勤務當天（含）之後不行（today 為台北時間 yyyy-MM-dd） */

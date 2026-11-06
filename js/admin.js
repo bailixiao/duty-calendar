@@ -439,12 +439,24 @@
               </span>` : ''}
             </li>`;
       // 登記張數（園遊券）：依佛堂分組，佛堂一行、底下名字和張數、最後佛堂小計與金額
-      const ticketList = () => Fmt.ticketGroups(people).map((g) => `
+      const ticketList = (list) => Fmt.ticketGroups(list).map((g) => `
           <div class="ticket-group">
             <p class="ticket-temple">${esc(g.temple || '未填佛堂')}</p>
             <ul class="people">${g.people.map(row).join('')}</ul>
             <p class="ticket-sub">小計 <strong>${g.sum}</strong> 張${d.price ? `・${g.sum * d.price} 元` : ''}</p>
           </div>`).join('');
+      const listHtml = (list) => (d.tickets ? ticketList(list) : `<ul class="people">${list.map(row).join('')}</ul>`);
+      // 分批的勤務（2026/11/6）：依報名時間分第幾批，各批分開列
+      const md = (x) => `${Number(x.slice(5, 7))}/${Number(x.slice(8, 10))}`;
+      const batchList = () => d.batches.map((end, bi) => {
+        const list = people.filter((s) => s.batch === bi);
+        if (!list.length) return '';
+        const sum = Fmt.ticketSum(list);
+        return `<div class="batch-group">
+            <p class="batch-title">第 ${bi + 1} 批（${bi ? md(Fmt.addDays(d.batches[bi - 1], 1)) : ''}～${md(end)}）<span class="muted">${d.tickets ? `${sum} 張${d.price ? `・${sum * d.price} 元` : ''}` : `${list.filter((s) => !s.accompany).length} 人`}</span></p>
+            ${listHtml(list)}
+          </div>`;
+      }).join('');
       return `
         <li class="position">
           <div class="position-head">
@@ -452,7 +464,7 @@
             <span class="badge badge-ok">${past ? '出席 ' : ''}${count}${p.max !== null ? '／' + p.max : ''} 人${!past && count < Fmt.effectiveMin(p) ? `・缺 ${Fmt.effectiveMin(p) - count}` : ''}</span>
           </div>
           ${d.tickets && people.length ? `<p class="ticket-total">共 <strong>${Fmt.ticketSum(people)}</strong> 張${d.price ? `・面額 ${d.price} 元・合計 <strong>${Fmt.ticketSum(people) * d.price}</strong> 元` : ''}</p>` : ''}
-          ${!d.signups ? '<p class="muted">載入名單中⋯</p>' : people.length ? (d.tickets ? ticketList() : `<ul class="people">${people.map(row).join('')}</ul>`) : `<p class="muted">${past ? '沒有人報名' : '還沒有人報名'}</p>`}
+          ${!d.signups ? '<p class="muted">載入名單中⋯</p>' : people.length ? ((d.batches || []).length ? batchList() : listHtml(people)) : `<p class="muted">${past ? '沒有人報名' : '還沒有人報名'}</p>`}
           ${canEdit ? `<button type="button" class="btn btn-small" data-walkin="${esc(p.id)}">${past ? '＋ 補登沒報名但有來的人' : '＋ 幫人報名'}</button>` : ''}
         </li>`;
     }).join('');

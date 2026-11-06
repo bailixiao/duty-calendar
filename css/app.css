@@ -2568,4 +2568,7 @@ button.veg-chip:hover { border-color: var(--ok); }
 .ticket-group { flex: 1 1 100%; width: 100%; box-sizing: border-box; margin: 6px 0 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); }
 .ticket-temple { margin: 0 0 4px; font-weight: 700; color: var(--accent); }
 .ticket-group .people { margin: 0; }
+.batch-group { flex: 1 1 100%; width: 100%; box-sizing: border-box; margin: 8px 0 12px; }
+.batch-title { margin: 0 0 4px; font-weight: 700; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding-bottom: 4px; border-bottom: 2px solid var(--accent); }
+.batch-group > .people { margin: 0; }
 .ticket-sub { margin: 6px 0 0; padding-top: 6px; border-top: 1px dashed var(--line); text-align: right; color: var(--ink-2); }
