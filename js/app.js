@@ -6,6 +6,7 @@
 //   #/venue?date=…           借區中心場地（見 venue.js）
 //   #/help、#/help/<問題ID>、#/help?c=分類   常見問題（見 help.js）
 //   #/rollcall/<勤務ID>?date=…   當天點名（見 rollcall.js）
+//   #/report/<勤務ID>?date=…     活動回報（見 activity-report.js）
 //   #/admin…                 管理後台（見 admin.js）
 (function () {
   'use strict';
@@ -53,6 +54,12 @@
     if (rc) {
       show('rollcall');
       RollcallPage.show(decodeURIComponent(rc[1]), rc[2]);
+      return;
+    }
+    const rp = location.hash.match(/^#\/report\/([^?]+)\?date=(\d{4}-\d{2}-\d{2})/);
+    if (rp) {
+      show('report');
+      ActivityReportPage.show(decodeURIComponent(rp[1]), rp[2]);
       return;
     }
     const help = location.hash.match(/^#\/help(?:\/([^?]+))?\/?(?:\?c=([^&]+))?$/);
@@ -235,6 +242,7 @@
     views.admin = document.getElementById('view-admin');
     views.help = document.getElementById('view-help');
     views.rollcall = document.getElementById('view-rollcall');
+    views.report = document.getElementById('view-report');
     CalendarPage.init();
     // 搬家測試：用 ?api=cf 試用 Cloudflare 版時，左下角顯示提示，按一下切回正式版
     if (window.APP_CONFIG.TEST) {

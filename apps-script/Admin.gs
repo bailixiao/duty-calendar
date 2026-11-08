@@ -78,6 +78,8 @@ function adminDuty_(body) {
     s.attend = row['出席'] || '出席';
   });
   data.groupContact = adminGroupContact_(data.groupType, data.group);
+  var duty = findDutyById_(body.id);
+  if (duty) Object.assign(data, dutyReports_(duty));
   return data;
 }
 
@@ -346,6 +348,7 @@ function adminRun_(body) {
     case 'adminSignupDigestWatch': return adminSignupDigestWatch_(body);
     case 'adminNoticeTail': return adminNoticeTail_(body);
     case 'adminRollcallLink': return adminRollcallLink_(body);
+    case 'adminReportLink': return adminReportLink_(body);
     case 'adminImportAttendance': return adminImportAttendance_(body);
     case 'adminRepairs': return adminRepairs_(body);
     case 'adminSetMemberExtra': return adminSetMemberExtra_(body);

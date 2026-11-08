@@ -2165,6 +2165,15 @@ body.splash-on .text-size-btn { visibility: hidden; }
 .rc-in.is-on { border-color: var(--ok); background: var(--ok-soft); color: var(--ok); }
 .rc-out.is-on { border-color: var(--accent); background: #fff; color: var(--accent); }
 .rc-big-code { font-size: 1.3rem; }
+/* ---------- 活動回報（activity-report.js、後台勤務頁） ---------- */
+.report-form { display: grid; gap: 10px; max-width: 640px; }
+.report-text { min-height: 96px; resize: vertical; }
+.report-card { display: grid; gap: 6px; padding: 10px 12px; margin: 8px 0; border: 1px solid var(--line); border-left: 4px solid var(--ok); border-radius: 10px; background: var(--card); }
+.report-meta { margin: 0; font-weight: 700; }
+.report-field { margin: 0; display: grid; gap: 2px; }
+.report-field strong { font-size: .9rem; color: var(--ink-2); }
+.report-field span { white-space: pre-wrap; }
+.report-past summary { cursor: pointer; padding: 8px 0; font-weight: 700; min-height: 36px; }
 .rc-big-code strong { font-size: 2rem; letter-spacing: .2em; color: var(--accent); }
 .att-preview { margin: 8px 0; padding-left: 1.2em; display: grid; gap: 4px; }
 .pending-banner { border-color: #c58a1b; }

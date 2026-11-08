@@ -69,6 +69,8 @@ function doPost(e) {
       case 'repairWatch': return repairWatch_(body);
       case 'rollcallGet': return rollcallGet_(body);
       case 'rollcallSet': return rollcallSet_(body);
+      case 'reportGet': return reportGet_(body);
+      case 'reportSave': return reportSave_(body);
       case 'pushSubscribe': return pushSubscribe_(body);
       case 'pushUnsubscribe': return pushUnsubscribe_(body);
       case 'pushTest': return pushTest_(body);

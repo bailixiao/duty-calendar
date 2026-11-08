@@ -488,10 +488,12 @@
           <ul class="position-list">${positions}</ul>
           <p class="hint">${past ? '出席修正：預設報名＝出席。沒來的人按「改未到」，沒報名但有來的人按「補登」。統計表只算出席、非陪同的人。' : '管理者可以取消、改期任何日期（含當天與過去）的報名；按「＋ 幫人報名」可以直接幫人加上（不受報名截止日限制）。'}</p>
         </section>`}
+      ${reportsHtml(d, date)}
       <div class="admin-links">
         <a class="btn btn-primary admin-link-btn" href="#/admin/duties/edit/${encodeURIComponent(d.id)}">✏️ 編輯${d.category && d.category !== '勤務' ? '活動' : '勤務'}</a>
         <a class="btn admin-link-btn" href="#/duty/${encodeURIComponent(d.id)}?date=${date}">👀 看家人們看到的頁面</a>
         ${!isNotice && date >= d.today && Api.adminWho().role !== '唯讀' ? `<button type="button" class="btn admin-link-btn" data-rollcall>📋 點名連結（${esc(Fmt.shortDate(date))}）</button>` : ''}
+        ${Api.adminWho().role !== '唯讀' ? `<button type="button" class="btn admin-link-btn" data-report-link>📝 活動回報連結（${esc(Fmt.shortDate(date))}）</button>` : ''}
         ${d.start === d.end && Api.adminWho().role === '總管理者' ? '<button type="button" class="btn admin-link-btn" data-move-duty>📅 整筆搬到別的日期（年份打錯時用）</button>' : ''}
       </div>`;
 
@@ -502,6 +504,8 @@
     }));
     const rc = body.querySelector('[data-rollcall]');
     if (rc) rc.addEventListener('click', () => rollcallLink(d, date));
+    const rl = body.querySelector('[data-report-link]');
+    if (rl) rl.addEventListener('click', () => reportLink(d, date));
     const mv = body.querySelector('[data-move-duty]');
     if (mv) mv.addEventListener('click', () => moveDuty(d));
     const find = (id) => (d.signups || []).find((s) => s.id === id);
@@ -626,6 +630,58 @@
       m.close();
       setAttendance(s, { tickets: n }, `${s.name}：${n} 張${price ? `（${n * price} 元）` : ''}`);
     });
+  }
+
+  /** 活動回報（2026/11/8）：這一天的回報＋同名勤務以前的回報（後台才看得到） */
+  function reportsHtml(d, date) {
+    if (!d.reports) return '';
+    const md = (x) => `${Number(x.slice(5, 7))}/${Number(x.slice(8, 10))}`;
+    const one = (r, withYear) => `
+        <div class="report-card">
+          <p class="report-meta">${esc(withYear ? Fmt.rocDate(r.date) : md(r.date))}・${esc(r.name)} 填寫${r.updatedAt ? `<span class="muted">（${esc(r.updatedAt.slice(5, 16).replace('-', '/'))}）</span>` : ''}</p>
+          ${[['整體狀況', r.overall], ['遇到的問題', r.problems], ['下次改進', r.improve]].filter((x) => x[1]).map((x) => `<p class="report-field"><strong>${x[0]}</strong><span>${esc(x[1])}</span></p>`).join('')}
+          ${r.photos.length ? `<div class="repair-photos">${r.photos.map((id) => `<a href="${esc(Api.fileUrl(id))}" target="_blank" rel="noopener" class="repair-thumb"><img src="${esc(Api.fileUrl(id))}" alt="回報的照片" loading="lazy"></a>`).join('')}</div>` : ''}
+        </div>`;
+    const mine = d.reports.filter((r) => r.date === date);
+    const linked = (d.reportLinks || []).indexOf(date) !== -1;
+    const past = d.pastReports || [];
+    if (!mine.length && !linked && !past.length) return '';
+    return `
+      <section class="detail-section report-section">
+        <h3 class="admin-sub">📝 活動回報<span class="h2-sub">${esc(Fmt.shortDate(date))}</span></h3>
+        ${mine.length ? mine.map((r) => one(r)).join('') : `<p class="muted">${linked ? '已經產生回報連結，還沒有人填。' : '這天還沒有回報。'}</p>`}
+        ${past.length ? `<details class="report-past"><summary>以前辦「${esc(d.name)}」的回報（${past.length} 份）</summary>${past.map((r) => one(r, true)).join('')}</details>` : ''}
+      </section>`;
+  }
+
+  /** 活動回報連結：產生（或拿回）這個勤務這一天的回報碼，複製「連結＋回報碼」傳給組長 */
+  async function reportLink(d, date) {
+    Busy.show('產生回報連結⋯');
+    let res;
+    try {
+      res = await Api.admin('adminReportLink', { dutyId: d.id, date });
+    } catch (err) {
+      Busy.hide();
+      if (guard(err)) return;
+      alert(err.message || '產生失敗');
+      return;
+    }
+    Busy.hide();
+    const url = location.origin + location.pathname + '?openExternalBrowser=1#/report/' + encodeURIComponent(res.dutyId) + '?date=' + res.date;
+    const text = `📝 ${res.name}（${Fmt.shortDate(res.date)}）活動回報\n回報連結：${url}\n回報碼：${res.code}\n（活動結束後請填一下整體狀況、遇到的問題、下次可以改進的地方，可以附照片；${res.openDays} 天內都能填、也能修改，感恩 🙏）`;
+    const m = Modal.open(`
+      <h2 class="modal-title">📝 活動回報連結</h2>
+      <p>把下面的文字傳給負責的人（組長、召集人或任何一位有參加的家人都可以；沒有組長也沒關係），打開連結、輸入回報碼就能填。您自己也可以打開來填。<strong>從 ${esc(Fmt.shortDate(res.date))} 起 ${res.openDays} 天內能用。</strong></p>
+      <p class="rc-big-code">回報碼：<strong>${esc(res.code)}</strong></p>
+      <textarea class="day-text" rows="5" readonly>${esc(text)}</textarea>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-primary btn-block" data-copy>複製文字</button>
+        <button type="button" class="btn btn-line btn-block" data-line>傳到 LINE</button>
+        <button type="button" class="btn btn-block" data-close>返回</button>
+      </div>`);
+    m.el.querySelector('[data-close]').addEventListener('click', () => { m.close(); clearMemo(); loadDuty(); });
+    m.el.querySelector('[data-copy]').addEventListener('click', async (ev) => { ev.target.textContent = (await Share.copyText(text)) ? '已複製 ✓' : '請長按框內文字複製'; });
+    m.el.querySelector('[data-line]').addEventListener('click', () => window.open('https://line.me/R/msg/text/?' + encodeURIComponent(text), '_blank', 'noopener'));
   }
 
   /** 點名連結：產生（或拿回）這個勤務這一天的點名碼，複製「連結＋點名碼」傳給組長 */

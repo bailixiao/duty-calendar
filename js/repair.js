@@ -159,5 +159,5 @@
     });
   }
 
-  window.RepairPage = { mount };
+  window.RepairPage = { mount, shrink };
 })();

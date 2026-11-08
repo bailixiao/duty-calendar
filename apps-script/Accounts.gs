@@ -85,7 +85,7 @@ var ADMIN_READ_ACTIONS = ['adminPing', 'adminLogout', 'adminMe', 'adminRecent', 
   'adminDutyList', 'adminDutyForEdit', 'adminStats', 'adminMembers', 'adminGroups', 'adminGoals', 'adminVenue', 'adminVenueStats', 'adminPushList', 'adminFaq', 'adminRepairs', 'adminRecentSignups', 'adminSignupDigestWatch', 'adminNoticeTail'];
 // 依勤務類別判斷的寫入（勤務／道務／教育帳號只能動自己類別）
 var ADMIN_CATEGORY_ACTIONS = ['adminCancel', 'adminReschedule', 'adminRestore', 'adminCreateDuties', 'adminUpdateDuty',
-  'adminDeleteDuty', 'adminSetAttendance', 'adminAddAttendee', 'adminDraftFromImages', 'adminUpdateStatsSheet', 'adminSetTeachers', 'adminSaveGoals', 'adminVenueDecide', 'adminVenueEdit', 'adminVenueConvert', 'adminGridMove', 'adminGridNote', 'adminPushSave', 'adminPushDelete', 'adminAutoPushSave', 'adminRollcallLink', 'adminImportAttendance', 'adminSetMemberExtra', 'adminSplitSignup'];
+  'adminDeleteDuty', 'adminSetAttendance', 'adminAddAttendee', 'adminDraftFromImages', 'adminUpdateStatsSheet', 'adminSetTeachers', 'adminSaveGoals', 'adminVenueDecide', 'adminVenueEdit', 'adminVenueConvert', 'adminGridMove', 'adminGridNote', 'adminPushSave', 'adminPushDelete', 'adminAutoPushSave', 'adminRollcallLink', 'adminReportLink', 'adminImportAttendance', 'adminSetMemberExtra', 'adminSplitSignup'];
 
 // 成員、分組的編輯動作，與可以編輯的帳號（總管理者另外全部可以）
 var PEOPLE_EDIT_ACTIONS = ['adminSaveMember', 'adminDeleteMember', 'adminMemberCandidates', 'adminAddMembers', 'adminMergeNames', 'adminClearCandidates',
@@ -114,7 +114,7 @@ function targetDuties_(body) {
       return (body.items || []).map(function (it) { return findDutyById_(it.id); });
     case 'adminDeleteDuty': // 同名一起刪：一起刪的那些也要檢查
       return [findDutyById_(body.id)].concat((body.alsoIds || []).map(findDutyById_));
-    case 'adminRollcallLink':
+    case 'adminRollcallLink': case 'adminReportLink':
       return [findDutyById_(body.dutyId)];
     case 'adminImportAttendance': // 新增的場次在 adminImportAttendance_ 裡固定成帳號的類別
       return (body.sessions || []).filter(function (s) { return s && s.dutyId; }).map(function (s) { return findDutyById_(s.dutyId); });

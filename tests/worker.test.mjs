@@ -184,3 +184,17 @@ test('修繕照片：公開上傳只收照片、最大 2MB，之後用檔案網�
   assert.match(r.data.id, /^F-/);
   assert.equal((await call('POST', { action: 'repairUpload', mime: 'application/pdf', data: tiny })).error.code, 'BAD_REQUEST');
 });
+
+test('活動回報照片：要有正確的回報碼才能上傳', async () => {
+  const { call } = await setup();
+  const token = (await call('POST', { action: 'adminLogin', password: 'test-pass' })).data.token;
+  const ev = (await call('GET', { action: 'getEvents', from: '2026-09-28', to: '2026-10-01' })).data.duties.find((d) => d.start <= '2026-10-01');
+  const link = await call('POST', { action: 'adminReportLink', token, dutyId: ev.id, date: ev.start });
+  assert.equal(link.ok, true, JSON.stringify(link.error));
+  const tiny = Buffer.from([0xff, 0xd8, 0xff, 0xd9]).toString('base64');
+  const p = { dutyId: ev.id, date: ev.start, mime: 'image/jpeg', data: tiny };
+  assert.equal((await call('POST', Object.assign({ action: 'reportUpload', code: link.data.code === '1234' ? '5678' : '1234' }, p))).error.code, 'FORBIDDEN');
+  const r = await call('POST', Object.assign({ action: 'reportUpload', code: link.data.code }, p));
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.match(r.data.id, /^F-/);
+});
