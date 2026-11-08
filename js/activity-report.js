@@ -34,7 +34,8 @@
       <form class="rc-code" novalidate>
         <p>活動辛苦了 🙏 請寫下這次的狀況、遇到的問題和下次可以改進的地方，給下次辦的人參考。</p>
         <label class="form-row"><span>您的名字（報名時用的名字）</span>
-          <input class="input" name="name" maxlength="20" autocomplete="name" value="${esc(st.name || savedName())}" placeholder="例：王小明"></label>
+          <input class="input" name="name" maxlength="20" autocomplete="off" value="${esc(st.name || savedName())}" placeholder="打一兩個字，下面會出現名單"></label>
+        <div class="suggestions" data-suggestions aria-live="polite"></div>
         ${err ? `<p class="form-error">${esc(err)}</p>` : ''}
         <button type="submit" class="btn btn-primary btn-block">開始填寫</button>
         <button type="button" class="btn btn-block" data-use-code>🔢 我有管理者給的回報碼</button>
@@ -43,6 +44,7 @@
     const f = box.querySelector('form');
     if (!f.elements.name.value) f.elements.name.focus();
     box.querySelector('[data-use-code]').addEventListener('click', () => askCode(root));
+    bindSuggestions(f);
     f.addEventListener('submit', (ev) => {
       ev.preventDefault();
       const name = f.elements.name.value.trim();
@@ -50,6 +52,54 @@
       st.name = name;
       st.code = '';
       load(root);
+    });
+  }
+
+  /** 名字提示（同報名）：先列這個勤務報名名單上的人（標「有報名」），再列成員名單；點了直接開始填 */
+  function bindSuggestions(f) {
+    const input = f.elements.name;
+    const box = f.querySelector('[data-suggestions]');
+    const norm = (s) => String(s || '').replace(/[\s　]+/g, '');
+    let signed = null; // 這個勤務報名名單上的名字
+    let timer = null;
+    let token = 0;
+    const signedNames = async () => {
+      if (signed) return signed;
+      let d = DutyCache.get(st.dutyId);
+      if (!d || !Array.isArray(d.signups)) { try { d = await DutyCache.fetch(st.dutyId); } catch (e) { d = null; } }
+      signed = [...new Set(((d && d.signups) || []).map((s) => norm(s.name)).filter(Boolean))];
+      return signed;
+    };
+    const paint = (mine, others, pending) => {
+      const seen = new Set(mine);
+      const rest = others.filter((m) => !seen.has(m.name) && seen.add(m.name));
+      const btn = (name, tag) => `<button type="button" class="suggestion" data-pick="${esc(name)}">${esc(name)}${tag ? `<small>${esc(tag)}</small>` : ''}</button>`;
+      box.innerHTML = mine.map((n) => btn(n, '有報名')).join('')
+        + rest.map((m) => btn(m.name, m.alias || '')).join('')
+        + (pending ? '<span class="muted small">搜尋中⋯</span>' : '');
+    };
+    input.addEventListener('input', () => {
+      clearTimeout(timer);
+      const q = norm(input.value);
+      const t = ++token;
+      if (!q) { box.innerHTML = ''; return; }
+      signedNames().then((list) => {
+        if (t !== token) return;
+        const mine = list.filter((n) => n.indexOf(q) !== -1).slice(0, 12);
+        paint(mine, [], true);
+        timer = setTimeout(async () => {
+          let others = [];
+          try { others = (await Api.searchMembers(q)).members || []; } catch (e) { /* 只列報名的人 */ }
+          if (t === token) paint(mine, others.slice(0, 12), false);
+        }, 250);
+      });
+    });
+    box.addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-pick]');
+      if (!b) return;
+      input.value = b.dataset.pick;
+      box.innerHTML = '';
+      f.requestSubmit();
     });
   }
 
