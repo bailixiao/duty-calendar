@@ -2585,3 +2585,4 @@ button.veg-chip:hover { border-color: var(--ok); }
 .report-who { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
 .report-date { max-width: 320px; }
 .report-invite { border: 2px solid var(--ok); border-radius: 14px; padding: 12px 14px; background: var(--ok-soft); }
+.report-invite .btn { display: flex; align-items: center; justify-content: center; text-decoration: none; font-weight: 700; font-size: 1.1rem; }
