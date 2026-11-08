@@ -2582,3 +2582,6 @@ button.veg-chip:hover { border-color: var(--ok); }
 .batch-title { margin: 0 0 4px; font-weight: 700; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding-bottom: 4px; border-bottom: 2px solid var(--accent); }
 .batch-group > .people { margin: 0; }
 .ticket-sub { margin: 6px 0 0; padding-top: 6px; border-top: 1px dashed var(--line); text-align: right; color: var(--ink-2); }
+.report-who { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.report-date { max-width: 320px; }
+.report-invite { border: 2px solid var(--ok); border-radius: 14px; padding: 12px 14px; background: var(--ok-soft); }

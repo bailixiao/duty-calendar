@@ -157,6 +157,7 @@
     const top = document.getElementById('duty-extra-top');
     if (top) top.innerHTML = stagesSection(d);
     el.innerHTML = `
+      ${reportSection(d)}
       ${d.layout === '職司表' && !top ? stagesSection(d) : ''}
       ${d.mergeHost ? mergeHostSection(d) : ''}
       ${d.mode === '公告型' && (d.group || d.groupInfo) ? groupSection(d) : ''}
@@ -185,6 +186,21 @@
     el.querySelectorAll('[data-img]').forEach((b) => b.addEventListener('click', () => openImage(images[Number(b.dataset.img)])));
     el.querySelectorAll('[data-dm-img]').forEach((b) => b.addEventListener('click', () => openImage(dmImages[Number(b.dataset.dmImg)])));
     bindGroupNotes(el);
+  }
+
+  // ---------- 活動回報（活動當天起 30 天內自動出現；見 js/activity-report.js、apps-script/ActivityReport.gs） ----------
+
+  function reportSection(d) {
+    const today = d.today || Fmt.toDateStr(new Date());
+    const dates = Fmt.datesBetween(d.start, d.end || d.start).filter((x) => x <= today && Fmt.addDays(x, 30) >= today);
+    if (!dates.length) return '';
+    const date = dates[dates.length - 1];
+    return `
+      <section class="detail-section report-invite">
+        <h2>📝 活動回報</h2>
+        <p class="hint">活動辛苦了 🙏 有參加的家人可以寫下這次的狀況、遇到的問題和下次可以改進的地方，給下次辦的人參考（只有管理者看得到）。</p>
+        <a class="btn btn-primary btn-block" href="#/report/${encodeURIComponent(d.id)}?date=${date}">📝 填活動回報</a>
+      </section>`;
   }
 
   // ---------- 組員備註（負責組的家人留一句話，例如想改到哪一天；見 apps-script/GroupNote.gs） ----------

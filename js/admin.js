@@ -493,7 +493,7 @@
         <a class="btn btn-primary admin-link-btn" href="#/admin/duties/edit/${encodeURIComponent(d.id)}">✏️ 編輯${d.category && d.category !== '勤務' ? '活動' : '勤務'}</a>
         <a class="btn admin-link-btn" href="#/duty/${encodeURIComponent(d.id)}?date=${date}">👀 看家人們看到的頁面</a>
         ${!isNotice && date >= d.today && Api.adminWho().role !== '唯讀' ? `<button type="button" class="btn admin-link-btn" data-rollcall>📋 點名連結（${esc(Fmt.shortDate(date))}）</button>` : ''}
-        ${Api.adminWho().role !== '唯讀' ? `<button type="button" class="btn admin-link-btn" data-report-link>📝 活動回報連結（${esc(Fmt.shortDate(date))}）</button>` : ''}
+        ${Api.adminWho().role !== '唯讀' ? `<button type="button" class="btn admin-link-btn" data-report-link>🔢 活動回報碼：給沒報名的人（${esc(Fmt.shortDate(date))}）</button>` : ''}
         ${d.start === d.end && Api.adminWho().role === '總管理者' ? '<button type="button" class="btn admin-link-btn" data-move-duty>📅 整筆搬到別的日期（年份打錯時用）</button>' : ''}
       </div>`;
 
@@ -645,11 +645,11 @@
     const mine = d.reports.filter((r) => r.date === date);
     const linked = (d.reportLinks || []).indexOf(date) !== -1;
     const past = d.pastReports || [];
-    if (!mine.length && !linked && !past.length) return '';
+    if (!mine.length && !linked && !past.length && date > d.today) return '';
     return `
       <section class="detail-section report-section">
         <h3 class="admin-sub">📝 活動回報<span class="h2-sub">${esc(Fmt.shortDate(date))}</span></h3>
-        ${mine.length ? mine.map((r) => one(r)).join('') : `<p class="muted">${linked ? '已經產生回報連結，還沒有人填。' : '這天還沒有回報。'}</p>`}
+        ${mine.length ? mine.map((r) => one(r)).join('') : `<p class="muted">${linked ? '已經產生回報連結，還沒有人填。' : '這天還沒有人回報。有報名的家人在勤務頁按「📝 填活動回報」就能填（活動後 30 天內）。'}</p>`}
         ${past.length ? `<details class="report-past"><summary>以前辦「${esc(d.name)}」的回報（${past.length} 份）</summary>${past.map((r) => one(r, true)).join('')}</details>` : ''}
       </section>`;
   }
@@ -668,10 +668,10 @@
     }
     Busy.hide();
     const url = location.origin + location.pathname + '?openExternalBrowser=1#/report/' + encodeURIComponent(res.dutyId) + '?date=' + res.date;
-    const text = `📝 ${res.name}（${Fmt.shortDate(res.date)}）活動回報\n回報連結：${url}\n回報碼：${res.code}\n（活動結束後請填一下整體狀況、遇到的問題、下次可以改進的地方，可以附照片；${res.openDays} 天內都能填、也能修改，感恩 🙏）`;
+    const text = `📝 ${res.name}（${Fmt.shortDate(res.date)}）活動回報\n回報連結：${url}\n回報碼：${res.code}（打開連結後按「我有回報碼」輸入）\n（活動結束後請填一下整體狀況、遇到的問題、下次可以改進的地方，可以附照片；${res.openDays} 天內都能填、也能修改，感恩 🙏）`;
     const m = Modal.open(`
-      <h2 class="modal-title">📝 活動回報連結</h2>
-      <p>把下面的文字傳給負責的人（組長、召集人或任何一位有參加的家人都可以；沒有組長也沒關係），打開連結、輸入回報碼就能填。您自己也可以打開來填。<strong>從 ${esc(Fmt.shortDate(res.date))} 起 ${res.openDays} 天內能用。</strong></p>
+      <h2 class="modal-title">🔢 活動回報碼</h2>
+      <p>有報名的家人不用回報碼，在勤務頁按「📝 填活動回報」、打名字就能填。這組回報碼是給<strong>沒報名但要回報的人</strong>（例：負責的師兄姐、您自己）：把下面的文字傳給他，打開連結、按「我有回報碼」輸入就能填。<strong>從 ${esc(Fmt.shortDate(res.date))} 起 ${res.openDays} 天內能用。</strong></p>
       <p class="rc-big-code">回報碼：<strong>${esc(res.code)}</strong></p>
       <textarea class="day-text" rows="5" readonly>${esc(text)}</textarea>
       <div class="modal-actions">
