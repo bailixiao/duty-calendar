@@ -53,11 +53,19 @@
     if (pop && !pop.contains(ev.target) && !ev.target.closest('[data-note]') && !ev.target.closest('.grid-name[data-sid]') && !ev.target.closest('.grid-empty.is-open')) closeNote();
   });
   window.addEventListener('hashchange', closeNote);
-  window.addEventListener('resize', closeNote);
+  // 手機跳出鍵盤、網址列收起都會觸發 resize（只有高度變），不能因此關掉；只有寬度變（轉向）才關
+  let lastWidth = window.innerWidth;
+  window.addEventListener('resize', () => {
+    if (window.innerWidth === lastWidth) return;
+    lastWidth = window.innerWidth;
+    closeNote();
+  });
+  // 表格捲動時關掉看註記的小泡泡；有輸入框的不關（鍵盤跳出、自動更新重畫表格都會觸發捲動）
+  const closeOnScroll = () => { if (pop && !pop.classList.contains('is-edit')) closeNote(); };
 
   /** el 裡的「註」可以點；editable＝大張職司表（可以改註記） */
   function bindNotes(el, d, editable) {
-    el.querySelectorAll('.grid-wrap').forEach((w) => w.addEventListener('scroll', closeNote, { passive: true }));
+    el.querySelectorAll('.grid-wrap').forEach((w) => w.addEventListener('scroll', closeOnScroll, { passive: true }));
     el.querySelectorAll('[data-note]').forEach((btn) => btn.addEventListener('click', (ev) => {
       ev.stopPropagation();
       const s = (d.signups || []).find((x) => x.id === btn.dataset.note);
