@@ -288,6 +288,46 @@
    *   **粗體** → 粗體；「>」開頭的一行 → 小標重點（例：> 職司完整不空窗：前一天晚上 → 當天）
    *   其他行照原樣（換行保留）
    */
+  /**
+   * 說明裡的圖片（2026/11/13）：一行寫 ![圖片說明](圖片)；圖片＝後台上傳的檔案代號（F-…）、網站內的 img/…、或 https 網址。
+   * 點圖片放大（下面的 click 全站一起處理）。
+   */
+  const IMG_LINE = /^!\[([^\]]*)\]\(([^)\s]+)\)$/;
+  function descImgSrc(src) {
+    if (/^F-[\w-]+$/.test(src)) return Api.fileUrl(src);
+    if (/^img\/[\w./-]+$/.test(src) || /^https:\/\//.test(src)) return src;
+    return '';
+  }
+  function descImage(src, cap) {
+    const url = descImgSrc(src);
+    if (!url) return '';
+    return `<button type="button" class="rd-img" data-rd-img="${esc(url)}" data-cap="${esc(cap)}"><img src="${esc(url)}" alt="${esc(cap || '說明圖片')}" loading="lazy">${cap ? `<span>${esc(cap)}</span>` : ''}</button>`;
+  }
+  /** 一般版面的說明：換行保留，圖片那行變成圖片 */
+  function plainDesc(text) {
+    const lines = String(text || '').split(/\r?\n/);
+    return lines.map((l, i) => {
+      const im = l.trim().match(IMG_LINE);
+      if (im) return descImage(im[2], im[1]);
+      const next = lines[i + 1];
+      return esc(l) + (next !== undefined && !IMG_LINE.test(next.trim()) ? '<br>' : '');
+    }).join('');
+  }
+  document.addEventListener('click', (ev) => {
+    const b = ev.target.closest && ev.target.closest('[data-rd-img]');
+    if (!b) return;
+    const cap = b.dataset.cap || '說明圖片';
+    const m = Modal.open(`
+      <h2 class="modal-title">${esc(cap)}</h2>
+      <img class="image-full" src="${esc(b.dataset.rdImg)}" alt="${esc(cap)}">
+      <div class="modal-actions">
+        <a class="btn btn-block image-open" href="${esc(b.dataset.rdImg)}" target="_blank" rel="noopener">開新頁看原圖（可以用手指放大）</a>
+        <button type="button" class="btn btn-block" data-close>關閉</button>
+      </div>`);
+    m.el.classList.add('modal-wide');
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+  });
+
   const ICONS = [[/烹飪|廚/, '🍳'], [/維安|值夜|夜/, '🛡️'], [/清潔|打掃/, '🧹'], [/作息|時間|拜香|早課/, '🕑'], [/提醒|注意/, '💡'], [/交通|接送/, '🚗']];
   function richDesc(text) {
     const inline = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
@@ -306,6 +346,8 @@
       const body = lines.map((l) => {
         const t = l.trim();
         if (!t) return '<span class="rd-gap"></span>';
+        const im = t.match(IMG_LINE);
+        if (im) return descImage(im[2], im[1]);
         if (/^[>＞]/.test(t)) return `<span class="rd-key">${inline(t.replace(/^[>＞]\s*/, ''))}</span>`;
         return `<span class="rd-line">${inline(t)}</span>`;
       }).join('');
@@ -522,5 +564,5 @@
     }
   }
 
-  window.GridPage = { show, tableHtml, bindNotes, richDesc };
+  window.GridPage = { show, tableHtml, bindNotes, richDesc, plainDesc };
 })();

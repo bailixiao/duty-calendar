@@ -149,7 +149,7 @@
     const d = page.data;
     const el = document.getElementById('duty-extra');
     if (!el) return;
-    const images = imagesFor(d.name);
+    const images = imagesFor(d.name).filter((img) => String(d.description || '').indexOf(img.src) === -1); // 說明裡已經放了就不重複
     // DM：管理者上傳的照片、PDF（存在 Cloudflare）
     const dm = Array.isArray(d.dm) ? d.dm : [];
     const dmImages = dm.filter((x) => /^image\//.test(x.mime)).map((x) => ({ src: Api.fileUrl(x.id), caption: '' }));
@@ -172,7 +172,7 @@
       ${d.description ? `
         <section class="detail-section">
           <h2>說明</h2>
-          ${d.layout === '職司表' ? `<div class="rich-desc">${GridPage.richDesc(d.description)}</div>` : `<p class="detail-desc">${esc(d.description).replace(/\n/g, '<br>')}</p>`}
+          ${d.layout === '職司表' ? `<div class="rich-desc">${GridPage.richDesc(d.description)}</div>` : `<p class="detail-desc">${GridPage.plainDesc(d.description)}</p>`}
         </section>` : ''}
       ${images.length ? `
         <section class="detail-section">

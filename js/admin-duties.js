@@ -711,6 +711,8 @@
           <fieldset class="form-block">
             <legend>說明</legend>
             <textarea class="input textarea" name="description" rows="4" placeholder="工作項目、注意事項⋯">${esc(s.description)}</textarea>
+            <div class="desc-tools"><label class="btn btn-small">📷 加圖片<input type="file" accept="image/*" hidden data-desc-img></label></div>
+            <p class="hint">按「📷 加圖片」會在游標的位置插入一行 ![](圖片代號)：[ ] 裡可以打圖片說明，整行可以移到想放的段落。圖片和網站一樣公開，不要放有人名、電話、人臉的照片。</p>
           </fieldset>
 
           ${isNotice ? '' : `<fieldset class="form-block">
@@ -1019,6 +1021,32 @@
       });
       const planBtn = f.querySelector('[data-plan-teachers]');
       if (planBtn) planBtn.addEventListener('click', () => { sync(); planTeachers(); });
+      // 說明裡的圖片：上傳後在游標位置插入一行 ![](F-…)（2026/11/13）
+      const descImg = f.querySelector('[data-desc-img]');
+      if (descImg) descImg.addEventListener('change', async (ev) => {
+        const file = ev.target.files[0];
+        ev.target.value = '';
+        if (!file) return;
+        Busy.show('上傳圖片中⋯', '請不要關閉畫面');
+        try {
+          const img = await shrinkImage(file);
+          const res = await Api.admin('adminUploadFile', { mime: img.mime, name: file.name, data: img.data });
+          Busy.hide();
+          const ta = f.elements.description;
+          const from = ta.selectionStart === undefined ? ta.value.length : ta.selectionStart;
+          const before = ta.value.slice(0, from);
+          const pre = before && !before.endsWith('\n') ? '\n' : '';
+          const after = ta.value.slice(ta.selectionEnd === undefined ? from : ta.selectionEnd);
+          ta.value = before + pre + '![](' + res.id + ')' + (after.startsWith('\n') ? '' : '\n') + after;
+          const cursor = before.length + pre.length + 2; // 停在 [ ] 裡，直接打圖片說明
+          ta.focus();
+          ta.setSelectionRange(cursor, cursor);
+        } catch (e) {
+          Busy.hide();
+          if (e.code === 'UNAUTHORIZED') { ctx.guard(e); return; }
+          alertError(e.message || '上傳失敗，請稍後再試');
+        }
+      });
       const dmFile = f.querySelector('[data-dm-file]');
       if (dmFile) dmFile.addEventListener('change', async (ev) => {
         const files = [...ev.target.files].slice(0, DM_MAX - s.dm.length);

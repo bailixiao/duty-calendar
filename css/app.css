@@ -1773,6 +1773,11 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 .rd-body strong { color: var(--accent); font-weight: 800; }
 .rd-key { margin-top: 6px; padding: 4px 10px; border-radius: 8px; background: var(--notice-soft); font-size: 1.1875rem; font-weight: 800; color: #23476b; justify-self: start; }
 .rd-gap { height: 8px; }
+/* 說明裡的圖片（2026/11/13） */
+.rd-img { display: grid; gap: 4px; justify-self: start; width: 100%; max-width: 420px; margin: 6px 0; padding: 6px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); font: inherit; text-align: left; cursor: zoom-in; }
+.rd-img img { display: block; width: 100%; height: auto; border-radius: 8px; }
+.rd-img span { font-size: .95rem; color: var(--muted); line-height: 1.4; }
+.desc-tools { display: flex; gap: 8px; margin-top: 8px; }
 @media (max-width: 560px) { .rd-sec { grid-template-columns: 1fr; } }
 
 /* ---------- 教育統計：各課程學生量、出缺勤表、師資 ---------- */

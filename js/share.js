@@ -115,7 +115,7 @@
   /** 通知裡的說明（2026/11/2）：勤務說明併成一行（去掉【標題】、**粗體**記號），太長就截斷，寫「詳見報名頁」；職司表的說明很長，不寫 */
   function descLine(duty) {
     if (duty.layout === '職司表') return '';
-    const t = String(duty.description || '').replace(/\*\*/g, '').replace(/【(.+?)】/g, '$1：').split(/\r?\n/).map((x) => x.trim()).filter(Boolean).join('　');
+    const t = String(duty.description || '').replace(/\*\*/g, '').replace(/【(.+?)】/g, '$1：').split(/\r?\n/).map((x) => x.trim()).filter((x) => x && !/^!\[[^\]]*\]\([^)]*\)$/.test(x)).join('　'); // 圖片那行不寫
     return t.length > DESC_MAX ? t.slice(0, DESC_MAX) + '⋯（詳見報名頁）' : t;
   }
 
