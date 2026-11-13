@@ -353,7 +353,10 @@
       }).join('');
       if (!sec.title) return `<div class="rd-sec rd-plain"><div class="rd-body">${body}</div></div>`;
       const icon = (ICONS.find(([re]) => re.test(sec.title)) || [null, '📌'])[1];
-      return `<div class="rd-sec"><div class="rd-head"><span class="rd-icon" aria-hidden="true">${icon}</span>${esc(sec.title)}</div><div class="rd-body">${body}</div></div>`;
+      // 標題後面的括號（例：維安（早上、晚上））拆成第二行小字，窄欄位才不會斷得亂七八糟
+      const tm = sec.title.match(/^(.+?)\s*[（(]([^（）()]+)[）)]\s*$/);
+      const title = tm ? `<span class="rd-title">${esc(tm[1])}<small class="rd-sub">${esc(tm[2])}</small></span>` : `<span class="rd-title">${esc(sec.title)}</span>`;
+      return `<div class="rd-sec"><div class="rd-head"><span class="rd-icon" aria-hidden="true">${icon}</span>${title}</div><div class="rd-body">${body}</div></div>`;
     }).join('');
   }
 

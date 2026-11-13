@@ -1769,6 +1769,8 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 .rd-plain { grid-template-columns: 1fr; }
 .rd-head { display: flex; align-items: flex-start; gap: 8px; color: #2f6ea5; font-size: 1.4375rem; font-weight: 800; line-height: 1.5; }
 .rd-icon { font-size: 1.4375rem; }
+.rd-title { display: grid; min-width: 0; word-break: keep-all; }
+.rd-sub { font-size: .95rem; font-weight: 700; line-height: 1.4; color: var(--ink-2); white-space: nowrap; }
 .rd-body { display: grid; gap: 4px; font-size: 1.3125rem; line-height: 1.7; color: var(--ink); }
 .rd-body strong { color: var(--accent); font-weight: 800; }
 .rd-key { margin-top: 6px; padding: 4px 10px; border-radius: 8px; background: var(--notice-soft); font-size: 1.1875rem; font-weight: 800; color: #23476b; justify-self: start; }
