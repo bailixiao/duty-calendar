@@ -1780,6 +1780,7 @@ a.grid-open { display: flex; align-items: center; justify-content: center; gap: 
 .rd-img img { display: block; width: 100%; height: auto; border-radius: 8px; }
 .rd-img span { font-size: .95rem; color: var(--muted); line-height: 1.4; }
 .desc-tools { display: flex; gap: 8px; margin-top: 8px; }
+.grid-desc-link { display: flex; align-items: center; justify-content: center; margin-top: 10px; text-decoration: none; font-weight: 700; }
 @media (max-width: 560px) { .rd-sec { grid-template-columns: 1fr; } }
 
 /* ---------- 教育統計：各課程學生量、出缺勤表、師資 ---------- */

@@ -172,7 +172,9 @@
       ${d.description ? `
         <section class="detail-section">
           <h2>說明</h2>
-          ${d.layout === '職司表' ? `<div class="rich-desc">${GridPage.richDesc(d.description)}</div>` : `<p class="detail-desc">${GridPage.plainDesc(d.description)}</p>`}
+          ${d.layout === '職司表' ? `
+          <p class="detail-desc">職司說明（作息時間、各職司要做的事、圖片）請到大張職司表看。</p>
+          <a class="btn btn-block grid-desc-link" href="#/grid/${encodeURIComponent(d.id)}?desc=1">📋 到大張職司表看職司說明</a>` : `<p class="detail-desc">${GridPage.plainDesc(d.description)}</p>`}
         </section>` : ''}
       ${images.length ? `
         <section class="detail-section">

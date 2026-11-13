@@ -428,7 +428,7 @@
         ${isLocked(d) ? `<p class="notice grid-locked">🔒 職司已在 ${lockText(d)} 定案，要調整請聯絡管理者。點名字可以看註記，點空格「—」可以直接報名。</p>` : `<p class="hint">表格可以左右滑動。<strong>點空格「—」</strong>可以直接打名字報名；<strong>點一下名字</strong>可以看、改註記或取消；<strong>按住名字拖到別的格子</strong>可以調整（手機先按住一下再拖），拖到有人的格子會兩人互換，放下後會先問您。${d.gridLock ? `${lockText(d)} 定案後只有管理者能調整。` : ''}${Api.isAdmin() ? '（您已登入後台，定案、截止後也可以調整、點空格加人）' : ''}</p>`}
       </section>
       ${d.description ? `
-      <section class="gp-section">
+      <section class="gp-section" id="gp-desc">
         <h2 class="gp-h2">職司說明</h2>
         <div class="rich-desc">${richDesc(d.description)}</div>
         ${d.attire ? `<p class="gp-desc"><strong>服裝：</strong>${esc(d.attire)}</p>` : ''}
@@ -447,6 +447,9 @@
       const today = wrap.querySelector('th.is-today');
       if (today) wrap.scrollLeft = Math.max(0, today.offsetLeft - 120);
     }
+    // 從勤務頁「看職司說明」來的（#/grid/<id>?desc=1）：第一次畫好就捲到職司說明
+    const descSec = root.querySelector('#gp-desc');
+    if (descSec && scrollX === null && /[?&]desc=1/.test(location.hash)) setTimeout(() => descSec.scrollIntoView({ block: 'start' }), 0);
     const imgBtn = root.querySelector('[data-grid-image]');
     if (imgBtn) imgBtn.addEventListener('click', () => GridImage.onButton(imgBtn, async () => data));
     bindNotes(root, d, !isLocked(d));
