@@ -87,14 +87,36 @@
     return lines;
   }
 
-  function draw(d) {
+  // 最上面的三位仙佛（同報名成功的祝福圖）：觀世音菩薩、彌勒祖師（中間）、濟公活佛（2026/11/15）
+  const ARTS = [
+    { src: 'img/guanyin.webp', alt: '觀世音菩薩' },
+    { src: 'img/maitreya.webp', alt: '彌勒祖師' },
+    { src: 'img/jigong.webp', alt: '濟公活佛' }
+  ];
+  const ART_H = 270;
+  const ART_GAP = 24;
+
+  /** 先把三張圖載好（載不到的就不畫） */
+  function loadArts() {
+    return Promise.all(ARTS.map((a) => new Promise((ok) => {
+      const img = new Image();
+      const t = setTimeout(() => ok(null), 8000);
+      img.onload = () => { clearTimeout(t); ok(img); };
+      img.onerror = () => { clearTimeout(t); ok(null); };
+      img.src = a.src;
+    }))).then((list) => list.filter(Boolean));
+  }
+
+  function draw(d, arts) {
     const list = rows(d);
+    const imgs = arts || [];
+    const top = imgs.length ? ART_H + 30 : 0; // 有仙佛圖：下面全部往下移
     const intro = `感謝以下家人發心了愿，承擔「${d.name}」的職司，用心護持道場。辛苦了，感恩！`;
     const probe = document.createElement('canvas').getContext('2d');
     probe.font = `400 30px ${SANS}`;
     const introLines = wrap(probe, intro, W - PAD * 2);
     const tableTop = 400 + introLines.length * 46;
-    const H = tableTop + ROW * (list.length + 1) + 170;
+    const H = top + tableTop + ROW * (list.length + 1) + 170;
 
     const cv = document.createElement('canvas');
     const scale = 1;
@@ -111,6 +133,23 @@
     ctx.strokeRect(22, 22, W - 44, H - 44);
     ctx.lineWidth = 2;
     ctx.strokeRect(38, 38, W - 76, H - 76);
+
+    // 三位仙佛並排置中；multiply 讓白底融進紙色（濟公的白雲背景不會變成白框）
+    if (imgs.length) {
+      const sizes = imgs.map((img) => ({ img, w: img.naturalWidth * ART_H / img.naturalHeight }));
+      const total = sizes.reduce((n, s) => n + s.w, 0) + ART_GAP * (sizes.length - 1);
+      const k = Math.min(1, (W - PAD * 2) / total);
+      let ax = (W - total * k) / 2;
+      ctx.save();
+      ctx.globalCompositeOperation = 'multiply';
+      sizes.forEach((s) => {
+        const h = ART_H * k;
+        ctx.drawImage(s.img, ax, 60 + (ART_H - h), s.w * k, h);
+        ax += (s.w + ART_GAP) * k;
+      });
+      ctx.restore();
+      ctx.translate(0, top);
+    }
 
     // 標題
     ctx.textAlign = 'center';
@@ -190,14 +229,17 @@
   }
 
   /** 後台按鈕：先看預覽，再按「傳到 LINE」（手機分享、電腦複製圖片） */
-  function open(d) {
+  async function open(d) {
     const list = rows(d);
     if (!list.length) {
       const m = Modal.open(`<h2 class="modal-title">🏅 了愿感謝狀</h2><p>這個勤務還沒有了愿的人。</p><div class="modal-actions"><button type="button" class="btn btn-block" data-close>關閉</button></div>`);
       m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
       return;
     }
-    const cv = draw(d);
+    Busy.show('產生感謝狀中⋯');
+    const arts = await loadArts();
+    Busy.hide();
+    const cv = draw(d, arts);
     const m = Modal.open(`
       <h2 class="modal-title">🏅 了愿感謝狀</h2>
       <p class="hint">${list.length} 位家人。只列有效報名，後台改成「未到」的不列入；名單有變再按一次就會重畫。</p>
@@ -223,5 +265,5 @@
     });
   }
 
-  window.ThanksImage = { rows, draw, open, dateRanges };
+  window.ThanksImage = { rows, draw, open, dateRanges, loadArts };
 })();
