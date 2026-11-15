@@ -146,13 +146,17 @@
 
   /** 產生圖片並分享（手機）／複製（電腦）／下載；回傳做了什麼：'share' | 'copy' | 'download' | 'cancel' */
   async function share(d) {
-    const cv = draw(d);
+    return shareCanvas(draw(d), `${d.name}職司表.png`, d.name);
+  }
+
+  /** 任何 canvas 都可以用（感謝狀也用這個） */
+  async function shareCanvas(cv, fileName, title) {
     const blob = await new Promise((ok) => cv.toBlob(ok, 'image/png'));
-    const name = `${d.name}職司表.png`.replace(/[\\/:*?"<>|]/g, '');
+    const name = fileName.replace(/[\\/:*?"<>|]/g, '');
     const file = new File([blob], name, { type: 'image/png' });
     if (navigator.canShare && navigator.canShare({ files: [file] }) && /Android|iPhone|iPad/i.test(navigator.userAgent)) {
       try {
-        await navigator.share({ files: [file], title: d.name });
+        await navigator.share({ files: [file], title });
         return 'share';
       } catch (e) {
         if (e && e.name === 'AbortError') return 'cancel';
@@ -187,5 +191,5 @@
     setTimeout(() => { btn.textContent = back; }, 3500);
   }
 
-  window.GridImage = { draw, share, onButton };
+  window.GridImage = { draw, share, shareCanvas, onButton };
 })();

@@ -493,6 +493,7 @@
         <a class="btn btn-primary admin-link-btn" href="#/admin/duties/edit/${encodeURIComponent(d.id)}">✏️ 編輯${d.category && d.category !== '勤務' ? '活動' : '勤務'}</a>
         <a class="btn admin-link-btn" href="#/duty/${encodeURIComponent(d.id)}?date=${date}">👀 看家人們看到的頁面</a>
         ${!isNotice && date >= d.today && Api.adminWho().role !== '唯讀' ? `<button type="button" class="btn admin-link-btn" data-rollcall>📋 點名連結（${esc(Fmt.shortDate(date))}）</button>` : ''}
+        ${d.layout === '職司表' ? '<button type="button" class="btn admin-link-btn" data-thanks>🏅 了愿感謝狀（全部了愿的人一張，存圖片傳 LINE）</button>' : ''}
         ${Api.adminWho().role !== '唯讀' ? `<button type="button" class="btn admin-link-btn" data-report-link>🔢 活動回報碼：給沒報名的人（${esc(Fmt.shortDate(date))}）</button>` : ''}
         ${d.start === d.end && Api.adminWho().role === '總管理者' ? '<button type="button" class="btn admin-link-btn" data-move-duty>📅 整筆搬到別的日期（年份打錯時用）</button>' : ''}
       </div>`;
@@ -506,6 +507,8 @@
     if (rc) rc.addEventListener('click', () => rollcallLink(d, date));
     const rl = body.querySelector('[data-report-link]');
     if (rl) rl.addEventListener('click', () => reportLink(d, date));
+    const th = body.querySelector('[data-thanks]');
+    if (th) th.addEventListener('click', () => ThanksImage.open(d));
     const mv = body.querySelector('[data-move-duty]');
     if (mv) mv.addEventListener('click', () => moveDuty(d));
     const find = (id) => (d.signups || []).find((s) => s.id === id);
