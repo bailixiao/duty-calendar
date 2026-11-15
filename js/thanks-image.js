@@ -1,4 +1,4 @@
-// 了愿感謝狀（2026/11/15）：依職司表名單，全部了愿的人畫成一張圖（姓名、職司、日期、天數），後台按一下存圖片傳 LINE。
+// 了愿感謝狀（2026/11/15）：依職司表名單，全部了愿的人畫成一張圖（姓名、職司、天數，天數多的在前），後台按一下存圖片傳 LINE。
 // 只算有效報名；後台改成「未到」的不列入。陪同的人職司後面寫（陪同）。
 (function () {
   'use strict';
@@ -9,11 +9,10 @@
   const C = { paper: '#fbf5e9', gold: '#b8862b', red: '#a8322d', ink: '#2b2118', muted: '#7a6a5a', head: '#23476b', band: '#f3e9d6', line: '#e2d3b8' };
   const SANS = '"Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif';
   const SERIF = '"Noto Serif TC", "Songti TC", "PMingLiU", "MingLiU", serif';
-  const COLS = [ // 姓名、職司、日期、天數（加起來＝W - PAD*2）
-    { key: 'name', title: '姓名', w: 200 },
-    { key: 'pos', title: '職司', w: 230 },
-    { key: 'dates', title: '日期', w: 410 },
-    { key: 'days', title: '天數', w: 100 }
+  const COLS = [ // 姓名、職司、天數（加起來＝W - PAD*2）；日期不寫（2026/11/15）
+    { key: 'name', title: '姓名', w: 280 },
+    { key: 'pos', title: '職司', w: 480 },
+    { key: 'days', title: '天數', w: 180 }
   ];
 
   const md = (s) => `${Number(s.slice(5, 7))}/${Number(s.slice(8, 10))}`;
@@ -61,7 +60,8 @@
       const dates = [...p.dates].sort();
       return { name: p.name, pos: pos.map((x) => x.label).join('、'), dates: dateRanges(dates), days: p.dates.size, shifts: p.shifts, main: main.order, first: dates[0] };
     });
-    list.sort((a, b) => a.main - b.main || b.days - a.days || a.first.localeCompare(b.first) || a.name.localeCompare(b.name, 'zh-Hant'));
+    // 天數多的在前；一樣多的照職司順序、先來的在前
+    list.sort((a, b) => b.days - a.days || a.main - b.main || a.first.localeCompare(b.first) || a.name.localeCompare(b.name, 'zh-Hant'));
     return list;
   }
 
