@@ -89,13 +89,12 @@
 
   function draw(d) {
     const list = rows(d);
-    const org = (window.SITE && window.SITE.org) || '教全區';
     const intro = `感謝以下家人發心了愿，承擔「${d.name}」的職司，用心護持道場。辛苦了，感恩！`;
     const probe = document.createElement('canvas').getContext('2d');
     probe.font = `400 30px ${SANS}`;
     const introLines = wrap(probe, intro, W - PAD * 2);
     const tableTop = 400 + introLines.length * 46;
-    const H = tableTop + ROW * (list.length + 1) + 280;
+    const H = tableTop + ROW * (list.length + 1) + 170;
 
     const cv = document.createElement('canvas');
     const scale = 1;
@@ -181,15 +180,12 @@
     const shifts = list.reduce((n, r) => n + r.shifts, 0);
     ctx.fillText(`共 ${list.length} 位家人・${shifts} 人次`, W - PAD, y + 44);
 
-    // 署名、日期
+    // 日期（不署名，2026/11/15）
     const now = new Date();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    ctx.fillStyle = C.ink;
-    ctx.font = `900 44px ${SERIF}`;
-    ctx.fillText(`${org}　敬謝`, W - PAD, y + 134);
     ctx.fillStyle = C.muted;
     ctx.font = `500 24px ${SANS}`;
-    ctx.fillText(`中華民國 ${Number(today.slice(0, 4)) - 1911} 年 ${Number(today.slice(5, 7))} 月 ${Number(today.slice(8, 10))} 日`, W - PAD, y + 180);
+    ctx.fillText(`中華民國 ${Number(today.slice(0, 4)) - 1911} 年 ${Number(today.slice(5, 7))} 月 ${Number(today.slice(8, 10))} 日`, W - PAD, y + 90);
     return cv;
   }
 
