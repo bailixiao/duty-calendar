@@ -24,7 +24,7 @@ test('年度總結：各類別、每月人次、最常來的、新朋友；最�
   assert.match(R.text(m), /全年出席 6 人次/);
 });
 
-test('後台名單標新朋友；完整備份不含密碼；太簡單的密碼不行；場地整年統計；給分壇的公開資料', () => {
+test('後台名單標新朋友；完整備份不含密碼；簡單的密碼也可以；場地整年統計；給分壇的公開資料', () => {
   const env = createEnv(Date.UTC(2026, 9, 1, 2));
   const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
   const call = (action, body) => env.post(Object.assign({ action, token }, body));
@@ -33,16 +33,14 @@ test('後台名單標新朋友；完整備份不含密碼；太簡單的密碼�
   env.post({ action: 'signup', dutyId: d.id, positionId: d.positions[0].id, dates: [date], entries: [{ name: '測試新朋友', identity: '道親' }] });
   const s = call('adminDuty', { id: d.id }).data.signups.find((x) => x.name === '測試新朋友');
   assert.equal(s.first, true);
-  // 密碼
-  assert.equal(call('adminSaveAccount', { account: { account: '測試帳號', role: '勤務', password: '12345678' } }).error.code, 'VALIDATION');
-  assert.equal(call('adminSaveAccount', { account: { account: '測試帳號', role: '勤務', password: 'short1' } }).error.code, 'VALIDATION');
-  assert.equal(call('adminSaveAccount', { account: { account: '測試帳號', role: '勤務', password: 'tea-time-88' } }).ok, true);
+  // 密碼不限長度、簡單的也可以（2026/11/16）
+  assert.equal(call('adminSaveAccount', { account: { account: '測試帳號', role: '勤務', password: '1234' } }).ok, true);
   // 備份
   const b = call('adminBackup', {}).data;
   const acc = b.tables.find((t) => t.name === '帳號');
   assert.equal(acc.headers.indexOf('密碼雜湊'), -1);
   assert.ok(b.tables.find((t) => t.name === '報名').rows.length > 0);
-  const dutyTok = env.post({ action: 'adminLogin', account: '測試帳號', password: 'tea-time-88' }).data.token;
+  const dutyTok = env.post({ action: 'adminLogin', account: '測試帳號', password: '1234' }).data.token;
   assert.equal(env.post({ action: 'adminBackup', token: dutyTok }).error.code, 'FORBIDDEN', '只有總管理者');
   // 場地整年
   env.post({ action: 'requestVenue', dates: ['2026-10-20', '2026-11-03'], slots: ['09:00', '10:00'], name: '測試甲', phone: '0912345678', purpose: '讀經' });

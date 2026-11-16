@@ -65,7 +65,7 @@
           <label class="form-row"><span>名稱或負責人（選填）</span><input class="input" id="acc-name" name="name" value="${esc(a ? a.name : '')}"></label>
           <div class="form-row"><span>角色</span><div class="role-pick">${data.roles.map((r) => `
             <label class="role-option"><input type="radio" name="role" value="${esc(r)}"${(a ? a.role : '') === r ? ' checked' : ''}><b>${esc(r)}</b><small>${esc(ROLE_NOTE[r] || '')}</small></label>`).join('')}</div></div>
-          <label class="form-row"><span>${isNew ? '密碼（至少 6 個字）' : '新密碼（不改就留空）'}</span>
+          <label class="form-row"><span>${isNew ? '密碼' : '新密碼（不改就留空）'}</span>
             <div class="pw-row"><input class="input" id="acc-password" name="password" type="text" autocomplete="new-password"><button type="button" class="btn btn-small" data-gen>產生一組</button></div></label>
           <p class="hint">密碼設定後只會加密保存，之後看不到原本的密碼；忘記了就在這裡重設。請把帳號、密碼親自交給負責的人。</p>
           ${isNew ? '' : `<label class="de-check"><input type="checkbox" name="active"${a.active ? ' checked' : ''}> 啟用中（取消勾選＝停用，這個帳號就不能登入）</label>`}

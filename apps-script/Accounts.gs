@@ -223,8 +223,7 @@ function adminSaveAccount_(body) {
   if (account && !/^[^\s]{2,20}$/.test(account)) errors.push('帳號要 2～20 個字，不能有空白');
   if (ROLES.indexOf(a.role) <= 0) errors.push('請選角色（勤務、道務、教育、唯讀或場管）');
   var password = String(a.password || '');
-  if (password && password.length < PASSWORD_MIN) errors.push('密碼至少 ' + PASSWORD_MIN + ' 個字');
-  else if (password && weakPassword_(password)) errors.push('密碼太簡單了（例如 12345678、同一個字重複），請換一個');
+  // 2026/11/16 起密碼不限長度、不擋簡單的（總管理者決定）；新帳號仍要有密碼（下面檢查）
   return withSignupLock_(function () {
     var rows = accountRows_();
     var original = String(a.original || '');
