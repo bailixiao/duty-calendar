@@ -107,7 +107,7 @@
       })).join('')}</ul>` : '<p class="muted">目前沒有待審核的申請。</p>'}
 
       <h2 class="admin-sub">已借出（今天以後）</h2>
-      ${approved.length ? `<ul class="venue-reqs">${approved.map((g) => card(g, (x) => `<button type="button" class="btn btn-small btn-quiet-danger" data-cancel="${esc(x.ids.join(','))}">取消借用</button>`)).join('')}</ul>` : '<p class="muted">還沒有。</p>'}
+      ${approved.length ? `<ul class="venue-reqs">${approved.map((g) => card(g, (x) => `<button type="button" class="btn btn-small btn-quiet-danger" data-cancel="${esc(x.ids.join(','))}" data-cancel-key="${esc(x.key)}">取消借用${x.dates.filter((d) => d >= todayStr).length > 1 ? '（可選哪幾天）' : ''}</button>`)).join('')}</ul>` : '<p class="muted">還沒有。</p>'}
 
       ${others.length ? `<details class="venue-others"><summary>其他（不同意、已取消、已過去的）${others.length} 筆</summary>
         <ul class="venue-reqs">${others.reverse().map((g) => card(g)).join('')}</ul></details>` : ''}
@@ -171,7 +171,13 @@
         askReason(`不同意勾選的 ${boxes().filter((c) => c.checked).length} 天`, (note) => decide(ids.join(','), '不同意', note));
       });
     });
-    body.querySelectorAll('[data-cancel]').forEach((b) => b.addEventListener('click', () => askReason('取消這個借用', (note) => decide(b.dataset.cancel, '已取消', note))));
+    // 取消借用：好幾天的可以只取消其中幾天（2026/11/16）
+    body.querySelectorAll('[data-cancel]').forEach((b) => b.addEventListener('click', () => {
+      const g = all.find((x) => x.key === b.dataset.cancelKey);
+      const days = g ? g.dates.slice().sort().filter((d) => d >= todayStr) : [];
+      if (days.length > 1) cancelDays(g, days, (ids, note) => decide(ids.join(','), '已取消', note));
+      else askReason('取消這個借用', (note) => decide(b.dataset.cancel, '已取消', note));
+    }));
     body.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => {
       const g = all.find((x) => x.key === b.dataset.edit);
       if (g) editVenue(g, (res) => render(body, guard, res, false), guard);
@@ -480,6 +486,43 @@
       watchOn = (await Api.admin('adminVenueWatch', { endpoint: sub.endpoint }, true)).on;
     } catch (e) { watchOn = false; }
     if (box.isConnected) paint();
+  }
+
+  /** 取消好幾天的借用：勾要取消的日期（預設都不勾），沒勾的照舊借出 */
+  function cancelDays(g, days, onOk) {
+    const itemsOf = (d) => g.items.filter((r) => r.date === d);
+    const m = Modal.open(`
+      <form class="modal-form" novalidate>
+        <h2 class="modal-title">取消借用</h2>
+        <p class="modal-note">${esc(g.name)}・${esc(g.purpose)}</p>
+        <p class="hint">勾要取消的日期，沒勾的照舊借出。</p>
+        <div class="vr-each-list">${days.map((d) => `<label class="check"><input type="checkbox" data-day="${esc(d)}"> ${esc(Fmt.shortDate(d) + ' ' + VenueHours.label(itemsOf(d).map((r) => r.slot)))}</label>`).join('')}</div>
+        <div class="vr-each-quick"><button type="button" class="link-btn" data-all>全選</button><button type="button" class="link-btn" data-none>都不選</button></div>
+        <label class="form-row"><span>原因（可空白，申請人查詢時看得到）</span><input class="input" name="note" maxlength="100" placeholder="例：當天區中心有活動"></label>
+        <div class="form-error" data-err hidden></div>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-block btn-danger" data-go>取消勾選的日期</button>
+          <button type="button" class="btn btn-block" data-close>返回</button>
+        </div>
+      </form>`);
+    const f = m.el.querySelector('form');
+    const boxes = () => [...f.querySelectorAll('[data-day]')];
+    const sync = () => {
+      const n = boxes().filter((c) => c.checked).length;
+      f.querySelector('[data-go]').textContent = n === days.length ? `全部 ${n} 天都取消` : n ? `取消勾選的 ${n} 天` : '取消勾選的日期';
+    };
+    boxes().forEach((c) => c.addEventListener('change', sync));
+    f.querySelector('[data-all]').addEventListener('click', () => { boxes().forEach((c) => { c.checked = true; }); sync(); });
+    f.querySelector('[data-none]').addEventListener('click', () => { boxes().forEach((c) => { c.checked = false; }); sync(); });
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    f.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      const picked = boxes().filter((c) => c.checked).map((c) => c.dataset.day);
+      if (!picked.length) { const e = f.querySelector('[data-err]'); e.textContent = '請先勾要取消的日期'; e.hidden = false; return; }
+      const note = f.elements.note.value.trim();
+      m.close();
+      onOk(picked.flatMap((d) => itemsOf(d).map((r) => r.id)), note);
+    });
   }
 
   function askReason(title, onOk) {
