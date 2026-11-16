@@ -2594,3 +2594,24 @@ button.veg-chip:hover { border-color: var(--ok); }
 .report-date { max-width: 320px; }
 .report-invite { border: 2px solid var(--ok); border-radius: 14px; padding: 12px 14px; background: var(--ok-soft); }
 .report-invite .btn { display: flex; align-items: center; justify-content: center; text-decoration: none; font-weight: 700; font-size: 1.1rem; }
+
+/* 感謝排行榜（行事曆「感謝」分頁，js/thanks-board.js） */
+.is-thanks .cat-filter, .is-thanks .legend, .is-thanks .status, .is-thanks .past-toggle { display: none !important; }
+.view-switch button[data-view="thanks"] { color: var(--accent, #a8322d); font-weight: 700; }
+.view-switch button[data-view="thanks"].is-active { color: var(--paper); }
+.thanks-head { text-align: center; }
+.thanks-head .thanks-title { font-size: 1.2rem; font-weight: 700; margin: 0 0 4px; }
+.thanks-head .muted { margin: 0; }
+.tb-list { list-style: none; margin: 12px 0; padding: 0; display: grid; gap: 8px; }
+.tb-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); }
+.tb-row.is-top { border-color: #d9b45a; background: #fdf6e3; }
+.tb-medal { font-size: 1.8rem; width: 2.2rem; text-align: center; flex: none; }
+.tb-rank { width: 2.2rem; height: 2.2rem; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--paper); border: 1px solid var(--line); font-weight: 700; color: var(--ink-2); }
+.tb-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tb-name { font-weight: 700; font-size: 1.1rem; }
+.tb-duties { font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tb-count { flex: none; text-align: right; color: var(--ink-2); }
+.tb-count strong { font-size: 1.4rem; color: var(--ink); }
+.tb-count small { display: block; font-size: .8rem; }
+.tb-foot { text-align: center; margin: 16px 0; }
+.tb-foot .muted { margin: 0 0 8px; }

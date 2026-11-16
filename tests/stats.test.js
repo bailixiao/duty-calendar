@@ -169,3 +169,29 @@ test('教育：師資欄（只有教育存）、報名頁看得到；統計的�
   assert.equal(ev.teachers, '測試甲、測試乙');
   void d2;
 });
+
+test('感謝排行榜：近三個月、出席的勤務依次數排，未到不算、未來的不算，不回傳電話', () => {
+  const { env, call, ev } = setup();
+  const vol = ev.find((d) => d.name === '彌勒山志工輪值' && d.start === '2026-10-13');
+  const clean = ev.find((d) => d.name === '宏宗大掃除');
+  env.post({ action: 'signup', dutyId: vol.id, positionId: vol.positions[0].id, dates: ['2026-10-13'], entries: [{ name: '測試甲', identity: '壇辦' }, { name: '測試乙', identity: '道親' }] });
+  const later = env.post({ action: 'signup', dutyId: clean.id, positionId: clean.positions[0].id, dates: ['2026-10-24'], entries: [{ name: '測試甲', identity: '壇辦' }, { name: '測試乙', identity: '道親' }] });
+  assert.equal(later.ok, true, JSON.stringify(later.error));
+
+  env.clock.now = Date.UTC(2026, 9, 20, 2); // 10/24 還沒到
+  let b = env.get({ action: 'thanks' }).data;
+  assert.equal(b.to, '2026-10-20');
+  assert.deepEqual(b.list.map((p) => [p.name, p.times]), [['測試乙', 1], ['測試甲', 1]].sort((x, y) => x[0].localeCompare(y[0])));
+
+  env.clock.now = Date.UTC(2026, 9, 25, 2);
+  call('adminSetAttendance', { signupId: later.data.created[1].id, attend: '未到' }); // 測試乙 10/24 沒來
+  b = env.get({ action: 'thanks' }).data;
+  assert.deepEqual(b.list.map((p) => [p.name, p.times]), [['測試甲', 2], ['測試乙', 1]]);
+  assert.equal(b.total, 3);
+  assert.deepEqual(b.list[0].duties.sort(), ['宏宗大掃除', '彌勒山志工輪值'].sort());
+  assert.ok(!/phone|電話/.test(JSON.stringify(b)));
+
+  env.clock.now = Date.UTC(2027, 0, 30, 2); // 超過三個月就不算
+  b = env.get({ action: 'thanks' }).data;
+  assert.equal(b.list.length, 0);
+});

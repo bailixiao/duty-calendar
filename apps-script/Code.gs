@@ -29,6 +29,7 @@ function doGet(e) {
       case 'getVenue': return getVenue_(p);
       case 'getFaq': return getFaq_(p);
       case 'feed': return cachedRead_('feed', p, function () { return publicFeed_(p); });
+      case 'thanks': return cachedRead_('thanks', p, function () { return thanksBoard_(); });
       case 'getRepairs': return getRepairs_(p);
       case 'pushClick': return pushClick_(p);
       default: throw new ApiError_('BAD_REQUEST', '未知的 action：' + (p.action || '（空白）'));

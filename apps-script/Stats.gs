@@ -228,3 +228,50 @@ function statsExcluded_(duty) {
   var name = String(duty['名稱'] || '');
   return STATS_EXCLUDE_NAMES.some(function (w) { return name.indexOf(w) !== -1; });
 }
+
+/**
+ * 感謝排行榜（2026/11/16，行事曆首頁「感謝」）：近三個月（含今天）總務・勤務了愿的家人，依次數排。
+ * 只算有效報名、出席不是「未到」；公告型、活動、天道加披不算。陪同也算了愿。
+ * 次數＝同一個勤務同一天算一次（兼好幾個項目也一次）；同名不同佛堂的分開，名字後面寫佛堂。
+ * 只回傳名字、次數、天數、常做的勤務（名字原本就公開在勤務頁的名單），不含電話等個資。
+ */
+var THANKS_DAYS = 90;
+function thanksBoard_() {
+  var today = todayString_();
+  var from = addDaysStr_(today, -(THANKS_DAYS - 1));
+  var duties = {};
+  readTableCached_(SHEETS.DUTIES).forEach(function (d) {
+    if (dutyCategory_(d) !== '勤務' || d['模式'] === '公告型' || statsExcluded_(d)) return;
+    duties[d['勤務ID']] = d;
+  });
+  var rows = activeSignups_().filter(function (s) {
+    return duties[s['勤務ID']] && s['日期'] >= from && s['日期'] <= today && s['出席'] !== '未到' && normalizeName_(s['姓名']);
+  });
+  var clean = function (n) { return String(n).replace(/[\s　]+/g, ''); };
+  var temples = {};
+  rows.forEach(function (s) {
+    var n = clean(s['姓名']);
+    if (!temples[n]) temples[n] = {};
+    if (s['佛堂']) temples[n][s['佛堂']] = true;
+  });
+  var people = {};
+  rows.forEach(function (s) {
+    var n = clean(s['姓名']);
+    var key = n + (s['佛堂'] && Object.keys(temples[n]).length > 1 ? '（' + s['佛堂'] + '）' : '');
+    var p = people[key] || (people[key] = { name: key, times: {}, dates: {}, duties: {} });
+    var k = s['勤務ID'] + '|' + s['日期'];
+    if (p.times[k]) return;
+    p.times[k] = true;
+    p.dates[s['日期']] = true;
+    var dn = duties[s['勤務ID']]['名稱'];
+    p.duties[dn] = (p.duties[dn] || 0) + 1;
+  });
+  var list = Object.keys(people).map(function (key) {
+    var p = people[key];
+    var top = Object.keys(p.duties).sort(function (a, b) { return p.duties[b] - p.duties[a] || a.localeCompare(b); });
+    return { name: p.name, times: Object.keys(p.times).length, days: Object.keys(p.dates).length, duties: top.slice(0, 3) };
+  });
+  list.sort(function (a, b) { return b.times - a.times || b.days - a.days || a.name.localeCompare(b.name); });
+  var total = list.reduce(function (n, p) { return n + p.times; }, 0);
+  return { from: from, to: today, people: list.length, total: total, list: list };
+}

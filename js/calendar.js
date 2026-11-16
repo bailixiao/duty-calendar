@@ -100,15 +100,22 @@
       btn.classList.toggle('is-active', on);
       btn.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
-    const isList = isListView();
+    const thanks = state.view === 'thanks';
+    document.getElementById('view-calendar').classList.toggle('is-thanks', thanks);
+    const isList = isListView() || thanks;
     el.fc.hidden = isList;
     if (isList) el.pastToggle.hidden = true;
     el.week.hidden = !isList;
     el.panel.hidden = state.view !== 'month';
     // 近期檢視固定是今天起一個月，不需要翻頁
-    el.nav.forEach((b) => { b.hidden = state.view === 'recent'; });
+    el.nav.forEach((b) => { b.hidden = state.view === 'recent' || thanks; });
 
-    if (state.view === 'recent') {
+    if (thanks) {
+      // 感謝排行榜（js/thanks-board.js）；行事曆資料照樣在背景讀（首頁其他地方要用）
+      setTitle();
+      ThanksBoard.render(el.week);
+      load(state.today, Fmt.addDays(state.today, RECENT_DAYS - 1));
+    } else if (state.view === 'recent') {
       loadRecent();
     } else if (isList) {
       loadWeek();
@@ -161,7 +168,7 @@
   }
 
   function move(step) {
-    if (state.view === 'recent') return;
+    if (state.view === 'recent' || state.view === 'thanks') return;
     if (state.view === 'week') {
       state.anchor = Fmt.addDays(state.anchor, step * 7);
       loadWeek();
@@ -173,6 +180,7 @@
   }
 
   function goToday() {
+    if (state.view === 'thanks') return;
     state.anchor = state.today;
     state.selected = state.today;
     if (state.view === 'recent') {
@@ -240,6 +248,8 @@
       text = `${Fmt.rocYear(a)} 年`;
     } else if (state.view === 'month') {
       text = `${Fmt.rocYear(a)} 年 ${Number(a.slice(5, 7))} 月`;
+    } else if (state.view === 'thanks') {
+      text = '感謝了愿的家人';
     } else if (state.view === 'recent') {
       text = isEasy() ? '往後的行程（往下滑看更多）' : '近一個月的行程';
     } else {
@@ -671,6 +681,7 @@
   }
 
   function renderList() {
+    if (state.view === 'thanks') return; // 感謝排行榜自己畫（js/thanks-board.js）
     if (state.view === 'week') renderWeek();
     else if (state.view === 'recent') renderRecent();
     else renderPanel();
@@ -794,7 +805,7 @@
   function loadSavedView() {
     try {
       const v = localStorage.getItem(STORAGE_KEY);
-      return v === 'year' || v === 'month' || v === 'week' || v === 'recent' ? v : 'month';
+      return v === 'year' || v === 'month' || v === 'week' || v === 'recent' || v === 'thanks' ? v : 'month';
     } catch (e) {
       return 'month';
     }

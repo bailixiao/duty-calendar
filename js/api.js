@@ -208,6 +208,7 @@
     getDuty: (id) => get('getDuty', { id }),
     // 區中心場地借用
     getFaq: () => get('getFaq', {}),
+    getThanks: () => get('thanks', {}), // 感謝排行榜（近三個月了愿次數）
     getRepairs: () => get('getRepairs', {}),
     reportRepair: (p) => post(Object.assign({ action: 'reportRepair' }, p)),
     repairWatch: (endpoint, id) => post({ action: 'repairWatch', endpoint, id }),
