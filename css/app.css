@@ -2600,9 +2600,12 @@ button.veg-chip:hover { border-color: var(--ok); }
 .view-switch button[data-view="thanks"] { color: var(--accent, #a8322d); font-weight: 700; }
 .view-switch button[data-view="thanks"].is-active { color: var(--paper); }
 .thanks-head { text-align: center; }
+.tb-arts { display: flex; justify-content: center; align-items: flex-end; gap: 8px; margin: 0 0 10px; }
+.tb-arts img { height: 150px; width: auto; max-width: 32%; object-fit: contain; mix-blend-mode: multiply; }
+@media (max-width: 480px) { .tb-arts img { height: 110px; } }
 .thanks-head .thanks-title { font-size: 1.2rem; font-weight: 700; margin: 0 0 4px; }
 .thanks-head .muted { margin: 0; }
-.tb-list { list-style: none; margin: 12px 0; padding: 0; display: grid; gap: 8px; }
+.tb-list { list-style: none; margin: 12px 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .tb-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); }
 .tb-row.is-top { border-color: #d9b45a; background: #fdf6e3; }
 .tb-medal { font-size: 1.8rem; width: 2.2rem; text-align: center; flex: none; }

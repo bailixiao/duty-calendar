@@ -5,6 +5,7 @@
 
   const TOP = 20;
   const MEDAL = ['🥇', '🥈', '🥉'];
+  const ARTS = ['img/guanyin.webp', 'img/maitreya.webp', 'img/jigong.webp']; // 三位仙佛，同感謝狀（彌勒祖師在中間）
   let cache = null; // 這次打開網站讀過的資料，切回來先顯示
   let showAll = false;
   let token = 0;
@@ -25,6 +26,7 @@
     const esc = Fmt.esc;
     const head = `
       <div class="notice thanks-head">
+        <div class="tb-arts" aria-hidden="true">${ARTS.map((a) => `<img src="${a}" alt="" loading="lazy">`).join('')}</div>
         <p class="thanks-title">🙏 感謝近三個月發心了愿的家人</p>
         <p class="muted">${md(data.from)}～${md(data.to)}・共 ${data.people} 位家人・${data.total} 人次（總務・勤務，依了愿次數排）</p>
       </div>`;
