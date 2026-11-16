@@ -11,12 +11,12 @@
 
   const md = (s) => `${Number(s.slice(5, 7))}/${Number(s.slice(8, 10))}`;
 
-  /** 名次：次數、天數都一樣的同名次 */
+  /** 名次：次數一樣的同名次（2026/11/16 起不寫天數） */
   function ranks(list) {
     let rank = 0;
     return list.map((p, i) => {
       const prev = list[i - 1];
-      if (!prev || prev.times !== p.times || prev.days !== p.days) rank = i + 1;
+      if (!prev || prev.times !== p.times) rank = i + 1;
       return rank;
     });
   }
@@ -41,7 +41,7 @@
             <span class="tb-name">${esc(p.name)}</span>
             <span class="tb-duties muted">${esc(p.duties.join('、'))}</span>
           </div>
-          <span class="tb-count"><strong>${p.times}</strong> 次${p.days !== p.times ? `<small>${p.days} 天</small>` : ''}</span>
+          <span class="tb-count"><strong>${p.times}</strong> 次</span>
         </li>`;
     }).join('');
     const more = data.list.length > TOP
