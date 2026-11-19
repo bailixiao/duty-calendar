@@ -153,8 +153,10 @@ function normalizeDutyInput_(input, ctx) {
 
   if (duty['負責組'] && !duty['分組類型']) errors.push('有負責組時要選分組類型');
   if (duty['分組類型'] && ['勤務了愿組', '打掃組', '拜香輪值組'].indexOf(duty['分組類型']) === -1) errors.push('分組類型不正確');
-  if (duty['負責組'] && ctx.groups && ctx.groups.indexOf(duty['分組類型'] + '|' + duty['負責組']) === -1) {
-    errors.push('「' + duty['分組類型'] + '」沒有「' + duty['負責組'] + '」這一組');
+  if (duty['負責組'] && ctx.groups) { // 可以好幾組（「、」隔開），每一組都要存在
+    dutyGroups_(duty['負責組']).forEach(function (g) {
+      if (ctx.groups.indexOf(duty['分組類型'] + '|' + g) === -1) errors.push('「' + duty['分組類型'] + '」沒有「' + g + '」這一組');
+    });
   }
   // 公告型可以不選負責組（2026/10/12 起；例：月會、彌勒山志工輪值），頁面只顯示時間地點說明
 
@@ -346,4 +348,14 @@ if (typeof module !== 'undefined') {
     normalizeDutyInput_: normalizeDutyInput_, checkDutyChange_: checkDutyChange_, mergeBulkInput_: mergeBulkInput_,
     seriesKey_: seriesKey_, renameLike_: renameLike_, cleanTime_: cleanTime_, BULK_FIELDS_: BULK_FIELDS_
   };
+}
+
+/** 負責組可以好幾組（2026/11/19），用「、」隔開存在同一格（例：第1組、第3組、第5組）；回傳組名陣列 */
+function dutyGroups_(text) {
+  return String(text || '').split('、').map(function (s) { return s.trim(); }).filter(function (s) { return s; });
+}
+
+/** 這一組是不是這個勤務的負責組之一 */
+function hasDutyGroup_(text, name) {
+  return !!name && dutyGroups_(text).indexOf(name) !== -1;
 }

@@ -467,7 +467,8 @@
     const body = root.querySelector('[data-body]');
     const dates = Fmt.datesBetween(d.start, d.end);
     const date = dutyPage.viewDate;
-    const contact = d.groupContact;
+    // 負責組的組長與電話：負責組可以好幾組，每組一行（舊版是一個物件）
+    const contacts = [].concat(d.groupContact || []).filter((c) => c && (c.leader || c.phone));
     const isNotice = d.mode === '公告型';
 
     // 勤務當天（含）之前：出席修正（未到、陪同、補登），規格第 8 節管理者後台第 4 項
@@ -537,7 +538,7 @@
         ${Fmt.timeRange(d) ? `<div><dt>時段</dt><dd>${esc(Fmt.timeRange(d))}</dd></div>` : ''}
         ${d.location ? `<div><dt>地點</dt><dd>${esc(d.location)}</dd></div>` : ''}
         ${d.group ? `<div><dt>負責組</dt><dd>${esc(d.group)}</dd></div>` : ''}
-        ${contact && (contact.leader || contact.phone) ? `<div><dt>${Fmt.leaderWord(d.groupType)}</dt><dd>${esc(contact.leader || '')}${contact.phone ? `　<a href="tel:${esc(contact.phone.replace(/[^\d+]/g, ''))}">${esc(contact.phone)}</a>` : ''}</dd></div>` : ''}
+        ${contacts.length ? `<div><dt>${Fmt.leaderWord(d.groupType)}</dt><dd>${contacts.map((c) => `<span class="nw">${contacts.length > 1 ? esc(c.name) + '：' : ''}${esc(c.leader || '')}${c.phone ? `　<a href="tel:${esc(c.phone.replace(/[^\d+]/g, ''))}">${esc(c.phone)}</a>` : ''}</span>`).join('<br>')}</dd></div>` : ''}
       </dl>
       ${isNotice ? '<p class="hint">公告型勤務不需報名。</p>' : `
         <section class="detail-section">

@@ -95,14 +95,15 @@ function adminGroups_() {
   var today = todayString_();
   var from = addDaysStr_(today, -364);
   readTableCached_(SHEETS.DUTIES).forEach(function (d) {
-    if (!d['負責組']) return;
-    var key = d['分組類型'] + '|' + d['負責組'];
-    var u = usage[key] || (usage[key] = { all: 0, year: [], upcoming: 0 });
-    var start = d['開始日'];
-    var end = d['結束日'] || start;
-    u.all++;
-    if (start > today) u.upcoming++;
-    else if (end >= from) u.year.push({ id: d['勤務ID'], name: d['名稱'], date: start });
+    dutyGroups_(d['負責組']).forEach(function (g) { // 負責組可以好幾組：每一組都算一次
+      var key = d['分組類型'] + '|' + g;
+      var u = usage[key] || (usage[key] = { all: 0, year: [], upcoming: 0 });
+      var start = d['開始日'];
+      var end = d['結束日'] || start;
+      u.all++;
+      if (start > today) u.upcoming++;
+      else if (end >= from) u.year.push({ id: d['勤務ID'], name: d['名稱'], date: start });
+    });
   });
   var none = { all: 0, year: [], upcoming: 0 };
   return {
@@ -129,6 +130,7 @@ function adminSaveGroup_(body) {
   var errors = [];
   if (OPTIONS.groupType.indexOf(type) === -1) errors.push('請選分組類型');
   if (!name) errors.push('請填組名');
+  if (name.indexOf('、') !== -1) errors.push('組名不能有「、」（勤務的負責組用「、」隔開好幾組）');
   if (errors.length) throw new ApiError_('VALIDATION', '分組資料有錯，沒有存檔', errors.map(function (m) { return { message: m }; }));
   var members = (Array.isArray(input.members) ? input.members : splitNames_(input.members)).map(normalizeName_).filter(function (x) { return x; });
 
@@ -167,7 +169,7 @@ function adminDeleteGroup_(body) {
     var row = findRowChecked_(readTable_(SHEETS.GROUPS), body.row, '組名', body.original, '分組');
     var type = row['分組類型'];
     var name = row['組名'];
-    var used = readTable_(SHEETS.DUTIES).filter(function (d) { return d['分組類型'] === type && d['負責組'] === name; });
+    var used = readTable_(SHEETS.DUTIES).filter(function (d) { return d['分組類型'] === type && hasDutyGroup_(d['負責組'], name); });
     if (used.length) {
       throw new ApiError_('FORBIDDEN', '還有 ' + used.length + ' 筆勤務由「' + name + '」負責，不能刪除；請先把這些勤務改成其他組');
     }
@@ -209,7 +211,10 @@ function findRowChecked_(rows, rowNumber, key, original, label) {
 function renameGroupRefs_(type, oldName, newName) {
   var count = { duties: 0, members: 0 };
   readTable_(SHEETS.DUTIES).forEach(function (d) {
-    if (d['分組類型'] === type && d['負責組'] === oldName) { updateRow_(SHEETS.DUTIES, d, { '負責組': newName }); count.duties++; }
+    if (d['分組類型'] === type && hasDutyGroup_(d['負責組'], oldName)) { // 好幾組時只換掉這一組
+      updateRow_(SHEETS.DUTIES, d, { '負責組': dutyGroups_(d['負責組']).map(function (g) { return g === oldName ? newName : g; }).join('、') });
+      count.duties++;
+    }
   });
   if (MEMBER_GROUP_COLUMNS.indexOf(type) !== -1) {
     readTable_(SHEETS.MEMBERS).forEach(function (m) {

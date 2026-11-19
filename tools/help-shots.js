@@ -201,6 +201,10 @@ const SHOTS = [
     clip: `return { x: 0, y: 0, width: innerWidth, height: 1200 };` },
   { name: 'adm-push', admin: true, hash: '#/admin/push', js: `await __wait(2000); const sel = document.querySelector('select[name=duty]'); sel.selectedIndex = 5; sel.dispatchEvent(new Event('change')); await __wait(300); document.querySelector('[name=mode][value=later]').click(); await __wait(300); const q = document.querySelector('[data-quick]'); if (q) q.click(); await __wait(300);`,
     clip: `return __box('.push-form', 6);` },
+  { name: 'adm-group-multi', admin: true, hash: '#/admin/duties/new', js: `await __wait(2500); const f = document.querySelector('[data-body] form'); f.elements.name.value = '大掃除'; const t = f.elements.groupType; t.value = '勤務了愿組'; t.dispatchEvent(new Event('change', { bubbles: true })); await __wait(400);
+      ['第1組', '第3組', '第5組'].forEach((n) => { const c = document.querySelector('input[name=group][value="' + n + '"]'); if (c) c.checked = true; });
+      document.querySelector('input[name=group]').dispatchEvent(new Event('change', { bubbles: true })); await __wait(400);`,
+    clip: `const fs = [...document.querySelectorAll('fieldset.form-block')].find((x) => x.querySelector('input[name=group]')); fs.scrollIntoView({ block: 'start' }); return __box(fs, 6);` },
   { name: 'adm-mypw', admin: true, hash: '#/admin', js: `await __wait(1500); document.querySelector('[data-mypw]').click(); await __wait(500);`,
     clip: `return __box('.modal-box', 4);` },
   { name: 'adm-venue', admin: true, hash: '#/admin/venue', js: `await __wait(2000);`,

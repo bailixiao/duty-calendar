@@ -366,7 +366,7 @@ test('管理名單：含身分與組長電話；一般 API 不回傳電話', () 
 
   const token = adminLogin(env);
   const a = env.post({ action: 'adminDuty', token, id: v.id }).data;
-  assert.deepEqual(a.groupContact, { name: '第2組', leader: '測試組長', phone: '0900-000-000' });
+  assert.deepEqual(a.groupContact, [{ name: '第2組', leader: '測試組長', phone: '0900-000-000' }]); // 負責組可以好幾組：每組一筆
   assert.equal(a.signups[0].identity, '壇辦');
   assert.ok(!JSON.stringify(env.get({ action: 'getDuty', id: v.id })).includes('0900'));
   assert.ok(!JSON.stringify(env.get({ action: 'getEvents', from: '2026-10-01', to: '2026-10-31' })).includes('0900'));

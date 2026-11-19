@@ -13,13 +13,17 @@
     const stat = {};
     names.forEach((n, i) => { stat[n] = { name: n, count: 0, last: '', busy: false, order: i }; });
     duties.forEach((d) => {
-      const g = stat[d.group];
-      if (!g || d.groupType !== type || (selfId && d.id === selfId)) return;
-      const end = d.end || d.start;
-      if (date && d.start <= date && end >= date) g.busy = true;
-      if (end < from) return;
-      g.count++;
-      if (d.start > g.last) g.last = d.start;
+      if (d.groupType !== type || (selfId && d.id === selfId)) return;
+      // 負責組可以好幾組（「第1組、第3組」）：每一組都算一次
+      String(d.group || '').split('、').map((x) => x.trim()).forEach((name) => {
+        const g = stat[name];
+        if (!g) return;
+        const end = d.end || d.start;
+        if (date && d.start <= date && end >= date) g.busy = true;
+        if (end < from) return;
+        g.count++;
+        if (d.start > g.last) g.last = d.start;
+      });
     });
     return names.map((n) => stat[n]).sort((a, b) =>
       (a.busy - b.busy) || (a.count - b.count) || (a.last < b.last ? -1 : a.last > b.last ? 1 : 0) || (a.order - b.order)

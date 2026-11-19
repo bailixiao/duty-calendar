@@ -29,7 +29,7 @@ function publicGroupNotes_(duty) {
 function inDutyGroup_(duty, name) {
   var key = mineKey_(name);
   return readTableCached_(SHEETS.MEMBERS).some(function (m) {
-    return m['待確認'] !== '是' && m['啟用中'] !== '否' && mineKey_(m['姓名']) === key && m[duty['分組類型']] === duty['負責組'];
+    return m['待確認'] !== '是' && m['啟用中'] !== '否' && mineKey_(m['姓名']) === key && hasDutyGroup_(duty['負責組'], m[duty['分組類型']]);
   });
 }
 

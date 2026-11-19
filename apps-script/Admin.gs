@@ -83,13 +83,14 @@ function adminDuty_(body) {
   return data;
 }
 
+/** 負責組的組長與電話：每一組一筆（負責組可以好幾組，2026/11/19 起回傳陣列） */
 function adminGroupContact_(groupType, groupName) {
-  if (!groupType || !groupName) return null;
-  var g = readTableCached_(SHEETS.GROUPS).filter(function (x) {
-    return x['分組類型'] === groupType && x['組名'] === groupName;
-  })[0];
-  if (!g) return null;
-  return { name: g['組名'], leader: g['組長或召集人'], phone: g['組長電話'] };
+  if (!groupType || !groupName) return [];
+  var groups = readTableCached_(SHEETS.GROUPS);
+  return dutyGroups_(groupName).map(function (n) {
+    var g = groups.filter(function (x) { return x['分組類型'] === groupType && x['組名'] === n; })[0];
+    return g ? { name: g['組名'], leader: g['組長或召集人'], phone: g['組長電話'] } : null;
+  }).filter(function (x) { return x; });
 }
 
 /** 操作紀錄：新到舊，offset／limit 分頁 */

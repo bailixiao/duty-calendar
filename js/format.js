@@ -121,6 +121,11 @@
   }
 
   /** 卡片上顯示的負責組與組長或召集人（12人小組不顯示，規格第 4 節） */
+  /** 負責組可以好幾組，用「、」隔開（例：第1組、第3組，2026/11/19）；回傳組名陣列 */
+  function groupNames(text) {
+    return String(text || '').split('、').map((x) => x.trim()).filter(Boolean);
+  }
+
   /** 負責組的帶頭人怎麼稱呼：打掃組叫「召集人」，其他叫「組長」 */
   function leaderWord(groupType) {
     return groupType === '打掃組' ? '召集人' : '組長';
@@ -195,6 +200,6 @@
 
   window.Fmt = {
     esc, toDateStr, parseDate, addDays, datesBetween, rocYear, weekday, shortDate, rocDate, catLabel,
-    timeRange, cardTime, effectiveMin, dayState, groupText, leaderWord, ticketSum, ticketGroups, sameName, byStroke, setContact, askAdmin, shortDateList
+    timeRange, cardTime, effectiveMin, dayState, groupText, groupNames, leaderWord, ticketSum, ticketGroups, sameName, byStroke, setContact, askAdmin, shortDateList
   };
 })();

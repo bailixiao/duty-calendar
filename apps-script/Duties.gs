@@ -13,7 +13,7 @@ function adminContact_() {
   return PropertiesService.getScriptProperties().getProperty('ADMIN_CONTACT') || '';
 }
 
-/** 負責組的組長或召集人（不含電話）；同一次執行只讀一次分組表 */
+/** 負責組的組長或召集人（不含電話；好幾組就用「、」接起來）；同一次執行只讀一次分組表 */
 var groupLeaderMemo_ = null;
 function groupLeader_(groupType, groupName) {
   if (!groupType || !groupName) return '';
@@ -23,7 +23,8 @@ function groupLeader_(groupType, groupName) {
       groupLeaderMemo_[g['分組類型'] + '|' + g['組名']] = g['組長或召集人'];
     });
   }
-  return groupLeaderMemo_[groupType + '|' + groupName] || '';
+  return dutyGroups_(groupName).map(function (n) { return groupLeaderMemo_[groupType + '|' + n] || ''; })
+    .filter(function (n) { return n; }).join('、');
 }
 
 /** 行事曆區間內的勤務與每日人數（不含名字） */
@@ -196,7 +197,7 @@ function templeMembers_(params) {
 
 /** 排序：負責組組員優先，其次名字開頭相符 */
 function memberRank_(m, q, params) {
-  var inGroup = params.groupType && params.group && m.groups[params.groupType] === params.group;
+  var inGroup = params.groupType && params.group && hasDutyGroup_(params.group, m.groups[params.groupType]);
   // 完全同名＞開頭相同或只差姓（打「榮欽」找「曾榮欽」）＞其他含這幾個字的
   var givenName = q.length >= 2 && m.name.length > q.length && m.name.length <= q.length + 2 && m.name.slice(-q.length) === q;
   return (inGroup ? 0 : 3) + (m.name === q ? 0 : m.name.indexOf(q) === 0 || givenName ? 1 : 2);
@@ -275,6 +276,12 @@ function daysStatus_(duty, positions, signups, dates) {
 
 /** 公告型勤務的輪值組資訊（不含電話） */
 function findGroup_(groupType, groupName) {
+  var names = dutyGroups_(groupName);
+  if (names.length > 1) { // 好幾組：合在一起（組名、組長、佐理用「、」接起來，組員全部列出）
+    var all = names.map(function (n) { return findGroup_(groupType, n); });
+    var join = function (k) { return all.map(function (g) { return g[k]; }).filter(function (x) { return x; }).join('、'); };
+    return { name: names.join('、'), leader: join('leader'), assistant: join('assistant'), members: [].concat.apply([], all.map(function (g) { return g.members; })) };
+  }
   var g = readTableCached_(SHEETS.GROUPS).filter(function (x) {
     return x['分組類型'] === groupType && x['組名'] === groupName;
   })[0];

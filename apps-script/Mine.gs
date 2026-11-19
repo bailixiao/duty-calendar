@@ -106,9 +106,11 @@ function myLead_(name, today, duties) {
     var d = duties[id];
     var end = d['結束日'] || d['開始日'];
     if (!d['負責組'] || !d['開始日'] || end < today || d['開始日'] > until) return;
-    var leader = groupLeader_(d['分組類型'], d['負責組']);
-    if (!leader || !String(leader).split(/[、,，\/／\s　]+/).some(function (x) { return x && mineKey_(x) === name; })) return; // 可能寫好幾位
-    datesInRange_(d['開始日'] > today ? d['開始日'] : today, end < until ? end : until).slice(0, 10).forEach(function (date) { add(d, date, d['負責組'] + '組長'); });
+    dutyGroups_(d['負責組']).forEach(function (g) { // 負責組可以好幾組：是其中一組的組長
+      var leader = groupLeader_(d['分組類型'], g);
+      if (!leader || !String(leader).split(/[、,，\/／\s　]+/).some(function (x) { return x && mineKey_(x) === name; })) return; // 可能寫好幾位
+      datesInRange_(d['開始日'] > today ? d['開始日'] : today, end < until ? end : until).slice(0, 10).forEach(function (date) { add(d, date, g + '組長'); });
+    });
   });
   return Object.keys(out).map(function (k) { return out[k]; })
     .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : a.dutyName.localeCompare(b.dutyName); })

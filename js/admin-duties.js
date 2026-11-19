@@ -549,6 +549,19 @@
       return ctx.groups.filter((g) => g.type === type).map((g) => g.name);
     }
 
+    /** 已選的負責組（可以好幾組，存成「第1組、第3組」，2026/11/19） */
+    const pickedGroups = () => Fmt.groupNames(s.group);
+
+    /** 負責組：勾選，可以選好幾組；排列照分組的順序 */
+    function groupChecks(label) {
+      const names = groupsOf(s.groupType);
+      const sel = pickedGroups();
+      const extra = sel.filter((x) => names.indexOf(x) === -1); // 分組已經改名或刪掉的，也列出來
+      return `<div class="form-row"><span>${label}</span>
+        <div class="checks group-checks">${names.concat(extra).map((x) => `<label class="check"><input type="checkbox" name="group" value="${esc(x)}"${sel.indexOf(x) !== -1 ? ' checked' : ''}> ${esc(x)}</label>`).join('')}</div></div>
+        <p class="hint">可以勾好幾組（例：第1組、第3組、第5組）；都不勾＝不指定。</p>`;
+    }
+
     /** 建議負責組：類別是勤務時，依各組近一年負責過的筆數排出比較公平的順序（沒選分組類型就看勤務了愿組） */
     function fairHtml() {
       const none = '<div data-fair-box hidden></div>';
@@ -558,11 +571,11 @@
       if (!names.length) return none;
       const list = GroupFair.rank(names, type, ctx.duties || [], s.start, editing ? s.id : '', today);
       const best = list[0];
-      const picked = (g) => s.groupType === type && s.group === g.name;
+      const picked = (g) => s.groupType === type && pickedGroups().indexOf(g.name) !== -1;
       const leaderOf = (n) => (ctx.groups.find((g) => g.type === type && g.name === n) || {}).leader || '';
       const lead = (n) => (leaderOf(n) ? `<span class="fair-leader">組長 ${esc(leaderOf(n))}</span>` : '');
       const why = (g) => `近一年 ${g.count} 筆${g.last ? `・最近 ${Fmt.shortDate(g.last)}` : '・還沒負責過'}${g.busy ? '・<strong>當天已有勤務</strong>' : ''}`;
-      const pick = (g, label) => (picked(g) ? '<span class="tag">已選</span>' : `<button type="button" class="btn btn-small" data-fair="${esc(g.name)}" data-fair-type="${esc(type)}">${label}</button>`);
+      const pick = (g, label) => (picked(g) ? '<span class="tag">已選</span>' : `<button type="button" class="btn btn-small" data-fair="${esc(g.name)}" data-fair-type="${esc(type)}">${pickedGroups().length && s.groupType === type ? '加這組' : label}</button>`);
       return `<div class="fair-box" data-fair-box>
         <p class="fair-best">💡 建議${s.groupType ? '' : `「${esc(type)}」`}：<strong>${esc(best.name)}</strong>${lead(best.name)}（${why(best)}）${pick(best, '用這組')}</p>
         <details><summary>看各組負責次數（少的排前面）</summary>
@@ -632,12 +645,7 @@
                 <option value="">（不指定）</option>
                 ${GROUP_TYPES.map((x) => `<option${x === s.groupType ? ' selected' : ''}>${esc(x)}</option>`).join('')}
               </select></label>
-            ${s.groupType ? (lunar ? rotationFields() : `
-              <label class="form-row"><span>負責組</span>
-                <select class="input" name="group">
-                  <option value="">（不指定）</option>
-                  ${groupsOf(s.groupType).map((x) => `<option${x === s.group ? ' selected' : ''}>${esc(x)}</option>`).join('')}
-                </select></label>`) : ''}
+            ${s.groupType ? (lunar ? rotationFields() : groupChecks('負責組')) : ''}
             ${lunar ? '' : fairHtml()}
           </fieldset>`}
 
@@ -892,12 +900,7 @@
       if (!l.rotation.length) l.rotation = names.slice();
       return `
         <div class="form-row"><span>指定方式</span>${segmented('groupMode', [['fixed', '每次同一組'], ['rotate', '依序輪流']], l.groupMode)}</div>
-        ${l.groupMode === 'fixed' ? `
-          <label class="form-row"><span>負責組</span>
-            <select class="input" name="group">
-              <option value="">（不指定）</option>
-              ${names.map((x) => `<option${x === s.group ? ' selected' : ''}>${esc(x)}</option>`).join('')}
-            </select></label>` : `
+        ${l.groupMode === 'fixed' ? groupChecks('負責組') : `
           <div class="form-row"><span>參加輪流的組</span>
             <div class="checks">${names.map((x) => `<label class="check"><input type="checkbox" name="rotation" value="${esc(x)}"${l.rotation.indexOf(x) !== -1 ? ' checked' : ''}> ${esc(x)}</label>`).join('')}</div></div>
           <label class="form-row"><span>第一次由哪一組</span>
@@ -923,6 +926,8 @@
       ['name', 'startTime', 'endTime', 'location', 'attire', 'description', 'start', 'end', 'groupType', 'group', 'deadline', 'stages', 'teachers', 'merge', 'lecturers', 'leaders', 'assistants'].forEach((k) => {
         if (val(k) !== undefined) s[k] = val(k);
       });
+      // 負責組是勾選（可以好幾組）：上面的 val('group') 讀不到勾了哪些，這裡重讀
+      if (f.querySelector('input[name="group"][type=checkbox]')) s.group = [...f.querySelectorAll('input[name="group"]:checked')].map((x) => x.value).join('、');
       const radio = (n) => { const el = f.querySelector(`input[name="${n}"]:checked`); return el ? el.value : undefined; };
       if (radio('nature')) s.nature = radio('nature');
       if (radio('category')) s.category = radio('category');
@@ -1008,8 +1013,11 @@
         const b = ev.target.closest('[data-fair]');
         if (!b) return;
         sync();
+        // 已經選了同一種分組的組：加上這組（可以好幾組）；否則換成這組
+        const keep = s.groupType === b.dataset.fairType ? pickedGroups() : [];
         s.groupType = b.dataset.fairType;
-        s.group = b.dataset.fair;
+        const all = keep.concat(b.dataset.fair);
+        s.group = groupsOf(s.groupType).filter((x) => all.indexOf(x) !== -1).concat(all.filter((x) => groupsOf(s.groupType).indexOf(x) === -1)).join('、');
         render();
       });
       f.addEventListener('change', (ev) => {

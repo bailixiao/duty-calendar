@@ -77,6 +77,20 @@
   function parseGroup(text, groups) {
     const s = String(text || '').trim();
     if (!s) return { groupType: '', group: '' };
+    // 好幾組（2026/11/19）：「打掃組 第1組、第3組」或「第1組、第3組」，每一組分開找，分組類型要一樣
+    if (s.indexOf('、') !== -1) {
+      const parts = s.split('、').map((x) => x.trim()).filter(Boolean);
+      const first = parseGroup(parts[0], groups);
+      if (first.error) return first;
+      const names = [first.group];
+      for (const p of parts.slice(1)) {
+        const r = parseGroup(GROUP_TYPES.some((t) => p.indexOf(t) === 0) ? p : first.groupType + ' ' + p, groups);
+        if (r.error) return r;
+        if (r.groupType !== first.groupType) return { error: `負責組要是同一種分組（「${first.groupType}」）` };
+        if (names.indexOf(r.group) === -1) names.push(r.group);
+      }
+      return { groupType: first.groupType, group: names.join('、') };
+    }
     const type = GROUP_TYPES.find((t) => s.indexOf(t) === 0);
     if (type) {
       const name = s.slice(type.length).replace(/^[\s／/:：|｜]+/, '').trim();
