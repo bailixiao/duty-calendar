@@ -5,6 +5,8 @@ import { createApp } from './app.js';
 import { createSqlStore } from './store.js';
 import { regionOf, SITE_BASE } from './regions.js';
 import { regionAdmin } from './region-admin.js';
+import { createSqlBackups } from './backup-store.js';
+import { runSchedule } from './schedule.js';
 
 export class DutyStore extends DurableObject {
   constructor(ctx, env) {
@@ -24,9 +26,11 @@ export class DutyStore extends DurableObject {
     }
   }
 
+  /** 排程（worker/src/schedule.js）：回傳結果和這一區今天的用量 */
   async cron(when, region) {
     try {
-      return await this.app.cron(when, region);
+      const result = await this.app.cron(when, region);
+      return { result, usage: this.app.usageToday() };
     } finally {
       this.store.persist();
     }
@@ -41,6 +45,26 @@ export class DutyStore extends DurableObject {
   vapidKeys() { try { return this.app.vapidKeys(); } finally { this.store.persist(); } }
   openRegion(opts) { try { return this.app.openRegion(opts); } finally { this.store.persist(); } }
   addOpenRegion(code) { try { return this.app.addOpenRegion(code); } finally { this.store.persist(); } }
+
+  // 用量、備份（schedule.js、backup-store.js）
+  usageCheck(total) { return this.app.usageCheck(total).finally(() => this.store.persist()); }
+  /** 把這一區的資料存一份到 backup（直接從這裡存，資料不經過 Worker） */
+  async backupTo(region, at) {
+    const text = this.app.snapshot();
+    await this.env.DB.get(this.env.DB.idFromName('backup'), { locationHint: 'apac' }).saveBackup(region, at, text);
+    return text.length;
+  }
+  /** 用 backup 裡的一份還原這一區 */
+  async restoreFrom(region, at) {
+    const text = await this.env.DB.get(this.env.DB.idFromName('backup'), { locationHint: 'apac' }).getBackup(region, at);
+    if (!text) throw new Error('找不到這份備份');
+    try { return this.app.restore(text); } finally { this.store.persist(); }
+  }
+  // 下面三個只在名叫「backup」的那一個用
+  backups() { return this.bk || (this.bk = createSqlBackups(this.ctx.storage)); }
+  saveBackup(region, at, text) { this.backups().save(region, at, text); return true; }
+  listBackups() { return this.backups().list(); }
+  getBackup(region, at) { return this.backups().get(region, at); }
 }
 
 function stub(env, region) {
@@ -58,7 +82,7 @@ export default {
     if (url.pathname === '/region-admin') { // 開通新區（tools/new-region.js）
       let body = {};
       try { body = await request.json(); } catch (e) { /* 空的 */ }
-      const out = request.method === 'POST' ? await regionAdmin(body, { key: env.REGION_ADMIN_KEY, siteBase: SITE_BASE, stub: (r) => stub(env, r) }) : { ok: false };
+      const out = request.method === 'POST' ? await regionAdmin(body, { key: env.REGION_ADMIN_KEY, siteBase: SITE_BASE, stub: (r) => stub(env, r), backup: stub(env, 'backup') }) : { ok: false };
       return new Response(JSON.stringify(out), { headers: { 'Content-Type': 'application/json; charset=utf-8' } });
     }
     const region = regionOf(url);
@@ -69,16 +93,9 @@ export default {
     return stub(env, region).fetch(req);
   },
   // 台北 07:00（UTC 23:00）提醒今天、台北 20:00（UTC 12:00）提醒明天；每 5 分鐘送排定時間到了的後台推播
-  // 教全區先跑，再輪流跑已開通的區
+  // 教全區先跑，再輪流跑已開通的區；用量提醒、每週備份見 schedule.js
   async scheduled(event, env, ctx) {
     const when = event.cron === '0 23 * * *' ? 'today' : event.cron === '0 12 * * *' ? 'tomorrow' : 'plans';
-    ctx.waitUntil((async () => {
-      const main = stub(env, 'main');
-      await main.cron(when, 'main');
-      const list = await main.openRegions();
-      for (const r of list) {
-        try { await stub(env, r).cron(when, r); } catch (e) { console.error('排程', r, e); }
-      }
-    })());
+    ctx.waitUntil(runSchedule(when, { stub: (r) => stub(env, r), now: new Date(event.scheduledTime || Date.now()) }));
   }
 };

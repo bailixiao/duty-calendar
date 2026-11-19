@@ -48,6 +48,8 @@
   - **開通（第二步）**：Claude 執行 `node tools/new-region.js <代號>`（呼叫 Worker 的 `POST /region-admin`，要 Cloudflare secret `REGION_ADMIN_KEY`；本機金鑰放 `worker/.region-admin-key`，不進 repo），那一區設成開通（REGION_OPEN、LIVE＝1）、寫入預設的 `SITE_JSON`（`regions.js` 的 `regionSiteDefaults`）、從教全區複製推播金鑰、在 `main` 的 `OPEN_REGIONS` 記下來，印出**開通連結** `…/duty-calendar/<代號>/#/setup/<代碼>`（7 天內有效、只能用一次，伺服器只存雜湊）。那一區的總管理者打開連結自己設定總管理者密碼（`js/region-setup.js`，API `regionSetupCheck`、`regionSetup`），**Claude 不碰真的密碼**。已開通的區再執行一次＝換新的開通連結（忘記密碼時用），設定、資料不動。
   - **⚙️ 區設定**（後台，只有其他區的總管理者；`js/admin-site.js`，API `adminSiteGet`、`adminSiteSave`）：區名（網站名稱＝區名＋行事曆）、場地名稱、地點選項、三個類別的名字、教育統計的班、國外選項、缺人通知與邀請的標題、管理者聯絡人（ADMIN_CONTACT）、功能開關（借場地、修繕回報、常見問題、手機提醒；關掉借場地時後台的「場地借用」也藏起來）。教全區的設定寫在程式裡，不能用這頁。
   - 常見問題的預設題目：其他區把「教全區」「區中心」換成自己的區名、場地名稱（Config.gs `regionText_`）；`regionOnly` 的題目（⚙️ 區設定）教全區不顯示。完整備份用原本「帳號」分頁的「💾 下載完整備份」。
+  - **每週自動備份**（worker/src/schedule.js、backup-store.js）：每週日台北 07:00（UTC 週六 23:00 的排程），教全區和每個已開通的區各自把全部資料（分頁＋指令碼屬性，不含上傳的照片）存一份到另一個 Durable Object「backup」（那一區自己直接存，資料不經過 Worker），每區留最近 8 份。查看、手動備份、還原：`node tools/region-backup.js list | backup [區] | restore <區> "<時間>"`（要 REGION_ADMIN_KEY；還原前自動先備份「⋯ 還原前」；**還原一定要先問過使用者**）。
+  - **用量提醒**：每一區自己數今天的請求次數（記憶體，每 10 次寫一次指令碼屬性 `USAGE:<UTC 日期>`，大約值），每 5 分鐘的排程由教全區加總，到免費額度（一天 10 萬次）的 8 成，推播給教全區「系統通知」的手機，一天一次（`USAGE_ALERTED`）。
   - 手機提醒：13 區共用一組推播金鑰（開通時從教全區複製），同一支手機可以開好幾個區的提醒；Service Worker 記住這支手機開了哪幾區，收到推播時向各區拿內容，通知標題前加區名（只有一區時不加），點通知打開那一區。
 
 ## 4. 勤務的兩種模式

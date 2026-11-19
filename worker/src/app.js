@@ -236,6 +236,63 @@ export function createApp(store, opts) {
     return list;
   }
 
+  // ---------- 每週自動備份（worker/src/backup-store.js） ----------
+  /** 這一區全部的資料（分頁、指令碼屬性；上傳的照片不含）存成一段文字 */
+  function snapshot() {
+    store.persist();
+    return JSON.stringify({ v: 1, at: new Date().toISOString(), sheets: store.sheets, props: store.listProps() });
+  }
+
+  /** 用備份還原（整個取代分頁與指令碼屬性）；只有 Claude 用 tools/region-backup.js 做，做之前會先自動備份現在的資料 */
+  function restore(text) {
+    const snap = JSON.parse(text);
+    if (!snap || snap.v !== 1 || !snap.sheets || !snap.props) throw new Error('備份格式不對');
+    Object.keys(store.sheets).forEach((n) => { if (!snap.sheets[n]) { store.sheets[n] = []; store.markDirty(n); } });
+    Object.keys(snap.sheets).forEach((n) => { store.sheets[n] = snap.sheets[n]; store.markDirty(n); });
+    Object.keys(store.listProps()).forEach((k) => { if (!(k in snap.props)) store.deleteProp(k); });
+    Object.entries(snap.props).forEach(([k, v]) => store.setProp(k, String(v)));
+    store.cacheClear();
+    store.persist();
+    return { at: snap.at, sheets: Object.keys(snap.sheets).length };
+  }
+
+  // ---------- 用量（免費額度每天 10 萬次請求，台灣早上 8 點＝UTC 0 點重算） ----------
+  // 每一區自己數（記在記憶體，每 10 次寫一次，不會每個請求都多寫一筆）；教全區每 5 分鐘加總，到 8 成通知總管理者。
+  const USAGE_FLUSH = 10;
+  let usageDay = '';
+  let usageMem = 0;
+  const utcDay = () => new Date().toISOString().slice(0, 10);
+  function countRequest() {
+    const d = utcDay();
+    if (d !== usageDay) { usageDay = d; usageMem = 0; }
+    usageMem += 1;
+    if (usageMem >= USAGE_FLUSH) flushUsage();
+  }
+  function flushUsage() {
+    if (!usageMem) return;
+    const k = 'USAGE:' + usageDay;
+    store.setProp(k, String(Number(store.getProp(k) || 0) + usageMem));
+    usageMem = 0;
+    // 舊的日子不用留
+    Object.keys(store.listProps()).forEach((p) => { if (p.indexOf('USAGE:') === 0 && p < 'USAGE:' + usageDay) store.deleteProp(p); });
+  }
+  /** 這一區今天大約用了幾次 */
+  function usageToday() {
+    const d = utcDay();
+    return Number(store.getProp('USAGE:' + d) || 0) + (usageDay === d ? usageMem : 0);
+  }
+  const USAGE_LIMIT = 100000;
+  /** 教全區：全部的區加起來到 8 成，通知「系統通知」的手機（一天一次） */
+  async function usageCheck(total) {
+    const d = utcDay();
+    if (total < USAGE_LIMIT * 0.8 || store.getProp('USAGE_ALERTED') === d) return { alerted: false, total };
+    store.setProp('USAGE_ALERTED', d);
+    gs.withSignupLock_(() => gs.pushMessageTo_(gs.pushTargets_('系統通知'), '⚠️ 今天的用量快到上限了',
+      '今天大約用了 ' + total + ' 次，免費額度一天 10 萬次，已經用到 8 成。超過的話，今天剩下的時間網站會讀不到資料，台灣早上 8 點恢復。', '#/admin'));
+    await flushPush();
+    return { alerted: true, total };
+  }
+
   const asyncActions = {
     adminDraftFromImages: (body) => A.adminDraftFromImages(gs, body),
     pushTest: (body) => A.pushTest(gs, body)
@@ -248,6 +305,7 @@ export function createApp(store, opts) {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     const url = new URL(request.url);
     curRegion = request.headers.get('X-Region') || 'main';
+    countRequest();
     if (!isOpen(curRegion)) {
       return json({ ok: false, error: { code: 'NOT_OPEN', message: '這一區的行事曆還沒開通，請聯絡該區的管理者' } });
     }
@@ -297,6 +355,8 @@ export function createApp(store, opts) {
   /** 每天兩次的推播（正式切換後才送，避免和 Google 端重複） */
   async function cron(when, region) {
     if (!isOpen(region)) return { skipped: 'not-open' };
+    countRequest();
+    flushUsage();
     if (store.getProp('LIVE') !== '1') return { skipped: 'not-live' };
     gs.applySiteOverrides_();
     if (when === 'plans') { // 每 5 分鐘：排定時間到了的後台推播
@@ -318,5 +378,5 @@ export function createApp(store, opts) {
     return (Array.isArray(list) ? list : []).filter((r) => Object.prototype.hasOwnProperty.call(REGIONS, r));
   }
 
-  return { gs, handle, cron, openRegions, vapidKeys, openRegion, addOpenRegion };
+  return { gs, handle, cron, openRegions, vapidKeys, openRegion, addOpenRegion, snapshot, restore, usageToday, usageCheck };
 }

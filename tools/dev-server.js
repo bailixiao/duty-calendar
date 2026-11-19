@@ -55,7 +55,8 @@ async function regionWorker(region) {
   return (regionWorkers[region] = { app, store });
 }
 
-/** 開通新區（和正式的 /region-admin 一樣，金鑰 test-key） */
+let mockBackups = null; // 測試版的備份（記憶體）
+/** 開通新區、備份（和正式的 /region-admin 一樣，金鑰 test-key） */
 async function handleRegionAdmin(req, res) {
   const chunks = [];
   for await (const c of req) chunks.push(c);
@@ -63,10 +64,16 @@ async function handleRegionAdmin(req, res) {
   try { body = JSON.parse(Buffer.concat(chunks).toString() || '{}'); } catch (e) { /* 空的 */ }
   const { regionAdmin } = await import('../worker/src/region-admin.js');
   const stub = (r) => {
-    const call = (fn) => async (x) => { const w = await regionWorker(r); try { return w.app[fn](x); } finally { w.store.persist(); } };
-    return { vapidKeys: call('vapidKeys'), openRegion: call('openRegion'), addOpenRegion: call('addOpenRegion') };
+    const call = (fn) => async (x) => { const w = await regionWorker(r); try { return await w.app[fn](x); } finally { w.store.persist(); } };
+    const o = Object.fromEntries(['vapidKeys', 'openRegion', 'addOpenRegion', 'openRegions'].map((fn) => [fn, call(fn)]));
+    o.backupTo = async (reg, at) => { const w = await regionWorker(r); const t = w.app.snapshot(); mockBackups.save(reg, at, t); return t.length; };
+    o.restoreFrom = async (reg, at) => { const w = await regionWorker(r); try { return w.app.restore(mockBackups.get(reg, at)); } finally { w.store.persist(); } };
+    return o;
   };
-  const out = await regionAdmin(body, { key: 'test-key', siteBase: 'http://localhost:' + port + '/', stub });
+  const { createMemoryBackups } = await import('../worker/src/backup-store.js');
+  mockBackups = mockBackups || createMemoryBackups();
+  const backup = { saveBackup: async (r, at, t) => mockBackups.save(r, at, t), listBackups: async () => mockBackups.list(), getBackup: async (r, at) => mockBackups.get(r, at) };
+  const out = await regionAdmin(body, { key: 'test-key', siteBase: 'http://localhost:' + port + '/', stub, backup });
   res.writeHead(200, { 'Content-Type': types['.json'] });
   res.end(JSON.stringify(out));
 }
