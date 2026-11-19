@@ -165,6 +165,7 @@
       <div class="admin-head">
         <h1 class="admin-title">管理後台</h1>
         <span class="admin-who">${esc(who.account)}${who.role !== who.account ? `<small>（${esc(who.role)}）</small>` : ''}</span>
+        <button type="button" class="btn btn-small" data-mypw>🔑 改密碼</button>
         <button type="button" class="btn btn-small" data-logout>登出</button>
       </div>
       ${roleNote(who.role)}
@@ -172,12 +173,61 @@
         ${tabs.map(([k, label]) => `<a href="#/admin${k ? '/' + k : ''}" class="admin-tab${k === active ? ' is-active' : ''}">${label}</a>`).join('')}
       </nav>
       <div class="admin-body" data-body><p class="panel-empty">載入中⋯</p></div>`;
+    root.querySelector('[data-mypw]').addEventListener('click', changeMyPassword);
     root.querySelector('[data-logout]').addEventListener('click', () => {
       Api.adminLogout();
       location.hash = '#/admin';
       renderLogin();
     });
     return root.querySelector('[data-body]');
+  }
+
+  /** 🔑 改自己的密碼（每個帳號都可以；要輸入舊密碼）。這台裝置繼續登入 */
+  function changeMyPassword() {
+    const who = Api.adminWho();
+    const m = Modal.open(`
+      <h2 class="modal-title">🔑 改我的密碼</h2>
+      <form class="admin-form" novalidate>
+        <p class="hint">帳號：${esc(who.account)}</p>
+        <label class="form-row"><span>舊密碼（現在用的）</span><input class="input" name="old" type="password" autocomplete="current-password"></label>
+        <label class="form-row"><span>新密碼</span><input class="input" name="pw" type="password" autocomplete="new-password"></label>
+        <label class="form-row"><span>新密碼再輸入一次</span><input class="input" name="pw2" type="password" autocomplete="new-password"></label>
+        <label class="de-check"><input type="checkbox" data-show> 顯示密碼</label>
+        <p class="hint">改好後，下次登入請用新密碼。新密碼請自己記好，不要給別人。</p>
+        <div class="form-error" data-error hidden></div>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-block btn-primary">改密碼</button>
+          <button type="button" class="btn btn-block" data-close>返回</button>
+        </div>
+      </form>`);
+    const f = m.el.querySelector('form');
+    const err = m.el.querySelector('[data-error]');
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    m.el.querySelector('[data-show]').addEventListener('change', (ev) => {
+      ['old', 'pw', 'pw2'].forEach((k) => { f.elements[k].type = ev.target.checked ? 'text' : 'password'; });
+    });
+    f.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const fail = (t) => { err.textContent = t; err.hidden = false; };
+      err.hidden = true;
+      const v = (k) => f.elements[k].value;
+      if (!v('old')) return fail('請輸入舊密碼');
+      if (!v('pw').trim()) return fail('請輸入新密碼');
+      if (v('pw') !== v('pw2')) return fail('兩次輸入的新密碼不一樣');
+      if (v('pw') === v('old')) return fail('新密碼和舊密碼一樣');
+      Busy.show('改密碼中⋯');
+      try {
+        await Api.admin('adminChangeMyPassword', { oldPassword: v('old'), newPassword: v('pw') });
+        Busy.hide();
+        m.el.querySelector('.modal-title').textContent = '密碼改好了 ✅';
+        f.innerHTML = '<p>下次登入請用新密碼。</p><div class="modal-actions"><button type="button" class="btn btn-block btn-primary" data-close>好</button></div>';
+        f.querySelector('[data-close]').addEventListener('click', () => m.close());
+      } catch (e) {
+        Busy.hide();
+        if (e.code === 'UNAUTHORIZED') { m.close(); location.hash = '#/admin'; renderLogin(); return; }
+        fail(e.message || '改密碼失敗，請再試一次');
+      }
+    });
   }
 
   /** ⚙️ 區設定：其他區的總管理者（教全區的設定寫在程式裡） */

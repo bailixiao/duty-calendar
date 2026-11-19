@@ -129,7 +129,7 @@ function targetDuties_(body) {
 function adminAuthorize_(session, body) {
   var role = session.role;
   var action = body.action;
-  if (role === SUPER_ACCOUNT) return;
+  if (role === SUPER_ACCOUNT || action === 'adminChangeMyPassword') return; // 改自己的密碼：每個帳號都可以
   var denied = function () { throw new ApiError_('FORBIDDEN', '這個帳號沒有權限做這件事'); };
   // 區中心場管：只看、只審核場地借用
   if (role === '場管') {
@@ -201,6 +201,42 @@ function loginAccounts_() {
     accounts: [SUPER_ACCOUNT].concat(sortedAccountRows_().filter(function (r) { return r['啟用'] !== '否'; })
       .map(function (r) { return r['帳號']; }))
   };
+}
+
+/**
+ * 改自己的密碼（2026/11/19）：每個帳號都能改，要輸入舊密碼。總管理者改的是 ADMIN_PASSWORD。
+ * 教全區在 Cloudflare 改了以後，Google 端的 ADMIN_PASSWORD 由下一次同步（每 10 分鐘）自動換成新的（worker/src/app.js 的 syncExport）。
+ * 這台裝置繼續登入；每個帳號本來就只有一台裝置能登入，所以不用另外讓別台登出。
+ */
+function adminChangeMyPassword_(body) {
+  var oldPw = String(body.oldPassword || '');
+  var newPw = String(body.newPassword || '');
+  if (!newPw.trim()) throw new ApiError_('VALIDATION', '請輸入新密碼');
+  if (newPw.length > 100) throw new ApiError_('VALIDATION', '密碼太長了');
+  if (newPw === oldPw) throw new ApiError_('VALIDATION', '新密碼和舊密碼一樣');
+  var cache = CacheService.getScriptCache();
+  var fails = Number(cache.get('admin-fails') || 0);
+  if (fails >= ADMIN_MAX_FAILS) throw new ApiError_('LOCKED', '密碼錯誤太多次，請 10 分鐘後再試');
+  var wrong = function () {
+    cache.put('admin-fails', String(fails + 1), ADMIN_LOCK_SEC);
+    throw new ApiError_('VALIDATION', '舊密碼不正確');
+  };
+  var props = PropertiesService.getScriptProperties();
+  if (ADMIN_SESSION_.role === SUPER_ACCOUNT) {
+    if (oldPw !== props.getProperty('ADMIN_PASSWORD')) wrong();
+    props.setProperty('ADMIN_PASSWORD', newPw);
+    return {};
+  }
+  return withSignupLock_(function () {
+    var row = accountRows_().filter(function (r) { return r['帳號'] === ADMIN_SESSION_.account; })[0];
+    if (!row) throw new ApiError_('NOT_FOUND', '找不到這個帳號，請重新登入');
+    if (hashPassword_(oldPw, row['鹽']) !== row['密碼雜湊']) wrong();
+    var salt = Utilities.getUuid().replace(/-/g, '');
+    updateRow_(SHEETS.ACCOUNTS, row, { '鹽': salt, '密碼雜湊': hashPassword_(newPw, salt) });
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.ACCOUNTS);
+    return {};
+  });
 }
 
 // ---------- 帳號管理（只有總管理者） ----------

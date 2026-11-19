@@ -981,7 +981,7 @@ body.has-modal { overflow: hidden; }
 
 .admin-view { max-width: 720px; }
 
-.admin-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.admin-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 
 .admin-title {
   margin: 4px 0 12px;

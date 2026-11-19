@@ -60,6 +60,8 @@ function switchToWorker() {
 function syncFromWorker() {
   var props = PropertiesService.getScriptProperties();
   var data = workerPost_({ action: 'syncExport', password: props.getProperty('ADMIN_PASSWORD'), statsUpdatedAt: props.getProperty('STATS_UPDATED_AT') || '' });
+  // 總管理者在後台改了密碼：Cloudflare 回傳新密碼，這裡跟著換（兩邊要一樣，見 Accounts.gs adminChangeMyPassword_）
+  if (data.adminPassword) props.setProperty('ADMIN_PASSWORD', data.adminPassword);
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   Object.keys(data.sheets).forEach(function (name) {
     var rows = data.sheets[name];

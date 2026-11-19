@@ -63,13 +63,20 @@ export function createApp(store, opts) {
     },
     /** Google 端每 10 分鐘來拿資料寫回試算表（統計分頁由 Google 端自己算） */
     syncExport(body) {
-      checkPassword(body.password, false);
+      // 總管理者在後台改了密碼（adminChangeMyPassword）：Google 端還拿舊密碼來，認舊密碼，回傳新密碼讓 Google 端換掉；
+      // 之後 Google 端用新密碼來，就把舊密碼刪掉
+      const prev = store.getProp('PREV_ADMIN_PASSWORD');
+      const usedPrev = !!prev && String(body.password || '') === prev;
+      if (!usedPrev) {
+        checkPassword(body.password, false);
+        if (prev) store.deleteProp('PREV_ADMIN_PASSWORD');
+      }
       if (body.statsUpdatedAt) store.setProp('STATS_UPDATED_AT', String(body.statsUpdatedAt));
       store.setProp('LAST_SYNC_AT', gs.nowString_()); // 同步停太久會通知總管理者（PushMore.gs checkSyncHealth_）
       const sheets = {};
       // 帳號（含密碼雜湊）不同步到 Google 試算表
       Object.values(gs.SHEETS).forEach((def) => { if (def.headers.length && def !== gs.SHEETS.ACCOUNTS) sheets[def.name] = store.sheets[def.name] || []; });
-      return { sheets, at: gs.nowString_() };
+      return Object.assign({ sheets, at: gs.nowString_() }, usedPrev ? { adminPassword: store.getProp('ADMIN_PASSWORD') } : {});
     }
   };
   const FILE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
@@ -339,7 +346,12 @@ export function createApp(store, opts) {
       const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || '';
       if (ip) contents = JSON.stringify(Object.assign({}, body, { _client: createHash('sha256').update('dc|' + ip).digest('hex').slice(0, 16) }));
     }
+    const pwBefore = store.getProp('ADMIN_PASSWORD');
     const out = gs.doPost({ postData: { contents } }).text;
+    // 教全區的總管理者改了密碼：記下舊的，等 Google 端同步時換成新的（見 syncExport）
+    if (action === 'adminChangeMyPassword' && curRegion === 'main' && pwBefore && store.getProp('ADMIN_PASSWORD') !== pwBefore && !store.getProp('PREV_ADMIN_PASSWORD')) {
+      store.setProp('PREV_ADMIN_PASSWORD', pwBefore);
+    }
     await flushPush();
     return json(out);
   }
