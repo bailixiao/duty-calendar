@@ -212,6 +212,9 @@
     getDuty: (id) => get('getDuty', { id }),
     // 區中心場地借用
     getFaq: () => get('getFaq', {}),
+    // 分區：開通連結（js/region-setup.js）
+    regionSetupCheck: (token) => post({ action: 'regionSetupCheck', token }),
+    regionSetup: (token, password) => post({ action: 'regionSetup', token, password }),
     getThanks: () => get('thanks', {}), // 感謝排行榜（近三個月了愿次數）
     getRepairs: () => get('getRepairs', {}),
     reportRepair: (p) => post(Object.assign({ action: 'reportRepair' }, p)),

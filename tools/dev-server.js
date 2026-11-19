@@ -36,24 +36,39 @@ async function startMock() {
 }
 
 // 分區（2026/11/19）：一區一份（和正式的 Durable Object 一樣）。教捨區（she）開通好、空的，管理密碼也是 test-pass；其他區沒開通。
+// 開通其他區：node tools/new-region.js fa --mock（金鑰 test-key），印出開通連結。
 const regionWorkers = {};
 async function regionWorker(region) {
   if (region === 'main') return worker;
   if (regionWorkers[region]) return regionWorkers[region];
   const { createApp } = await import('../worker/src/app.js');
   const { createMemoryStore } = await import('../worker/src/store.js');
-  const { REGIONS } = await import('../worker/src/regions.js');
   const store = createMemoryStore();
   const app = createApp(store);
   if (region === 'she') {
-    ['VAPID_PRIVATE', 'VAPID_PUBLIC'].forEach((k) => store.setProp(k, worker.store.getProp(k))); // 推播金鑰各區共用
-    Object.entries({
-      REGION_OPEN: '1', LIVE: '1', ADMIN_PASSWORD: 'test-pass', ADMIN_CONTACT: '測試管理者',
-      SITE_JSON: JSON.stringify({ name: REGIONS.she + '行事曆', org: REGIONS.she, venue: '區中心', locations: ['區中心'], siteUrl: 'http://localhost:' + port + '/she/', aiRegion: REGIONS.she, aiRegionShort: '教捨', shortageTitle: '🙏【教捨區勤務缺人通知】🙏', inviteTitle: '🙏【教捨區 成全邀請】🙏' })
-    }).forEach(([k, v]) => store.setProp(k, v));
+    app.openRegion({ region, vapid: worker.app.vapidKeys(), siteBase: 'http://localhost:' + port + '/' });
+    worker.app.addOpenRegion(region);
+    store.setProp('ADMIN_PASSWORD', 'test-pass');
+    store.setProp('ADMIN_CONTACT', '測試管理者');
   }
   store.persist();
   return (regionWorkers[region] = { app, store });
+}
+
+/** 開通新區（和正式的 /region-admin 一樣，金鑰 test-key） */
+async function handleRegionAdmin(req, res) {
+  const chunks = [];
+  for await (const c of req) chunks.push(c);
+  let body = {};
+  try { body = JSON.parse(Buffer.concat(chunks).toString() || '{}'); } catch (e) { /* 空的 */ }
+  const { regionAdmin } = await import('../worker/src/region-admin.js');
+  const stub = (r) => {
+    const call = (fn) => async (x) => { const w = await regionWorker(r); try { return w.app[fn](x); } finally { w.store.persist(); } };
+    return { vapidKeys: call('vapidKeys'), openRegion: call('openRegion'), addOpenRegion: call('addOpenRegion') };
+  };
+  const out = await regionAdmin(body, { key: 'test-key', siteBase: 'http://localhost:' + port + '/', stub });
+  res.writeHead(200, { 'Content-Type': types['.json'] });
+  res.end(JSON.stringify(out));
 }
 
 async function handleApi(req, res, url) {
@@ -77,6 +92,7 @@ const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   const urlPath = decodeURIComponent(url.pathname);
   if (mock && urlPath === '/api') return handleApi(req, res, url);
+  if (mock && urlPath === '/region-admin' && req.method === 'POST') return handleRegionAdmin(req, res);
   if (mock && urlPath === '/js/config.js') {
     res.writeHead(200, { 'Content-Type': types['.js'], 'Cache-Control': 'no-store' });
     res.end(`window.APP_CONFIG = { API_URL: '/api' };`);

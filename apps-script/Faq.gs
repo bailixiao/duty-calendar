@@ -17,8 +17,9 @@ function faqRowOut_(r) {
 
 /** 預設題目轉成分頁的列（排序 10、20、30⋯ 方便之後插入） */
 function faqSeedRows_() {
-  return FAQ_DEFAULTS_.map(function (f, i) {
-    return { '問題ID': f.id, '對象': f.audience, '分類': f.category, '問題': f.q, '答案': f.a, '別稱': f.alias || '',
+  // regionOnly：只有其他區才有的題目（例：⚙️ 區設定）
+  return FAQ_DEFAULTS_.filter(function (f) { return !f.regionOnly || SITE.org !== '教全區'; }).map(function (f, i) {
+    return { '問題ID': f.id, '對象': f.audience, '分類': f.category, '問題': regionText_(f.q), '答案': regionText_(f.a), '別稱': f.alias || '',
       '按鈕網址': f.linkUrl || '', '按鈕文字': f.linkText || '', '角色': (f.roles || []).join('、'), '排序': String((i + 1) * 10), '啟用': '是', '更新時間': '' };
   });
 }

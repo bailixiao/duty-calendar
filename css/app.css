@@ -1653,6 +1653,9 @@ body:not(.role-super) #view-admin .people-list [data-row] { cursor: default; }
 .account-meta { grid-column: 1 / -1; color: var(--muted); font-size: .9rem; }
 .account-item.is-off .account-main { opacity: .55; }
 .role-pick { display: flex; flex-direction: column; gap: 6px; }
+.site-cats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.site-cats .input { width: 100%; min-width: 0; box-sizing: border-box; }
+.site-cats label { display: flex; flex-direction: column; gap: 4px; font-size: .9em; }
 .role-option { display: grid; grid-template-columns: auto 1fr; gap: 0 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
 .role-option small { grid-column: 2; color: var(--muted); }
 .pw-row { display: flex; gap: 6px; }

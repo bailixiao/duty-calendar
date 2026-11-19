@@ -5,7 +5,7 @@ import { createGs } from './gs.generated.js';
 import * as A from './async-actions.js';
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
-import { REGIONS } from './regions.js';
+import { REGIONS, regionSiteDefaults } from './regions.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -115,6 +115,127 @@ export function createApp(store, opts) {
     return { id };
   };
 
+  // ---------- 分區 ②：開通連結、區設定 ----------
+  let curRegion = 'main'; // 這次請求是哪一區（handle 開頭設定）
+  const SETUP_DAYS = 7;
+  const hashToken = (t) => createHash('sha256').update('setup|' + String(t || '')).digest('hex');
+
+  /** 開通連結對不對、有沒有過期 */
+  function checkSetupToken(token) {
+    const h = store.getProp('SETUP_TOKEN');
+    const exp = Number(store.getProp('SETUP_EXPIRES') || 0);
+    if (!h || !token || hashToken(token) !== h || Date.now() > exp) {
+      throw new gs.ApiError_('BAD_TOKEN', '這個開通連結不對、已經用過或過期了，請向給你連結的人要一個新的');
+    }
+  }
+
+  /** 開通頁：先確認連結有效，顯示區名 */
+  special.regionSetupCheck = (body) => {
+    checkSetupToken(body.token);
+    return { org: gs.getSite_().org, hasPassword: !!store.getProp('ADMIN_PASSWORD') };
+  };
+
+  /** 開通頁：總管理者自己設定密碼（連結只能用一次；設定後原本登入的裝置都要重新登入） */
+  special.regionSetup = (body) => {
+    checkSetupToken(body.token);
+    const pw = String(body.password || '');
+    if (!pw.trim()) throw new gs.ApiError_('BAD_REQUEST', '請輸入密碼');
+    if (pw.length > 100) throw new gs.ApiError_('BAD_REQUEST', '密碼太長了');
+    store.setProp('ADMIN_PASSWORD', pw);
+    store.deleteProp('SETUP_TOKEN');
+    store.deleteProp('SETUP_EXPIRES');
+    store.deleteProp('ADMIN_CURRENT_TOKEN');
+    return { org: gs.getSite_().org };
+  };
+
+  /** 後台「⚙️ 區設定」：只有總管理者；教全區的設定寫在程式裡，不在這裡改 */
+  function requireSiteAdmin(body) {
+    const who = gs.requireAdmin_(body);
+    if (who.role !== '總管理者') throw new gs.ApiError_('FORBIDDEN', '只有總管理者可以改區設定');
+    if (curRegion === 'main') throw new gs.ApiError_('FORBIDDEN', '教全區的設定寫在程式裡，請找 Claude 改');
+    return who;
+  }
+  special.adminSiteGet = (body) => {
+    requireSiteAdmin(body);
+    return { site: gs.getSite_(), contact: store.getProp('ADMIN_CONTACT') || '' };
+  };
+  special.adminSiteSave = (body) => {
+    requireSiteAdmin(body);
+    const s = body.site || {};
+    const str = (v, max, label, need) => {
+      const t = String(v == null ? '' : v).trim();
+      if (need && !t) throw new gs.ApiError_('BAD_REQUEST', '請填「' + label + '」');
+      if (t.length > max) throw new gs.ApiError_('BAD_REQUEST', '「' + label + '」太長了（最多 ' + max + ' 個字）');
+      return t;
+    };
+    const list = (v, label) => {
+      const arr = (Array.isArray(v) ? v : String(v || '').split(/[\n、,，]+/)).map((x) => String(x).trim()).filter(Boolean);
+      const out = arr.filter((x, i) => arr.indexOf(x) === i);
+      if (out.length > 40) throw new gs.ApiError_('BAD_REQUEST', '「' + label + '」最多 40 個');
+      out.forEach((x) => { if (x.length > 20) throw new gs.ApiError_('BAD_REQUEST', '「' + label + '」的「' + x.slice(0, 10) + '⋯」太長了（最多 20 個字）'); });
+      return out;
+    };
+    const org = str(s.org, 12, '區名', true);
+    const cat = s.categoryLabels || {};
+    const f = s.features || {};
+    const cur = gs.getSite_();
+    const site = Object.assign({}, regionSiteDefaults(curRegion), {
+      name: org + '行事曆',
+      org,
+      venue: str(s.venue, 12, '場地名稱', true),
+      temple: cur.temple || '佛堂',
+      categoryLabels: { 勤務: str(cat['勤務'], 10, '勤務的名字', true), 道務: str(cat['道務'], 10, '道務的名字', true), 教育: str(cat['教育'], 10, '教育的名字', true) },
+      locations: list(s.locations, '地點'),
+      eduTeacherClasses: list(s.eduTeacherClasses, '教育統計的班'),
+      overseas: list(s.overseas, '國外的選項'),
+      shortageTitle: str(s.shortageTitle, 40, '缺人通知的標題', true),
+      inviteTitle: str(s.inviteTitle, 40, '邀請的標題', true),
+      features: { venue: f.venue !== false, repair: f.repair !== false, help: f.help !== false, push: f.push !== false },
+      siteUrl: cur.siteUrl,
+      aiRegion: org,
+      aiRegionShort: org.replace(/區$/, '')
+    });
+    if (!site.locations.length) throw new gs.ApiError_('BAD_REQUEST', '「地點」至少要有一個');
+    store.setProp('SITE_JSON', JSON.stringify(site));
+    const contact = str(body.contact, 30, '管理者聯絡人', false);
+    if (contact) store.setProp('ADMIN_CONTACT', contact); else store.deleteProp('ADMIN_CONTACT');
+    gs.applySiteOverrides_();
+    gs.invalidateAllTables_(); // 讀取快取用新的名稱重算（不清整個快取：登入的通行碼也在裡面）
+    return { site: gs.getSite_(), contact };
+  };
+
+  /** 教全區：推播金鑰（開通新區時複製過去） */
+  function vapidKeys() {
+    gs.ensurePushKeys_();
+    return { VAPID_PRIVATE: store.getProp('VAPID_PRIVATE'), VAPID_PUBLIC: store.getProp('VAPID_PUBLIC') };
+  }
+
+  /** 開通這一區（已開通的再叫一次＝換一個新的開通連結，例如總管理者忘了密碼）；回傳連結用的代碼 */
+  function openRegion({ region, vapid, siteBase }) {
+    if (!Object.prototype.hasOwnProperty.call(REGIONS, region)) throw new Error('不認得的區：' + region);
+    const first = store.getProp('REGION_OPEN') !== '1';
+    store.setProp('REGION_OPEN', '1');
+    store.setProp('LIVE', '1'); // 沒有 Google 試算表，一開始就是正式
+    if (!store.getProp('VAPID_PUBLIC') && vapid && vapid.VAPID_PUBLIC) {
+      store.setProp('VAPID_PRIVATE', vapid.VAPID_PRIVATE);
+      store.setProp('VAPID_PUBLIC', vapid.VAPID_PUBLIC);
+    }
+    if (!store.getProp('SITE_JSON')) store.setProp('SITE_JSON', JSON.stringify(regionSiteDefaults(region, siteBase)));
+    const token = crypto.randomUUID().replace(/-/g, '') + crypto.randomUUID().replace(/-/g, '').slice(0, 8);
+    const expires = Date.now() + SETUP_DAYS * 86400000;
+    store.setProp('SETUP_TOKEN', hashToken(token));
+    store.setProp('SETUP_EXPIRES', String(expires));
+    return { token, first, expires: new Date(expires).toISOString(), hasPassword: !!store.getProp('ADMIN_PASSWORD') };
+  }
+
+  /** 教全區記下開通的區（排程用） */
+  function addOpenRegion(code) {
+    const list = openRegions();
+    if (list.indexOf(code) === -1) list.push(code);
+    store.setProp('OPEN_REGIONS', JSON.stringify(list));
+    return list;
+  }
+
   const asyncActions = {
     adminDraftFromImages: (body) => A.adminDraftFromImages(gs, body),
     pushTest: (body) => A.pushTest(gs, body)
@@ -126,7 +247,8 @@ export function createApp(store, opts) {
   async function handle(request) {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     const url = new URL(request.url);
-    if (!isOpen(request.headers.get('X-Region'))) {
+    curRegion = request.headers.get('X-Region') || 'main';
+    if (!isOpen(curRegion)) {
       return json({ ok: false, error: { code: 'NOT_OPEN', message: '這一區的行事曆還沒開通，請聯絡該區的管理者' } });
     }
     gs.applySiteOverrides_(); // 這一區的網站設定（SITE_JSON）蓋在 SITE 上
@@ -196,5 +318,5 @@ export function createApp(store, opts) {
     return (Array.isArray(list) ? list : []).filter((r) => Object.prototype.hasOwnProperty.call(REGIONS, r));
   }
 
-  return { gs, handle, cron, openRegions };
+  return { gs, handle, cron, openRegions, vapidKeys, openRegion, addOpenRegion };
 }

@@ -8,6 +8,7 @@
 //   #/rollcall/<勤務ID>?date=…   當天點名（見 rollcall.js）
 //   #/report/<勤務ID>?date=…     活動回報（見 activity-report.js）
 //   #/admin…                 管理後台（見 admin.js）
+//   #/setup/<代碼>            分區的開通連結：設定總管理者密碼（見 region-setup.js）
 (function () {
   'use strict';
 
@@ -35,6 +36,13 @@
     if (admin) {
       show('admin');
       AdminPage.show(admin[1]);
+      return;
+    }
+    // 分區：開通連結（設定總管理者密碼）
+    const setup = location.hash.match(/^#\/setup\/([0-9a-f]{20,64})$/);
+    if (setup) {
+      show('setup');
+      RegionSetupPage.show(views.setup, setup[1]);
       return;
     }
     // 通知點進來：打開行事曆的「近期」
@@ -231,6 +239,8 @@
     document.querySelectorAll('[data-feature]').forEach((el) => { el.hidden = !!(S.features && S.features[el.dataset.feature] === false); }); // 分區：設定更新後可能再打開
   }
 
+  window.App = { applySite }; // 後台「⚙️ 區設定」存好後重新套用
+
   document.addEventListener('DOMContentLoaded', () => {
     applySite();
     initTextSize();
@@ -243,6 +253,7 @@
     views.help = document.getElementById('view-help');
     views.rollcall = document.getElementById('view-rollcall');
     views.report = document.getElementById('view-report');
+    views.setup = document.getElementById('view-setup');
     CalendarPage.init();
     // 搬家測試：用 ?api=cf 試用 Cloudflare 版時，左下角顯示提示，按一下切回正式版
     if (window.APP_CONFIG.TEST) {

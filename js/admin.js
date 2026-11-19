@@ -131,6 +131,7 @@
     if (sub === 'help') return HelpAdminPage.show(shell('help'), guard); // 📖 教學：所有後台帳號
     if (Api.adminWho().role === '場管' || sub === 'venue') return VenueAdminPage.show(shell('venue'), guard); // 場管帳號只有場地借用（和教學）
     if (sub === 'accounts') return AccountsPage.show(shell('accounts'), guard);
+    if (sub === 'site' && seesSite()) return SitePage.show(shell('site'), guard);
     const m = sub.match(/^duty\/([^?]+)(?:\?date=(\d{4}-\d{2}-\d{2}))?/);
     if (m) return showDuty(decodeURIComponent(m[1]), m[2] || '');
     if (/^duties(\/|\?|$)/.test(sub)) return DutyAdminPage.show(shell('duties'), guard, sub);
@@ -151,8 +152,10 @@
     const who = Api.adminWho();
     const T = term();
     const tabs = [['', '近期' + T], ['day', '📢 通知'], ['duties', T + '管理'], ['members', '成員'], ['groups', '分組'], ['stats', '統計'], ['report', '📑 年度總結'], ['logs', '操作紀錄'], ['push', '📣 推播']];
-    if (['總管理者', '唯讀'].indexOf(who.role) !== -1) tabs.push(['venue', '場地借用']);
+    const venueOn = !(window.SITE.features && window.SITE.features.venue === false); // 分區：沒有場地可借的區關掉
+    if (venueOn && ['總管理者', '唯讀'].indexOf(who.role) !== -1) tabs.push(['venue', '場地借用']);
     if (who.role === '總管理者') tabs.push(['accounts', '帳號']);
+    if (seesSite()) tabs.push(['site', '⚙️ 區設定']);
     if (who.role === '唯讀') tabs.splice(tabs.findIndex((t) => t[0] === 'duties'), 1); // 唯讀帳號：不顯示勤務管理
     if (!seesLogs()) tabs.splice(tabs.findIndex((t) => t[0] === 'logs'), 1); // 操作紀錄只給總管理者
     if (!seesRoster()) ['day', 'push'].forEach((k) => tabs.splice(tabs.findIndex((t) => t[0] === k), 1)); // 名單、推播：總管理者、勤務、道務、教育
@@ -175,6 +178,11 @@
       renderLogin();
     });
     return root.querySelector('[data-body]');
+  }
+
+  /** ⚙️ 區設定：其他區的總管理者（教全區的設定寫在程式裡） */
+  function seesSite() {
+    return !!(window.Region && Region.code) && Api.adminWho().role === '總管理者';
   }
 
   /** 角色說明（勤務／道務／教育／唯讀帳號在每頁上方看到） */

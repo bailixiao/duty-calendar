@@ -40,6 +40,12 @@ function applySiteOverrides_() {
   VENUE_NAME = SITE.venue;
 }
 
+/** 預設文字（常見問題）裡寫到「教全區」「區中心」的地方，其他區換成自己的區名、場地名稱（教全區不變） */
+function regionText_(text) {
+  if (!text || SITE.org === '教全區') return text;
+  return String(text).split('教全區').join(SITE.org).split('區中心').join(SITE.venue);
+}
+
 /** 這一區的網站設定（公開：名稱、場地、用詞、選項、功能開關；前端分區時用，見 js/region.js） */
 function getSite_() {
   var out = JSON.parse(JSON.stringify(SITE));

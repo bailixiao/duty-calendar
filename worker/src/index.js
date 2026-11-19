@@ -3,7 +3,8 @@
 import { DurableObject } from 'cloudflare:workers';
 import { createApp } from './app.js';
 import { createSqlStore } from './store.js';
-import { regionOf } from './regions.js';
+import { regionOf, SITE_BASE } from './regions.js';
+import { regionAdmin } from './region-admin.js';
 
 export class DutyStore extends DurableObject {
   constructor(ctx, env) {
@@ -35,6 +36,11 @@ export class DutyStore extends DurableObject {
   openRegions() {
     return this.app.openRegions();
   }
+
+  // 開通新區用（worker/src/region-admin.js）
+  vapidKeys() { try { return this.app.vapidKeys(); } finally { this.store.persist(); } }
+  openRegion(opts) { try { return this.app.openRegion(opts); } finally { this.store.persist(); } }
+  addOpenRegion(code) { try { return this.app.addOpenRegion(code); } finally { this.store.persist(); } }
 }
 
 function stub(env, region) {
@@ -47,8 +53,15 @@ const badRegion = () => new Response(JSON.stringify({ ok: false, error: { code: 
 });
 
 export default {
-  fetch(request, env) {
-    const region = regionOf(new URL(request.url));
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    if (url.pathname === '/region-admin') { // 開通新區（tools/new-region.js）
+      let body = {};
+      try { body = await request.json(); } catch (e) { /* 空的 */ }
+      const out = request.method === 'POST' ? await regionAdmin(body, { key: env.REGION_ADMIN_KEY, siteBase: SITE_BASE, stub: (r) => stub(env, r) }) : { ok: false };
+      return new Response(JSON.stringify(out), { headers: { 'Content-Type': 'application/json; charset=utf-8' } });
+    }
+    const region = regionOf(url);
     if (!region) return badRegion();
     // 告訴 Durable Object 自己是哪一區（沒開通的區要擋）
     const req = new Request(request);

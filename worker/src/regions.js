@@ -11,3 +11,27 @@ export function regionOf(url) {
   if (!r || r === 'main') return 'main';
   return Object.prototype.hasOwnProperty.call(REGIONS, r) ? r : null;
 }
+
+/** 正式網站的網址（開通連結、推播聯絡用） */
+export const SITE_BASE = 'https://bailixiao.github.io/duty-calendar/';
+
+/** 新開通的區一開始的網站設定（存進那一區的 SITE_JSON；之後總管理者在後台「⚙️ 區設定」改） */
+export function regionSiteDefaults(code, siteBase) {
+  const name = REGIONS[code];
+  return {
+    name: name + '行事曆',
+    org: name,
+    venue: '區中心',
+    temple: '佛堂',
+    categoryLabels: { 勤務: '總務・勤務', 道務: '道務', 教育: '教育' },
+    locations: ['區中心'],
+    eduTeacherClasses: ['讀經班', '青少年班', '高大班', '青年班'],
+    overseas: [],
+    shortageTitle: '🙏【' + name + '勤務缺人通知】🙏',
+    inviteTitle: '🙏【' + name + ' 成全邀請】🙏',
+    features: { venue: true, repair: true, help: true, push: true },
+    siteUrl: (siteBase || SITE_BASE) + code + '/',
+    aiRegion: name,
+    aiRegionShort: name.replace(/區$/, '')
+  };
+}
