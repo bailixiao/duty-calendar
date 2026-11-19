@@ -358,6 +358,12 @@
       rows.sort((a, b) => a.date.localeCompare(b.date) || a.d.name.localeCompare(b.d.name, 'zh-Hant'));
       const shortDates = new Set(rows.filter((r) => r.st.kind === 'short').map((r) => r.date));
 
+      // 放到首頁（2026/11/19）：近期勤務也能直接開關；唯讀不能改，類別帳號只能改自己類別的
+      const who = Api.adminWho().role;
+      const canPin = (d) => who !== '唯讀' && (['勤務', '道務', '教育'].indexOf(who) === -1 || (d.category || '勤務') === who);
+      const pinBtn = (d) => (canPin(d)
+        ? `<button type="button" class="link-btn pin-btn${d.pinned ? ' is-on' : ''}" data-pin="${esc(d.id)}">${d.pinned ? '📌 首頁中・拿掉' : '📌 放到首頁'}</button>` : '');
+
       const byDate = new Map();
       rows.forEach((r) => {
         if (!byDate.has(r.date)) byDate.set(r.date, []);
@@ -385,9 +391,10 @@
                     </span>
                     <span class="badge badge-${st.kind}">${esc(st.label)}</span>
                   </a>
-                  ${d.mode === '公告型' ? '' : `<div class="recent-tools">
-                    <label class="check"><input type="checkbox" data-invite-pick="${esc(d.id)}|${date}"> 勾選</label>
-                    <button type="button" class="link-btn" data-invite="${esc(d.id)}|${date}">📋 複製通知</button>
+                  ${d.mode === '公告型' && !canPin(d) ? '' : `<div class="recent-tools">
+                    ${d.mode === '公告型' ? '' : `<label class="check"><input type="checkbox" data-invite-pick="${esc(d.id)}|${date}"> 勾選</label>
+                    <button type="button" class="link-btn" data-invite="${esc(d.id)}|${date}">📋 複製通知</button>`}
+                    ${pinBtn(d)}
                   </div>`}
                 </div>`).join('')}
             </div>
@@ -409,6 +416,24 @@
         const r = rows.find((x) => x.d.id === id && x.date === date);
         return r ? { duty: r.d, date } : null;
       };
+      // 放到首頁：同一個勤務好幾天都有一列，按一個全部跟著換
+      body.querySelectorAll('[data-pin]').forEach((btn) => btn.addEventListener('click', async () => {
+        const d = data.duties.find((x) => x.id === btn.dataset.pin);
+        if (!d) return;
+        btn.disabled = true;
+        try {
+          d.pinned = (await Api.admin('adminSetPinned', { id: d.id, pinned: !d.pinned })).pinned;
+        } catch (e) {
+          btn.disabled = false;
+          alert(e.message || '沒有改成功，請再試一次');
+          return;
+        }
+        body.querySelectorAll(`[data-pin="${CSS.escape(d.id)}"]`).forEach((b) => {
+          b.disabled = false;
+          b.classList.toggle('is-on', d.pinned);
+          b.textContent = d.pinned ? '📌 首頁中・拿掉' : '📌 放到首頁';
+        });
+      }));
       const flashBtn = (btn, text, back) => { btn.textContent = text; setTimeout(() => { btn.textContent = back; }, 2500); };
       body.querySelectorAll('[data-invite]').forEach((btn) => btn.addEventListener('click', async () => {
         const r = rowOf(btn.dataset.invite);
