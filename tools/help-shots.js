@@ -101,6 +101,52 @@ const SEED = `
   window.__seeded = true;
 `;
 
+// 感謝排行榜、了愿感謝狀、說明加圖片、場地只取消某幾天（2026/11/19）要的資料：過去的出勤用補登加（假名）
+const SEED2 = `
+  if (window.__seeded2) return;
+  const tok = (await __p({ action: 'adminLogin', password: 'test-pass' })).data.token;
+  const res = (await __g({ action: 'getEvents', from: '2026-08-01', to: '2027-01-31' })).data;
+  const today = res.today;
+  const find = (name, start) => res.duties.find((d) => d.name === name && (!start || d.start === start));
+  const add = async (d, pi, date, name, identity) => { if (d && date < today) await __p({ action: 'adminAddAttendee', token: tok, dutyId: d.id, positionId: d.positions[pi].id, date, name, identity: identity || '道親' }); };
+  // 12人小組：好幾天、好幾個職司（感謝狀用）
+  const team = find('12人小組輪值');
+  if (team) {
+    const days = Object.keys(team.days).sort().filter((x) => x < today);
+    for (const x of days.slice(0, 6)) await add(team, 0, x, '測試甲');
+    for (const x of days.slice(0, 4)) await add(team, 0, x, '測試乙');
+    for (const x of days.slice(2, 7)) await add(team, 1, x, '測試丙');
+    for (const x of days.slice(0, 3)) await add(team, 2, x, '王小明', '壇辦');
+    for (const x of days.slice(3, 5)) await add(team, 3, x, '測試丁');
+    for (const x of days.slice(5, 7)) await add(team, 3, x, '測試戊');
+  }
+  // 其他勤務（排行榜用）
+  const vol = res.duties.filter((d) => d.name === '彌勒山志工輪值' && d.start < today);
+  for (const [i, d] of vol.entries()) { await add(d, 0, d.start, i % 2 ? '測試乙' : '測試丁'); if (i < 2) await add(d, 0, d.start, '測試己'); }
+  const clean = res.duties.filter((d) => /打掃|大掃除/.test(d.name) && d.start < today);
+  for (const [i, d] of clean.entries()) { await add(d, 0, d.start, ['測試甲', '測試丙', '王小明', '測試庚'][i % 4], i % 4 === 2 ? '壇辦' : '道親'); }
+  // 場地：之後借好幾天、已同意（只取消某幾天用）
+  const fut = [7, 14, 21].map((n) => { const t = new Date(today + 'T12:00:00'); t.setDate(t.getDate() + n); return t.toISOString().slice(0, 10); });
+  await __p({ action: 'requestVenue', dates: fut, slots: ['19:00', '20:00'], name: '測試乙', phone: '0900-000000', purpose: '讀書會', people: '12' });
+  const vr = (await __p({ action: 'adminVenue', token: tok })).data.requests.filter((r) => fut.includes(r.date) && r.status !== '已同意');
+  if (vr.length) await __p({ action: 'adminVenueDecide', token: tok, ids: vr.map((r) => r.id), decision: '已同意' });
+  // 說明裡的圖片：畫一張示意圖上傳，放進宏宗大掃除的說明
+  const cv = document.createElement('canvas'); cv.width = 800; cv.height = 450; const g = cv.getContext('2d');
+  g.fillStyle = '#f6f1e7'; g.fillRect(0, 0, 800, 450);
+  g.fillStyle = '#d9cbb3'; g.fillRect(60, 250, 680, 140); g.fillStyle = '#555'; g.fillRect(140, 210, 160, 40); g.fillRect(500, 210, 160, 40);
+  g.fillStyle = '#333'; g.font = 'bold 34px sans-serif'; g.fillText('廚房：瓦斯開關位置', 60, 70);
+  g.font = '26px sans-serif'; g.fillText('瓦斯爐', 175, 300); g.fillText('瓦斯爐', 535, 300);
+  g.fillStyle = '#c0392b'; g.fillRect(385, 330, 30, 30); g.strokeStyle = '#c0392b'; g.lineWidth = 6; g.beginPath(); g.arc(400, 345, 42, 0, 7); g.stroke();
+  g.font = 'bold 26px sans-serif'; g.fillText('總開關（用完關掉）', 290, 140); g.beginPath(); g.moveTo(400, 155); g.lineTo(400, 295); g.stroke();
+  const up = await __p({ action: 'adminUploadFile', token: tok, mime: 'image/jpeg', name: 'gas.jpg', data: cv.toDataURL('image/jpeg', 0.9).split(',')[1] });
+  const big = find('宏宗大掃除');
+  if (big && up.ok) {
+    const edit = (await __p({ action: 'adminDutyForEdit', token: tok, id: big.id })).data.duty;
+    await __p({ action: 'adminUpdateDuty', token: tok, id: big.id, duty: Object.assign({}, edit, { description: '大殿、廚房、廁所分區打掃，抹布、清潔劑在儲藏室。\\n離開前請確認瓦斯關好：\\n![廚房瓦斯開關位置](' + up.data.id + ')\\n垃圾分類後帶到一樓。' }) });
+  }
+  window.__seeded2 = true;
+`;
+
 const SHOTS = [
   { name: 'cal-day', hash: '#/', js: `document.querySelector('[data-view=month]').click(); await __wait(800);
 `, tap: '.fc-daygrid-day[data-date="2026-10-10"]',
@@ -141,6 +187,12 @@ const SHOTS = [
     clip: `const f = document.querySelector('#view-venue form'); const sec = f.closest('section') || f; return __box(f, 8);` },
   { name: 'venue-mine', hash: '#/venue', js: `await __wait(1500); const m = document.querySelector('[data-mine]'); m.elements.mname.value = '測試甲'; m.requestSubmit(); await __wait(1500);`,
     clip: `const m = document.querySelector('[data-mine]'); const sec = m.closest('section') || m.parentElement; return __box(sec, 8);` },
+  { name: 'thanks-board', hash: '#/', js: `document.querySelector('[data-view=thanks]').click(); await __wait(2000);`,
+    clip: `const a = document.querySelector('.thanks-head'); a.scrollIntoView(); const r = a.getBoundingClientRect(); return { x: 0, y: r.top + scrollY - 8, width: innerWidth, height: 1000 };` },
+  { name: 'desc-image', hash: null, js: `const d = (await __g({ action: 'getEvents', from: '2026-08-01', to: '2027-01-31' })).data.duties.find((x) => x.name === '宏宗大掃除');
+      location.hash = '#/duty/' + encodeURIComponent(d.id) + '?date=' + d.start; await __wait(2500);
+      for (let i = 0; i < 20 && !document.querySelector('#view-duty .detail-desc img'); i++) await __wait(300); await __wait(600);`,
+    clip: `return __box('#view-duty .detail-desc', 10);` },
   { name: 'adm-recent', admin: true, hash: '#/admin', js: `await __wait(2000); const c = document.querySelectorAll('[data-invite-pick]'); c[0].checked = true; c[0].dispatchEvent(new Event('change')); c[1].checked = true; c[1].dispatchEvent(new Event('change')); await __wait(200);`,
     clip: `return { x: 0, y: 0, width: innerWidth, height: 1300 };` },
   { name: 'adm-notify', admin: true, hash: '#/admin/day', js: `await __wait(1000); document.querySelector('input[name=notify][value=invite]').click(); await __wait(2000); const c = document.querySelectorAll('[data-invite-row]'); c[0].click(); c[1].click(); await __wait(2500);`,
@@ -150,7 +202,20 @@ const SHOTS = [
   { name: 'adm-push', admin: true, hash: '#/admin/push', js: `await __wait(2000); const sel = document.querySelector('select[name=duty]'); sel.selectedIndex = 5; sel.dispatchEvent(new Event('change')); await __wait(300); document.querySelector('[name=mode][value=later]').click(); await __wait(300); const q = document.querySelector('[data-quick]'); if (q) q.click(); await __wait(300);`,
     clip: `return __box('.push-form', 6);` },
   { name: 'adm-venue', admin: true, hash: '#/admin/venue', js: `await __wait(2000);`,
-    clip: `const el = document.querySelector('.venue-reqs'); return __box(el.closest('[data-body]') || el, 4);` }
+    clip: `const el = document.querySelector('.venue-reqs'); return __box(el.closest('[data-body]') || el, 4);` },
+  { name: 'adm-venue-cancel', admin: true, hash: '#/admin/venue', js: `await __wait(2000);
+      const b = [...document.querySelectorAll('[data-cancel]')].find((x) => x.textContent.includes('可選哪幾天')); b.click(); await __wait(600);
+      const c = document.querySelectorAll('.modal-box [data-day]'); c[c.length - 1].click(); await __wait(200);
+      document.querySelector('.modal-box [name=note]').value = '那天區中心有活動';`,
+    clip: `return __box('.modal-box', 4);` },
+  { name: 'adm-thanks', admin: true, hash: null, js: `const d = (await __g({ action: 'getEvents', from: '2026-08-01', to: '2027-01-31' })).data.duties.find((x) => x.name === '12人小組輪值');
+      location.hash = '#/admin/duty/' + encodeURIComponent(d.id) + '?date=' + d.start; await __wait(2500);
+      document.querySelector('[data-thanks]').click(); for (let i = 0; i < 30 && !document.querySelector('.thanks-preview'); i++) await __wait(300); await __wait(1500);`,
+    clip: `return __box('.modal-box', 4);` },
+  { name: 'adm-desc-image', admin: true, hash: null, js: `const d = (await __g({ action: 'getEvents', from: '2026-08-01', to: '2027-01-31' })).data.duties.find((x) => x.name === '宏宗大掃除');
+      location.hash = '#/admin/duties/edit/' + encodeURIComponent(d.id); await __wait(2500);
+      const ta = document.querySelector('textarea[name=description]'); ta.rows = 6; ta.focus(); const at = ta.value.indexOf('![') + 2; ta.setSelectionRange(at, at); await __wait(200);`,
+    clip: `const ta = document.querySelector('textarea[name=description]'); const row = ta.closest('label, .form-row') || ta.parentElement; row.scrollIntoView({ block: 'start' }); const r = row.getBoundingClientRect(); const h = (ta.closest('form').querySelector('.desc-tools') || ta).parentElement.querySelector('.hint') || ta; const e = h.getBoundingClientRect(); return { x: 0, y: r.top + scrollY - 10, width: innerWidth, height: Math.max(e.bottom, ta.getBoundingClientRect().bottom) - r.top + 20 };` }
 ];
 
 async function sheet(files) {
@@ -184,6 +249,7 @@ async function main() {
     await sleep(4500); // 開場動畫
     await run(c, PREP + `localStorage.setItem('duty-calendar:push-ask-later', String(Date.now())); localStorage.setItem('duty-calendar:cat', '全部');`);
     await run(c, PREP + SEED);
+    await run(c, PREP + SEED2);
     await c.send('Page.reload');
     await sleep(4500);
     let adminDone = false;
