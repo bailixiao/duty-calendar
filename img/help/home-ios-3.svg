@@ -7,7 +7,7 @@
 <rect x="12" y="52" width="336" height="576" fill="#f2f2f7"/>
 <text x="34" y="92" font-size="16" fill="#0a7aff"  text-anchor="start">取消</text><text x="180" y="92" font-size="16" fill="#222" font-weight="700" text-anchor="middle">加入主畫面</text><text x="326" y="92" font-size="16" fill="#0a7aff" font-weight="700" text-anchor="end">加入</text>
 <rect x="24" y="118" width="312" height="96" rx="12" fill="#fff"/>
-<g transform="translate(72,166) scale(0.95)"><rect x="-26" y="-26" width="52" height="52" rx="12" fill="#9e3d22"/><text x="0" y="8" font-size="22" fill="#fff" font-weight="700" text-anchor="middle">行</text></g><text x="112" y="160" font-size="16" fill="#222"  text-anchor="start">教全區行事曆</text><rect x="112" y="168" width="208" height="1" fill="#e5e5ea"/><text x="112" y="192" font-size="12" fill="#8e8e93"  text-anchor="start">bailixiao.github.io/duty-calendar</text>
+<g transform="translate(72,166) scale(0.95)"><rect x="-26" y="-26" width="52" height="52" rx="12" fill="#9e3d22"/><text x="0" y="8" font-size="22" fill="#fff" font-weight="700" text-anchor="middle">行</text></g><text x="112" y="160" font-size="16" fill="#222"  text-anchor="start">教全區行事曆</text><rect x="112" y="168" width="208" height="1" fill="#e5e5ea"/><text x="112" y="192" font-size="12" fill="#8e8e93"  text-anchor="start">jiaoquan-cal.pages.dev</text>
 <rect x="24" y="232" width="312" height="46" rx="12" fill="#fff"/><text x="40" y="261" font-size="15" fill="#222"  text-anchor="start">以網頁 App 打開</text><rect x="278" y="244" width="46" height="24" rx="12" fill="#34c759"/><circle cx="312" cy="256" r="10" fill="#fff"/>
 <text x="180" y="300" font-size="12" fill="#8e8e93"  text-anchor="middle">（有這一行的話，保持打開）</text>
 <circle cx="305" cy="86" r="28" fill="none" stroke="#e0262b" stroke-width="5"/>

@@ -19,7 +19,7 @@ var SITE = {
   categoryLabels: { 勤務: '總務・勤務', 道務: '道務', 教育: '教育' },
   locations: ['宏宗', '區中心', '彌勒山', '厚德樓', '樹林頭活動地'],
   overseas: ['陸', '韓國'], // 成員的「國外」選項（空白＝台灣）：統計算在同名的佛堂卡片，不算年齡統計
-  siteUrl: 'https://bailixiao.github.io/duty-calendar/', // 網站網址（推播服務聯絡用）
+  siteUrl: 'https://jiaoquan-cal.pages.dev/', // 網站網址（推播服務聯絡用）
   aiRegion: '教全區',   // 照片草稿：只整理這個區的部分
   aiRegionShort: '教全' // 照片上可能的簡寫
 };
@@ -30,7 +30,7 @@ var SITE = {
  * 載入時就從 SITE 取值的（OPTIONS.location、VENUE_NAME）一起更新。
  */
 var SITE_DEFAULT_JSON_ = null;
-function applySiteOverrides_() {
+function applySiteOverrides_(siteUrl) {
   if (!SITE_DEFAULT_JSON_) SITE_DEFAULT_JSON_ = JSON.stringify(SITE);
   var over = {};
   try { over = JSON.parse(PropertiesService.getScriptProperties().getProperty('SITE_JSON') || '{}') || {}; } catch (e) { over = {}; }
@@ -38,6 +38,7 @@ function applySiteOverrides_() {
   Object.assign(SITE, JSON.parse(SITE_DEFAULT_JSON_), over);
   OPTIONS.location = SITE.locations;
   VENUE_NAME = SITE.venue;
+  if (siteUrl) SITE.siteUrl = siteUrl; // 網站網址以程式為準（SITE_JSON 裡存的可能是搬家前的舊網址）
 }
 
 /** 預設文字（常見問題）裡寫到「教全區」「區中心」的地方，其他區換成自己的區名、場地名稱（教全區不變） */

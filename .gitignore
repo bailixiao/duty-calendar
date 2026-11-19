@@ -3,3 +3,4 @@ worker/src/gs.generated.js
 worker/.wrangler/
 worker/node_modules/
 worker/.region-admin-key
+.pages-dist/

@@ -13,7 +13,7 @@ export function regionOf(url) {
 }
 
 /** 正式網站的網址（開通連結、推播聯絡用） */
-export const SITE_BASE = 'https://bailixiao.github.io/duty-calendar/';
+export const SITE_BASE = 'https://jiaoquan-cal.pages.dev/'; // 2026/11/19 從 bailixiao.github.io/duty-calendar/ 搬過來（tools/build-pages.js）
 
 /** 新開通的區一開始的網站設定（存進那一區的 SITE_JSON；之後總管理者在後台「⚙️ 區設定」改） */
 export function regionSiteDefaults(code, siteBase) {

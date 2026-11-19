@@ -184,7 +184,14 @@
 node --test
 ```
 
-## 6. 發布前端（GitHub Pages）
+## 6. 發布前端（Cloudflare Pages）
+
+> 2026/11/19 起正式網站在 **https://jiaoquan-cal.pages.dev/**（Cloudflare Pages 專案 `jiaoquan-cal`）。
+> 每次改完前端：`node tools/build-pages.js --deploy`（固定用 wrangler@4.40.0：新版 wrangler 的 pages 指令會變成建立 Worker）。
+> 舊網址 `bailixiao.github.io/duty-calendar/` 仍由 GitHub Pages 提供，`index.html` 最前面會轉到新網址（push 到 main 才會更新舊網址那份）。
+
+以下是當初用 GitHub Pages 的步驟（舊網址）：
+
 
 1. 確認 `js/config.js` 的 `API_URL` 是第 5 步部署得到的網址（結尾 `/exec`）。
 2. 到 GitHub 儲存庫頁面 → **Settings → Pages**。

@@ -14,17 +14,18 @@
 | 其他區 | 真的想用 |
 | 各區組織 | 跟教全區差不多（總務、道務、教育、佛堂、分組），功能全部共用 |
 | Google 試算表 | **新的區不用**。只看後台，需要時下載 Excel |
-| 教全區 | 搬進分區系統，網址維持 `https://bailixiao.github.io/duty-calendar/` 不變 |
+| 教全區 | 搬進分區系統。2026/11/19 全部搬到 `https://jiaoquan-cal.pages.dev/`（舊網址自動轉過去） |
 
 ---
 
 ## 2. 家人們看到的樣子
 
 ### 2.1 網址
-- 教全區：`https://bailixiao.github.io/duty-calendar/`（**不變**，已經加到主畫面的不用重加）
+- 2026/11/19 起網站在 `https://jiaoquan-cal.pages.dev/`（Cloudflare Pages，`node tools/build-pages.js --deploy`）。舊網址 `bailixiao.github.io/duty-calendar/…` 打開會自動轉過去（路徑、?…、#… 一起帶）；但網域不同，手機裡記的東西（字體大小、查報名的名字）、加到主畫面的圖示、🔔 手機提醒都要在新網址重新設定（舊網址開的提醒還會繼續收到）。
+- 教全區：`https://jiaoquan-cal.pages.dev/`
 - 其他區：網址後面加區的代號，一區一個資料夾，例如
-  - 教真區：`https://bailixiao.github.io/duty-calendar/zhen/`
-  - 教善區：`https://bailixiao.github.io/duty-calendar/shan/`
+  - 教真區：`https://jiaoquan-cal.pages.dev/zhen/`
+  - 教善區：`https://jiaoquan-cal.pages.dev/shan/`
 - 代號用短的英文字母，因為中文網址貼到 LINE 會變成一長串 `%E6%95%99…`，看起來像壞掉的連結。
 - 建議代號（可改）：
 
@@ -102,7 +103,7 @@
 - **推播金鑰**（VAPID）：13 區共用同一組，存在 Worker secret。因為同一個網站在手機上只能有一組推播金鑰，用不同組的話，開第二個區的提醒會把第一個區的弄壞。推播網址各區自己記。手機收到通知後來拿內容時，帶上是哪一區。
 - 防止亂報名、AI 讀照片、檔案上傳：照舊，各區分開算。
 
-### 4.2 前端（GitHub Pages）
+### 4.2 前端（Cloudflare Pages，2026/11/19 前是 GitHub Pages）
 - 13 區用同一份 `index.html`、js、css。
 - `tools/build-regions.js` 幫每一區產生一個資料夾（`zhen/`、`shan/`⋯），裡面只有：
   - 很小的 `index.html`：設定區代號，再載入上一層的共用檔案。

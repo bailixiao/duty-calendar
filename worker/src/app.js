@@ -5,7 +5,7 @@ import { createGs } from './gs.generated.js';
 import * as A from './async-actions.js';
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
-import { REGIONS, regionSiteDefaults } from './regions.js';
+import { REGIONS, regionSiteDefaults, SITE_BASE } from './regions.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -199,7 +199,7 @@ export function createApp(store, opts) {
     store.setProp('SITE_JSON', JSON.stringify(site));
     const contact = str(body.contact, 30, '管理者聯絡人', false);
     if (contact) store.setProp('ADMIN_CONTACT', contact); else store.deleteProp('ADMIN_CONTACT');
-    gs.applySiteOverrides_();
+    applySite();
     gs.invalidateAllTables_(); // 讀取快取用新的名稱重算（不清整個快取：登入的通行碼也在裡面）
     return { site: gs.getSite_(), contact };
   };
@@ -299,6 +299,9 @@ export function createApp(store, opts) {
   };
 
   /** 分區（2026/11/19）：教全區（main）一直都能用；其他區要開通（REGION_OPEN＝1）才能用 */
+  /** 這一區的網站設定（SITE_JSON）蓋在 SITE 上；網站網址用 SITE_BASE（各區 …/she/） */
+  const applySite = () => gs.applySiteOverrides_(SITE_BASE + (curRegion && curRegion !== 'main' ? curRegion + '/' : ''));
+
   const isOpen = (region) => !region || region === 'main' || store.getProp('REGION_OPEN') === '1';
 
   async function handle(request) {
@@ -309,7 +312,7 @@ export function createApp(store, opts) {
     if (!isOpen(curRegion)) {
       return json({ ok: false, error: { code: 'NOT_OPEN', message: '這一區的行事曆還沒開通，請聯絡該區的管理者' } });
     }
-    gs.applySiteOverrides_(); // 這一區的網站設定（SITE_JSON）蓋在 SITE 上
+    applySite(); // 這一區的網站設定（SITE_JSON）蓋在 SITE 上
     if (request.method === 'GET' && url.searchParams.get('action') === 'file') {
       // DM 檔案：代號不會重複使用，可以長期快取
       const f = store.getFile(String(url.searchParams.get('id') || ''));
@@ -355,10 +358,11 @@ export function createApp(store, opts) {
   /** 每天兩次的推播（正式切換後才送，避免和 Google 端重複） */
   async function cron(when, region) {
     if (!isOpen(region)) return { skipped: 'not-open' };
+    curRegion = region || 'main';
     countRequest();
     flushUsage();
     if (store.getProp('LIVE') !== '1') return { skipped: 'not-live' };
-    gs.applySiteOverrides_();
+    applySite();
     if (when === 'plans') { // 每 5 分鐘：排定時間到了的後台推播
       const res = gs.runDuePushPlans_();
       await flushPush();

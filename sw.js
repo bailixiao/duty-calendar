@@ -6,7 +6,7 @@
 //   - 資料 API（script.google.com）一律不經過這裡，永遠向伺服器拿。
 'use strict';
 
-// 同一個網域（bailixiao.github.io）底下可能有好幾個網站（例如書槑子），手機裡的快取是共用的：
+// 同一個網域底下可能有好幾個網站（舊網址 bailixiao.github.io 下還有書槑子），手機裡的快取是共用的：
 // 快取名稱帶上這個網站的路徑，清舊快取時只清自己的，不會清掉別的網站的。
 const PREFIX = 'duty-calendar:' + new URL('./', self.location).pathname + ':';
 const CACHE = PREFIX + 'v3';
