@@ -22,7 +22,7 @@
   const standalone = () => (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
   const inLine = () => /\bLine\//i.test(navigator.userAgent);
   /** 同一頁的網址加上 openExternalBrowser=1：在 LINE 裡打開時，LINE 會改用手機的瀏覽器開啟 */
-  const externalUrl = () => location.origin + location.pathname + '?openExternalBrowser=1' + location.hash;
+  const externalUrl = () => Region.home() + '?openExternalBrowser=1' + location.hash;
   const supported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 
   function b64ToBytes(b64) {
@@ -56,12 +56,31 @@
     if (perm !== 'granted') throw new Error(perm === 'denied' ? '通知目前被封鎖了，麻煩您到手機的「設定 → 通知」允許本網站，謝謝您 🙏' : '您還沒有允許通知，所以沒有開啟。');
     const reg = await registration();
     let sub = await reg.pushManager.getSubscription();
+    const had = !!sub;
     if (!sub) {
       const { publicKey } = await Api.pushKey();
       sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(publicKey) });
       if (!localStorage.getItem(DAILY_KEY)) setDaily('0');
     }
+    await rememberRegion(had);
     return sub.endpoint;
+  }
+
+  /**
+   * 分區（2026/11/19）：記下這支手機開了哪幾區的通知（sw.js 收到推播時向這幾區拿內容）。教全區記成 ''。
+   * 還沒記過、但手機本來就有推播網址的，是以前在教全區開的，一起記上教全區。
+   */
+  async function rememberRegion(had) {
+    try {
+      const name = 'duty-calendar-push-regions:' + new URL('./', location.href).pathname;
+      const cache = await caches.open(name);
+      const res = await cache.match('regions');
+      let list = res ? await res.json() : null;
+      if (!Array.isArray(list)) list = had ? [''] : [];
+      const me = window.Region ? Region.code : '';
+      if (list.indexOf(me) === -1) list.push(me);
+      await cache.put('regions', new Response(JSON.stringify(list), { headers: { 'Content-Type': 'application/json' } }));
+    } catch (e) { /* 記不住：sw.js 當作只有教全區 */ }
   }
 
   /** 能不能在這裡開通知：'ok' | 'line' | 'ios-install' | 'unsupported' | 'denied' */

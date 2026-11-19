@@ -43,8 +43,12 @@
    * 之後每隔 waits[i] 再加送一個，最多送 waits.length + 1 個。全部都連線失敗才算失敗。
    * 只有讀取會這樣做；報名（寫入）不重送，避免重複寫入。
    */
+  /** API 網址（分區：其他區加 region=<代號>，見 js/region.js） */
+  const apiUrl = () => (window.Region ? Region.api(window.APP_CONFIG.API_URL) : window.APP_CONFIG.API_URL);
+
   function get(action, params, waitList) {
-    const url = window.APP_CONFIG.API_URL + '?' + new URLSearchParams(Object.assign({ action }, params || {})).toString();
+    const base = apiUrl();
+    const url = base + (base.indexOf('?') === -1 ? '?' : '&') + new URLSearchParams(Object.assign({ action }, params || {})).toString();
     const waits = waitList || [3500, 5000, 10000];
     return new Promise((resolve, reject) => {
       const ctrls = [];
@@ -104,7 +108,7 @@
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 90000);
     try {
-      const res = await fetch(window.APP_CONFIG.API_URL, {
+      const res = await fetch(apiUrl(), {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(body),
@@ -227,7 +231,7 @@
     reportUpload: (p) => post(Object.assign({ action: 'reportUpload' }, p)),
     loginAccounts: () => get('loginAccounts', {}),
     // DM 檔案（照片、PDF）的網址
-    fileUrl: (id) => window.APP_CONFIG.API_URL + (window.APP_CONFIG.API_URL.indexOf('?') === -1 ? '?' : '&') + 'action=file&id=' + encodeURIComponent(id),
+    fileUrl: (id) => { const u = apiUrl(); return u + (u.indexOf('?') === -1 ? '?' : '&') + 'action=file&id=' + encodeURIComponent(id); },
     // 開網站時一次打包：行事曆＋近 30 天勤務詳情（資料較多，第一次等久一點）
     getBundle: (from, to) => get('getBundle', { from, to }, [4500, 6000, 10000]),
     // 名字提示要快：平常 2 秒內回來，3 秒沒回來就同時再問一次

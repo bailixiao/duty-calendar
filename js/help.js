@@ -230,7 +230,7 @@
       }
       const c = ev.target.closest('[data-copy]');
       if (c) {
-        const url = location.origin + location.pathname + opts.linkBase + encodeURIComponent(c.dataset.copy);
+        const url = Region.home() + opts.linkBase + encodeURIComponent(c.dataset.copy);
         const ok = await Share.copyText(url);
         c.textContent = ok ? '已複製 ✓ 可以貼到 LINE' : '複製失敗';
         setTimeout(() => { c.textContent = '🔗 複製這題的連結'; }, 2500);

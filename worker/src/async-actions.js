@@ -22,6 +22,9 @@ export async function sendPushTo(gs, endpoints) {
   if (!keys) throw new gs.ApiError_('CONFIG', '推播尚未設定，請管理者在 Apps Script 執行 setupPush');
   const nowSec = Math.floor(Date.now() / 1000);
   const jwts = {};
+  // 分區（2026/11/19）：記下「這一區剛送推播給這支手機」，手機來拿內容時（pushSummary 的 sent）才分得出是哪一區送的
+  const cache = gs.cacheForAsync_();
+  endpoints.forEach((ep) => cache.put('pushsent:' + gs.pushIdOf_(ep), '1', 900));
   return Promise.all(endpoints.map(async (ep) => {
     const aud = ep.match(/^https:\/\/[^/]+/)[0];
     if (!jwts[aud]) jwts[aud] = gs.vapidJwt_(aud, keys.d, nowSec);

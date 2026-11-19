@@ -10,5 +10,6 @@
     if (m) localStorage.setItem('duty-calendar:api', m[1]);
     choice = localStorage.getItem('duty-calendar:api') || DEFAULT;
   } catch (e) { /* 無痕模式等：用預設 */ }
+  if (window.Region && Region.code) choice = 'cf'; // 分區：其他區只有 Cloudflare 版
   window.APP_CONFIG = { API_URL: choice === 'cf' ? CF : GAS, API_NAME: choice, TEST: choice !== DEFAULT };
 })();

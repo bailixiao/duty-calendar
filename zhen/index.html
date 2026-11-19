@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>教真區行事曆</title>
+<script>
+// 由 tools/build-regions.js 產生，不要直接改。轉到 教真區的行事曆（網址後面的 ?… 和 #… 一起帶過去）
+(function () {
+  var q = location.search.replace(/^\?/, '');
+  location.replace('../?r=zhen' + (q ? '&' + q : '') + location.hash);
+})();
+</script>
+</head>
+<body><p style="font:18px sans-serif;text-align:center;margin-top:30vh">打開教真區行事曆中⋯</p></body>
+</html>

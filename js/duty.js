@@ -318,6 +318,7 @@
 
   /** 這個勤務的重點圖片（設定在 duty-images.js） */
   function imagesFor(name) {
+    if (window.Region && Region.code) return []; // 分區：這些圖是教全區的，其他區用勤務說明的「📷 加圖片」
     return (window.DUTY_IMAGES || []).filter((x) => name && name.indexOf(x.match) !== -1).flatMap((x) => x.images);
   }
 

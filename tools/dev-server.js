@@ -35,11 +35,40 @@ async function startMock() {
   worker = { app, store };
 }
 
+// 分區（2026/11/19）：一區一份（和正式的 Durable Object 一樣）。教捨區（she）開通好、空的，管理密碼也是 test-pass；其他區沒開通。
+const regionWorkers = {};
+async function regionWorker(region) {
+  if (region === 'main') return worker;
+  if (regionWorkers[region]) return regionWorkers[region];
+  const { createApp } = await import('../worker/src/app.js');
+  const { createMemoryStore } = await import('../worker/src/store.js');
+  const { REGIONS } = await import('../worker/src/regions.js');
+  const store = createMemoryStore();
+  const app = createApp(store);
+  if (region === 'she') {
+    ['VAPID_PRIVATE', 'VAPID_PUBLIC'].forEach((k) => store.setProp(k, worker.store.getProp(k))); // 推播金鑰各區共用
+    Object.entries({
+      REGION_OPEN: '1', LIVE: '1', ADMIN_PASSWORD: 'test-pass', ADMIN_CONTACT: '測試管理者',
+      SITE_JSON: JSON.stringify({ name: REGIONS.she + '行事曆', org: REGIONS.she, venue: '區中心', locations: ['區中心'], siteUrl: 'http://localhost:' + port + '/she/', aiRegion: REGIONS.she, aiRegionShort: '教捨', shortageTitle: '🙏【教捨區勤務缺人通知】🙏', inviteTitle: '🙏【教捨區 成全邀請】🙏' })
+    }).forEach(([k, v]) => store.setProp(k, v));
+  }
+  store.persist();
+  return (regionWorkers[region] = { app, store });
+}
+
 async function handleApi(req, res, url) {
   const chunks = [];
   for await (const c of req) chunks.push(c);
-  const r = await worker.app.handle(new Request('http://localhost/' + url.search, req.method === 'POST' ? { method: 'POST', body: Buffer.concat(chunks) } : undefined));
-  worker.store.persist();
+  const { regionOf } = await import('../worker/src/regions.js');
+  const region = regionOf(url);
+  if (!region) {
+    res.writeHead(200, { 'Content-Type': types['.json'] });
+    res.end(JSON.stringify({ ok: false, error: { code: 'BAD_REGION', message: '找不到這一區，請確認網址' } }));
+    return;
+  }
+  const w = await regionWorker(region);
+  const r = await w.app.handle(new Request('http://localhost/' + url.search, Object.assign({ headers: { 'X-Region': region } }, req.method === 'POST' ? { method: 'POST', body: Buffer.concat(chunks) } : {})));
+  w.store.persist();
   res.writeHead(r.status, Object.fromEntries(r.headers));
   res.end(Buffer.from(await r.arrayBuffer()));
 }
@@ -53,7 +82,7 @@ const server = http.createServer((req, res) => {
     res.end(`window.APP_CONFIG = { API_URL: '/api' };`);
     return;
   }
-  const file = path.join(root, urlPath === '/' ? 'index.html' : urlPath);
+  const file = path.join(root, urlPath.endsWith('/') ? urlPath + 'index.html' : urlPath); // 資料夾（例：/she/、/j/）開裡面的 index.html
   if (!file.startsWith(root)) {
     res.writeHead(403).end();
     return;

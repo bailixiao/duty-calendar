@@ -46,7 +46,7 @@
   }
 
   function dutyUrl(info) {
-    return `${location.origin}${location.pathname}#/duty/${encodeURIComponent(info.dutyId)}?date=${info.date}`;
+    return `${Region.home()}#/duty/${encodeURIComponent(info.dutyId)}?date=${info.date}`;
   }
 
   function googleUrl(info) {

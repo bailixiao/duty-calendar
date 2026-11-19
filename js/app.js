@@ -228,7 +228,7 @@
     // data-site-tpl：整段文字的範本，{venue} 這類換成設定（只換文字，不拆開元素，排版不變）
     document.querySelectorAll('[data-site-tpl]').forEach((el) => { el.textContent = el.dataset.siteTpl.replace(/\{(\w+)\}/g, (m, k) => S[k] || ''); });
     document.querySelectorAll('[data-site-cat]').forEach((el) => { el.textContent = Fmt.catLabel(el.dataset.siteCat); });
-    document.querySelectorAll('[data-feature]').forEach((el) => { if (S.features && S.features[el.dataset.feature] === false) el.hidden = true; });
+    document.querySelectorAll('[data-feature]').forEach((el) => { el.hidden = !!(S.features && S.features[el.dataset.feature] === false); }); // 分區：設定更新後可能再打開
   }
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -256,5 +256,13 @@
     hideSplashWhenReady();
     window.addEventListener('hashchange', route);
     route();
+    // 分區：向伺服器拿這一區最新的設定（名稱、場地、功能開關）；還沒開通就整頁顯示提示
+    if (window.Region && Region.code) {
+      Region.refreshSite().then((ok) => {
+        if (ok) { applySite(); return; }
+        const main = document.querySelector('.app-main');
+        if (main) main.innerHTML = `<div class="notice" style="margin:24px 16px"><p><strong>${Fmt.esc(Region.name)}的行事曆還沒開通</strong></p><p class="muted">請聯絡${Fmt.esc(Region.name)}的管理者，開通後就可以使用了 🙏</p></div>`;
+      });
+    }
   });
 })();

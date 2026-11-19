@@ -227,6 +227,12 @@ function pushSummary_(params) {
   var hour = Number(Utilities.formatDate(new Date(), TIME_ZONE, 'H'));
   var when = hour < 12 ? 'today' : 'tomorrow';
   var data = pushItems_(when);
+  // 分區（2026/11/19）：這一區 15 分鐘內有沒有送推播給這支手機（同一支手機開了好幾區時，用來分是哪一區送的；拿過就清掉）
+  data.sent = false;
+  if (params.id && CacheService.getScriptCache().get('pushsent:' + params.id)) {
+    CacheService.getScriptCache().remove('pushsent:' + params.id);
+    data.sent = true;
+  }
   if (params.id && CacheService.getScriptCache().get('pushtest:' + params.id)) {
     CacheService.getScriptCache().remove('pushtest:' + params.id);
     data.test = true;

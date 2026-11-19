@@ -1,0 +1,32 @@
+{
+  "name": "教孝區行事曆",
+  "short_name": "教孝區行事曆",
+  "description": "教孝區勤務報名與行事曆",
+  "lang": "zh-Hant-TW",
+  "start_url": "../?r=xiao",
+  "scope": "../",
+  "display": "standalone",
+  "background_color": "#f6f1e7",
+  "theme_color": "#f6f1e7",
+  "icons": [
+    {
+      "src": "../icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "../icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "../icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "id": "../?r=xiao"
+}

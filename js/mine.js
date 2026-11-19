@@ -227,7 +227,7 @@
     const cats = Object.keys(r.byCat).map((c) => `${L[c] || c} ${r.byCat[c]} 次`).join('、');
     const lines = [`🌟 ${current.name} 的 ${r.year - 1911} 年成全紀錄`, `今年在${window.SITE.org}參加了 ${r.total} 次${cats ? `（${cats}）` : ''}`];
     if (r.top) lines.push(`最常參加：${r.top}（${r.topTimes} 次）`);
-    lines.push('感恩大家一起成全 🙏', Share.siteUrl ? Share.siteUrl() : location.origin + location.pathname);
+    lines.push('感恩大家一起成全 🙏', Share.siteUrl ? Share.siteUrl() : Region.home());
     return lines.join('\n');
   }
 

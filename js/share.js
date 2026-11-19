@@ -4,8 +4,11 @@
   'use strict';
 
   /** 網站網址；加上 openExternalBrowser=1，從 LINE 點連結會直接用手機的瀏覽器開啟（LINE 內建瀏覽器收不到提醒） */
+  /** 這一區的網址（分區：其他區是 …/she/，見 js/region.js） */
+  const home = () => (window.Region ? Region.home() : location.origin + location.pathname);
+
   function siteUrl() {
-    return location.origin + location.pathname + '?openExternalBrowser=1';
+    return home() + '?openExternalBrowser=1';
   }
 
   /**
@@ -16,7 +19,7 @@
     const m = /^D-20(\d{6})-([0-9a-f]{6})$/.exec(id || '');
     const d = /^20(\d{2})-(\d{2})-(\d{2})$/.exec(date || '');
     if (!m) return `${siteUrl()}#/duty/${encodeURIComponent(id)}?${date ? `date=${date}&` : ''}go=signup`;
-    return `${location.origin}${location.pathname}j/?${m[1]}${m[2]}${d ? `-${d[1]}${d[2]}${d[3]}` : ''}`;
+    return `${home()}j/?${m[1]}${m[2]}${d ? `-${d[1]}${d[2]}${d[3]}` : ''}`;
   }
 
   /** 依勤務名稱配一個小圖示，讓通知比較生動 */

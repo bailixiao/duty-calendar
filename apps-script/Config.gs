@@ -24,6 +24,30 @@ var SITE = {
   aiRegionShort: '教全' // 照片上可能的簡寫
 };
 
+/**
+ * 分區（2026/11/19）：各區的網站設定存在指令碼屬性 SITE_JSON（Cloudflare 版每次處理請求前呼叫），
+ * 蓋在上面的 SITE 預設值上。教全區（和 Google 試算表端）沒有 SITE_JSON，維持原值。
+ * 載入時就從 SITE 取值的（OPTIONS.location、VENUE_NAME）一起更新。
+ */
+var SITE_DEFAULT_JSON_ = null;
+function applySiteOverrides_() {
+  if (!SITE_DEFAULT_JSON_) SITE_DEFAULT_JSON_ = JSON.stringify(SITE);
+  var over = {};
+  try { over = JSON.parse(PropertiesService.getScriptProperties().getProperty('SITE_JSON') || '{}') || {}; } catch (e) { over = {}; }
+  Object.keys(SITE).forEach(function (k) { delete SITE[k]; });
+  Object.assign(SITE, JSON.parse(SITE_DEFAULT_JSON_), over);
+  OPTIONS.location = SITE.locations;
+  VENUE_NAME = SITE.venue;
+}
+
+/** 這一區的網站設定（公開：名稱、場地、用詞、選項、功能開關；前端分區時用，見 js/region.js） */
+function getSite_() {
+  var out = JSON.parse(JSON.stringify(SITE));
+  delete out.aiRegion;
+  delete out.aiRegionShort;
+  return out;
+}
+
 /** 各分頁的欄位（順序即 Sheet 欄位順序，見規格第 9 節） */
 var SHEETS = {
   MEMBERS: {

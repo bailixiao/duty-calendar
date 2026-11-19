@@ -32,6 +32,7 @@ function doGet(e) {
       case 'thanks': return cachedRead_('thanks', p, function () { return thanksBoard_(); });
       case 'getRepairs': return getRepairs_(p);
       case 'pushClick': return pushClick_(p);
+      case 'getSite': return getSite_();
       default: throw new ApiError_('BAD_REQUEST', '未知的 action：' + (p.action || '（空白）'));
     }
   });

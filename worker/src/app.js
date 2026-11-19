@@ -5,6 +5,7 @@ import { createGs } from './gs.generated.js';
 import * as A from './async-actions.js';
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
+import { REGIONS } from './regions.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -119,9 +120,16 @@ export function createApp(store, opts) {
     pushTest: (body) => A.pushTest(gs, body)
   };
 
+  /** 分區（2026/11/19）：教全區（main）一直都能用；其他區要開通（REGION_OPEN＝1）才能用 */
+  const isOpen = (region) => !region || region === 'main' || store.getProp('REGION_OPEN') === '1';
+
   async function handle(request) {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     const url = new URL(request.url);
+    if (!isOpen(request.headers.get('X-Region'))) {
+      return json({ ok: false, error: { code: 'NOT_OPEN', message: '這一區的行事曆還沒開通，請聯絡該區的管理者' } });
+    }
+    gs.applySiteOverrides_(); // 這一區的網站設定（SITE_JSON）蓋在 SITE 上
     if (request.method === 'GET' && url.searchParams.get('action') === 'file') {
       // DM 檔案：代號不會重複使用，可以長期快取
       const f = store.getFile(String(url.searchParams.get('id') || ''));
@@ -165,8 +173,10 @@ export function createApp(store, opts) {
   }
 
   /** 每天兩次的推播（正式切換後才送，避免和 Google 端重複） */
-  async function cron(when) {
+  async function cron(when, region) {
+    if (!isOpen(region)) return { skipped: 'not-open' };
     if (store.getProp('LIVE') !== '1') return { skipped: 'not-live' };
+    gs.applySiteOverrides_();
     if (when === 'plans') { // 每 5 分鐘：排定時間到了的後台推播
       const res = gs.runDuePushPlans_();
       await flushPush();
@@ -179,5 +189,12 @@ export function createApp(store, opts) {
     return res;
   }
 
-  return { gs, handle, cron };
+  /** 已開通的區（只有教全區 main 記這個，排程用） */
+  function openRegions() {
+    let list = [];
+    try { list = JSON.parse(store.getProp('OPEN_REGIONS') || '[]'); } catch (e) { /* 壞掉就當沒有 */ }
+    return (Array.isArray(list) ? list : []).filter((r) => Object.prototype.hasOwnProperty.call(REGIONS, r));
+  }
+
+  return { gs, handle, cron, openRegions };
 }

@@ -670,7 +670,7 @@
       return;
     }
     Busy.hide();
-    const url = location.origin + location.pathname + '?openExternalBrowser=1#/report/' + encodeURIComponent(res.dutyId) + '?date=' + res.date;
+    const url = Region.home() + '?openExternalBrowser=1#/report/' + encodeURIComponent(res.dutyId) + '?date=' + res.date;
     const text = `📝 ${res.name}（${Fmt.shortDate(res.date)}）活動回報\n回報連結：${url}\n回報碼：${res.code}（打開連結後按「我有回報碼」輸入）\n（活動結束後請填一下整體狀況、遇到的問題、下次可以改進的地方，可以附照片；${res.openDays} 天內都能填、也能修改，感恩 🙏）`;
     const m = Modal.open(`
       <h2 class="modal-title">🔢 活動回報碼</h2>
@@ -700,7 +700,7 @@
       return;
     }
     Busy.hide();
-    const url = location.origin + location.pathname + '?openExternalBrowser=1#/rollcall/' + encodeURIComponent(res.dutyId) + '?date=' + res.date;
+    const url = Region.home() + '?openExternalBrowser=1#/rollcall/' + encodeURIComponent(res.dutyId) + '?date=' + res.date;
     const text = `📋 ${res.name}（${Fmt.shortDate(res.date)}）點名\n點名連結：${url}\n點名碼：${res.code}\n（連結只有當天能用，沒來的人按「未到」就好，感恩 🙏）`;
     const m = Modal.open(`
       <h2 class="modal-title">📋 點名連結</h2>
