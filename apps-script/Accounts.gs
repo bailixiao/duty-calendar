@@ -85,7 +85,7 @@ var ADMIN_READ_ACTIONS = ['adminPing', 'adminLogout', 'adminMe', 'adminRecent', 
   'adminDutyList', 'adminDutyForEdit', 'adminStats', 'adminMembers', 'adminGroups', 'adminGoals', 'adminVenue', 'adminVenueStats', 'adminPushList', 'adminFaq', 'adminRepairs', 'adminRecentSignups', 'adminSignupDigestWatch', 'adminNoticeTail'];
 // 依勤務類別判斷的寫入（勤務／道務／教育帳號只能動自己類別）
 var ADMIN_CATEGORY_ACTIONS = ['adminCancel', 'adminReschedule', 'adminRestore', 'adminCreateDuties', 'adminUpdateDuty',
-  'adminDeleteDuty', 'adminSetAttendance', 'adminAddAttendee', 'adminDraftFromImages', 'adminUpdateStatsSheet', 'adminSetTeachers', 'adminSaveGoals', 'adminVenueDecide', 'adminVenueEdit', 'adminVenueConvert', 'adminGridMove', 'adminGridNote', 'adminPushSave', 'adminPushDelete', 'adminAutoPushSave', 'adminRollcallLink', 'adminReportLink', 'adminImportAttendance', 'adminSetMemberExtra', 'adminSplitSignup'];
+  'adminDeleteDuty', 'adminSetAttendance', 'adminAddAttendee', 'adminDraftFromImages', 'adminUpdateStatsSheet', 'adminSetTeachers', 'adminSaveGoals', 'adminVenueDecide', 'adminVenueEdit', 'adminVenueConvert', 'adminGridMove', 'adminGridNote', 'adminPushSave', 'adminPushDelete', 'adminAutoPushSave', 'adminRollcallLink', 'adminReportLink', 'adminImportAttendance', 'adminSetMemberExtra', 'adminSplitSignup', 'adminSetPinned'];
 
 // 成員、分組的編輯動作，與可以編輯的帳號（總管理者另外全部可以）
 var PEOPLE_EDIT_ACTIONS = ['adminSaveMember', 'adminDeleteMember', 'adminMemberCandidates', 'adminAddMembers', 'adminMergeNames', 'adminClearCandidates',
@@ -118,7 +118,7 @@ function targetDuties_(body) {
       return [findDutyById_(body.dutyId)];
     case 'adminImportAttendance': // 新增的場次在 adminImportAttendance_ 裡固定成帳號的類別
       return (body.sessions || []).filter(function (s) { return s && s.dutyId; }).map(function (s) { return findDutyById_(s.dutyId); });
-    case 'adminDuty': case 'adminDutyForEdit':
+    case 'adminDuty': case 'adminDutyForEdit': case 'adminSetPinned':
       return [findDutyById_(body.id)];
     default:
       return [];

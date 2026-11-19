@@ -21,10 +21,30 @@ function adminDutyList_() {
         id: d['勤務ID'], name: d['名稱'], mode: d['模式'] || '報名型', category: dutyCategory_(d),
         start: d['開始日'], end: d['結束日'] || d['開始日'], startTime: d['開始時間'],
         location: d['地點'], groupType: d['分組類型'], group: d['負責組'],
+        pinned: d['首頁置頂'] === '是', // 放到首頁（勤務管理列表可以直接開關，2026/11/19）
         signups: counts[d['勤務ID']] || 0
       };
     })
   };
+}
+
+/**
+ * 放到首頁（首頁置頂）開或關：body = { id, pinned }（2026/11/19）。勤務管理列表直接按，不用進編輯。
+ * 只改「首頁置頂」這一欄；勤務／道務／教育帳號只能改自己類別的（Accounts.gs adminAuthorize_）。
+ */
+function adminSetPinned_(body) {
+  return withSignupLock_(function () {
+    var row = findById_(readTable_(SHEETS.DUTIES), '勤務ID', String(body.id || ''));
+    if (!row) throw new ApiError_('NOT_FOUND', '找不到這個勤務，請重新整理');
+    var on = body.pinned === true;
+    if ((row['首頁置頂'] === '是') !== on) {
+      updateRow_(SHEETS.DUTIES, row, { '首頁置頂': on ? '是' : '' });
+      writeDutyLog_('修改勤務', row['名稱'] + '｜' + row['開始日'] + (on ? '（放到首頁）' : '（從首頁拿掉）'));
+      SpreadsheetApp.flush();
+      invalidateTable_(SHEETS.DUTIES);
+    }
+    return { id: row['勤務ID'], pinned: on };
+  });
 }
 
 /** 編輯用：勤務的原始欄位（了愿項目的最少、最多照 Sheet 原樣，空白就是空白），以及其他同名勤務（seriesKey_ 比對） */

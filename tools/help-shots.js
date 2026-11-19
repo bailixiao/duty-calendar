@@ -205,6 +205,8 @@ const SHOTS = [
       ['第1組', '第3組', '第5組'].forEach((n) => { const c = document.querySelector('input[name=group][value="' + n + '"]'); if (c) c.checked = true; });
       document.querySelector('input[name=group]').dispatchEvent(new Event('change', { bubbles: true })); await __wait(400);`,
     clip: `const fs = [...document.querySelectorAll('fieldset.form-block')].find((x) => x.querySelector('input[name=group]')); fs.scrollIntoView({ block: 'start' }); return __box(fs, 6);` },
+  { name: 'adm-pin-list', admin: true, hash: '#/admin/duties', js: `await __wait(2500); const b = document.querySelector('[data-rows] [data-pin]'); if (!b.classList.contains('is-on')) { b.click(); await __wait(1500); }`,
+    clip: `const p = document.querySelector('[data-pins]'); const c = document.querySelector('[data-rows] .recent-item:nth-of-type(2)') || document.querySelector('[data-rows] .recent-item'); p.scrollIntoView({ block: 'start' }); const r = p.getBoundingClientRect(); const e = c.getBoundingClientRect(); return { x: 0, y: r.top + scrollY - 6, width: innerWidth, height: e.bottom - r.top + 12 };` },
   { name: 'adm-mypw', admin: true, hash: '#/admin', js: `await __wait(1500); document.querySelector('[data-mypw]').click(); await __wait(500);`,
     clip: `return __box('.modal-box', 4);` },
   { name: 'adm-venue', admin: true, hash: '#/admin/venue', js: `await __wait(2000);`,

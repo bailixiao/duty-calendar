@@ -287,7 +287,7 @@
 
   function renderList(body, data, stale) {
     const months = [...new Set(data.duties.map((d) => d.start.slice(0, 7)))];
-    const monthOptions = [['future', '今天以後'], ['past', '已過去（補登人員）'], ['all', '全部']].concat(months.map((m) => [m, rocMonth(m)]));
+    const monthOptions = [['future', '今天以後'], ['pinned', '📌 放到首頁的'], ['past', '已過去（補登人員）'], ['all', '全部']].concat(months.map((m) => [m, rocMonth(m)]));
     body.innerHTML = `
       ${AdminPage.staleNote(stale)}
       ${flash}
@@ -304,6 +304,7 @@
         <input class="input" type="search" data-q placeholder="搜尋${T()}名稱" value="${esc(listState.q)}">
       </div>
       ${Share.noNeedHtml()}
+      <div data-pins></div>
       <div data-rows></div>
       <div class="invite-bar" data-invite-bar hidden>
         <span data-invite-count></span>
@@ -315,11 +316,46 @@
     Share.bindNoNeed(body);
 
     const rows = body.querySelector('[data-rows]');
+    const pinsBox = body.querySelector('[data-pins]');
+    const canPin = Api.adminWho().role !== '唯讀';
+    /** 📌 放到首頁的開關（勤務還沒結束才有；首頁本來就只顯示還沒結束的） */
+    const pinBtn = (d) => (canPin && d.end >= data.today
+      ? `<button type="button" class="link-btn pin-btn${d.pinned ? ' is-on' : ''}" data-pin="${esc(d.id)}">${d.pinned ? '📌 首頁中・拿掉' : '📌 放到首頁'}</button>` : '');
+    /** 最上面：現在放在首頁的（還沒結束的），每筆可以直接拿掉 */
+    function drawPins() {
+      const on = data.duties.filter((d) => d.pinned && d.end >= data.today);
+      pinsBox.innerHTML = `<details class="pin-box"${on.length ? ' open' : ''}>
+        <summary>📌 現在放在首頁：${on.length ? on.length + ' 筆' : '沒有'}</summary>
+        ${on.length ? `<ul class="pin-list">${on.map((d) => `<li><span><b>${esc(d.name)}</b> <span class="muted">${esc(dateRange(d))}</span></span>${pinBtn(d)}</li>`).join('')}</ul>` : ''}
+        <p class="hint">要放到首頁：在下面的${T()}按「📌 放到首頁」。首頁上面會出現一個大按鈕，${T()}結束後自動不顯示。</p>
+      </details>`;
+    }
+    // 綁在每次重畫都換新的元素上（body 會留著，重畫時綁在 body 會重複）
+    const onPin = async (ev) => {
+      const b = ev.target.closest('[data-pin]');
+      if (!b) return;
+      const d = data.duties.find((x) => x.id === b.dataset.pin);
+      if (!d) return;
+      b.disabled = true;
+      try {
+        const res = await Api.admin('adminSetPinned', { id: d.id, pinned: !d.pinned });
+        d.pinned = res.pinned;
+      } catch (e) {
+        b.disabled = false;
+        alert(e.message || '沒有改成功，請再試一次');
+        return;
+      }
+      drawPins();
+      draw();
+    };
+    pinsBox.addEventListener('click', onPin);
+    rows.addEventListener('click', onPin);
     function draw() {
       const q = listState.q.trim();
       const items = data.duties.filter((d) => {
         if (listState.filter === 'future' && d.end < data.today) return false;
         if (listState.filter === 'past' && d.end >= data.today) return false;
+        if (listState.filter === 'pinned' && !(d.pinned && d.end >= data.today)) return false;
         if (/^\d{4}-\d{2}$/.test(listState.filter) && d.start.slice(0, 7) !== listState.filter) return false;
         return !q || d.name.indexOf(q) !== -1;
       });
@@ -336,9 +372,10 @@
               </span>
               <span class="badge ${d.mode === '公告型' ? 'badge-notice' : d.signups ? 'badge-ok' : 'badge-full'}">${d.mode === '公告型' ? '公告' : `${d.signups} 筆報名`}</span>
             </a>
-            ${d.mode !== '公告型' && d.end >= data.today ? `<div class="recent-tools">
-              <label class="check"><input type="checkbox" data-invite-pick="${esc(d.id)}"${listState.picked.has(d.id) ? ' checked' : ''}> 勾選</label>
-              <button type="button" class="link-btn" data-invite="${esc(d.id)}">📋 複製通知</button>
+            ${d.end >= data.today ? `<div class="recent-tools">
+              ${d.mode !== '公告型' ? `<label class="check"><input type="checkbox" data-invite-pick="${esc(d.id)}"${listState.picked.has(d.id) ? ' checked' : ''}> 勾選</label>
+              <button type="button" class="link-btn" data-invite="${esc(d.id)}">📋 複製通知</button>` : ''}
+              ${pinBtn(d)}
             </div>` : ''}
             </div>`).join('')}
         </div>` : `<p class="panel-empty">沒有符合的${T()}</p>`;
@@ -394,6 +431,7 @@
       } catch (e) { if (w) w.close(); alert('讀取失敗，請再試'); }
     });
     inviteBar.querySelector('[data-invite-clear]').addEventListener('click', () => { listState.picked.clear(); draw(); });
+    drawPins();
     draw();
     body.querySelector('[data-filter]').addEventListener('change', (ev) => { listState.filter = ev.target.value; draw(); });
     body.querySelector('[data-draft-open]').addEventListener('click', openDraft);

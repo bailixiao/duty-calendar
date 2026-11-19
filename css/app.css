@@ -2061,8 +2061,16 @@ input.input[type="date"] { min-width: 0; max-width: 100%; width: 100%; box-sizin
 .roster-date small { color: var(--ink-2); margin-left: 4px; }
 .roster-date br + small { margin-left: 0; }
 .recent-item { display: flex; flex-direction: column; gap: 2px; }
-.recent-tools { display: flex; justify-content: flex-end; align-items: center; gap: 18px; padding: 0 6px 4px; font-size: .95rem; }
+.recent-tools { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 4px 16px; padding: 0 6px 4px; font-size: .95rem; }
 .recent-tools .check { min-height: 40px; }
+/* 勤務管理：📌 放到首頁（2026/11/19） */
+.pin-box { margin: 4px 0 14px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+.pin-box summary { cursor: pointer; font-weight: 700; min-height: 32px; display: flex; align-items: center; }
+.pin-list { list-style: none; margin: 6px 0 4px; padding: 0; }
+.pin-list li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px dashed var(--line); }
+.pin-list li > span { min-width: 0; }
+.pin-btn, .recent-tools .check, .recent-tools .link-btn { white-space: nowrap; }
+.pin-btn.is-on { color: var(--accent, #a33d22); font-weight: 700; }
 .invite-bar { position: sticky; bottom: 10px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; margin-top: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.12); }
 .invite-bar[hidden] { display: none; }
 .invite-bar [data-invite-count] { flex: 1 1 100%; font-weight: 700; }
