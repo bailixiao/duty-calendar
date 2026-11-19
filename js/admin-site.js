@@ -40,7 +40,7 @@
         <label class="form-row"><span>成全邀請的標題</span><input class="input" name="inviteTitle" value="${esc(s.inviteTitle || '')}"></label>
         <label class="form-row"><span>管理者聯絡人（選填）</span><input class="input" name="contact" value="${esc(data.contact || '')}" placeholder="例：總務組"><small class="hint">畫面上「請聯絡管理者」後面會接這個名字。請不要填電話。</small></label>
         <div class="form-row"><span>要用的功能</span>
-          ${FEATURES.map(([k, label, note]) => `<label class="de-check"><input type="checkbox" name="f-${k}"${f[k] === false ? '' : ' checked'}> ${label}<small class="hint">　${note}</small></label>`).join('')}
+          ${FEATURES.map(([k, label, note]) => `<label class="de-check site-feature"><input type="checkbox" name="f-${k}"${f[k] === false ? '' : ' checked'}><span><b>${label}</b><small>${note}</small></span></label>`).join('')}
         </div>
         <div class="form-error" data-error hidden></div>
         <button type="submit" class="btn btn-primary btn-block">儲存</button>

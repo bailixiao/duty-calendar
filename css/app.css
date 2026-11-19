@@ -1655,6 +1655,10 @@ body:not(.role-super) #view-admin .people-list [data-row] { cursor: default; }
 .role-pick { display: flex; flex-direction: column; gap: 6px; }
 .site-cats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .site-cats .input { width: 100%; min-width: 0; box-sizing: border-box; }
+.site-feature { display: flex; align-items: flex-start; gap: 8px; margin: 6px 0; }
+.site-feature input { margin-top: 4px; }
+.site-feature span { display: flex; flex-direction: column; }
+.site-feature small { color: var(--muted, #888); font-size: .85em; }
 .site-cats label { display: flex; flex-direction: column; gap: 4px; font-size: .9em; }
 .role-option { display: grid; grid-template-columns: auto 1fr; gap: 0 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
 .role-option small { grid-column: 2; color: var(--muted); }

@@ -218,6 +218,37 @@ const SHOTS = [
     clip: `const ta = document.querySelector('textarea[name=description]'); const row = ta.closest('label, .form-row') || ta.parentElement; row.scrollIntoView({ block: 'start' }); const r = row.getBoundingClientRect(); const h = (ta.closest('form').querySelector('.desc-tools') || ta).parentElement.querySelector('.hint') || ta; const e = h.getBoundingClientRect(); return { x: 0, y: r.top + scrollY - 10, width: innerWidth, height: Math.max(e.bottom, ta.getBoundingClientRect().bottom) - r.top + 20 };` }
 ];
 
+// ---------- 分區：開通頁、⚙️ 區設定（只有其他區有） ----------
+// 測試版的教捨區（she）已開通、密碼 test-pass；開通頁用測試版的開通工具（金鑰 test-key）幫教發區（fa）拿一個開通連結。
+const REGION_SHOTS = ['adm-setup', 'adm-site', 'adm-site-features'];
+async function regionShots(c, only) {
+  const want = (n) => !only.length || only.indexOf(n) !== -1;
+  if (!REGION_SHOTS.some(want)) return;
+  const go = async (url) => { await c.send('Page.navigate', { url }); await sleep(5500); };
+  if (want('adm-setup')) {
+    const res = await fetch(BASE + 'region-admin', { method: 'POST', body: JSON.stringify({ key: 'test-key', region: 'fa' }) }).then((r) => r.json());
+    if (!res.ok) throw new Error('開通工具：' + JSON.stringify(res.error));
+    await go(res.data.link);
+    await shot(c, path.join(OUT, 'adm-setup.png'), PREP + `return __box('#view-setup .admin-login', 6);`);
+    console.log('✓ adm-setup');
+  }
+  if (!want('adm-site') && !want('adm-site-features')) return;
+  await go(BASE + 'she/#/admin');
+  await run(c, PREP + `const pw = document.querySelector('#admin-password'); if (pw) { pw.value = 'test-pass'; pw.form.requestSubmit(); await __wait(2500); }
+    location.hash = '#/admin/site'; await __wait(2500);
+    const f = document.querySelector('[data-body] form'); f.elements.locations.value = '區中心\\n佛堂\\n活動中心'; f.elements.contact.value = '總務組';`);
+  if (want('adm-site')) {
+    await shot(c, path.join(OUT, 'adm-site.png'), PREP + `const b = document.querySelector('[data-body]'); b.scrollIntoView({ block: 'start' }); const r = b.getBoundingClientRect(); const e = document.querySelector('.site-cats').getBoundingClientRect();
+      return { x: 0, y: r.top + scrollY - 6, width: innerWidth, height: e.bottom - r.top + 16 };`);
+    console.log('✓ adm-site');
+  }
+  if (want('adm-site-features')) {
+    await shot(c, path.join(OUT, 'adm-site-features.png'), PREP + `const box = document.querySelector('[name=f-venue]').closest('.form-row'); box.scrollIntoView({ block: 'center' }); const r = box.getBoundingClientRect(); const s = document.querySelector('[data-body] form [type=submit]').getBoundingClientRect();
+      return { x: 0, y: r.top + scrollY - 10, width: innerWidth, height: s.bottom - r.top + 20 };`);
+    console.log('✓ adm-site-features');
+  }
+}
+
 async function sheet(files) {
   const html = `<html><body style="margin:0;background:#bbb;display:flex;flex-wrap:wrap;gap:8px;padding:8px">${files.map((f) => `<div style="text-align:center;font:12px sans-serif"><img src="${BASE}img/help/${f}" style="height:520px;background:#fff"><br>${f}</div>`).join('')}</body></html>`;
   const tmp = path.join(os.tmpdir(), 'help-sheet.html');
@@ -272,6 +303,7 @@ async function main() {
       await shot(c, file, PREP + s.clip);
       console.log('✓ ' + s.name);
     }
+    await regionShots(c, only);
   } finally {
     c.close();
     proc.kill();
