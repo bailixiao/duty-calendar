@@ -188,7 +188,7 @@
       // 陪同也列出來（名字後面寫「（陪同）」，不算在人數裡）
       const acc = signups.filter((s) => s.date === date && s.positionId === p.id && s.accompany).map((s) => s.name + '（陪同）');
       const all = names.concat(acc);
-      return `・${p.name}了愿人員：${all.length ? all.join('、') : '還沒有人'}`;
+      return `・${p.name}了愿人員：${all.join('、')}`;
     });
   }
 
