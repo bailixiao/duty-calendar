@@ -644,6 +644,53 @@
       </div>`;
     }
 
+    // ---- 新增時打以前有過的名稱：自動帶入最近那一筆的資料（2026/11/21） ----
+    // 以前的名稱（最近用過的排前面），給名稱欄的清單選
+    function pastNames() {
+      const seen = new Set();
+      return (ctx.duties || []).slice().sort((a, b) => (b.start || '').localeCompare(a.start || ''))
+        .map((d) => d.name).filter((n) => n && !seen.has(n) && seen.add(n));
+    }
+    // 找最近一筆同名的（打的名稱等於或開頭是以前的名稱，例：「初一十五打掃（彌勒山母殿）初一」→「初一十五打掃（彌勒山母殿）」）
+    function findPast(name) {
+      const n = String(name || '').trim();
+      if (n.length < 2) return null;
+      const hits = (ctx.duties || []).filter((d) => d.name && d.name.length >= 2 && (n === d.name || n.indexOf(d.name) === 0));
+      if (!hits.length) return null;
+      const best = Math.max(...hits.map((d) => d.name.length)); // 名稱最像（最長）的那一種，再挑最近的一筆
+      return hits.filter((d) => d.name.length === best).sort((a, b) => (b.start || '').localeCompare(a.start || ''))[0];
+    }
+    const FILL_SKIP = ['id', 'name', 'start', 'end', 'batches'];
+    // 除了名稱、日期，其他欄位都還沒動過
+    function untouched() {
+      const e = emptyDuty();
+      return Object.keys(e).every((k) => FILL_SKIP.indexOf(k) !== -1 || JSON.stringify(s[k] === undefined ? e[k] : s[k]) === JSON.stringify(e[k]));
+    }
+    let fillFrom = '';
+    async function autoFill(force) {
+      const past = findPast(s.name);
+      if (!past || (past.id === fillFrom && !force)) return;
+      if (!force && !untouched()) {
+        st.fillNote = `<div class="notice notice-info fill-note"><p>已經有「${esc(past.name)}」（最近一筆 ${esc(Fmt.rocDate(past.start))}）。要帶入它的時段、地點、說明、了愿項目等資料嗎？（會蓋掉現在填的）</p>
+          <button type="button" class="btn btn-small btn-primary" data-fill-go>帶入</button> <button type="button" class="link-btn" data-fill-no>不用</button></div>`;
+        render();
+        return;
+      }
+      let src;
+      try { src = (await Api.admin('adminDutyForEdit', { id: past.id }, true)).duty; } catch (e) { return; }
+      sync();
+      const before = JSON.parse(JSON.stringify(s));
+      Object.keys(src).forEach((k) => { if (FILL_SKIP.indexOf(k) === -1) s[k] = JSON.parse(JSON.stringify(src[k])); });
+      s.positions = (src.positions || []).map((p) => ({ name: p.name, slot: p.slot, min: p.min, max: p.max }));
+      if (!s.positions.length) s.positions = emptyDuty().positions;
+      fillFrom = past.id;
+      fillUndo = before;
+      st.fillNote = `<div class="notice notice-success fill-note"><p>✅ 已帶入最近一筆「${esc(past.name)}」（${esc(Fmt.rocDate(past.start))}）的資料：時段、地點、服裝、說明、負責組、了愿項目等，日期請自己填，其他可以再改。</p>
+        <button type="button" class="link-btn" data-fill-undo>不要帶入（清掉）</button></div>`;
+      render();
+    }
+    let fillUndo = null;
+
     function render() {
       const lunar = st.dateType === 'lunar';
       const isNotice = s.mode === '公告型';
@@ -659,7 +706,9 @@
           <fieldset class="form-block">
             <legend>基本資料</legend>
             <label class="form-row"><span>名稱</span>
-              <input class="input" name="name" value="${esc(s.name)}" placeholder="${esc(window.SITE.examples.dutyName)}" required></label>
+              <input class="input" name="name" value="${esc(s.name)}" placeholder="${esc(window.SITE.examples.dutyName)}" required${!editing && !ctx.source ? ' list="opt-dutynames" autocomplete="off"' : ''}></label>
+            ${!editing && !ctx.source ? `<datalist id="opt-dutynames">${pastNames().map((n) => `<option value="${esc(n)}">`).join('')}</datalist>` : ''}
+            ${st.fillNote || ''}
             ${lunar ? '<p class="hint">勾「名稱前面加上農曆日期」時，這裡只填後半段，例如「拜香輪值」。</p>' : ''}
             <div class="form-row"><span>類別</span>${Api.adminWho().role === '總管理者' ? segmented('category', CATEGORIES, s.category || '勤務') : `<strong>${esc(myCategory())}</strong>`}</div>
             <div class="form-row"><span>性質</span>${segmented('nature', natures, s.nature)}</div>
@@ -1035,6 +1084,22 @@
 
     function bind() {
       const f = body.querySelector('form');
+      if (!editing && !ctx.source && f.elements.name) {
+        f.elements.name.addEventListener('change', () => { sync(); autoFill(false); });
+      }
+      const fillGo = body.querySelector('[data-fill-go]');
+      if (fillGo) fillGo.addEventListener('click', () => autoFill(true));
+      const fillNo = body.querySelector('[data-fill-no]');
+      if (fillNo) fillNo.addEventListener('click', () => { st.fillNote = ''; sync(); render(); });
+      const fillUndoBtn = body.querySelector('[data-fill-undo]');
+      if (fillUndoBtn) fillUndoBtn.addEventListener('click', () => {
+        sync();
+        const keep = { name: s.name, start: s.start, end: s.end };
+        Object.keys(s).forEach((k) => delete s[k]);
+        Object.assign(s, fillUndo || emptyDuty(), keep);
+        st.fillNote = '';
+        render();
+      });
       // 會改變表單結構的選項：讀回目前的值後重畫
       f.addEventListener('change', (ev) => {
         const n = ev.target.name;
