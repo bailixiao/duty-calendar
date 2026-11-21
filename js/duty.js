@@ -348,7 +348,7 @@
       <section class="detail-section merge-host">
         <h2>📅 同一天還有：${esc(h.name)}</h2>
         ${rows.length ? `<dl class="detail-info">${rows.map((r) => `<div><dt>${r[0]}</dt><dd>${esc(r[1])}</dd></div>`).join('')}</dl>` : ''}
-        <a class="link-btn" href="#/duty/${encodeURIComponent(h.id)}?date=${d.start}">看${esc(h.name)}的詳情 ›</a>
+        <a class="link-btn" href="#/duty/${encodeURIComponent(h.id)}?date=${d.start}">${h.mode === '公告型' ? `看${esc(h.name)}的詳情 ›` : `👉 去報名${esc(h.name)} ›`}</a>
       </section>`;
   }
 
