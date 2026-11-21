@@ -562,6 +562,21 @@
 
   const dutyPage = { id: null, data: null, viewDate: null, flash: '' };
 
+  // 名單頁的「‹ 回去」（2026/11/21）：回到點進來之前的那一頁（勤務管理的篩選、搜尋、捲動位置都保留），不是一律回近期勤務。
+  // 在名單頁裡換日期（網址的 ?date= 變了）不算，還是回原本那一頁。
+  let dutyFrom = '';
+  window.addEventListener('hashchange', (ev) => {
+    const old = (String(ev.oldURL || '').split('#')[1] || '');
+    if (old.indexOf('/admin') === 0 && old.indexOf('/admin/duty/') !== 0) dutyFrom = '#' + old;
+  });
+  function dutyBack() {
+    const href = dutyFrom || '#/admin';
+    const sub = href.replace(/^#\/admin\/?/, '').split(/[/?]/)[0];
+    const tab = Api.isAdmin() ? tabList().find((t) => t[2].indexOf(sub) !== -1) : null;
+    const label = sub === 'duties' ? term() + '管理' : tab ? tab[1].replace(/^[^一-鿿]+/, '') : '近期' + term(); // 去掉前面的圖示
+    return `<a class="back-link" href="${esc(href)}">‹ ${esc(label)}</a>`;
+  }
+
   async function showDuty(id, date) {
     dutyPage.id = id;
     dutyPage.viewDate = date;
@@ -661,7 +676,7 @@
     }).join('');
 
     body.innerHTML = `
-      <a class="back-link" href="#/admin">‹ 近期勤務</a>
+      ${dutyBack()}
       ${staleNote(dutyPage.stale)}
       <h2 class="detail-title">${esc(d.name)}</h2>
       ${dutyPage.flash}

@@ -279,7 +279,7 @@
 
   // ---------- 列表 ----------
 
-  const listState = { filter: 'future', q: '', picked: new Set() };
+  const listState = { filter: 'future', q: '', picked: new Set(), scrollY: 0, restoreUntil: 0 };
 
   function list(body, guard) {
     AdminPage.swr('dutyList', () => Api.admin('adminDutyList', {}, true), (data, stale) => renderList(body, data, stale), body);
@@ -432,6 +432,15 @@
     drawPins();
     draw();
     body.querySelector('[data-filter]').addEventListener('change', (ev) => { listState.filter = ev.target.value; draw(); });
+    // 點進某一筆時記住捲到哪裡；從名單頁回來時捲回原位（2026/11/21）
+    rows.addEventListener('click', (ev) => {
+      if (ev.target.closest('a[href^="#/admin/duty"]')) { listState.scrollY = window.scrollY; listState.restoreUntil = Date.now() + 120000; }
+    });
+    if (listState.restoreUntil > Date.now()) {
+      const y = listState.scrollY;
+      requestAnimationFrame(() => window.scrollTo(0, y));
+      setTimeout(() => { listState.restoreUntil = 0; }, 3000); // 背景更新又畫一次時也捲回去；3 秒後就不管了
+    }
     // ＋ 新增（2026/11/21 精簡）：自己填、從照片、從 Excel 貼上，三種方式集中在一個按鈕
     body.querySelector('[data-add-open]').addEventListener('click', () => {
       const m = Modal.open(`
