@@ -1,13 +1,13 @@
 /**
  * 讓管理者知道誰報名了（2026/10/25）：
- *   1. 後台「近期勤務」最上面的「🆕 最新報名」：最近 3 天的報名、取消、改期（從操作紀錄整理）。
+ *   1. 後台「近期勤務」最上面的「🆕 最新報名」：最近 3 天的報名、取消、改期、換項目（從操作紀錄整理）。
  *   2. 每天晚上 8 點的手機彙整：今天幾位報名、幾位取消（管理者在後台開啟「報名彙整通知」的手機）。
  * 勤務／道務／教育帳號只看得到自己類別的；唯讀帳號不能看（有名字）。
  */
 
 var RECENT_SIGNUP_DAYS = 3;
 var RECENT_SIGNUP_MAX = 200;
-var RECENT_SIGNUP_ACTIONS = ['報名', '取消', '改期'];
+var RECENT_SIGNUP_ACTIONS = ['報名', '取消', '改期', '換項目'];
 
 /** 操作紀錄裡 from（yyyy-MM-dd）以後的報名、取消、改期，整理成 [{ time, action, name, date, dutyId, dutyName, position, accompany, category, summary }]，新的在前 */
 function signupActivity_(from) {
@@ -31,7 +31,8 @@ function signupActivity_(from) {
       time: l['時間'], action: l['動作'],
       name: s ? s['姓名'] : summary.split('｜')[0].replace(/（.*$/, ''),
       date: s ? s['日期'] : '', dutyId: d ? d['勤務ID'] : '', dutyName: d ? d['名稱'] : '',
-      position: p ? p['了愿項目名稱'] : '', accompany: !!s && s['陪同'] === '是',
+      // 換項目：寫「原本 → 新的」（內容摘要最後一段，去掉管理者標記）
+      position: l['動作'] === '換項目' ? summary.split('｜').pop().replace(/（[^）]*）$/, '') : p ? p['了愿項目名稱'] : '', accompany: !!s && s['陪同'] === '是',
       category: d ? dutyCategory_(d) : '勤務',
       summary: summary
     });
@@ -59,12 +60,12 @@ function adminSignupDigestWatch_(body) {
 
 /** 一則彙整的文字；沒有任何異動回傳 '' */
 function signupDigestText_(items) {
-  var count = { '報名': 0, '取消': 0, '改期': 0 };
+  var count = { '報名': 0, '取消': 0, '改期': 0, '換項目': 0 };
   items.forEach(function (x) { count[x.action]++; });
   if (!items.length) return '';
-  var head = ['報名', '取消', '改期'].filter(function (a) { return count[a]; }).map(function (a) { return count[a] + ' 筆' + a; }).join('、');
+  var head = ['報名', '取消', '改期', '換項目'].filter(function (a) { return count[a]; }).map(function (a) { return count[a] + ' 筆' + a; }).join('、');
   var lines = items.slice(0, 4).map(function (x) {
-    return (x.action === '報名' ? '＋' : x.action === '取消' ? '－' : '↔') + x.name + (x.date ? ' ' + shortDate_(x.date) : '') + (x.dutyName ? ' ' + x.dutyName : '');
+    return (x.action === '報名' ? '＋' : x.action === '取消' ? '－' : x.action === '換項目' ? '⇄' : '↔') + x.name + (x.date ? ' ' + shortDate_(x.date) : '') + (x.dutyName ? ' ' + x.dutyName : '') + (x.action === '換項目' && x.position ? ' ' + x.position : '');
   });
   return '今天 ' + head + '\n' + lines.join('\n') + (items.length > 4 ? '\n⋯還有 ' + (items.length - 4) + ' 筆，點我看全部' : '');
 }

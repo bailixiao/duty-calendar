@@ -1,11 +1,11 @@
-// 後台「近期勤務」最上面的「🆕 最新報名」：最近 3 天誰報名、取消、改期（apps-script/SignupDigest.gs），
+// 後台「近期勤務」最上面的「🆕 最新報名」：最近 3 天誰報名、取消、改期、換項目（apps-script/SignupDigest.gs），
 // 和「每天晚上 8 點報名彙整」手機通知的開關。勤務／道務／教育帳號只看到自己類別。
 (function () {
   'use strict';
 
   const esc = Fmt.esc;
   const SHOW = 8; // 先列幾筆，其他按「看全部」
-  const ICON = { '報名': '＋', '取消': '－', '改期': '↔' };
+  const ICON = { '報名': '＋', '取消': '－', '改期': '↔', '換項目': '⇄' };
   let memo = null; // { at, data }：同一次打開近期勤務不重複讀
 
   function timeText(t) {
@@ -28,13 +28,13 @@
     const items = data.items;
     const todayItems = items.filter((x) => String(x.time).slice(0, 10) === data.today);
     const count = (a) => todayItems.filter((x) => x.action === a).length;
-    const head = todayItems.length ? ['報名', '取消', '改期'].filter((a) => count(a)).map((a) => `${count(a)} 筆${a}`).join('、') : '今天還沒有人報名或取消';
+    const head = todayItems.length ? ['報名', '取消', '改期', '換項目'].filter((a) => count(a)).map((a) => `${count(a)} 筆${a}`).join('、') : '今天還沒有人報名或取消';
     box.innerHTML = `
       <details class="recent-signups"${items.length ? ' open' : ''}>
         <summary><strong>🆕 最新報名</strong><span class="h2-sub">今天：${esc(head)}</span></summary>
         ${items.length ? `<ul class="rs-list">${items.slice(0, SHOW).map(itemHtml).join('')}</ul>
           ${items.length > SHOW ? `<button type="button" class="link-btn" data-rs-more>看全部 ${items.length} 筆（最近 ${data.days} 天）</button>` : ''}`
-          : `<p class="muted">最近 ${data.days} 天沒有人報名、取消或改期。</p>`}
+          : `<p class="muted">最近 ${data.days} 天沒有人報名、取消、改期或換項目。</p>`}
         <div class="rs-watch" data-rs-watch></div>
       </details>`;
     const more = box.querySelector('[data-rs-more]');

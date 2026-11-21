@@ -66,3 +66,17 @@ test('換項目：只有一個項目的勤務不能換', () => {
   assert.equal(env.post({ action: 'mySignups', name: '測試甲' }).data.items[0].multiPos, false);
   assert.equal(env.post({ action: 'changePosition', signupId: sid, positionId: d.positions[0].id }).error.code, 'BAD_REQUEST');
 });
+
+test('換項目：最新報名、每天彙整也列出來（原本 → 新的）', () => {
+  const { env, call, pid, signup } = setup();
+  const sid = signup('測試甲', '甲項');
+  assert.equal(call('adminChangePosition', { signupId: sid, positionId: pid('丙項') }).ok, true);
+  const x = call('adminRecentSignups').data.items.find((i) => i.action === '換項目');
+  assert.ok(x, '最新報名要有換項目');
+  assert.equal(x.name, '測試甲');
+  assert.equal(x.position, '甲項 → 丙項');
+  assert.equal(x.dutyName, '測試活動');
+  const text = env.fn('signupDigestText_')([x]);
+  assert.match(text, /1 筆換項目/);
+  assert.match(text, /⇄測試甲 .*甲項 → 丙項/);
+});
