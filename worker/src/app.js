@@ -204,11 +204,37 @@ export function createApp(store, opts) {
     });
     if (!site.locations.length) throw new gs.ApiError_('BAD_REQUEST', '「地點」至少要有一個');
     store.setProp('SITE_JSON', JSON.stringify(site));
+    store.setProp('SITE_SAVED', '1'); // 開始使用清單：區設定存過了
     const contact = str(body.contact, 30, '管理者聯絡人', false);
     if (contact) store.setProp('ADMIN_CONTACT', contact); else store.deleteProp('ADMIN_CONTACT');
     applySite();
     gs.invalidateAllTables_(); // 讀取快取用新的名稱重算（不清整個快取：登入的通行碼也在裡面）
     return { site: gs.getSite_(), contact };
+  };
+
+  /**
+   * 新區「🚀 開始使用」清單（2026/11/21）：其他區的總管理者在後台首頁看到，每一步做完沒有從資料判斷。
+   * 區設定存過、有分組、有成員（啟用中）、有勤務；「把網址傳給家人們」按過複製／傳到 LINE 就算；可以「先不要顯示」。
+   */
+  special.adminOnboarding = (body) => {
+    requireSiteAdmin(body);
+    const count = (def, f) => gs.readTable_(def).filter(f || (() => true)).length;
+    return {
+      siteSaved: store.getProp('SITE_SAVED') === '1',
+      groups: count(gs.SHEETS.GROUPS),
+      members: count(gs.SHEETS.MEMBERS, (r) => r['啟用中'] !== '否'),
+      duties: count(gs.SHEETS.DUTIES),
+      shared: store.getProp('ONBOARD_SHARED') === '1',
+      hidden: store.getProp('ONBOARD_HIDE') === '1'
+    };
+  };
+  /** body = { key: 'shared' | 'hide', on }：記下「網址傳過了」或「先不要顯示」（on: false 取消） */
+  special.adminOnboardingMark = (body) => {
+    requireSiteAdmin(body);
+    const prop = { shared: 'ONBOARD_SHARED', hide: 'ONBOARD_HIDE' }[body.key];
+    if (!prop) throw new gs.ApiError_('BAD_REQUEST', '不認得的項目');
+    if (body.on === false) store.deleteProp(prop); else store.setProp(prop, '1');
+    return special.adminOnboarding(body);
   };
 
   /** 教全區：推播金鑰（開通新區時複製過去） */

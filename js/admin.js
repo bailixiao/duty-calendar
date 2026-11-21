@@ -304,6 +304,58 @@
     }
   }
 
+  /**
+   * 🚀 開始使用（2026/11/21）：新開通的區，總管理者在後台首頁看到五個步驟，做完的自動打勾。
+   * 全部做完、或按「先不要顯示」就不出現（⚙️ 更多 → 📖 教學 也有「開始使用」那一題）。
+   */
+  let onboardMemo = null;
+  async function mountOnboarding(box) {
+    if (!box) return;
+    const paint = (o) => {
+      if (!box.isConnected) return;
+      const url = (window.SITE && window.SITE.siteUrl) || location.href.split('#')[0];
+      const steps = [
+        [o.siteSaved, '① 區設定', '確認區名、地點、場地名稱，和要用哪些功能', '#/admin/site', '去區設定'],
+        [o.groups > 0, '② 建分組', '輪值的組別、組長（不用分組可以跳過）', '#/admin/groups', '去分組'],
+        [o.members > 0, '③ 加成員', '一個一個加，或「📋 匯入成員資料」一次貼上；有人報名也會自動加進來', '#/admin/members', '去成員'],
+        [o.duties > 0, '④ 新增第一個勤務', '「＋ 新增勤務」：自己填、從照片、從 Excel 貼上都可以', '#/admin/duties/new', '去新增'],
+        [o.shared, '⑤ 把網址傳給家人們', url, '', '']
+      ];
+      const done = steps.filter((x) => x[0]).length;
+      if (o.hidden || done === steps.length) { box.innerHTML = ''; return; }
+      box.innerHTML = `<section class="onboard">
+        <h2 class="onboard-title">🚀 開始使用 <span class="h2-sub">已完成 ${done}／${steps.length}</span></h2>
+        <ol class="onboard-list">${steps.map(([ok, title, desc, href, go], i) => `
+          <li class="${ok ? 'is-done' : ''}">
+            <span class="onboard-mark" aria-label="${ok ? '做完了' : '還沒做'}">${ok ? '✅' : ''}</span>
+            <span class="onboard-main"><strong>${esc(title)}</strong><small>${esc(desc)}</small>
+              ${i === 4 ? `<span class="onboard-share"><button type="button" class="btn btn-small" data-ob-copy>複製網址</button><button type="button" class="btn btn-small btn-line" data-ob-line>傳到 LINE</button></span>` : ''}</span>
+            ${href && !ok ? `<a class="btn btn-small" href="${href}">${esc(go)} ›</a>` : ''}
+          </li>`).join('')}</ol>
+        <p class="hint">每一步做完會自動打勾。不知道怎麼做可以看「⚙️ 更多 → 📖 教學」。<button type="button" class="link-btn" data-ob-hide>先不要顯示</button></p>
+      </section>`;
+      const mark = async (key) => {
+        try { onboardMemo = await Api.admin('adminOnboardingMark', { key }); paint(onboardMemo); } catch (e) { guard(e); }
+      };
+      const text = `📅 ${(window.SITE && window.SITE.name) || '行事曆'}\n要報名、看勤務，打開這個網址：\n${url}\n（可以加到手機主畫面，下次一點就開）`;
+      box.querySelector('[data-ob-copy]').addEventListener('click', async (ev) => {
+        const ok = await Share.copyText(text);
+        ev.target.textContent = ok ? '已複製 ✓' : '複製失敗';
+        if (ok) setTimeout(() => mark('shared'), 1200);
+      });
+      box.querySelector('[data-ob-line]').addEventListener('click', () => {
+        window.open('https://line.me/R/msg/text/?' + encodeURIComponent(text), '_blank', 'noopener');
+        mark('shared');
+      });
+      box.querySelector('[data-ob-hide]').addEventListener('click', () => mark('hide'));
+    };
+    if (onboardMemo) paint(onboardMemo);
+    try {
+      onboardMemo = await Api.admin('adminOnboarding', {}, true);
+      paint(onboardMemo);
+    } catch (e) { /* 讀不到就不顯示 */ }
+  }
+
   /** ⚙️ 更多：不常用的功能一頁一個大按鈕 */
   function showMore(body) {
     body.innerHTML = `<div class="more-list">${moreItems().map(([k, label, desc]) => `
@@ -527,6 +579,7 @@
 
       body.innerHTML = `
         ${staleNote(stale)}
+        ${seesSite() ? '<div data-onboarding></div>' : ''}
         ${Api.adminWho().role === '唯讀' ? '' : '<div data-recent-signups></div>'}
         ${['道務', '教育', '唯讀'].indexOf(Api.adminWho().role) !== -1 ? '' : '<div class="admin-actions"><button type="button" class="btn" data-general-notice>📢 總務佈達（初一十五打掃、拜香輪值）</button></div>'}
         ${['道務', '教育'].indexOf(Api.adminWho().role) !== -1 ? '' : shortDates.size
@@ -562,6 +615,7 @@
       Share.bind(body, () => Share.shortageText(rows.map((r) => ({ duty: r.d, date: r.date, state: r.st }))));
       Share.bindNoNeed(body);
       RecentSignups.mount(body.querySelector('[data-recent-signups]'), guard, recentFresh);
+      mountOnboarding(body.querySelector('[data-onboarding]'));
       const gn = body.querySelector('[data-general-notice]');
       if (gn) gn.addEventListener('click', () => GeneralNotice.open());
       recentFresh = false;

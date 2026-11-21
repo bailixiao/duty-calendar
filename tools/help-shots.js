@@ -253,7 +253,7 @@ const SHOTS = [
 
 // ---------- 分區：開通頁、⚙️ 區設定（只有其他區有） ----------
 // 測試版的教捨區（she）已開通、密碼 test-pass；開通頁用測試版的開通工具（金鑰 test-key）幫教發區（fa）拿一個開通連結。
-const REGION_SHOTS = ['adm-setup', 'adm-site', 'adm-site-features'];
+const REGION_SHOTS = ['adm-setup', 'adm-site', 'adm-site-features', 'adm-onboarding'];
 async function regionShots(c, only) {
   const want = (n) => !only.length || only.indexOf(n) !== -1;
   if (!REGION_SHOTS.some(want)) return;
@@ -265,9 +265,16 @@ async function regionShots(c, only) {
     await shot(c, path.join(OUT, 'adm-setup.png'), PREP + `return __box('#view-setup .admin-login', 6);`);
     console.log('✓ adm-setup');
   }
-  if (!want('adm-site') && !want('adm-site-features')) return;
+  if (!want('adm-site') && !want('adm-site-features') && !want('adm-onboarding')) return;
   await go(BASE + 'she/#/admin');
-  await run(c, PREP + `const pw = document.querySelector('#admin-password'); if (pw) { pw.value = 'test-pass'; pw.form.requestSubmit(); await __wait(2500); }
+  await run(c, PREP + `const pw = document.querySelector('#admin-password'); if (pw) { pw.value = 'test-pass'; pw.form.requestSubmit(); await __wait(2500); }`);
+  if (want('adm-onboarding')) {
+    await run(c, PREP + `location.hash = '#/admin/more'; await __wait(300); location.hash = '#/admin'; for (let i = 0; i < 30 && !document.querySelector('.onboard'); i++) await __wait(300); await __wait(300);`);
+    await shot(c, path.join(OUT, 'adm-onboarding.png'), PREP + `return __box('.onboard', 6);`);
+    console.log('✓ adm-onboarding');
+  }
+  if (!want('adm-site') && !want('adm-site-features')) return;
+  await run(c, PREP + `
     location.hash = '#/admin/site'; await __wait(2500);
     const f = document.querySelector('[data-body] form'); f.elements.locations.value = '區中心\\n佛堂\\n活動中心'; f.elements.contact.value = '總務組';`);
   if (want('adm-site')) {
