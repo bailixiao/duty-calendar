@@ -644,6 +644,8 @@
   /** 合併的卡片：同一天的兩個項目寫在一起（上面拜香輪值的時間、輪值組，下面「＋ 初一十五班」；不寫先後順序）；點進去到要報名的那一筆 */
   function mergedCardHtml(item, date, compact) {
     const host = item.duty;
+    // 兩筆都要報名（例：闡道班＋闡道班勤務，2026/11/21）：一張卡片分上下兩行，各自點、各自的狀態徽章
+    if (host.mode !== '公告型') return splitCardHtml(item, date, compact);
     const first = item.follow[0].duty;
     const st = item.state;
     const cat = catTag;
@@ -657,6 +659,25 @@
         </span>
         <span class="badge badge-${st.kind}">${Fmt.esc(st.label)}</span>
       </a>`;
+  }
+
+  /** 合併卡片（兩筆都要報名）：上面一行是班（點了去報名上課），虛線下面是勤務（點了去報名勤務），各有自己的徽章 */
+  function splitCardHtml(item, date, compact) {
+    const row = (duty, st, plus) => {
+      const meta = [Fmt.cardTime(duty, date), plus ? '' : duty.location].filter(Boolean);
+      return `<a class="merge-row" href="#/duty/${encodeURIComponent(duty.id)}?date=${date}">
+          <span class="card-main">
+            <span class="card-title">${catTag(duty)}${Fmt.esc(duty.name)}${mine.keys.has(duty.id + '|' + date) ? '<span class="card-mine">✓ 我有報名</span>' : ''}</span>
+            ${meta.length ? `<span class="card-meta">${meta.map(Fmt.esc).join('・')}</span>` : ''}
+          </span>
+          <span class="badge badge-${st.kind}">${Fmt.esc(st.label)}</span>
+        </a>`;
+    };
+    return `
+      <div class="duty-card kind-${item.state.kind} is-merged is-split${compact ? ' is-compact' : ''}">
+        ${row(item.duty, item.hostState || item.state, false)}
+        ${item.follow.map((f) => row(f.duty, f.state, true)).join('')}
+      </div>`;
   }
 
   function renderPanel() {
