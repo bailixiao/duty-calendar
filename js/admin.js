@@ -133,6 +133,7 @@
     VenueAdminPage.autoWatch(); // 總管理者、場管：手機允許過通知就自動開啟場地申請通知
     if (sub === 'help') return HelpAdminPage.show(shell('help'), guard); // 📖 教學：所有後台帳號
     if (sub === 'more') return showMore(shell('more'));
+    if (sub === 'tidy' && Api.adminWho().role === '總管理者') return showTidy(shell('tidy'));
     if (Api.adminWho().role === '場管' || sub === 'venue') return VenueAdminPage.show(shell('venue'), guard); // 場管帳號只有場地借用（和教學）
     if (sub === 'accounts') return AccountsPage.show(shell('accounts'), guard);
     if (sub === 'site' && seesSite()) return SitePage.show(shell('site'), guard);
@@ -159,6 +160,7 @@
     if (seesLogs()) list.push(['logs', '📜 操作紀錄', '誰報名、取消、改期、換項目，改了什麼勤務；按錯了可以還原']);
     if (who.role === '總管理者') list.push(['accounts', '👤 帳號', '新增勤務／道務／教育／唯讀帳號、重設密碼、停用']);
     if (seesSite()) list.push(['site', '⚙️ 區設定', '區名、場地、地點選項、功能開關']);
+    if (who.role === '總管理者') list.push(['tidy', '🧹 資料整理', '同一種勤務的不同名稱統一（例：勤務的闡道班都叫「闡道班勤務」）']);
     list.push(['help', '📖 教學', '後台每個功能怎麼用']);
     return list;
   }
@@ -203,6 +205,45 @@
     // 「更多」裡的頁面：上面一個回「更多」的連結
     if (moreItems().length > 1 && moreItems().some((m) => m[0] === active)) return '<a class="back-link" href="#/admin/more">‹ 更多</a>';
     return '';
+  }
+
+  /** 🧹 資料整理（總管理者）：先列出會怎麼改，按「確定整理」才改 */
+  async function showTidy(body) {
+    const t = token;
+    const draw = (items, msg) => {
+      body.innerHTML = `${msg || ''}
+        <h2 class="detail-title">🧹 資料整理</h2>
+        <p class="hint">把同一種勤務的不同名稱統一，統計、搜尋才會算在一起。只改名稱，報名、日期、類別都不動；每一筆都會記在操作紀錄。</p>
+        ${items.length ? `<p><strong>會改這 ${items.length} 筆：</strong></p>
+          <ul class="tidy-list">${items.map((x) => `<li>${Fmt.shortDate(x.start)}　${esc(x.from)} → <strong>${esc(x.to)}</strong><span class="muted">（${esc(x.category)}）</span></li>`).join('')}</ul>
+          <button type="button" class="btn btn-primary btn-block" data-tidy-go>確定整理</button>`
+          : '<p class="panel-empty">目前沒有要整理的資料 👍</p>'}`;
+      const go = body.querySelector('[data-tidy-go]');
+      if (go) go.addEventListener('click', async () => {
+        const ok = await Confirm.open({ title: `確定要改這 ${items.length} 筆的名稱嗎？`, rows: items.map((x) => [Fmt.shortDate(x.start), x.from + ' → ' + x.to]), confirmText: '確定整理', cancelText: '再想想' });
+        if (!ok) return;
+        Busy.show('整理中⋯');
+        try {
+          const res = await Api.admin('adminTidyNames', { apply: true });
+          Busy.hide();
+          clearMemo();
+          if (window.CalendarPage) CalendarPage.refresh();
+          const left = (await Api.admin('adminTidyNames', {}, true)).items;
+          draw(left, notice('success', `已整理 ${res.done} 筆`, '操作紀錄裡可以看到每一筆改了什麼。'));
+        } catch (e) {
+          Busy.hide();
+          if (guard(e)) return;
+          draw(items, notice('error', e.message || '整理失敗，請再試一次', ''));
+        }
+      });
+    };
+    try {
+      const data = await Api.admin('adminTidyNames', {}, true);
+      if (t === token) draw(data.items);
+    } catch (e) {
+      if (guard(e)) return;
+      body.innerHTML = `<p class="form-error">${esc(e.message || '讀取失敗')}</p>`;
+    }
   }
 
   /** ⚙️ 更多：不常用的功能一頁一個大按鈕 */

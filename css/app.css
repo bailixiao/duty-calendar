@@ -1036,6 +1036,7 @@ body.has-modal { overflow: hidden; }
 .more-item span { color: var(--ink-2); font-size: .95em; }
 button.more-item { width: 100%; text-align: left; font: inherit; cursor: pointer; }
 .add-ways { display: grid; gap: 10px; margin: 8px 0 4px; }
+.tidy-list { margin: 8px 0 16px; padding-left: 1.2em; line-height: 2; }
 
 /* 名單每個人的「⋯ 更多」選單（2026/11/21） */
 .act-menu { position: relative; display: inline-block; }
