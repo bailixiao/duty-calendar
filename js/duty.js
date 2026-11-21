@@ -462,8 +462,8 @@
       ${tabs}
       ${leaderLine}
       <ul class="position-list">${rows}</ul>
-      <p class="hint">「陪同」不佔名額。${canChange ? '要取消或改期，請到「查我的報名」輸入自己的名字。' : `當天（含）之後不能自己取消或改期，${Fmt.askAdmin()}。`}</p>
-      ${canChange && (d.signups || []).length ? '<a class="btn btn-block roster-mine-link" href="#/mine">🔍 查我的報名（取消／改期）</a>' : ''}`;
+      <p class="hint">「陪同」不佔名額。${canChange ? (d.positions.length > 1 ? '要取消、改期或換項目' : '要取消或改期') + '，請到「查我的報名」輸入自己的名字。' : `當天（含）之後不能自己取消或改期，${Fmt.askAdmin()}。`}</p>
+      ${canChange && (d.signups || []).length ? '<a class="btn btn-block roster-mine-link" href="#/mine">🔍 查我的報名（取消／改期' + (d.positions.length > 1 ? '／換項目' : '') + '）</a>' : ''}`;
     el.innerHTML = d.layout === '職司表' ? `
       <h2>職司表</h2>
       ${gridSection(d)}
