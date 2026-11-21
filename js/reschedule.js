@@ -268,5 +268,97 @@
     render();
   }
 
-  window.Reschedule = { open, changePosition };
+  /**
+   * 調整項目（2026/11/21）：可兼任的勤務，那天報的項目打勾調整（加報、拿掉、換），一次送出。
+   * signup: { id（那天任何一筆）, date, name, accompany, positionIds: [目前報的] }；duty: getDuty／adminDuty 的資料
+   * onDone({ res, positions: [名稱] })；opts.submit：管理後台改用 adminAdjustPositions
+   */
+  function adjustPositions(signup, duty, onDone, opts) {
+    const send = (opts && opts.submit) || Api.adjustPositions;
+    const have = signup.positionIds || [];
+    const day = (duty.days && duty.days[signup.date]) || { counts: {} };
+    const count = (p) => (day.counts && day.counts[p.id]) || 0;
+    const limited = (p) => p.max !== null && p.max !== undefined;
+    const full = (p) => !signup.accompany && limited(p) && have.indexOf(p.id) === -1 && count(p) >= p.max;
+    const picked = new Set(have);
+    const nameOf = (id) => { const p = duty.positions.find((x) => x.id === id); return p ? p.name : ''; };
+    const m = Modal.open(`
+      <h2 class="modal-title">調整項目</h2>
+      <p class="modal-sub">${esc(signup.name)}${signup.accompany ? '（陪同）' : ''}・${Fmt.shortDate(signup.date)}・${esc(duty.name)}</p>
+      <div data-body></div>`);
+    const body = m.el.querySelector('[data-body]');
+    function render() {
+      body.innerHTML = `
+        <fieldset class="field">
+          <legend>要報哪些項目（可以勾好幾個）</legend>
+          <div class="choices">
+            ${duty.positions.map((p) => {
+              const on = picked.has(p.id);
+              const disabled = full(p);
+              const sub = disabled ? '額滿' : `${have.indexOf(p.id) !== -1 ? '目前有報・' : ''}已報 ${count(p)}${limited(p) ? '／' + p.max : ' 人'}`;
+              return `<label class="choice${on ? ' is-checked' : ''}${disabled ? ' is-disabled' : ''}">
+                <input type="checkbox" name="adj-position" value="${esc(p.id)}"${on ? ' checked' : ''}${disabled ? ' disabled' : ''}>
+                <span class="choice-main">${on ? '☑' : '☐'} ${esc(p.name)}</span>
+                <span class="choice-sub">${sub}</span>
+              </label>`;
+            }).join('')}
+          </div>
+        </fieldset>
+        <p class="hint">想加報就勾、不去了就取消勾；全部不勾＝取消這天的報名。</p>
+        <div class="form-error" data-error hidden></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-primary btn-block" data-submit>確認調整</button>
+          <button type="button" class="btn btn-block" data-close>返回</button>
+        </div>`;
+      body.querySelectorAll('input[name="adj-position"]').forEach((i) => i.addEventListener('change', () => {
+        if (i.checked) picked.add(i.value); else picked.delete(i.value);
+        render();
+      }));
+      body.querySelector('[data-close]').addEventListener('click', m.close);
+      body.querySelector('[data-submit]').addEventListener('click', submit);
+    }
+    function showError(html) {
+      const box = body.querySelector('[data-error]');
+      box.innerHTML = html;
+      box.hidden = false;
+    }
+    async function submit() {
+      const ids = duty.positions.map((p) => p.id).filter((id) => picked.has(id));
+      const adds = ids.filter((id) => have.indexOf(id) === -1);
+      const removes = have.filter((id) => ids.indexOf(id) === -1);
+      if (!adds.length && !removes.length) return showError('項目沒有變更');
+      const rows = [['姓名', signup.name + (signup.accompany ? '（陪同）' : '')], ['日期', Fmt.rocDate(signup.date)]];
+      if (adds.length) rows.push(['加報', adds.map(nameOf).join('、')]);
+      if (removes.length) rows.push(['拿掉', removes.map(nameOf).join('、')]);
+      rows.push(['調整後', ids.length ? ids.map(nameOf).join('、') : '（全部取消，這天沒有報名）']);
+      const ok = await Confirm.open({
+        title: ids.length ? '確定要這樣調整嗎？' : '確定要取消這天的報名嗎？',
+        rows,
+        confirmText: ids.length ? '確定調整' : '確定取消報名',
+        cancelText: '再想想',
+        danger: !ids.length
+      });
+      if (!ok) return;
+      m.el.setAttribute('data-locked', '');
+      Busy.show('調整中，請稍候⋯', '請不要關閉畫面');
+      try {
+        const res = await Api.retryBusy(() => send({ signupId: signup.id, positionIds: ids }),
+          () => Busy.show('使用的人較多，正在排隊⋯', '系統會自動重試，請不要關閉畫面'));
+        Busy.hide();
+        m.close();
+        onDone({ res, positions: ids.map(nameOf) });
+      } catch (err) {
+        Busy.hide();
+        m.el.removeAttribute('data-locked');
+        if (err.code === 'VALIDATION' && err.details && err.details.length) {
+          showError(`<strong>${esc(err.message)}</strong><br>${err.details.map((d) => esc(d.message)).join('<br>')}`);
+        } else {
+          showError(esc(err.code === 'NETWORK' ? '網路不穩，不確定有沒有調整成功，請關閉後重新整理確認' : (err.message || '沒有調整成功，請稍後再試')));
+        }
+      }
+    }
+    render();
+  }
+
+  window.Reschedule = { open, changePosition, adjustPositions };
 })();

@@ -519,7 +519,7 @@
                 ${d.layout === '職司表' ? `<button type="button" class="btn btn-small" data-note="${esc(s.id)}">${s.note ? '改註記' : '加註記'}</button>` : ''}
                 ${/[、,，.。．\/／;；|]/.test(s.name) || /^[\u4e00-\u9fff]{2,}([\s　]+[\u4e00-\u9fff]{2,})+$/.test(s.name) ? `<button type="button" class="btn btn-small btn-primary" data-split="${esc(s.id)}">拆成多人</button>` : ''}
                 ${d.nature === '活動' ? '' : `<button type="button" class="btn btn-small" data-reschedule="${esc(s.id)}">改期</button>`}
-                ${d.positions.length > 1 ? `<button type="button" class="btn btn-small" data-change-pos="${esc(s.id)}">換項目</button>` : ''}
+                ${d.positions.length > 1 ? (d.multi ? `<button type="button" class="btn btn-small" data-adjust="${esc(s.id)}">調整項目</button>` : `<button type="button" class="btn btn-small" data-change-pos="${esc(s.id)}">換項目</button>`) : ''}
                 <button type="button" class="btn btn-small btn-quiet-danger" data-cancel="${esc(s.id)}">取消</button>
               </span>` : ''}
             </li>`;
@@ -643,6 +643,16 @@
         dutyPage.flash = notice('success', '已換項目', `${s.name}：${Fmt.shortDate(s.date)} ${result.fromName} → ${result.positionName}`);
         afterChange();
       }, { submit: (payload) => Api.admin('adminChangePosition', payload) });
+    }));
+    // 可兼任：這個人那天報的項目一起打勾調整（2026/11/21）
+    body.querySelectorAll('[data-adjust]').forEach((b) => b.addEventListener('click', () => {
+      const s = find(b.dataset.adjust);
+      const key = (x) => String(x.name || '').replace(/[\s　]+/g, '');
+      const mine = d.signups.filter((x) => x.date === s.date && !!x.accompany === !!s.accompany && (x.temple || '') === (s.temple || '') && key(x) === key(s));
+      Reschedule.adjustPositions({ id: s.id, date: s.date, name: s.name, accompany: s.accompany, positionIds: mine.map((x) => x.positionId) }, d, (result) => {
+        dutyPage.flash = notice('success', '已調整項目', `${s.name}：${Fmt.shortDate(s.date)} ${result.positions.join('、') || '（已取消這天的報名）'}`);
+        afterChange();
+      }, { submit: (payload) => Api.admin('adminAdjustPositions', payload) });
     }));
   }
 

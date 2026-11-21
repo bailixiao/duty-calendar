@@ -131,8 +131,21 @@
       bindExtras(box);
       return;
     }
-    const byDate = new Map();
+    // 可兼任的勤務（2026/11/21）：同一天同一個勤務報好幾個項目，合成一張卡（group＝那幾筆）
+    const view = [];
+    const merged = new Map();
     items.forEach((it) => {
+      if (!it.multi) { view.push(it); return; }
+      const key = [it.dutyId, it.date, it.accompany ? 1 : 0, it.temple].join('|');
+      const g = merged.get(key);
+      if (g) { g.group.push(it); g.positionName = g.group.map((x) => x.positionName).join('、'); return; }
+      const card = Object.assign({}, it, { group: [it] });
+      merged.set(key, card);
+      view.push(card);
+    });
+    current.view = view;
+    const byDate = new Map();
+    view.forEach((it) => {
       if (!byDate.has(it.date)) byDate.set(it.date, []);
       byDate.get(it.date).push(it);
     });
@@ -153,8 +166,12 @@
       ${recordHtml()}`;
     bindExtras(box);
     offerPushMe(box, name);
-    const find = (id) => current.items.find((x) => x.signupId === id);
-    box.querySelectorAll('[data-cancel]').forEach((btn) => btn.addEventListener('click', () => cancel(find(btn.dataset.cancel))));
+    const find = (id) => current.view.find((x) => x.signupId === id);
+    box.querySelectorAll('[data-cancel]').forEach((btn) => btn.addEventListener('click', () => {
+      const it = find(btn.dataset.cancel);
+      if (it && it.group && it.group.length > 1) cancelMany(it.group); else cancel(it);
+    }));
+    box.querySelectorAll('[data-adjust]').forEach((btn) => btn.addEventListener('click', () => adjust(find(btn.dataset.adjust))));
     box.querySelectorAll('[data-reschedule]').forEach((btn) => btn.addEventListener('click', () => reschedule(find(btn.dataset.reschedule))));
     box.querySelectorAll('[data-change-pos]').forEach((btn) => btn.addEventListener('click', () => changePosition(find(btn.dataset.changePos))));
     box.querySelectorAll('[data-note]').forEach((btn) => btn.addEventListener('click', () => editNote(find(btn.dataset.note))));
@@ -165,7 +182,7 @@
     if (none) none.addEventListener('click', () => picks().forEach((c) => { c.checked = false; }));
     const go = box.querySelector('[data-cancel-picked]');
     if (go) go.addEventListener('click', () => {
-      const list = picks().filter((c) => c.checked).map((c) => find(c.dataset.pick)).filter(Boolean);
+      const list = [].concat(...picks().filter((c) => c.checked).map((c) => find(c.dataset.pick)).filter(Boolean).map((it) => it.group || [it]));
       if (!list.length) { alert('請先勾要取消的報名'); return; }
       cancelMany(list);
     });
@@ -285,10 +302,11 @@
         ${it.canChange ? `
           <div class="mine-actions">
             <button type="button" class="btn btn-quiet-danger" data-cancel="${esc(it.signupId)}">取消</button>
-            ${it.nature === '活動' ? '' : `<button type="button" class="btn" data-reschedule="${esc(it.signupId)}">改期</button>`}
-            ${it.multiPos ? `<button type="button" class="btn" data-change-pos="${esc(it.signupId)}">換項目</button>` : ''}
+            ${it.nature === '活動' || (it.group && it.group.length > 1) ? '' : `<button type="button" class="btn" data-reschedule="${esc(it.signupId)}">改期</button>`}
+            ${it.multi && it.multiPos ? `<button type="button" class="btn" data-adjust="${esc(it.signupId)}">調整項目</button>`
+              : it.multiPos ? `<button type="button" class="btn" data-change-pos="${esc(it.signupId)}">換項目</button>` : ''}
           </div>` : `<p class="muted mine-note">當天（含）之後不能自己取消或改期，${esc(Fmt.askAdmin())}</p>`}
-        ${it.grid ? `<div class="mine-actions"><button type="button" class="btn" data-note="${esc(it.signupId)}">✏️ ${it.note ? '改註記' : '加註記'}</button></div>` : ''}
+        ${it.grid && !(it.group && it.group.length > 1) ? `<div class="mine-actions"><button type="button" class="btn" data-note="${esc(it.signupId)}">✏️ ${it.note ? '改註記' : '加註記'}</button></div>` : ''}
         <div class="addcal-row">${AddCal.button({ name: it.dutyName, location: it.location, start: it.start, end: it.end, startTime: it.startTime, endTime: it.endTime, dutyId: it.dutyId, date: it.date })}</div>
       </div>`;
   }
@@ -451,6 +469,28 @@
     Reschedule.changePosition(signup, duty, async (result) => {
       if (window.CalendarPage) CalendarPage.refresh();
       await search(current.name, `<div class="notice notice-success" role="status"><p><strong>已換項目</strong></p><p>${esc(`${it.dutyName}：${Fmt.shortDate(it.date)} ${it.positionName} → ${result.positionName}`)}</p></div>`);
+    });
+  }
+
+  /** 調整項目（2026/11/21）：可兼任的勤務，那天報的項目打勾調整（加報、拿掉、換） */
+  async function adjust(it) {
+    if (!it) return;
+    Busy.show('讀取中⋯');
+    let duty;
+    try {
+      duty = await Api.getDuty(it.dutyId);
+    } catch (err) {
+      Busy.hide();
+      render(`<div class="notice notice-error" role="alert"><p>${esc(err.message || '讀取失敗，請稍後再試')}</p></div>`);
+      return;
+    }
+    Busy.hide();
+    const group = it.group || [it];
+    const signup = { id: it.signupId, date: it.date, name: current.name, accompany: it.accompany, positionIds: group.map((x) => x.positionId) };
+    Reschedule.adjustPositions(signup, duty, async (result) => {
+      if (window.CalendarPage) CalendarPage.refresh();
+      const now = result.positions.length ? result.positions.join('、') : '（已取消這天的報名）';
+      await search(current.name, `<div class="notice notice-success" role="status"><p><strong>已調整項目</strong></p><p>${esc(`${it.dutyName} ${Fmt.shortDate(it.date)}：${now}`)}</p></div>`);
     });
   }
 

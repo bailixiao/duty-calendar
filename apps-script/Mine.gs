@@ -40,7 +40,8 @@ function mySignups_(body) {
       grid: d['版面'] === '職司表', // 職司表的報名可以改註記
       note: s['註記'] || '',
       canChange: canSelfChange_(s['日期'], today),
-      multiPos: (posCount[d['勤務ID']] || 0) > 1 // 有好幾個了愿項目：可以換項目（2026/11/21）
+      multiPos: (posCount[d['勤務ID']] || 0) > 1, // 有好幾個了愿項目：可以換項目（2026/11/21）
+      multi: d['可兼任'] === '是' // 可兼任：同一天的項目合成一張卡，用打勾調整
     };
   });
   items.sort(function (a, b) {

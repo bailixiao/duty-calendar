@@ -333,6 +333,7 @@ function adminRun_(body) {
     case 'adminCancel': return cancelSignup_(body, { admin: true });
     case 'adminReschedule': return rescheduleSignup_(body, { admin: true });
     case 'adminChangePosition': return changePosition_(body, { admin: true });
+    case 'adminAdjustPositions': return adjustPositions_(body, { admin: true });
     case 'adminLogs': return adminLogs_(body);
     case 'adminRestore': return adminRestore_(body);
     case 'adminDay': return adminDay_(body);

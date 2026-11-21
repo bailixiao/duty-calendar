@@ -80,3 +80,42 @@ test('換項目：最新報名、每天彙整也列出來（原本 → 新的）
   assert.match(text, /1 筆換項目/);
   assert.match(text, /⇄測試甲 .*甲項 → 丙項/);
 });
+
+test('調整項目（可兼任）：一次加報、拿掉；一換一就是換項目；全部不勾＝取消那天', () => {
+  const { env, call, duty, pid, signup } = setup({ multi: true });
+  const a = signup('測試甲', '甲項');
+  env.post({ action: 'signup', dutyId: duty.id, positionId: pid('丙項'), dates: ['2026-11-20'], entries: [{ name: '測試甲', identity: '道親' }] });
+  const items = () => env.post({ action: 'mySignups', name: '測試甲' }).data.items;
+  assert.equal(items().length, 2);
+  assert.equal(items()[0].multi, true);
+  const names = () => items().map((x) => x.positionName).sort();
+
+  // 一換一：丙 → 乙（原本那筆直接改，記換項目）
+  const r1 = env.post({ action: 'adjustPositions', signupId: a, positionIds: [pid('甲項'), pid('乙項')] });
+  assert.equal(r1.ok, true, JSON.stringify(r1.error));
+  assert.deepEqual(names(), ['乙項', '甲項']);
+  const logs = () => call('adminLogs').data.logs;
+  assert.ok(logs().some((l) => l.action === '換項目' && /丙項 → 乙項/.test(l.summary)));
+
+  // 加報＋拿掉兩個以上：拿掉甲、乙，加丙（記取消、報名）
+  const r2 = env.post({ action: 'adjustPositions', signupId: a, positionIds: [pid('丙項')] });
+  assert.equal(r2.ok, true, JSON.stringify(r2.error));
+  assert.deepEqual(names(), ['丙項']);
+  // 額滿的不能加：乙項最多 1，別人先報
+  signup('測試乙', '乙項');
+  const sid = items()[0].signupId;
+  const full = env.post({ action: 'adjustPositions', signupId: sid, positionIds: [pid('丙項'), pid('乙項')] });
+  assert.equal(full.error.code, 'VALIDATION');
+  assert.deepEqual(names(), ['丙項'], '整筆不動');
+  // 沒變更
+  assert.equal(env.post({ action: 'adjustPositions', signupId: sid, positionIds: [pid('丙項')] }).error.code, 'BAD_REQUEST');
+  // 全部不勾＝取消
+  assert.equal(env.post({ action: 'adjustPositions', signupId: sid, positionIds: [] }).ok, true);
+  assert.equal(items().length, 0);
+});
+
+test('調整項目：不可兼任的勤務不能用（用換項目）', () => {
+  const { env, pid, signup } = setup();
+  const a = signup('測試甲', '甲項');
+  assert.equal(env.post({ action: 'adjustPositions', signupId: a, positionIds: [pid('甲項'), pid('丙項')] }).error.code, 'BAD_REQUEST');
+});

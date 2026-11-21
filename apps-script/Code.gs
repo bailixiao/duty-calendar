@@ -57,6 +57,7 @@ function doPost(e) {
       case 'cancel': return cancelSignup_(body);
       case 'reschedule': return rescheduleSignup_(body);
       case 'changePosition': return changePosition_(body);
+      case 'adjustPositions': return adjustPositions_(body);
       case 'setNote': return setMyNote_(body);
       case 'gridMove': return gridMove_(body);
       case 'gridNote': return gridNote_(body);

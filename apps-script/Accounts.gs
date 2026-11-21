@@ -85,7 +85,7 @@ var ADMIN_READ_ACTIONS = ['adminPing', 'adminLogout', 'adminMe', 'adminRecent', 
   'adminDutyList', 'adminDutyForEdit', 'adminStats', 'adminMembers', 'adminGroups', 'adminGoals', 'adminVenue', 'adminVenueStats', 'adminPushList', 'adminFaq', 'adminRepairs', 'adminRecentSignups', 'adminSignupDigestWatch', 'adminNoticeTail'];
 // 依勤務類別判斷的寫入（勤務／道務／教育帳號只能動自己類別）
 var ADMIN_CATEGORY_ACTIONS = ['adminCancel', 'adminReschedule', 'adminRestore', 'adminCreateDuties', 'adminUpdateDuty',
-  'adminDeleteDuty', 'adminSetAttendance', 'adminAddAttendee', 'adminDraftFromImages', 'adminUpdateStatsSheet', 'adminSetTeachers', 'adminSaveGoals', 'adminVenueDecide', 'adminVenueEdit', 'adminVenueConvert', 'adminGridMove', 'adminGridNote', 'adminPushSave', 'adminPushDelete', 'adminAutoPushSave', 'adminRollcallLink', 'adminReportLink', 'adminImportAttendance', 'adminSetMemberExtra', 'adminSplitSignup', 'adminSetPinned', 'adminChangePosition'];
+  'adminDeleteDuty', 'adminSetAttendance', 'adminAddAttendee', 'adminDraftFromImages', 'adminUpdateStatsSheet', 'adminSetTeachers', 'adminSaveGoals', 'adminVenueDecide', 'adminVenueEdit', 'adminVenueConvert', 'adminGridMove', 'adminGridNote', 'adminPushSave', 'adminPushDelete', 'adminAutoPushSave', 'adminRollcallLink', 'adminReportLink', 'adminImportAttendance', 'adminSetMemberExtra', 'adminSplitSignup', 'adminSetPinned', 'adminChangePosition', 'adminAdjustPositions'];
 
 // 成員、分組的編輯動作，與可以編輯的帳號（總管理者另外全部可以）
 var PEOPLE_EDIT_ACTIONS = ['adminSaveMember', 'adminDeleteMember', 'adminMemberCandidates', 'adminAddMembers', 'adminMergeNames', 'adminClearCandidates',
@@ -104,7 +104,7 @@ function dutyOfSignup_(signupId) {
 /** 這個請求會動到的勤務（找不到回傳 null，交給原本的函式回錯誤） */
 function targetDuties_(body) {
   switch (body.action) {
-    case 'adminCancel': case 'adminReschedule': case 'adminChangePosition': case 'adminSetAttendance': case 'adminRestore': case 'adminGridMove': case 'adminGridNote':
+    case 'adminCancel': case 'adminReschedule': case 'adminChangePosition': case 'adminAdjustPositions': case 'adminSetAttendance': case 'adminRestore': case 'adminGridMove': case 'adminGridNote':
       return [dutyOfSignup_(body.signupId)];
     case 'adminAddAttendee':
       return [findDutyById_(body.dutyId)];
