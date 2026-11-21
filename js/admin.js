@@ -215,12 +215,12 @@
         <h2 class="detail-title">🧹 資料整理</h2>
         <p class="hint">把同一種勤務的不同名稱統一，統計、搜尋才會算在一起。只改名稱，報名、日期、類別都不動；每一筆都會記在操作紀錄。</p>
         ${items.length ? `<p><strong>會改這 ${items.length} 筆：</strong></p>
-          <ul class="tidy-list">${items.map((x) => `<li>${Fmt.shortDate(x.start)}　${esc(x.from)} → <strong>${esc(x.to)}</strong><span class="muted">（${esc(x.category)}）</span></li>`).join('')}</ul>
+          <ul class="tidy-list">${items.map((x) => `<li>${Fmt.rocDate(x.start)}　${esc(x.from)} → <strong>${esc(x.to)}</strong><span class="muted">（${esc(x.category)}）</span></li>`).join('')}</ul>
           <button type="button" class="btn btn-primary btn-block" data-tidy-go>確定整理</button>`
           : '<p class="panel-empty">目前沒有要整理的資料 👍</p>'}`;
       const go = body.querySelector('[data-tidy-go]');
       if (go) go.addEventListener('click', async () => {
-        const ok = await Confirm.open({ title: `確定要改這 ${items.length} 筆的名稱嗎？`, rows: items.map((x) => [Fmt.shortDate(x.start), x.from + ' → ' + x.to]), confirmText: '確定整理', cancelText: '再想想' });
+        const ok = await Confirm.open({ title: `確定要改這 ${items.length} 筆的名稱嗎？`, rows: items.map((x) => [Fmt.rocDate(x.start), x.from + ' → ' + x.to]), confirmText: '確定整理', cancelText: '再想想' });
         if (!ok) return;
         Busy.show('整理中⋯');
         try {
