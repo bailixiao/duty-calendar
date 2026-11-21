@@ -160,7 +160,7 @@
     if (seesLogs()) list.push(['logs', '📜 操作紀錄', '誰報名、取消、改期、換項目，改了什麼勤務；按錯了可以還原']);
     if (who.role === '總管理者') list.push(['accounts', '👤 帳號', '新增勤務／道務／教育／唯讀帳號、重設密碼、停用']);
     if (seesSite()) list.push(['site', '⚙️ 區設定', '區名、場地、地點選項、功能開關']);
-    if (who.role === '總管理者') list.push(['tidy', '🧹 資料整理', '同一種勤務的不同名稱統一（例：勤務的闡道班都叫「闡道班勤務」）']);
+    if (who.role === '總管理者') list.push(['tidy', '🧹 資料整理', '同一種勤務有好幾種名稱，勾起來合成一個（統計才會算在一起）']);
     list.push(['help', '📖 教學', '後台每個功能怎麼用']);
     return list;
   }
@@ -207,39 +207,97 @@
     return '';
   }
 
-  /** 🧹 資料整理（總管理者）：先列出會怎麼改，按「確定整理」才改 */
+  /**
+   * 🧹 資料整理（總管理者，2026/11/21）：選類別 → 勾要合在一起的名稱 → 打新名稱 →
+   * 先列出會改哪幾筆（有年份）→ 按「確定整理」才改。只改名稱，報名、日期、類別都不動。
+   */
   async function showTidy(body) {
     const t = token;
-    const draw = (items, msg) => {
+    const st = { cat: '勤務', q: '', picked: new Set(), to: '', typed: false, names: [] };
+    const ymd = (s) => (s ? Fmt.rocDate(s) : '');
+    const span = (x) => (x.first === x.last ? ymd(x.first) : `${ymd(x.first)}～${ymd(x.last)}`);
+
+    function draw(msg) {
+      const cats = ['勤務', '道務', '教育'];
+      const list = st.names.filter((x) => x.category === st.cat && (!st.q || x.name.indexOf(st.q) !== -1));
+      const picked = st.names.filter((x) => x.category === st.cat && st.picked.has(x.name));
+      if (picked.length && !st.typed) st.to = picked.slice().sort((a, b) => b.count - a.count)[0].name; // 新名稱先帶筆數最多的那個（自己改過就照自己打的）
+      const total = picked.reduce((n, x) => n + (x.name === st.to ? 0 : x.count), 0);
       body.innerHTML = `${msg || ''}
         <h2 class="detail-title">🧹 資料整理</h2>
-        <p class="hint">把同一種勤務的不同名稱統一，統計、搜尋才會算在一起。只改名稱，報名、日期、類別都不動；每一筆都會記在操作紀錄。</p>
-        ${items.length ? `<p><strong>會改這 ${items.length} 筆：</strong></p>
-          <ul class="tidy-list">${items.map((x) => `<li>${Fmt.rocDate(x.start)}　${esc(x.from)} → <strong>${esc(x.to)}</strong><span class="muted">（${esc(x.category)}）</span></li>`).join('')}</ul>
-          <button type="button" class="btn btn-primary btn-block" data-tidy-go>確定整理</button>`
-          : '<p class="panel-empty">目前沒有要整理的資料 👍</p>'}`;
-      const go = body.querySelector('[data-tidy-go]');
-      if (go) go.addEventListener('click', async () => {
-        const ok = await Confirm.open({ title: `確定要改這 ${items.length} 筆的名稱嗎？`, rows: items.map((x) => [Fmt.rocDate(x.start), x.from + ' → ' + x.to]), confirmText: '確定整理', cancelText: '再想想' });
-        if (!ok) return;
-        Busy.show('整理中⋯');
-        try {
-          const res = await Api.admin('adminTidyNames', { apply: true });
-          Busy.hide();
-          clearMemo();
-          if (window.CalendarPage) CalendarPage.refresh();
-          const left = (await Api.admin('adminTidyNames', {}, true)).items;
-          draw(left, notice('success', `已整理 ${res.done} 筆`, '操作紀錄裡可以看到每一筆改了什麼。'));
-        } catch (e) {
-          Busy.hide();
-          if (guard(e)) return;
-          draw(items, notice('error', e.message || '整理失敗，請再試一次', ''));
-        }
+        <p class="hint">同一種勤務有好幾種名稱時，勾起來合成一個名稱，統計、搜尋才會算在一起。只改名稱，報名、日期、類別都不動；每一筆都會記在操作紀錄。</p>
+        <div class="seg" role="radiogroup" aria-label="類別">${cats.map((c) => `<label class="seg-item"><input type="radio" name="tidyCat" value="${c}"${c === st.cat ? ' checked' : ''}><span>${esc(Fmt.catLabel(c))}</span></label>`).join('')}</div>
+        <input class="input tidy-q" type="search" data-q placeholder="搜尋名稱（例：打掃、明道班）" value="${esc(st.q)}">
+        <p class="muted">共 ${list.length} 種名稱。勾兩個以上要合在一起的（只勾一個＝改名）。</p>
+        <div class="tidy-names">${list.map((x) => `<label class="check tidy-name${st.picked.has(x.name) ? ' is-on' : ''}">
+          <input type="checkbox" data-name="${esc(x.name)}"${st.picked.has(x.name) ? ' checked' : ''}>
+          <span><strong>${esc(x.name)}</strong> <span class="muted">${x.count} 筆・${esc(span(x))}</span></span></label>`).join('') || '<p class="panel-empty">沒有符合的名稱</p>'}</div>
+        ${picked.length ? `<div class="tidy-bar">
+          <p>已勾 ${picked.length} 個名稱：${picked.map((x) => esc(x.name)).join('、')}</p>
+          <label class="form-row"><span>合併後的名稱</span><input class="input" data-to maxlength="60" value="${esc(st.to)}" list="tidy-to-list">
+            <datalist id="tidy-to-list">${picked.map((x) => `<option value="${esc(x.name)}">`).join('')}</datalist></label>
+          <div class="admin-actions">
+            <button type="button" class="btn btn-primary" data-preview${total ? '' : ' disabled'}>看會改哪幾筆（${total} 筆）</button>
+            <button type="button" class="link-btn" data-clear>都不勾</button>
+          </div>
+        </div>` : ''}`;
+      body.querySelectorAll('input[name="tidyCat"]').forEach((r) => r.addEventListener('change', () => { st.cat = r.value; st.picked.clear(); st.to = ''; st.typed = false; draw(); }));
+      const q = body.querySelector('[data-q]');
+      q.addEventListener('input', () => { st.q = q.value.trim(); const pos = q.selectionStart; draw(); const q2 = body.querySelector('[data-q]'); q2.focus(); q2.setSelectionRange(pos, pos); });
+      body.querySelectorAll('[data-name]').forEach((c) => c.addEventListener('change', () => {
+        if (c.checked) st.picked.add(c.dataset.name); else st.picked.delete(c.dataset.name);
+        draw();
+      }));
+      const to = body.querySelector('[data-to]');
+      if (to) to.addEventListener('change', () => { st.to = to.value.trim(); st.typed = !!st.to; draw(); });
+      const clear = body.querySelector('[data-clear]');
+      if (clear) clear.addEventListener('click', () => { st.picked.clear(); st.to = ''; st.typed = false; draw(); });
+      const pv = body.querySelector('[data-preview]');
+      if (pv) pv.addEventListener('click', () => preview(to.value.trim()));
+    }
+
+    async function preview(toName) {
+      if (!toName) return alert('請填合併後的名稱');
+      st.to = toName;
+      const payload = { category: st.cat, from: [...st.picked], to: toName };
+      let items;
+      try {
+        Busy.show('讀取中⋯');
+        items = (await Api.admin('adminTidyNames', payload)).items;
+        Busy.hide();
+      } catch (e) {
+        Busy.hide();
+        if (guard(e)) return;
+        return draw(notice('error', e.message || '讀取失敗', ''));
+      }
+      if (!items.length) return draw(notice('info', '沒有要改的', `勾的名稱已經都是「${toName}」了。`));
+      const ok = await Confirm.open({
+        title: `確定要把這 ${items.length} 筆改成「${toName}」嗎？`,
+        rows: items.map((x) => [Fmt.rocDate(x.start), x.from]),
+        confirmText: '確定整理',
+        cancelText: '再想想'
       });
-    };
+      if (!ok) return;
+      Busy.show('整理中⋯');
+      try {
+        const res = await Api.admin('adminTidyNames', Object.assign({ apply: true }, payload));
+        Busy.hide();
+        clearMemo();
+        if (window.CalendarPage) CalendarPage.refresh();
+        st.names = (await Api.admin('adminTidyNames', {}, true)).names;
+        st.picked.clear();
+        st.to = ''; st.typed = false;
+        draw(notice('success', `已整理 ${res.done} 筆，都改成「${toName}」`, '操作紀錄裡可以看到每一筆改了什麼。'));
+      } catch (e) {
+        Busy.hide();
+        if (guard(e)) return;
+        draw(notice('error', e.message || '整理失敗，請再試一次', ''));
+      }
+    }
+
     try {
-      const data = await Api.admin('adminTidyNames', {}, true);
-      if (t === token) draw(data.items);
+      st.names = (await Api.admin('adminTidyNames', {}, true)).names;
+      if (t === token) draw();
     } catch (e) {
       if (guard(e)) return;
       body.innerHTML = `<p class="form-error">${esc(e.message || '讀取失敗')}</p>`;

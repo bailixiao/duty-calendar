@@ -1036,7 +1036,14 @@ body.has-modal { overflow: hidden; }
 .more-item span { color: var(--ink-2); font-size: .95em; }
 button.more-item { width: 100%; text-align: left; font: inherit; cursor: pointer; }
 .add-ways { display: grid; gap: 10px; margin: 8px 0 4px; }
-.tidy-list { margin: 8px 0 16px; padding-left: 1.2em; line-height: 2; }
+.tidy-q { margin: 12px 0 4px; }
+.tidy-names { display: grid; gap: 2px; margin: 8px 0 24px; }
+.tidy-name { padding: 6px 8px; border-radius: 8px; align-items: flex-start; }
+.tidy-name.is-on { background: var(--paper); outline: 1px solid var(--accent); }
+.tidy-bar { position: sticky; bottom: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); box-shadow: 0 -4px 16px rgba(0,0,0,.08); }
+.tidy-bar p { margin: 0 0 6px; }
+.tidy-bar .form-row { margin-bottom: 6px; }
+.tidy-bar .admin-actions { margin: 0; }
 
 /* 名單每個人的「⋯ 更多」選單（2026/11/21） */
 .act-menu { position: relative; display: inline-block; }

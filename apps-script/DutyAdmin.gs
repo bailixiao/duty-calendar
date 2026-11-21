@@ -425,39 +425,55 @@ function adminMoveDuty_(body) {
 }
 
 /**
- * 🧹 資料整理（2026/11/21，總管理者）：把同一種勤務的不同名稱統一。body = { apply }：沒有 apply 只列出會怎麼改。
- *   規則寫在 TIDY_RENAMES_：類別相同、名稱是 from 其中一個的，改成 to。只改名稱，報名、日期、類別都不動。
- *   每一筆寫操作紀錄「修改勤務」（內容寫「資料整理：原本名稱 → 新名稱」）。
+ * 🧹 資料整理（2026/11/21，總管理者）：同一種勤務的不同名稱統一（自己勾）。
+ *   body = {}                                   → { names: [{ category, name, count, first, last }] }（每個類別、名稱幾筆、最早、最晚）
+ *   body = { category, from: [名稱], to }         → { items: [{ id, start, from, to, category }] }（只列出會改哪幾筆）
+ *   body = { category, from: [名稱], to, apply } → 真的改，{ done, items }
+ *   只改名稱，報名、日期、類別都不動；每一筆寫操作紀錄「修改勤務」（資料整理：原本 → 新名稱）。
  */
-var TIDY_RENAMES_ = [
-  { category: '勤務', from: ['區闡道班', '闡道班'], to: '闡道班勤務' } // 勤務類的闡道班統一叫「闡道班勤務」；道務的闡道班（上課的人報名）不動
-];
-
 function adminTidyNames_(body) {
-  var plan = function (rows) {
-    var out = [];
-    rows.forEach(function (d) {
-      TIDY_RENAMES_.forEach(function (r) {
-        if (dutyCategory_(d) === r.category && r.from.indexOf(String(d['名稱'] || '').trim()) !== -1) {
-          out.push({ row: d, id: d['勤務ID'], start: d['開始日'], from: d['名稱'], to: r.to, category: r.category });
-        }
-      });
+  var norm = function (s) { return String(s || '').trim(); };
+  if (!body.category) {
+    var map = {};
+    readTableCached_(SHEETS.DUTIES).forEach(function (d) {
+      var c = dutyCategory_(d);
+      var n = norm(d['名稱']);
+      if (!n) return;
+      var k = c + '|' + n;
+      var x = map[k] || (map[k] = { category: c, name: n, count: 0, first: '', last: '' });
+      x.count++;
+      var s = d['開始日'] || '';
+      if (s && (!x.first || s < x.first)) x.first = s;
+      if (s && (!x.last || s > x.last)) x.last = s;
     });
-    return out.sort(function (a, b) { return a.start < b.start ? -1 : a.start > b.start ? 1 : 0; });
+    return { names: Object.keys(map).map(function (k) { return map[k]; }).sort(function (a, b) { return a.name.localeCompare(b.name, 'zh-Hant'); }) };
+  }
+  if (CATEGORIES.indexOf(body.category) === -1) throw new ApiError_('BAD_REQUEST', '請選類別');
+  var from = (Array.isArray(body.from) ? body.from : []).map(norm).filter(Boolean);
+  var to = cleanText_(body.to).replace(/[\r\n]+/g, ' ').trim();
+  if (!from.length) throw new ApiError_('BAD_REQUEST', '請勾要合併的名稱');
+  if (!to) throw new ApiError_('BAD_REQUEST', '請填新的名稱');
+  if (to.length > 60) throw new ApiError_('BAD_REQUEST', '名稱最多 60 個字');
+  var plan = function (rows) {
+    return rows.filter(function (d) {
+      var n = norm(d['名稱']);
+      return dutyCategory_(d) === body.category && from.indexOf(n) !== -1 && n !== to;
+    }).map(function (d) {
+      return { row: d, id: d['勤務ID'], start: d['開始日'], from: norm(d['名稱']), to: to, category: body.category };
+    }).sort(function (a, b) { return a.start < b.start ? -1 : a.start > b.start ? 1 : 0; });
   };
   var view = function (list) { return list.map(function (x) { return { id: x.id, start: x.start, from: x.from, to: x.to, category: x.category }; }); };
   if (body.apply !== true) return { items: view(plan(readTableCached_(SHEETS.DUTIES))) };
   return withSignupLock_(function () {
     var list = plan(readTable_(SHEETS.DUTIES));
+    if (!list.length) throw new ApiError_('BAD_REQUEST', '沒有要改的（名稱已經都是「' + to + '」了）');
     var now = nowString_();
-    list.forEach(function (x) { updateRow_(SHEETS.DUTIES, x.row, { '名稱': x.to }); });
-    if (list.length) {
-      appendRows_(SHEETS.LOGS, list.map(function (x) {
-        return { '時間': now, '動作': '修改勤務', '報名ID': '', '內容摘要': '資料整理：' + x.from + ' → ' + x.to + '｜' + x.start + adminTag_(), '還原用的前一版資料': '' };
-      }));
-      SpreadsheetApp.flush();
-      invalidateTable_(SHEETS.DUTIES);
-    }
+    list.forEach(function (x) { updateRow_(SHEETS.DUTIES, x.row, { '名稱': to }); });
+    appendRows_(SHEETS.LOGS, list.map(function (x) {
+      return { '時間': now, '動作': '修改勤務', '報名ID': '', '內容摘要': '資料整理：' + x.from + ' → ' + to + '｜' + x.start + adminTag_(), '還原用的前一版資料': '' };
+    }));
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.DUTIES);
     return { done: list.length, items: view(list) };
   });
 }

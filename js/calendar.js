@@ -641,7 +641,7 @@
       </a>`;
   }
 
-  /** 合併的卡片：先（拜香輪值，時間、輪值組）→ 接著（初一十五班）；點進去到要報名的那一筆 */
+  /** 合併的卡片：同一天的兩個項目寫在一起（上面拜香輪值的時間、輪值組，下面「＋ 初一十五班」；不寫先後順序）；點進去到要報名的那一筆 */
   function mergedCardHtml(item, date, compact) {
     const host = item.duty;
     const first = item.follow[0].duty;
@@ -651,9 +651,9 @@
     return `
       <a class="duty-card kind-${st.kind} is-merged${compact ? ' is-compact' : ''}" href="#/duty/${encodeURIComponent(first.id)}?date=${date}">
         <span class="card-main">
-          <span class="card-title">${cat(host)}🙏 ${Fmt.esc(host.name)}</span>
+          <span class="card-title">${cat(host)}${Fmt.esc(host.name)}</span>
           ${hostMeta.length ? `<span class="card-meta">${hostMeta.map(Fmt.esc).join('・')}</span>` : ''}
-          ${item.follow.map((f) => `<span class="card-follow">接著　${cat(f.duty)}${Fmt.esc(f.duty.name)}${mine.keys.has(f.duty.id + '|' + date) ? '<span class="card-mine">✓ 我有報名</span>' : ''}${f.duty.startTime ? `<small>${Fmt.esc(f.duty.startTime)}</small>` : ''}</span>`).join('')}
+          ${item.follow.map((f) => `<span class="card-follow">＋ ${cat(f.duty)}${Fmt.esc(f.duty.name)}${mine.keys.has(f.duty.id + '|' + date) ? '<span class="card-mine">✓ 我有報名</span>' : ''}${f.duty.startTime ? `<small>${Fmt.esc(f.duty.startTime)}</small>` : ''}</span>`).join('')}
         </span>
         <span class="badge badge-${st.kind}">${Fmt.esc(st.label)}</span>
       </a>`;

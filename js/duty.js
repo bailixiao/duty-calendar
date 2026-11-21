@@ -334,7 +334,7 @@
     m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
   }
 
-  // ---------- 合併顯示：先拜香，接著上課 ----------
+  // ---------- 合併顯示：同一天的另一個項目（2026/11/21 起不寫先後順序，避免家人們誤會）----------
 
   function mergeHostSection(d) {
     const h = d.mergeHost;
@@ -346,9 +346,8 @@
     ].filter((r) => r[1]);
     return `
       <section class="detail-section merge-host">
-        <h2>🙏 先：${esc(h.name)}</h2>
+        <h2>📅 同一天還有：${esc(h.name)}</h2>
         ${rows.length ? `<dl class="detail-info">${rows.map((r) => `<div><dt>${r[0]}</dt><dd>${esc(r[1])}</dd></div>`).join('')}</dl>` : ''}
-        <p class="merge-next">📖 接著：<strong>${esc(d.name)}</strong>${d.startTime ? '' : '（拜香完接著開始）'}</p>
         <a class="link-btn" href="#/duty/${encodeURIComponent(h.id)}?date=${d.start}">看${esc(h.name)}的詳情 ›</a>
       </section>`;
   }
