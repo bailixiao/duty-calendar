@@ -193,8 +193,8 @@
           ${f('結束日', inp('end', 'date'))}
         </div>
         <div class="de-row">
-          ${f('開始時間', inp('startTime', 'time'))}
-          ${f('結束時間', inp('endTime', 'time'))}
+          ${f('開始時間', inp('startTime', 'text', 'inputmode="numeric" autocomplete="off" list="opt-times" placeholder="例：0830"'))}
+          ${f('結束時間', inp('endTime', 'text', 'inputmode="numeric" autocomplete="off" list="opt-times" placeholder="例：1200"'))}
         </div>
         ${f('地點', inp('location', 'text', 'list="opt-location"'))}
         ${f('服裝', inp('attire', 'text', 'list="opt-attire"'))}
@@ -274,6 +274,14 @@
       changed();
     });
     container.addEventListener('change', (ev) => {
+      // 時間可以打數字（0830、下午9點半）：離開欄位就換成 08:30（2026/11/21）；看不懂的照原樣，送出時伺服器會說格式錯誤
+      const tk = ev.target.dataset.k;
+      if (tk === 'startTime' || tk === 'endTime') {
+        const card = ev.target.closest('.de-card');
+        const t = Fmt.parseTime(ev.target.value);
+        if (card && t !== null) { items[Number(card.dataset.i)][tk] = t; ev.target.value = t; changed(); }
+        return;
+      }
       if (ev.target.dataset.g !== undefined) { // 負責組勾選（有的瀏覽器勾選框不送 input，這裡再讀一次）
         const card = ev.target.closest('.de-card');
         const x = items[Number(card.dataset.i)];

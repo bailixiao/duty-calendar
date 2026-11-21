@@ -198,7 +198,39 @@
     return list.slice(0, n).map(shortDate).join('、') + (list.length > n ? `⋯等 ${list.length} 天` : '');
   }
 
+  /**
+   * 打字的時間換成 HH:MM（2026/11/21）：0830、830、8:30、8.30、8點30、8點半、21:45、下午9:45、晚上9點 都可以；
+   * 空白回傳 ''，看不懂回傳 null。
+   */
+  function parseTime(text) {
+    let t = String(text || '').trim().replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/：/g, ':').replace(/\s+/g, '');
+    if (!t) return '';
+    let pm = false;
+    let am = false;
+    const pre = t.match(/^(上午|早上|凌晨|中午|下午|晚上|傍晚|am|pm)/i);
+    if (pre) {
+      pm = /下午|晚上|傍晚|pm/i.test(pre[1]);
+      am = /上午|早上|凌晨|am/i.test(pre[1]);
+      t = t.slice(pre[1].length);
+    }
+    const post = t.match(/(am|pm)$/i);
+    if (post) { pm = /pm/i.test(post[1]); am = !pm; t = t.slice(0, -2); }
+    let h;
+    let m;
+    let x;
+    if ((x = t.match(/^(\d{1,2})[:.點時](\d{1,2})?分?$/))) { h = +x[1]; m = x[2] ? +x[2] : 0; }
+    else if ((x = t.match(/^(\d{1,2})點半$/))) { h = +x[1]; m = 30; }
+    else if ((x = t.match(/^(\d{3,4})$/))) { h = +x[1].slice(0, -2); m = +x[1].slice(-2); }
+    else if ((x = t.match(/^(\d{1,2})$/))) { h = +x[1]; m = 0; }
+    else return null;
+    if (pm && h < 12) h += 12;
+    if (am && h === 12) h = 0;
+    if (h > 23 || m > 59) return null;
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+  }
+
   window.Fmt = {
+    parseTime,
     esc, toDateStr, parseDate, addDays, datesBetween, rocYear, weekday, shortDate, rocDate, catLabel,
     timeRange, cardTime, effectiveMin, dayState, groupText, groupNames, leaderWord, ticketSum, ticketGroups, sameName, byStroke, setContact, askAdmin, shortDateList
   };

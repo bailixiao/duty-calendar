@@ -145,6 +145,7 @@
         <button type="button" class="btn btn-block" data-read>讀取文字草稿</button>
       </details>
       <datalist id="opt-location">${LOCATIONS.map((x) => `<option value="${esc(x)}">`).join('')}</datalist>
+      <datalist id="opt-times">${Array.from({ length: 35 }, (_, k) => { const h = 6 + Math.floor(k / 2); return `<option value="${String(h).padStart(2, '0')}:${k % 2 ? '30' : '00'}">`; }).join('')}</datalist>
       <datalist id="opt-attire">${ATTIRES.map((x) => `<option value="${esc(x)}">`).join('')}</datalist>
       <div class="form-error" data-error hidden></div>
       <div class="modal-actions">
@@ -684,10 +685,12 @@
           <fieldset class="form-block">
             <legend>時段與地點</legend>
             <div class="form-row form-row-pair">
-              <div class="time-field"><label for="f-startTime">開始時間</label><span class="time-wrap"><input class="input" type="time" id="f-startTime" name="startTime" value="${esc(s.startTime)}"><button type="button" class="link-btn time-clear" data-clear-time="startTime"${s.startTime ? '' : ' hidden'}>清除</button></span></div>
-              <div class="time-field"><label for="f-endTime">結束時間</label><span class="time-wrap"><input class="input" type="time" id="f-endTime" name="endTime" value="${esc(s.endTime)}"><button type="button" class="link-btn time-clear" data-clear-time="endTime"${s.endTime ? '' : ' hidden'}>清除</button></span></div>
+              <div class="time-field"><label for="f-startTime">開始時間</label><span class="time-wrap"><input class="input time-text" type="text" inputmode="numeric" autocomplete="off" id="f-startTime" name="startTime" list="opt-times" placeholder="例：0830" value="${esc(s.startTime)}"><button type="button" class="link-btn time-clear" data-clear-time="startTime"${s.startTime ? '' : ' hidden'}>清除</button></span></div>
+              <div class="time-field"><label for="f-endTime">結束時間</label><span class="time-wrap"><input class="input time-text" type="text" inputmode="numeric" autocomplete="off" id="f-endTime" name="endTime" list="opt-times" placeholder="例：1200" value="${esc(s.endTime)}"><button type="button" class="link-btn time-clear" data-clear-time="endTime"${s.endTime ? '' : ' hidden'}>清除</button></span></div>
             </div>
-            <p class="hint">結束時間早於開始時間代表到隔天（例：21:00 – 08:00）。時間填錯要拿掉，按旁邊的「清除」。</p>
+            <datalist id="opt-times">${Array.from({ length: 35 }, (_, i) => { const h = 6 + Math.floor(i / 2); return `<option value="${String(h).padStart(2, '0')}:${i % 2 ? '30' : '00'}">`; }).join('')}</datalist>
+            <p class="hint">可以直接打數字（例：0830、930、2145、下午9點半），離開欄位會自動變成 08:30 這種寫法；也可以從清單選。結束時間早於開始時間代表到隔天（例：21:00 – 08:00）。時間填錯要拿掉，按旁邊的「清除」。</p>
+            <p class="form-error" data-time-error hidden></p>
             <label class="form-row"><span>地點</span>
               <input class="input" name="location" list="opt-location" value="${esc(s.location)}"></label>
             <label class="form-row"><span>服裝</span>
@@ -984,6 +987,8 @@
       ['name', 'startTime', 'endTime', 'location', 'attire', 'description', 'start', 'end', 'groupType', 'group', 'deadline', 'stages', 'teachers', 'merge', 'lecturers', 'leaders', 'assistants'].forEach((k) => {
         if (val(k) !== undefined) s[k] = val(k);
       });
+      // 打字的時間換成 08:30（看不懂的照原樣送，伺服器會說格式錯誤）
+      ['startTime', 'endTime'].forEach((k) => { const t = Fmt.parseTime(s[k]); if (t !== null && s[k] !== undefined) s[k] = t; });
       // 負責組是勾選（可以好幾組）：上面的 val('group') 讀不到勾了哪些，這裡重讀
       if (f.querySelector('input[name="group"][type=checkbox]')) s.group = [...f.querySelectorAll('input[name="group"]:checked')].map((x) => x.value).join('、');
       const radio = (n) => { const el = f.querySelector(`input[name="${n}"]:checked`); return el ? el.value : undefined; };
@@ -1050,6 +1055,19 @@
       ['startTime', 'endTime'].forEach((n) => {
         const input = f.elements[n];
         if (input) input.addEventListener('input', () => { const b = f.querySelector(`[data-clear-time="${n}"]`); if (b) b.hidden = !input.value; });
+        // 離開欄位（或從清單選）就換成 08:30；看不懂的提醒一下
+        if (input) input.addEventListener('change', () => {
+          const t = Fmt.parseTime(input.value);
+          const err = f.querySelector('[data-time-error]');
+          if (t === null) {
+            input.classList.add('is-invalid');
+            if (err) { err.textContent = `「${input.value}」看不懂，請打像 0830 或 08:30 這樣的時間`; err.hidden = false; }
+            return;
+          }
+          input.value = t;
+          input.classList.remove('is-invalid');
+          if (err && !f.querySelector('.time-text.is-invalid')) err.hidden = true;
+        });
       });
       // 分批截止日：加一批、刪一批
       f.addEventListener('click', (ev) => {
