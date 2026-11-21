@@ -33,6 +33,7 @@ function doGet(e) {
       case 'getRepairs': return getRepairs_(p);
       case 'pushClick': return pushClick_(p);
       case 'getSite': return getSite_();
+      case 'templates': return cachedRead_('templates', p, function () { return dutyTemplates_(); }); // 其他區借範本（2026/11/21）
       default: throw new ApiError_('BAD_REQUEST', '未知的 action：' + (p.action || '（空白）'));
     }
   });

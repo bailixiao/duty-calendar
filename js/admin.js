@@ -318,7 +318,7 @@
         [o.siteSaved, '① 區設定', '確認區名、地點、場地名稱，和要用哪些功能', '#/admin/site', '去區設定'],
         [o.groups > 0, '② 建分組', '輪值的組別、組長（不用分組可以跳過）', '#/admin/groups', '去分組'],
         [o.members > 0, '③ 加成員', '一個一個加，或「📋 匯入成員資料」一次貼上；有人報名也會自動加進來', '#/admin/members', '去成員'],
-        [o.duties > 0, '④ 新增第一個勤務', '「＋ 新增勤務」：自己填、從照片、從 Excel 貼上都可以', '#/admin/duties/new', '去新增'],
+        [o.duties > 0, '④ 新增第一個勤務', '「＋ 新增勤務」：自己填、從照片、從 Excel 貼上，或「📚 從教全區借範本」', '#/admin/duties/new', '去新增'],
         [o.shared, '⑤ 把網址傳給家人們', url, '', '']
       ];
       const done = steps.filter((x) => x[0]).length;

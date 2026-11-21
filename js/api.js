@@ -214,6 +214,9 @@
     getFaq: () => get('getFaq', {}),
     // 分區：開通連結（js/region-setup.js）
     regionSetupCheck: (token) => post({ action: 'regionSetupCheck', token }),
+    // 其他區「📚 從教全區借範本」：直接問教全區（不帶 region）
+    mainTemplates: () => fetch(window.APP_CONFIG.API_URL + (window.APP_CONFIG.API_URL.indexOf('?') === -1 ? '?' : '&') + 'action=templates')
+      .then((r) => r.json()).then((j) => { if (!j.ok) throw new Error((j.error && j.error.message) || '讀不到範本'); return j.data.templates; }),
     regionSetup: (token, password) => post({ action: 'regionSetup', token, password }),
     getThanks: () => get('thanks', {}), // 感謝排行榜（近三個月了愿次數）
     getRepairs: () => get('getRepairs', {}),

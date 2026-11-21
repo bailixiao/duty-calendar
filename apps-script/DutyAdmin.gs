@@ -477,3 +477,42 @@ function adminTidyNames_(body) {
     return { done: list.length, items: view(list) };
   });
 }
+
+/**
+ * 勤務範本（2026/11/21）：其他區新增勤務時「📚 從教全區借範本」用（公開，GET action=templates）。
+ *   - 近兩年用過 2 次以上的勤務（只用過一次的不列，例：某某壇主天道加披），同一種取最近一筆。
+ *   - 名稱前面的農曆日期拿掉（九月初一拜香輪值 → 拜香輪值），同一種算在一起。
+ *   - 只給行事曆上本來就公開的東西：名稱、類別、性質、模式、時間、地點、服裝、說明、了愿項目與名額、可兼任等；
+ *     不給負責組、講師帶班等人名、DM、日期、報名。
+ */
+var TEMPLATE_MAX = 200;
+
+function dutyTemplates_() {
+  var today = todayString_();
+  var since = String(Number(today.slice(0, 4)) - 2) + today.slice(4);
+  var lunarPrefix = /^閏?[正一二三四五六七八九十冬臘腊]{1,2}月(初[一二三四五六七八九十]|十[一二三四五六七八九]?|二十[一二三四五六七八九]?|廿[一二三四五六七八九]?|三十)/;
+  var positionsByDuty = groupBy_(readTableCached_(SHEETS.POSITIONS), '勤務ID');
+  var map = {};
+  readTableCached_(SHEETS.DUTIES).forEach(function (d) {
+    var name = cleanText_(d['名稱']).replace(lunarPrefix, '').trim();
+    if (!name || !d['開始日'] || d['開始日'] < since) return;
+    var key = dutyCategory_(d) + '|' + name;
+    var x = map[key] || (map[key] = { name: name, count: 0, last: '', row: null });
+    x.count++;
+    if (!x.row || d['開始日'] > x.last) { x.last = d['開始日']; x.row = d; }
+  });
+  var out = Object.keys(map).map(function (k) { return map[k]; }).filter(function (x) { return x.count >= 2; });
+  out.sort(function (a, b) { return b.count - a.count || a.name.localeCompare(b.name); });
+  return {
+    templates: out.slice(0, TEMPLATE_MAX).map(function (x) {
+      var input = dutyInputFromRow_(x.row, positionsByDuty[x.row['勤務ID']] || [], {});
+      var keep = {};
+      ['nature', 'mode', 'category', 'startTime', 'endTime', 'location', 'attire', 'description', 'multi', 'layout', 'stages', 'leaderTitle',
+        'tickets', 'price', 'templePick', 'totalNeed'].forEach(function (k) { if (input[k] !== undefined) keep[k] = input[k]; });
+      keep.name = x.name;
+      keep.count = x.count;
+      keep.positions = (input.positions || []).map(function (p) { return { name: p.name, slot: p.slot, min: p.min, max: p.max }; });
+      return keep;
+    })
+  };
+}

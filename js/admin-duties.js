@@ -450,10 +450,13 @@
           <a class="more-item" href="#/admin/duties/new" data-way><strong>✍️ 自己填</strong><span>一筆一筆填表單（也可以一次建好幾天、農曆規則）</span></a>
           <button type="button" class="more-item" data-way-photo><strong>📷 從照片</strong><span>拍公告、DM 或行事曆，自動整理成草稿再確認</span></button>
           <a class="more-item" href="#/admin/import" data-way><strong>📋 從 Excel 貼上</strong><span>從 Excel／Google 試算表複製好幾列貼上，一次匯入</span></a>
+          ${window.Region && Region.code ? '<button type="button" class="more-item" data-way-tpl><strong>📚 從教全區借範本</strong><span>教全區常用的勤務（時間、說明、了愿項目、名額），選一個帶入再改</span></button>' : ''}
         </div>
         <div class="modal-actions"><button type="button" class="btn btn-block" data-close>返回</button></div>`);
       m.el.querySelectorAll('[data-way]').forEach((a) => a.addEventListener('click', () => m.close()));
       m.el.querySelector('[data-way-photo]').addEventListener('click', () => { m.close(); openDraft(); });
+      const tplBtn = m.el.querySelector('[data-way-tpl]');
+      if (tplBtn) tplBtn.addEventListener('click', () => { m.close(); openTemplates(); });
       m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
     });
     const ai = body.querySelector('[data-att-import]');
@@ -518,6 +521,47 @@
     });
   }
 
+  // ---------- 📚 從教全區借範本（其他區，2026/11/21） ----------
+
+  let pendingTemplate = null; // 選好的範本，下一次打開「新增」表單時帶入
+
+  async function openTemplates() {
+    const m = Modal.open(`
+      <h2 class="modal-title">📚 從教全區借範本</h2>
+      <p class="hint">教全區近兩年常辦的勤務、活動。選一個，會帶入時間、地點、服裝、說明、了愿項目和名額，日期、負責組自己填，其他也可以改。</p>
+      <div data-tpl-body><p class="muted">讀取中⋯</p></div>
+      <div class="modal-actions"><button type="button" class="btn btn-block" data-close>返回</button></div>`);
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    const box = m.el.querySelector('[data-tpl-body]');
+    let list;
+    try { list = await Api.mainTemplates(); } catch (e) {
+      box.innerHTML = `<p class="form-error">${esc(e.message || '讀不到範本，請稍後再試')}</p>`;
+      return;
+    }
+    const cats = ['勤務', '道務', '教育'].filter((c) => list.some((t) => (t.category || '勤務') === c));
+    let cat = cats[0] || '勤務';
+    let q = '';
+    const draw = () => {
+      const rows = list.filter((t) => (t.category || '勤務') === cat && (!q || t.name.indexOf(q) !== -1));
+      box.innerHTML = `
+        ${cats.length > 1 ? `<div class="seg" role="radiogroup" aria-label="類別">${cats.map((c) => `<label class="seg-item"><input type="radio" name="tplCat" value="${c}"${c === cat ? ' checked' : ''}><span>${esc(Fmt.catLabel(c))}</span></label>`).join('')}</div>` : ''}
+        <input class="input tidy-q" type="search" data-tpl-q placeholder="搜尋（例：打掃、法會）" value="${esc(q)}">
+        <div class="tpl-list">${rows.map((t) => `<button type="button" class="more-item" data-tpl="${list.indexOf(t)}">
+          <strong>${esc(t.name)}</strong>
+          <span>${esc([t.startTime ? t.startTime + (t.endTime ? '–' + t.endTime : '') : '', t.location, (t.positions || []).map((p) => p.name).filter(Boolean).join('、')].filter(Boolean).join('・'))}</span>
+          <span class="muted">辦過 ${t.count} 次</span></button>`).join('') || '<p class="panel-empty">沒有符合的</p>'}</div>`;
+      box.querySelectorAll('input[name="tplCat"]').forEach((r) => r.addEventListener('change', () => { cat = r.value; draw(); }));
+      const qi = box.querySelector('[data-tpl-q]');
+      qi.addEventListener('input', () => { q = qi.value.trim(); const p = qi.selectionStart; draw(); const q2 = box.querySelector('[data-tpl-q]'); q2.focus(); q2.setSelectionRange(p, p); });
+      box.querySelectorAll('[data-tpl]').forEach((b) => b.addEventListener('click', () => {
+        pendingTemplate = list[Number(b.dataset.tpl)];
+        m.close();
+        location.hash = '#/admin/duties/new?tpl=' + Date.now(); // 每次都重新打開新增表單
+      }));
+    };
+    draw();
+  }
+
   // ---------- 表單 ----------
 
   /**
@@ -549,7 +593,9 @@
       return;
     }
     if (form.token !== t) return;
-    DutyForm(body, { editing: !!opts.id, source, groups, duties, guard });
+    const template = !opts.id && !opts.fromId ? pendingTemplate : null;
+    pendingTemplate = null;
+    DutyForm(body, { editing: !!opts.id, source, groups, duties, guard, template });
   }
 
   const CATEGORIES = ['勤務', '道務', '教育'];
@@ -587,6 +633,14 @@
       s.batches = [];
     }
     s.batches = Array.isArray(s.batches) ? s.batches.slice() : [];
+    // 從教全區借的範本：帶入名稱、時間、地點、說明、了愿項目⋯（日期、負責組自己填）
+    if (ctx.template) {
+      const tp = JSON.parse(JSON.stringify(ctx.template));
+      delete tp.count;
+      Object.assign(s, tp);
+      if (CATEGORIES.indexOf(s.category) === -1 || (Api.adminWho().role !== '總管理者' && s.category !== myCategory())) s.category = myCategory();
+      s.positions = (tp.positions && tp.positions.length) ? tp.positions : emptyDuty().positions;
+    }
     const st = {
       dateType: s.start && s.end && s.start !== s.end ? 'range' : 'single',
       lunar: { from: '', to: '', first: true, fifteenth: true, leap: true, prefix: true, groupMode: 'fixed', rotation: [], rotationStart: 0 },
@@ -661,6 +715,7 @@
       return hits.filter((d) => d.name.length === best).sort((a, b) => (b.start || '').localeCompare(a.start || ''))[0];
     }
     const FILL_SKIP = ['id', 'name', 'start', 'end', 'batches'];
+    if (ctx.template) st.fillNote = `<div class="notice notice-success fill-note"><p>✅ 已帶入教全區的範本「${esc(ctx.template.name)}」：時間、地點、服裝、說明、了愿項目和名額。<strong>日期、負責組請自己填</strong>，地點、說明也請確認是不是你們區的。</p></div>`;
     // 除了名稱、日期，其他欄位都還沒動過
     function untouched() {
       const e = emptyDuty();
