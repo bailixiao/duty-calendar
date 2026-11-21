@@ -157,8 +157,16 @@
   // ---------- 📢 通知（2026/11/2）：要貼到 LINE 的文字都在這裡：佈達（邀請報名）、給分壇名單（總務佈達在近期勤務的按鈕） ----------
   const NOTIFY_KEY = 'duty-calendar:notify-tab';
 
-  function day(body, guard) {
+  // 2026/11/21 分頁合併：佈達（#/admin/day）、給分壇名單（#/admin/roster）改成上方切換（part 指定），這裡不再有自己的切換
+  function day(body, guard, part) {
     const parts = [['invite', '📣 佈達'], ['roster', '📋 給分壇名單']];
+    if (part) {
+      body.innerHTML = '<div data-notify></div>';
+      const box = body.querySelector('[data-notify]');
+      if (part === 'invite') InviteBoard.mount(box);
+      else AdminPage.swr('roster', () => Api.admin('adminRoster', {}, true), (data, stale) => { if (box.isConnected) renderRoster(box, data, stale); }, box);
+      return;
+    }
     let cur = 'invite';
     try { cur = localStorage.getItem(NOTIFY_KEY) || cur; } catch (e) { /* 無痕模式：用預設 */ }
     if (!parts.some((p) => p[0] === cur)) cur = 'invite';

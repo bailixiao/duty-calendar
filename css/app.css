@@ -1010,6 +1010,30 @@ body.has-modal { overflow: hidden; }
 }
 
 .admin-tab.is-active { border-bottom-color: var(--accent); color: var(--ink); font-weight: 700; }
+/* 分頁合併後最多 7 個：手機上折成兩排，全部看得到，不用左右滑（2026/11/21） */
+@media (max-width: 720px) {
+  .admin-tabs { flex-wrap: wrap; overflow-x: visible; gap: 0 2px; }
+  .admin-tab { padding: 0 10px; min-height: 44px; }
+}
+
+/* 合在一起的頁面上方的切換（2026/11/21 分頁合併） */
+.admin-subnav { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 16px; }
+@media (max-width: 480px) { .admin-subnav { gap: 6px; } .admin-subnav-item { padding: 0 11px; font-size: .95em; } }
+.admin-subnav-item {
+  display: inline-flex; align-items: center; min-height: 40px; padding: 0 16px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--paper);
+  color: var(--ink-2); text-decoration: none; white-space: nowrap;
+}
+.admin-subnav-item.is-active { background: var(--ink); border-color: var(--ink); color: var(--paper); font-weight: 700; }
+
+/* ⚙️ 更多 */
+.more-list { display: grid; gap: 10px; }
+.more-item {
+  display: grid; gap: 4px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--paper); color: var(--ink); text-decoration: none;
+}
+.more-item strong { font-size: 1.1em; }
+.more-item span { color: var(--ink-2); font-size: .95em; }
 
 .admin-login {
   max-width: 360px;

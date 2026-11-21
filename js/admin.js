@@ -10,6 +10,9 @@
 //   #/admin/day       📢 通知（邀請報名、名單、總務佈達：產生貼到 LINE 的文字）
 //   #/admin/push      推播（見 admin-push.js）
 //   #/admin/help      教學（常見問題的管理者題目與編輯，見 help.js）
+//   #/admin/more      ⚙️ 更多：操作紀錄、帳號、區設定、教學的入口（2026/11/21 分頁合併）
+// 分頁合併（2026/11/21）：上方分頁只留 近期、管理、📢 通知（通知＋推播）、👥 人員（成員＋分組）、
+// 📊 統計（統計＋年度總結）、場地借用、⚙️ 更多；合在一起的頁面上方有切換（網址不變，舊連結照樣能用）。
 (function () {
   'use strict';
 
@@ -129,6 +132,7 @@
     prefetch();
     VenueAdminPage.autoWatch(); // 總管理者、場管：手機允許過通知就自動開啟場地申請通知
     if (sub === 'help') return HelpAdminPage.show(shell('help'), guard); // 📖 教學：所有後台帳號
+    if (sub === 'more') return showMore(shell('more'));
     if (Api.adminWho().role === '場管' || sub === 'venue') return VenueAdminPage.show(shell('venue'), guard); // 場管帳號只有場地借用（和教學）
     if (sub === 'accounts') return AccountsPage.show(shell('accounts'), guard);
     if (sub === 'site' && seesSite()) return SitePage.show(shell('site'), guard);
@@ -142,25 +146,76 @@
     if (sub === 'history') return HistoryPage.show(shell('stats'), guard);
     if (sub === 'report') return ReportPage.show(shell('report'), guard);
     if (sub === 'logs' && seesLogs()) return AdminPages.logs(shell('logs'), guard);
-    if (sub === 'day' && seesRoster()) return AdminPages.day(shell('day'), guard);
+    if (sub === 'day' && seesRoster()) return AdminPages.day(shell('day'), guard, 'invite');
+    if (sub === 'roster' && seesRoster()) return AdminPages.day(shell('roster'), guard, 'roster');
     if (sub === 'push' && seesRoster()) return PushAdminPage.show(shell('push'), guard);
     return showRecent();
+  }
+
+  /** 「⚙️ 更多」裡的項目（依角色）：[網址, 名稱, 說明] */
+  function moreItems() {
+    const who = Api.adminWho();
+    const list = [];
+    if (seesLogs()) list.push(['logs', '📜 操作紀錄', '誰報名、取消、改期、換項目，改了什麼勤務；按錯了可以還原']);
+    if (who.role === '總管理者') list.push(['accounts', '👤 帳號', '新增勤務／道務／教育／唯讀帳號、重設密碼、停用']);
+    if (seesSite()) list.push(['site', '⚙️ 區設定', '區名、場地、地點選項、功能開關']);
+    list.push(['help', '📖 教學', '後台每個功能怎麼用']);
+    return list;
+  }
+
+  /**
+   * 上方分頁（2026/11/21 合併）：[分頁網址, 名稱, 這個分頁包含哪些網址]。
+   * 合在一起的頁面（通知＋推播、成員＋分組、統計＋年度總結）上方有切換；不常用的收進「⚙️ 更多」。
+   */
+  function tabList() {
+    const who = Api.adminWho();
+    const T = term();
+    if (who.role === '場管') return [['venue', '場地借用', ['venue']], ['help', '📖 教學', ['help']]];
+    const venueOn = !(window.SITE.features && window.SITE.features.venue === false); // 分區：沒有場地可借的區關掉
+    const tabs = [['', '近期' + T, ['']]];
+    if (who.role !== '唯讀') tabs.push(['duties', T + '管理', ['duties']]); // 唯讀帳號：不顯示勤務管理
+    if (seesRoster()) tabs.push(['day', '📢 通知', ['day', 'roster', 'push']]); // 通知、推播：總管理者、勤務、道務、教育
+    tabs.push(['members', '👥 人員', ['members', 'groups']]);
+    tabs.push(['stats', '📊 統計', ['stats', 'report']]);
+    if (venueOn && ['總管理者', '唯讀'].indexOf(who.role) !== -1) tabs.push(['venue', '場地借用', ['venue']]);
+    const more = moreItems();
+    // 只有教學一項時直接放教學，不用多按一次
+    tabs.push(more.length > 1 ? ['more', '⚙️ 更多', ['more'].concat(more.map((m) => m[0]))] : ['help', '📖 教學', ['help']]);
+    return tabs;
+  }
+
+  /** 合在一起的頁面上方的切換：[[網址, 名稱]] */
+  const SUBNAV = {
+    day: [['day', '📣 佈達'], ['roster', '📋 分壇名單'], ['push', '📱 手機推播']],
+    roster: [['day', '📣 佈達'], ['roster', '📋 分壇名單'], ['push', '📱 手機推播']],
+    push: [['day', '📣 佈達'], ['roster', '📋 分壇名單'], ['push', '📱 手機推播']],
+    members: [['members', '成員'], ['groups', '分組']],
+    groups: [['members', '成員'], ['groups', '分組']],
+    stats: [['stats', '統計'], ['report', '📑 年度總結']],
+    report: [['stats', '統計'], ['report', '📑 年度總結']]
+  };
+
+  function subnavHtml(active) {
+    const items = SUBNAV[active];
+    if (items) {
+      return `<nav class="admin-subnav" aria-label="切換">${items.map(([k, label]) => `<a href="#/admin/${k}" class="admin-subnav-item${k === active ? ' is-active' : ''}"${k === active ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>`;
+    }
+    // 「更多」裡的頁面：上面一個回「更多」的連結
+    if (moreItems().length > 1 && moreItems().some((m) => m[0] === active)) return '<a class="back-link" href="#/admin/more">‹ 更多</a>';
+    return '';
+  }
+
+  /** ⚙️ 更多：不常用的功能一頁一個大按鈕 */
+  function showMore(body) {
+    body.innerHTML = `<div class="more-list">${moreItems().map(([k, label, desc]) => `
+      <a class="more-item" href="#/admin/${k}"><strong>${label}</strong><span>${esc(desc)}</span></a>`).join('')}</div>`;
   }
 
   /** 管理頁共用外框：上方分頁＋內容區，回傳內容區元素 */
   function shell(active) {
     const who = Api.adminWho();
-    const T = term();
-    const tabs = [['', '近期' + T], ['day', '📢 通知'], ['duties', T + '管理'], ['members', '成員'], ['groups', '分組'], ['stats', '統計'], ['report', '📑 年度總結'], ['logs', '操作紀錄'], ['push', '📣 推播']];
-    const venueOn = !(window.SITE.features && window.SITE.features.venue === false); // 分區：沒有場地可借的區關掉
-    if (venueOn && ['總管理者', '唯讀'].indexOf(who.role) !== -1) tabs.push(['venue', '場地借用']);
-    if (who.role === '總管理者') tabs.push(['accounts', '帳號']);
-    if (seesSite()) tabs.push(['site', '⚙️ 區設定']);
-    if (who.role === '唯讀') tabs.splice(tabs.findIndex((t) => t[0] === 'duties'), 1); // 唯讀帳號：不顯示勤務管理
-    if (!seesLogs()) tabs.splice(tabs.findIndex((t) => t[0] === 'logs'), 1); // 操作紀錄只給總管理者
-    if (!seesRoster()) ['day', 'push'].forEach((k) => tabs.splice(tabs.findIndex((t) => t[0] === k), 1)); // 名單、推播：總管理者、勤務、道務、教育
-    if (who.role === '場管') tabs.splice(0, tabs.length, ['venue', '場地借用']);
-    tabs.push(['help', '📖 教學']);
+    const tabs = tabList();
+    const cur = (tabs.find((t) => t[2].indexOf(active) !== -1) || [active])[0];
     root.innerHTML = `
       <div class="admin-head">
         <h1 class="admin-title">管理後台</h1>
@@ -170,8 +225,9 @@
       </div>
       ${roleNote(who.role)}
       <nav class="admin-tabs" aria-label="管理功能">
-        ${tabs.map(([k, label]) => `<a href="#/admin${k ? '/' + k : ''}" class="admin-tab${k === active ? ' is-active' : ''}">${label}</a>`).join('')}
+        ${tabs.map(([k, label]) => `<a href="#/admin${k ? '/' + k : ''}" class="admin-tab${k === cur ? ' is-active' : ''}">${label}</a>`).join('')}
       </nav>
+      ${subnavHtml(active)}
       <div class="admin-body" data-body><p class="panel-empty">載入中⋯</p></div>`;
     root.querySelector('[data-mypw]').addEventListener('click', changeMyPassword);
     root.querySelector('[data-logout]').addEventListener('click', () => {
