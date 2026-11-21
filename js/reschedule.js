@@ -195,5 +195,78 @@
     }
   }
 
-  window.Reschedule = { open };
+  /**
+   * 換了愿項目（2026/11/21）：同一個勤務、同一天，只換項目（活動也可以）。原本那筆直接改，佛堂、註記都保留。
+   * signup: { id, date, positionId, name, accompany }；duty: getDuty／adminDuty 的資料（要有 positions、days）
+   * onDone({ res, positionName })；opts.submit：管理後台改用 adminChangePosition
+   */
+  function changePosition(signup, duty, onDone, opts) {
+    const send = (opts && opts.submit) || Api.changePosition;
+    const from = duty.positions.find((p) => p.id === signup.positionId);
+    const day = (duty.days && duty.days[signup.date]) || { counts: {} };
+    const count = (p) => (day.counts && day.counts[p.id]) || 0;
+    const full = (p) => !signup.accompany && p.max !== null && p.max !== undefined && count(p) >= p.max;
+    let picked = null;
+    const m = Modal.open(`
+      <h2 class="modal-title">換了愿項目</h2>
+      <p class="modal-sub">${esc(signup.name)}${signup.accompany ? '（陪同）' : ''}・${Fmt.shortDate(signup.date)}・原本 ${esc(from ? from.name : '')}</p>
+      <div data-body></div>`);
+    const body = m.el.querySelector('[data-body]');
+    function render() {
+      body.innerHTML = `
+        <fieldset class="field">
+          <legend>換成哪一個</legend>
+          <div class="choices">
+            ${duty.positions.map((p) => {
+              const current = p.id === signup.positionId;
+              const disabled = current || full(p);
+              const checked = p.id === picked;
+              const sub = current ? '目前' : full(p) ? '額滿' : p.max !== null && p.max !== undefined ? `已報 ${count(p)}／${p.max}` : `已報 ${count(p)} 人`;
+              return `<label class="choice${checked ? ' is-checked' : ''}${disabled ? ' is-disabled' : ''}">
+                <input type="radio" name="to-position" value="${esc(p.id)}"${checked ? ' checked' : ''}${disabled ? ' disabled' : ''}>
+                <span class="choice-main">${esc(p.name)}</span>
+                <span class="choice-sub">${sub}</span>
+              </label>`;
+            }).join('')}
+          </div>
+        </fieldset>
+        <div class="form-error" data-error hidden></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-primary btn-block" data-submit>確認換項目</button>
+          <button type="button" class="btn btn-block" data-close>返回</button>
+        </div>`;
+      body.querySelectorAll('input[name="to-position"]').forEach((i) => i.addEventListener('change', () => { picked = i.value; render(); }));
+      body.querySelector('[data-close]').addEventListener('click', m.close);
+      body.querySelector('[data-submit]').addEventListener('click', submit);
+    }
+    function showError(html) {
+      const box = body.querySelector('[data-error]');
+      box.innerHTML = html;
+      box.hidden = false;
+    }
+    async function submit() {
+      const to = duty.positions.find((p) => p.id === picked);
+      if (!to) return showError('請選擇要換成哪一個了愿項目');
+      m.el.setAttribute('data-locked', '');
+      Busy.show('換項目中，請稍候⋯', '請不要關閉畫面');
+      try {
+        const res = await Api.retryBusy(() => send({ signupId: signup.id, positionId: to.id }),
+          () => Busy.show('使用的人較多，正在排隊⋯', '系統會自動重試，請不要關閉畫面'));
+        Busy.hide();
+        m.close();
+        onDone({ res, positionName: to.name, fromName: from ? from.name : '' });
+      } catch (err) {
+        Busy.hide();
+        m.el.removeAttribute('data-locked');
+        if (err.code === 'VALIDATION' && err.details && err.details.length) {
+          showError(`<strong>${esc(err.message)}</strong><br>${err.details.map((d) => esc(d.message)).join('<br>')}`);
+        } else {
+          showError(esc(err.code === 'NETWORK' ? '網路不穩，不確定有沒有換成，請關閉後重新整理確認' : (err.message || '沒有換成，請稍後再試')));
+        }
+      }
+    }
+    render();
+  }
+
+  window.Reschedule = { open, changePosition };
 })();

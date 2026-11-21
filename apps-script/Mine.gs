@@ -14,7 +14,8 @@ function mySignups_(body) {
   var duties = {};
   readTableCached_(SHEETS.DUTIES).forEach(function (d) { duties[d['勤務ID']] = d; });
   var positions = {};
-  readTableCached_(SHEETS.POSITIONS).forEach(function (p) { positions[p['了愿項目ID']] = p; });
+  var posCount = {};
+  readTableCached_(SHEETS.POSITIONS).forEach(function (p) { positions[p['了愿項目ID']] = p; posCount[p['勤務ID']] = (posCount[p['勤務ID']] || 0) + 1; });
 
   var items = readTableCached_(SHEETS.SIGNUPS).filter(function (s) {
     return s['狀態'] !== '已取消' && s['日期'] >= today && mineKey_(s['姓名']) === name && duties[s['勤務ID']];
@@ -38,7 +39,8 @@ function mySignups_(body) {
       accompany: s['陪同'] === '是',
       grid: d['版面'] === '職司表', // 職司表的報名可以改註記
       note: s['註記'] || '',
-      canChange: canSelfChange_(s['日期'], today)
+      canChange: canSelfChange_(s['日期'], today),
+      multiPos: (posCount[d['勤務ID']] || 0) > 1 // 有好幾個了愿項目：可以換項目（2026/11/21）
     };
   });
   items.sort(function (a, b) {

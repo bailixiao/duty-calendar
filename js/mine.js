@@ -156,6 +156,7 @@
     const find = (id) => current.items.find((x) => x.signupId === id);
     box.querySelectorAll('[data-cancel]').forEach((btn) => btn.addEventListener('click', () => cancel(find(btn.dataset.cancel))));
     box.querySelectorAll('[data-reschedule]').forEach((btn) => btn.addEventListener('click', () => reschedule(find(btn.dataset.reschedule))));
+    box.querySelectorAll('[data-change-pos]').forEach((btn) => btn.addEventListener('click', () => changePosition(find(btn.dataset.changePos))));
     box.querySelectorAll('[data-note]').forEach((btn) => btn.addEventListener('click', () => editNote(find(btn.dataset.note))));
     const picks = () => [...box.querySelectorAll('[data-pick]')];
     const all = box.querySelector('[data-pick-all]');
@@ -285,6 +286,7 @@
           <div class="mine-actions">
             <button type="button" class="btn btn-quiet-danger" data-cancel="${esc(it.signupId)}">取消</button>
             ${it.nature === '活動' ? '' : `<button type="button" class="btn" data-reschedule="${esc(it.signupId)}">改期</button>`}
+            ${it.multiPos ? `<button type="button" class="btn" data-change-pos="${esc(it.signupId)}">換項目</button>` : ''}
           </div>` : `<p class="muted mine-note">當天（含）之後不能自己取消或改期，${esc(Fmt.askAdmin())}</p>`}
         ${it.grid ? `<div class="mine-actions"><button type="button" class="btn" data-note="${esc(it.signupId)}">✏️ ${it.note ? '改註記' : '加註記'}</button></div>` : ''}
         <div class="addcal-row">${AddCal.button({ name: it.dutyName, location: it.location, start: it.start, end: it.end, startTime: it.startTime, endTime: it.endTime, dutyId: it.dutyId, date: it.date })}</div>
@@ -429,6 +431,26 @@
       if (window.CalendarPage) CalendarPage.refresh();
       const text = result.date ? `${Fmt.shortDate(it.date)} ${it.positionName} → ${Fmt.shortDate(result.date)} ${result.positionName || ''}` : '';
       await search(current.name, `<div class="notice notice-success" role="status"><p><strong>已改期</strong></p>${text ? `<p>${esc(it.dutyName + '：' + text)}</p>` : ''}</div>`);
+    });
+  }
+
+  /** 換了愿項目（2026/11/21）：同一天、同一個勤務，只換項目 */
+  async function changePosition(it) {
+    if (!it) return;
+    Busy.show('讀取中⋯');
+    let duty;
+    try {
+      duty = await Api.getDuty(it.dutyId);
+    } catch (err) {
+      Busy.hide();
+      render(`<div class="notice notice-error" role="alert"><p>${esc(err.message || '讀取失敗，請稍後再試')}</p></div>`);
+      return;
+    }
+    Busy.hide();
+    const signup = { id: it.signupId, date: it.date, positionId: it.positionId, name: current.name, accompany: it.accompany };
+    Reschedule.changePosition(signup, duty, async (result) => {
+      if (window.CalendarPage) CalendarPage.refresh();
+      await search(current.name, `<div class="notice notice-success" role="status"><p><strong>已換項目</strong></p><p>${esc(`${it.dutyName}：${Fmt.shortDate(it.date)} ${it.positionName} → ${result.positionName}`)}</p></div>`);
     });
   }
 

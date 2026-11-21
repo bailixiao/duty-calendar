@@ -12,7 +12,7 @@
 var ADMIN_TOKEN_TTL_SEC = 21600; // 6 小時（CacheService 上限）
 var ADMIN_MAX_FAILS = 10;
 var ADMIN_LOCK_SEC = 600;
-var RESTORABLE_ACTIONS = ['報名', '取消', '改期', '調整職司'];
+var RESTORABLE_ACTIONS = ['報名', '取消', '改期', '調整職司', '換項目'];
 
 function adminLogin_(body) {
   var who = checkLogin_(body.account, body.password);
@@ -172,7 +172,7 @@ function adminRestore_(body) {
       cancelRow(log['報名ID']);
     } else if (log['動作'] === '取消') {
       reactivateRow(log['報名ID']);
-    } else if (log['動作'] === '調整職司') {
+    } else if (log['動作'] === '調整職司' || log['動作'] === '換項目') {
       // 職司表拖曳：每筆放回原本的日期、項目
       var back = JSON.parse(log['還原用的前一版資料'] || '{}').moves || [];
       if (!back.length) throw new ApiError_('BAD_REQUEST', '這筆紀錄缺少還原資料');
@@ -332,6 +332,7 @@ function adminRun_(body) {
     case 'adminDuty': return adminDuty_(body);
     case 'adminCancel': return cancelSignup_(body, { admin: true });
     case 'adminReschedule': return rescheduleSignup_(body, { admin: true });
+    case 'adminChangePosition': return changePosition_(body, { admin: true });
     case 'adminLogs': return adminLogs_(body);
     case 'adminRestore': return adminRestore_(body);
     case 'adminDay': return adminDay_(body);

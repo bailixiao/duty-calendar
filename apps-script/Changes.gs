@@ -328,3 +328,74 @@ function notifyGridLeaders_(duty, dates, text) {
   if (!devices.length) return;
   pushMessageTo_(devices, '📋 職司有調整（' + duty['名稱'] + '）', text, '#/grid/' + encodeURIComponent(duty['勤務ID']));
 }
+
+/**
+ * 換了愿項目（2026/11/21）：同一個勤務、同一天，只換項目。body = { signupId, positionId }
+ *   - 勤務有好幾個了愿項目才能換；活動也可以（活動不能改期，但可以換項目）。
+ *   - 原本那筆直接改（佛堂、註記、組長、張數都保留）；家人們自己換，當天（含）以後不能換、過了報名截止日也不能換。
+ *   - 名額、同一天重複照報名規則（陪同不佔名額）。
+ *   - 操作紀錄「換項目」，還原用的前一版資料 { moves: [{ id, date, positionId }] }（還原方式同調整職司）。
+ */
+function changePosition_(body, opts) {
+  opts = opts || {};
+  var duties = readTableCached_(SHEETS.DUTIES);
+  var positions = readTableCached_(SHEETS.POSITIONS);
+  return withSignupLock_(function () {
+    var signups = readTable_(SHEETS.SIGNUPS);
+    var row = findActiveSignup_(signups, body.signupId);
+    var today = todayString_();
+    if (!opts.admin && !canSelfChange_(row['日期'], today)) {
+      throw new ApiError_('FORBIDDEN', '勤務當天（含）之後不能自己換項目，請聯絡管理者');
+    }
+    var duty = findById_(duties, '勤務ID', row['勤務ID']);
+    if (!duty) throw new ApiError_('NOT_FOUND', '找不到這個勤務');
+    if (!opts.admin && duty['報名截止日'] && today > duty['報名截止日']) {
+      throw new ApiError_('FORBIDDEN', '報名已截止，要換項目請聯絡管理者');
+    }
+    var dutyPositions = positions.filter(function (p) { return p['勤務ID'] === duty['勤務ID']; });
+    if (dutyPositions.length < 2) throw new ApiError_('BAD_REQUEST', '這個勤務只有一個了愿項目，不用換');
+    var toPos = findById_(dutyPositions, '了愿項目ID', String(body.positionId || ''));
+    if (!toPos) throw new ApiError_('BAD_REQUEST', '請選擇要換到哪個了愿項目');
+    if (toPos['了愿項目ID'] === row['了愿項目ID']) throw new ApiError_('BAD_REQUEST', '了愿項目沒有變更');
+
+    var others = signups.filter(function (s) {
+      return s['勤務ID'] === duty['勤務ID'] && s['日期'] === row['日期'] && s['狀態'] !== '已取消' && s !== row;
+    });
+    var errors = [];
+    if (row['陪同'] !== '是' && duty['可兼任'] === '是') {
+      var dup = others.filter(function (s) {
+        return s['了愿項目ID'] === toPos['了愿項目ID'] && s['陪同'] !== '是' && samePerson_(s['姓名'], s['佛堂'], row['姓名'], row['佛堂']);
+      })[0];
+      if (dup) errors.push({ message: '這天已經報了「' + toPos['了愿項目名稱'] + '」' });
+    }
+    if (row['陪同'] !== '是') {
+      var max = parseLimit_(toPos['最多']);
+      var count = others.filter(function (s) { return s['了愿項目ID'] === toPos['了愿項目ID'] && countsTowardQuota_(s); }).length;
+      if (max !== null && count >= max) errors.push({ message: toPos['了愿項目名稱'] + ' 那天已經額滿了' });
+    }
+    if (errors.length) throw new ApiError_('VALIDATION', '沒有換成，請看下面的說明', errors);
+
+    var fromPos = findById_(dutyPositions, '了愿項目ID', row['了愿項目ID']);
+    var now = nowString_();
+    var moves = [{ id: row['報名ID'], date: row['日期'], positionId: row['了愿項目ID'] }];
+    updateRow_(SHEETS.SIGNUPS, row, { '了愿項目ID': toPos['了愿項目ID'], '更新時間': now });
+    appendRows_(SHEETS.LOGS, [{
+      '時間': now,
+      '動作': '換項目',
+      '報名ID': row['報名ID'],
+      '內容摘要': signupSummary_(Object.assign({}, row, { '了愿項目ID': moves[0].positionId }), duty, fromPos) + ' → ' + toPos['了愿項目名稱'] + (opts.admin ? adminTag_() : ''),
+      '還原用的前一版資料': JSON.stringify({ moves: moves })
+    }]);
+    if (duty['版面'] === '職司表') notifyGridLeaders_(duty, [row['日期']], row['姓名'] + ' ' + Number(row['日期'].slice(5, 7)) + '/' + Number(row['日期'].slice(8, 10)) + '：' + (fromPos ? fromPos['了愿項目名稱'] : '') + ' → ' + toPos['了愿項目名稱']);
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.SIGNUPS);
+    return {
+      signupId: row['報名ID'],
+      dutyId: duty['勤務ID'],
+      date: row['日期'],
+      positionId: toPos['了愿項目ID'],
+      positionName: toPos['了愿項目名稱'],
+      days: dutyDays_(duty, positions, signups, [row['日期']])
+    };
+  });
+}

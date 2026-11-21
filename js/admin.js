@@ -519,6 +519,7 @@
                 ${d.layout === '職司表' ? `<button type="button" class="btn btn-small" data-note="${esc(s.id)}">${s.note ? '改註記' : '加註記'}</button>` : ''}
                 ${/[、,，.。．\/／;；|]/.test(s.name) || /^[\u4e00-\u9fff]{2,}([\s　]+[\u4e00-\u9fff]{2,})+$/.test(s.name) ? `<button type="button" class="btn btn-small btn-primary" data-split="${esc(s.id)}">拆成多人</button>` : ''}
                 ${d.nature === '活動' ? '' : `<button type="button" class="btn btn-small" data-reschedule="${esc(s.id)}">改期</button>`}
+                ${d.positions.length > 1 ? `<button type="button" class="btn btn-small" data-change-pos="${esc(s.id)}">換項目</button>` : ''}
                 <button type="button" class="btn btn-small btn-quiet-danger" data-cancel="${esc(s.id)}">取消</button>
               </span>` : ''}
             </li>`;
@@ -635,6 +636,13 @@
         dutyPage.flash = notice('success', '已改期', `${s.name}：${Fmt.shortDate(s.date)} → ${Fmt.shortDate(result.date)} ${result.positionName}`);
         afterChange();
       }, { submit: (payload) => Api.admin('adminReschedule', payload) });
+    }));
+    body.querySelectorAll('[data-change-pos]').forEach((b) => b.addEventListener('click', () => {
+      const s = find(b.dataset.changePos);
+      Reschedule.changePosition(s, d, (result) => {
+        dutyPage.flash = notice('success', '已換項目', `${s.name}：${Fmt.shortDate(s.date)} ${result.fromName} → ${result.positionName}`);
+        afterChange();
+      }, { submit: (payload) => Api.admin('adminChangePosition', payload) });
     }));
   }
 

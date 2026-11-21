@@ -244,6 +244,7 @@
     signup: (payload) => post(Object.assign({ action: 'signup' }, payload)),
     cancel: (signupId) => post({ action: 'cancel', signupId }),
     reschedule: (payload) => post(Object.assign({ action: 'reschedule' }, payload)),
+    changePosition: (payload) => post(Object.assign({ action: 'changePosition' }, payload)),
     setNote: (payload) => post(Object.assign({ action: 'setNote' }, payload)),
     groupNote: (payload) => post(Object.assign({ action: 'groupNote' }, payload)),
     groupNoteDelete: (payload) => post(Object.assign({ action: 'groupNoteDelete' }, payload)),

@@ -180,6 +180,10 @@ const SHOTS = [
   { name: 'resched', hash: '#/mine', js: `localStorage.setItem('duty-calendar:mine-name', '測試甲'); location.hash = '#/'; await __wait(200); location.hash = '#/mine'; await __wait(2000);
       const b = [...document.querySelectorAll('[data-reschedule]')].pop(); b.click(); await __wait(2000);`,
     clip: `return __box('.modal-box', 4);` },
+  { name: 'change-pos', hash: '#/mine', js: `if (!window.__cpSeed) { window.__cpSeed = 1; const tk = (await __p({ action: 'adminLogin', password: 'test-pass' })).data.token; const id = (await __p({ action: 'adminCreateDuties', token: tk, duties: [{ name: '宏宗大掃除（示範）', category: '勤務', start: '2027-01-10', end: '2027-01-10', startTime: '08:00', location: '宏宗', positions: [{ name: '大殿', max: 6 }, { name: '廚房', max: 2 }, { name: '環境', max: 4 }] }] })).data.ids[0]; const dd = (await __g({ action: 'getDuty', id })).data; await __p({ action: 'signup', dutyId: id, positionId: dd.positions[0].id, dates: ['2027-01-10'], entries: [{ name: '測試甲', identity: '道親' }, { name: '王小明', identity: '道親' }] }); await __p({ action: 'signup', dutyId: id, positionId: dd.positions[1].id, dates: ['2027-01-10'], entries: [{ name: '測試乙', identity: '道親' }, { name: '測試丙', identity: '道親' }] }); }
+      localStorage.setItem('duty-calendar:mine-name', '測試甲'); location.hash = '#/'; await __wait(200); location.hash = '#/mine'; await __wait(2000);
+      const b = document.querySelector('[data-change-pos]'); b.click(); await __wait(2000);`,
+    clip: `return __box('.modal-box', 4);` },
   { name: 'push-panel', hash: '#/', js: `PushPage.openPanel(); await __wait(1200);`, clip: `return __box('.modal-box', 4);` },
   { name: 'venue-pick', hash: '#/venue', js: `await __wait(1500); const cells = document.querySelectorAll('#view-venue [data-hour]'); if (cells[2]) { cells[2].click(); await __wait(200); document.querySelectorAll('#view-venue [data-hour]')[4].click(); } await __wait(300);`,
     clip: `const s = document.querySelector('#view-venue .venue-step, #view-venue section, #view-venue form'); return { x: 0, y: 0, width: innerWidth, height: 1100 };` },
