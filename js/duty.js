@@ -159,7 +159,7 @@
     el.innerHTML = `
       ${reportSection(d)}
       ${d.layout === '職司表' && !top ? stagesSection(d) : ''}
-      ${d.mergeHost ? mergeHostSection(d) : ''}
+      ${d.mergeHost && d.mergeHost.mode === '公告型' ? mergeHostSection(d) : ''}
       ${d.mode === '公告型' && (d.group || d.groupInfo) ? groupSection(d) : ''}
       ${Array.isArray(d.groupNotes) ? groupNotesSection(d) : ''}
       ${dm.length ? `
@@ -335,6 +335,7 @@
   }
 
   // ---------- 合併顯示：同一天的另一個項目（2026/11/21 起不寫先後順序，避免家人們誤會）----------
+  // 只在另一筆是公告型（例：拜香輪值）時顯示；兩筆都要報名時行事曆卡片已經分兩行各點各的，報名頁就不再放這一塊。
 
   function mergeHostSection(d) {
     const h = d.mergeHost;
