@@ -1034,6 +1034,20 @@ body.has-modal { overflow: hidden; }
 }
 .more-item strong { font-size: 1.1em; }
 .more-item span { color: var(--ink-2); font-size: .95em; }
+button.more-item { width: 100%; text-align: left; font: inherit; cursor: pointer; }
+.add-ways { display: grid; gap: 10px; margin: 8px 0 4px; }
+
+/* 名單每個人的「⋯ 更多」選單（2026/11/21） */
+.act-menu { position: relative; display: inline-block; }
+.act-menu > summary { list-style: none; cursor: pointer; }
+.act-menu > summary::-webkit-details-marker { display: none; }
+.act-menu[open] > summary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.act-menu-list {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; display: grid; gap: 6px; min-width: 9em;
+  padding: 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .15);
+}
+.act-menu-list .btn { width: 100%; justify-content: center; }
 
 .admin-login {
   max-width: 360px;

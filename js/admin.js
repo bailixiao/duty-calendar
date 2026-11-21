@@ -558,6 +558,25 @@
     const positions = d.positions.map((p) => {
       const people = d.signups ? d.signups.filter((s) => s.date === date && s.positionId === p.id) : [];
       const count = d.signups ? people.filter((s) => !s.accompany && (!past || s.attend !== '未到')).length : ((d.days[date] && d.days[date].counts[p.id]) || 0);
+      // 每個人的按鈕（2026/11/21 精簡）：外面只留常用的（過了的：改出席／未到；名字要拆：拆成多人；取消），其他收進「⋯ 更多」
+      const personActions = (s) => {
+        const btn = (attr, label, cls) => `<button type="button" class="btn btn-small${cls ? ' ' + cls : ''}" ${attr}="${esc(s.id)}">${label}</button>`;
+        const main = [];
+        const more = [];
+        if (past) main.push(btn('data-attend', s.attend === '未到' ? '改出席' : '改未到'));
+        if (/[、,，.。．\/／;；|]/.test(s.name) || /^[\u4e00-\u9fff]{2,}([\s　]+[\u4e00-\u9fff]{2,})+$/.test(s.name)) main.push(btn('data-split', '拆成多人', 'btn-primary'));
+        if (past && s.identity === '壇辦') more.push(btn('data-acc', s.accompany ? '改了愿' : '改陪同'));
+        if (d.layout === '職司表' || (d.leaderTitle && !s.accompany)) more.push(btn('data-leader', s.leader ? '取消組長' : '★ 設組長'));
+        if (d.tickets) more.push(btn('data-tickets', '改張數'));
+        if (d.layout === '職司表') more.push(btn('data-note', s.note ? '改註記' : '加註記'));
+        if (d.nature !== '活動') more.push(btn('data-reschedule', '改期'));
+        if (d.positions.length > 1) more.push(d.multi ? btn('data-adjust', '調整項目') : btn('data-change-pos', '換項目'));
+        // 只有一個的話直接放外面，不用多按一次
+        const menu = more.length > 1
+          ? `<details class="act-menu"><summary class="btn btn-small">⋯ 更多</summary><div class="act-menu-list">${more.join('')}</div></details>`
+          : more.join('');
+        return `<span class="person-actions">${main.join('')}${menu}${btn('data-cancel', '取消', 'btn-quiet-danger')}</span>`;
+      };
       const row = (s) => `
             <li class="person-row${past && s.attend === '未到' ? ' is-absent' : ''}">
               <span class="person"><span class="person-name">${s.leader ? '<span class="grid-star" title="組長">★</span>' : ''}${esc(s.name)}</span>${s.first ? '<span class="tag tag-new">🆕 新朋友</span>' : ''}${s.leader && d.leaderTitle ? `<span class="tag tag-leader">${esc(d.leaderTitle)}</span>` : ''}${s.temple && !d.tickets ? `<span class="tag">${esc(s.temple)}</span>` : ''}
@@ -567,17 +586,7 @@
                 ${s.note ? `<span class="tag">註：${esc(s.note)}</span>` : ''}
                 ${d.tickets ? `<span class="tag tag-ticket">${s.tickets || 1} 張${d.price ? '・' + (s.tickets || 1) * d.price + ' 元' : ''}</span>` : ''}
               </span>
-              ${canEdit ? `<span class="person-actions">
-                ${past ? `<button type="button" class="btn btn-small" data-attend="${esc(s.id)}">${s.attend === '未到' ? '改出席' : '改未到'}</button>
-                  ${s.identity === '壇辦' ? `<button type="button" class="btn btn-small" data-acc="${esc(s.id)}">${s.accompany ? '改了愿' : '改陪同'}</button>` : ''}` : ''}
-                ${d.layout === '職司表' || (d.leaderTitle && !s.accompany) ? `<button type="button" class="btn btn-small" data-leader="${esc(s.id)}">${s.leader ? '取消組長' : '★ 設組長'}</button>` : ''}
-                ${d.tickets ? `<button type="button" class="btn btn-small" data-tickets="${esc(s.id)}">改張數</button>` : ''}
-                ${d.layout === '職司表' ? `<button type="button" class="btn btn-small" data-note="${esc(s.id)}">${s.note ? '改註記' : '加註記'}</button>` : ''}
-                ${/[、,，.。．\/／;；|]/.test(s.name) || /^[\u4e00-\u9fff]{2,}([\s　]+[\u4e00-\u9fff]{2,})+$/.test(s.name) ? `<button type="button" class="btn btn-small btn-primary" data-split="${esc(s.id)}">拆成多人</button>` : ''}
-                ${d.nature === '活動' ? '' : `<button type="button" class="btn btn-small" data-reschedule="${esc(s.id)}">改期</button>`}
-                ${d.positions.length > 1 ? (d.multi ? `<button type="button" class="btn btn-small" data-adjust="${esc(s.id)}">調整項目</button>` : `<button type="button" class="btn btn-small" data-change-pos="${esc(s.id)}">換項目</button>`) : ''}
-                <button type="button" class="btn btn-small btn-quiet-danger" data-cancel="${esc(s.id)}">取消</button>
-              </span>` : ''}
+              ${canEdit ? personActions(s) : ''}
             </li>`;
       // 登記張數（園遊券）：依佛堂分組，佛堂一行、底下名字和張數、最後佛堂小計與金額
       const ticketList = (list) => Fmt.ticketGroups(list).map((g) => `
@@ -711,6 +720,14 @@
       }, { submit: (payload) => Api.admin('adminAdjustPositions', payload) });
     }));
   }
+
+  // 「⋯ 更多」選單：一次只開一個；點了裡面的按鈕或點外面就收起來
+  document.addEventListener('click', (ev) => {
+    const inMenu = ev.target.closest && ev.target.closest('.act-menu');
+    document.querySelectorAll('.act-menu[open]').forEach((m) => {
+      if (m !== inMenu || ev.target.closest('.act-menu-list button')) m.open = false;
+    });
+  });
 
   function notice(kind, title, text) {
     return `<div class="notice notice-${kind}" role="status"><p><strong>${esc(title)}</strong></p>${text ? `<p>${esc(text)}</p>` : ''}</div>`;

@@ -292,9 +292,7 @@
       ${AdminPage.staleNote(stale)}
       ${flash}
       <div class="admin-actions">
-        <a class="btn btn-primary" href="#/admin/duties/new">＋ 新增${T()}</a>
-        <a class="btn" href="#/admin/import">批次匯入</a>
-        <button type="button" class="btn" data-draft-open>📷 從照片新增</button>
+        <button type="button" class="btn btn-primary" data-add-open>＋ 新增${T()}</button>
         ${Api.adminWho().role === '唯讀' ? '' : '<button type="button" class="btn" data-att-import>📋 匯入出勤名單</button>'}
       </div>
       <div class="list-filter">
@@ -434,7 +432,20 @@
     drawPins();
     draw();
     body.querySelector('[data-filter]').addEventListener('change', (ev) => { listState.filter = ev.target.value; draw(); });
-    body.querySelector('[data-draft-open]').addEventListener('click', openDraft);
+    // ＋ 新增（2026/11/21 精簡）：自己填、從照片、從 Excel 貼上，三種方式集中在一個按鈕
+    body.querySelector('[data-add-open]').addEventListener('click', () => {
+      const m = Modal.open(`
+        <h2 class="modal-title">＋ 新增${T()}</h2>
+        <div class="add-ways">
+          <a class="more-item" href="#/admin/duties/new" data-way><strong>✍️ 自己填</strong><span>一筆一筆填表單（也可以一次建好幾天、農曆規則）</span></a>
+          <button type="button" class="more-item" data-way-photo><strong>📷 從照片</strong><span>拍公告、DM 或行事曆，自動整理成草稿再確認</span></button>
+          <a class="more-item" href="#/admin/import" data-way><strong>📋 從 Excel 貼上</strong><span>從 Excel／Google 試算表複製好幾列貼上，一次匯入</span></a>
+        </div>
+        <div class="modal-actions"><button type="button" class="btn btn-block" data-close>返回</button></div>`);
+      m.el.querySelectorAll('[data-way]').forEach((a) => a.addEventListener('click', () => m.close()));
+      m.el.querySelector('[data-way-photo]').addEventListener('click', () => { m.close(); openDraft(); });
+      m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    });
     const ai = body.querySelector('[data-att-import]');
     if (ai) ai.addEventListener('click', () => openAttendanceImport(data));
     body.querySelector('[data-q]').addEventListener('input', (ev) => { listState.q = ev.target.value; draw(); });
