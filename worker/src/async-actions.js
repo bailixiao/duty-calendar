@@ -76,11 +76,12 @@ export async function sendPushAll(gs, when) {
 
 // ---------- AI 讀照片（Ai.gs） ----------
 
-async function geminiGenerate(gs, parts) {
+/** override＝{ key, model }：用別的金鑰（宏教分壇借用教全區的，2026/11/22） */
+export async function geminiGenerate(gs, parts, override) {
   const props = gs.propsForAsync_();
-  const key = props.getProperty('GEMINI_API_KEY');
+  const key = (override && override.key) || props.getProperty('GEMINI_API_KEY');
   if (!key) throw new gs.ApiError_('CONFIG', '尚未設定 Gemini 金鑰，請依部署說明在「指令碼屬性」設定 GEMINI_API_KEY');
-  const custom = props.getProperty('GEMINI_MODEL');
+  const custom = (override && override.key) ? (override.model || '') : props.getProperty('GEMINI_MODEL');
   const models = (custom ? [custom] : []).concat(gs.aiDefaultModels_().filter((m) => m !== custom));
   const payload = JSON.stringify({ contents: [{ role: 'user', parts }], generationConfig: { responseMimeType: 'application/json', temperature: 0.2 } });
   const call = (model) => fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {

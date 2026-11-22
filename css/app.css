@@ -1041,6 +1041,15 @@ button.more-item { width: 100%; text-align: left; font: inherit; cursor: pointer
 /* 宏教分壇分派（2026/11/22） */
 .hq-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 6px; background: #fdecd8; color: #9a4b00; font-size: .85em; font-weight: 700; }
 .card-title .hq-tag { margin: 0 4px 0 0; padding: 0 3px; background: none; }
+.hq-card.is-draft { border-style: dashed; }
+.hq-import-list { display: grid; gap: 8px; margin: 10px 0; }
+.hq-import-row { display: flex; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
+.hq-import-row.is-off { opacity: .55; }
+.hq-import-row.is-past { background: #f6f6f6; }
+.hq-import-fields { flex: 1; display: grid; gap: 6px; min-width: 0; }
+.hq-import-line { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 6px; }
+.hq-import-fields .input { min-height: 40px; padding: 4px 8px; font-size: .95rem; }
+.hq-import-fields small { display: block; }
 .hq-card { width: 100%; text-align: left; font: inherit; cursor: pointer; }
 .hq-form .form-grid-2, .admin-form .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
 .hq-regions { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 12px; }

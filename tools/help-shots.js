@@ -316,7 +316,7 @@ async function regionShots(c, only) {
 }
 
 // 宏教分壇分派（2026/11/22）：分壇開分派 → 教捨區收件匣、放到行事曆 → 報名 → 分壇總表（測試版的分壇 hq、教捨區 she 都已開通，密碼 test-pass）
-const HQ_SHOTS = ['hq-form', 'hq-summary-new', 'hq-inbox-note', 'hq-inbox-open', 'hq-summary', 'hq-list'];
+const HQ_SHOTS = ['hq-form', 'hq-summary-new', 'hq-inbox-note', 'hq-inbox-open', 'hq-summary', 'hq-list', 'hq-import', 'hq-drafts'];
 async function hqShots(c, only) {
   const want = (n) => !only.length || only.indexOf(n) !== -1;
   if (!HQ_SHOTS.some(want)) return;
@@ -324,6 +324,8 @@ async function hqShots(c, only) {
   const login = PREP + `const pw = document.querySelector('#admin-password'); if (pw) { pw.value = 'test-pass'; pw.form.requestSubmit(); await __wait(2500); }`;
   await go(BASE + 'hq/#/admin');
   await run(c, login);
+  if (['hq-form', 'hq-summary-new', 'hq-inbox-note', 'hq-inbox-open', 'hq-summary'].some(want)) await hqLoop();
+  async function hqLoop() {
   await run(c, PREP + `location.hash = '#/admin/hq/new'; for (let i = 0; i < 30 && !document.querySelector('.hq-form'); i++) await __wait(300);
     const f = document.querySelector('.hq-form'); const set = (n, v) => { f.elements[n].value = v; };
     set('title', '測試分壇大典（示範）'); set('start', '2027-02-14'); set('startTime', '0800'); set('endTime', '1200'); set('location', '測試地點');
@@ -364,6 +366,34 @@ async function hqShots(c, only) {
   if (want('hq-summary')) {
     await shot(c, path.join(OUT, 'hq-summary.png'), PREP + `const b = document.querySelector('[data-body]'); b.scrollIntoView(); const r = b.getBoundingClientRect(); return { x: 0, y: r.top + scrollY - 6, width: innerWidth, height: Math.min(1600, r.height + 12) };`);
     console.log('✓ hq-summary');
+  }
+  }
+  // 從檔案匯入（測試版沒有 AI 金鑰：AI 的回答換成假的，看畫面、農曆換算、存草稿）
+  if (want('hq-import') || want('hq-drafts')) {
+    await run(c, PREP + `location.hash = '#/admin/hq/import'; for (let i = 0; i < 30 && !document.querySelector('[data-files]'); i++) await __wait(300);
+      const orig = Api.admin; Api.admin = (a, p, r) => (a === 'hqImportAi' ? new Promise((ok) => setTimeout(() => ok({ items: [
+        { title: '測試分壇法會', category: '道務', start: '2027-03-05', startTime: '0900', endTime: '12:00', location: '測試地點', description: '各區道親參加' },
+        { title: '測試初一班', category: '道務', lunarDate: '二月初一', lunarYear: 2027, startTime: '19:30' },
+        { title: '測試大掃除', category: '勤務', start: '2027-01-17', location: '測試地點', uncertain: ['時間看不清楚'] },
+        { title: '測試過去的活動', category: '勤務', start: '2026-01-10' }] }), 300)) : orig(a, p, r));
+      const cv = document.createElement('canvas'); cv.width = 400; cv.height = 300; cv.getContext('2d').fillRect(0, 0, 10, 10);
+      const blob = await new Promise((ok) => cv.toBlob(ok, 'image/png'));
+      const dt = new DataTransfer(); dt.items.add(new File([blob], '測試行事曆.png', { type: 'image/png' }));
+      const fin = document.querySelector('[data-files]'); fin.files = dt.files; fin.dispatchEvent(new Event('change', { bubbles: true }));
+      document.querySelector('[data-read]').click(); for (let i = 0; i < 40 && !document.querySelector('.hq-import-row'); i++) await __wait(300);
+      const rows = [...document.querySelectorAll('.hq-import-row')]; if (rows.length !== 4) throw new Error('INFO rows=' + rows.length + ' ' + document.querySelector('[data-progress]').innerText);
+      const lunar = rows.find((x) => x.querySelector('[data-k=title]').value === '測試初一班').querySelector('[data-k=start]').value;
+      const past = rows.find((x) => x.querySelector('[data-k=title]').value === '測試過去的活動').querySelector('[data-k=pick]').checked;
+      window.__info = 'lunar=' + lunar + ' pastPicked=' + past; if (lunar !== '2027-03-08' || past) throw new Error('INFO ' + window.__info);`);
+    if (want('hq-import')) {
+      await shot(c, path.join(OUT, 'hq-import.png'), PREP + `const a = document.querySelector('[data-progress]'); a.scrollIntoView(); const r = a.getBoundingClientRect(); const e = document.querySelector('[data-save]').getBoundingClientRect(); return { x: 0, y: r.top + scrollY - 10, width: innerWidth, height: Math.min(2600, e.bottom - r.top + 20) };`);
+      console.log('✓ hq-import');
+    }
+    await run(c, PREP + `document.querySelector('[data-save]').click(); for (let i = 0; i < 30 && !document.querySelector('.hq-card.is-draft'); i++) await __wait(300); if (document.querySelectorAll('.hq-card.is-draft').length < 3) throw new Error('INFO drafts=' + document.querySelectorAll('.hq-card.is-draft').length); await __wait(1000);`);
+    if (want('hq-drafts')) {
+      await shot(c, path.join(OUT, 'hq-drafts.png'), PREP + `const b = document.querySelector('.admin-actions'); b.scrollIntoView(); const r = b.getBoundingClientRect(); const e = document.querySelector('.card-list').getBoundingClientRect(); return { x: 0, y: r.top + scrollY - 70, width: innerWidth, height: Math.min(1400, e.bottom - r.top + 80) };`);
+      console.log('✓ hq-drafts');
+    }
   }
   if (want('hq-list')) {
     await run(c, PREP + `location.hash = '#/admin'; for (let i = 0; i < 30 && !document.querySelector('.hq-card'); i++) await __wait(300); await __wait(300);`);

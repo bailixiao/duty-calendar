@@ -3,6 +3,7 @@
 // → 各區組長看過、放到自己的行事曆或寫原因不參加 → 分壇的總表問每一區（hqReport_）：狀態、名額、報名人數與名字。
 // 分派存在分壇的指令碼屬性 HQ_CAMPAIGNS（JSON 陣列）。各區之間用 Durable Object 互相呼叫（opts.cross）。
 import { REGIONS } from './regions.js';
+import { geminiGenerate } from './async-actions.js';
 
 export const HQ_CODE = 'hq';
 /** 分派可以送的區：教全區（main）＋ 12 區（不含分壇自己） */
@@ -30,7 +31,7 @@ export function createHq({ gs, store, cross, openRegions }) {
   }
 
   /** 檢查、整理分壇填的分派 */
-  function clean(c, old) {
+  function clean(c, old, draft) {
     const s = (v, max, label, need) => {
       const t = String(v == null ? '' : v).replace(/\r/g, '').trim();
       if (need && !t) throw err('VALIDATION', '請填「' + label + '」');
@@ -69,7 +70,7 @@ export function createHq({ gs, store, cross, openRegions }) {
     names.forEach((n) => { if (n.length > 20) throw err('VALIDATION', '了愿項目「' + n.slice(0, 10) + '⋯」太長了（最多 20 個字）'); });
     out.positions = names.filter((n, i) => names.indexOf(n) === i).slice(0, 10).map((name) => ({ name }));
     out.regions = (Array.isArray(c.regions) ? c.regions : []).filter((r, i, a) => TARGET_CODES.indexOf(r) !== -1 && a.indexOf(r) === i);
-    if (!out.regions.length) throw err('VALIDATION', '請選要送給哪幾區');
+    if (!out.regions.length && !draft) throw err('VALIDATION', '請選要送給哪幾區');
     if (out.quotaMode === 'assigned') {
       out.regions.forEach((r) => {
         const q = String((c.quotas || {})[r] == null ? '' : c.quotas[r]).trim();
@@ -114,13 +115,17 @@ export function createHq({ gs, store, cross, openRegions }) {
     const all = list();
     const old = body.campaign && body.campaign.id ? all.find((x) => x.id === body.campaign.id) : null;
     if (body.campaign && body.campaign.id && !old) throw err('NOT_FOUND', '找不到這個分派，可能已經刪掉了');
-    const c = clean(body.campaign || {}, old);
+    // 草稿（2026/11/22，從檔案匯入的先存草稿）：存起來不送；已經送出的不能再變回草稿
+    const draft = !!body.draft && (!old || old.status === 'draft');
+    const c = clean(body.campaign || {}, old, draft);
     c.version = (old ? old.version : 0) + 1;
     c.createdAt = old ? old.createdAt : gs.nowString_();
     c.updatedAt = gs.nowString_();
     c.by = who.account || '總管理者';
-    const removed = old ? old.regions.filter((r) => c.regions.indexOf(r) === -1) : [];
-    c.delivery = await deliver(c, removed);
+    c.status = draft ? 'draft' : 'sent';
+    if (old && old.source) c.source = old.source;
+    const removed = old && old.status !== 'draft' ? old.regions.filter((r) => c.regions.indexOf(r) === -1) : [];
+    c.delivery = draft ? {} : await deliver(c, removed);
     const next = old ? all.map((x) => (x.id === c.id ? c : x)) : all.concat([c]);
     save(next);
     return { campaign: c };
@@ -131,7 +136,7 @@ export function createHq({ gs, store, cross, openRegions }) {
     const all = list();
     const c = all.find((x) => x.id === body.id);
     if (!c) throw err('NOT_FOUND', '找不到這個分派');
-    await deliver({ id: c.id, regions: [] }, c.regions);
+    if (c.status !== 'draft') await deliver({ id: c.id, regions: [] }, c.regions);
     save(all.filter((x) => x.id !== c.id));
     return { deleted: c.id };
   };
@@ -141,6 +146,7 @@ export function createHq({ gs, store, cross, openRegions }) {
     const c = list().find((x) => x.id === body.id);
     if (!c) throw err('NOT_FOUND', '找不到這個分派');
     const open = await openSet();
+    if (c.status === 'draft') return { campaign: c, regions: TARGETS.filter(([r]) => c.regions.indexOf(r) !== -1).map(([code, name]) => ({ code, name, status: 'draft', count: 0, people: [] })) };
     const rows = await Promise.all(TARGETS.filter(([r]) => c.regions.indexOf(r) !== -1).map(async ([code, name]) => {
       if (!open.has(code)) return { code, name, status: 'not-open', count: 0, people: [] };
       try { return Object.assign({ code, name }, await cross(code, 'hqReport', c.id)); } catch (e) { return { code, name, status: 'error', error: (e && e.message) || String(e), count: 0, people: [] }; }
@@ -148,11 +154,68 @@ export function createHq({ gs, store, cross, openRegions }) {
     return { campaign: c, regions: rows };
   };
 
+  /** 從檔案匯入：勾好的活動一次存成草稿。body.items＝分派陣列（同 hqSave 的 campaign） */
+  special.hqSaveDrafts = async (body, curRegion) => {
+    const who = requireHqAdmin(body, curRegion);
+    const items = Array.isArray(body.items) ? body.items : [];
+    if (!items.length) throw err('BAD_REQUEST', '沒有要存的活動');
+    if (items.length > 200) throw err('BAD_REQUEST', '一次最多 200 筆');
+    const errors = [];
+    const made = items.map((it, i) => {
+      try {
+        const c = clean(it || {}, null, true);
+        return Object.assign(c, { version: 1, status: 'draft', createdAt: gs.nowString_(), updatedAt: gs.nowString_(), by: who.account || '總管理者', delivery: {}, source: String(it.source || '').slice(0, 60) });
+      } catch (e) { errors.push({ message: '第 ' + (i + 1) + ' 筆（' + String((it && it.title) || '') .slice(0, 20) + '）：' + e.message }); return null; }
+    });
+    if (errors.length) throw err('VALIDATION', '有幾筆資料不對，都沒有存', errors);
+    // 同一批的代號不要撞到
+    made.forEach((c, i) => { c.id = c.id + String(i).padStart(3, '0'); });
+    save(list().concat(made));
+    return { saved: made.length };
+  };
+  /**
+   * AI 讀行事曆：body = { images: [{ mime, data(base64) }]（最多 6 張）, text（Word／Excel／PDF 文字）, hint, part }
+   * 用教全區的 Gemini 金鑰（分壇自己沒有），回傳 { items: [...] }
+   */
+  special.hqImportAi = async (body, curRegion) => {
+    requireHqAdmin(body, curRegion);
+    const images = Array.isArray(body.images) ? body.images : [];
+    const text = String(body.text || '').slice(0, 60000);
+    if (!images.length && !text.trim()) throw err('BAD_REQUEST', '沒有要讀的內容');
+    if (images.length > 6) throw err('BAD_REQUEST', '一次最多 6 頁');
+    const parts = [{ text: gs.hqImportPrompt_(gs.cleanText_(body.hint || ''), gs.cleanText_(body.part || '')) }];
+    if (text.trim()) parts.push({ text: '以下是檔案的文字：\n' + text });
+    images.forEach((img) => {
+      const mime = String((img && img.mime) || '');
+      const data = String((img && img.data) || '');
+      if (!/^image\/(jpeg|png|webp)$/.test(mime) || !data) throw err('BAD_REQUEST', '圖片格式只能是 jpg、png');
+      if (data.length > 6000000) throw err('BAD_REQUEST', '有一頁太大了，請稍後再試');
+      parts.push({ inline_data: { mime_type: mime, data } });
+    });
+    let key = null;
+    try { key = await cross('main', 'hqAiKey'); } catch (e) { /* 問不到就用自己的 */ }
+    const res = await geminiGenerate(gs, parts, key && key.key ? key : null);
+    let items;
+    try {
+      const parsed = JSON.parse(res.text);
+      items = Array.isArray(parsed) ? parsed : Array.isArray(parsed.items) ? parsed.items : [parsed];
+    } catch (e) {
+      throw err('AI', '這幾頁看不太懂，可以跳過或換清楚一點的檔案再試');
+    }
+    items = items.filter((x) => x && typeof x === 'object' && x.title).slice(0, 150);
+    return { items, model: res.model };
+  };
+
   /** 各區這一邊：分壇叫過來（Durable Object 之間；不經過網路，不用登入） */
   function rpc(method, payload) {
     if (method === 'hqDeliver') return gs.hqDeliver_(payload);
     if (method === 'hqWithdraw') return gs.hqWithdraw_(payload);
     if (method === 'hqReport') return gs.hqReport_(payload);
+    // 教全區把 AI 金鑰借給分壇（只有 Durable Object 之間叫得到）
+    if (method === 'hqAiKey') {
+      const p = gs.propsForAsync_();
+      return { key: p.getProperty('GEMINI_API_KEY') || '', model: p.getProperty('GEMINI_MODEL') || '' };
+    }
     throw new Error('不認得的分派動作：' + method);
   }
 

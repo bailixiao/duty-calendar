@@ -291,7 +291,7 @@
     return String(text || '').split(/\r?\n/).filter((l) => clean(l)).map((l) => (l.indexOf('\t') !== -1 ? l.split('\t') : l.split(/\s{2,}|　+|,|，/)).map(clean));
   }
 
-  const api = { FIELDS, FIELD_KEYS, parseIdentity, parseVegetarian, parseAge, parseBirth, parseOverseas, detect, toItems, docxXmlToTables, pdfItemsToRows, alignByHeader, readFile, textToRows };
+  const api = { loadPdfJs: pdfJs, loadSheetJs: sheetJs, FIELDS, FIELD_KEYS, parseIdentity, parseVegetarian, parseAge, parseBirth, parseOverseas, detect, toItems, docxXmlToTables, pdfItemsToRows, alignByHeader, readFile, textToRows };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.MemberFile = api;
 })(typeof window !== 'undefined' ? window : globalThis);

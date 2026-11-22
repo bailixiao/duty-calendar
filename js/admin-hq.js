@@ -23,6 +23,7 @@
   // =====================================================================
 
   async function show(body, guard, sub) {
+    if (sub === 'hq/import') return importPage(body, guard);
     const m = (sub || '').match(/^hq\/(new|edit\/([^/]+)|([^/]+))$/);
     if (m && m[1] === 'new') return form(body, guard, null);
     if (m && m[2]) return form(body, guard, decodeURIComponent(m[2]));
@@ -38,13 +39,14 @@
     body.innerHTML = `
       <div class="notice"><p>📣 <strong>分派</strong>：開一個活動送給各區。各區的<strong>總務・勤務／道務／教育組長</strong>會在後台先看到，看過按「放到本區行事曆」才會出現在那一區的行事曆，家人在自己區報名；這裡的總表看得到每一區的狀態、人數和名字。</p>
       <p class="muted">13 區已開通 ${openN} 區；還沒開通的區收不到。</p></div>
-      <div class="admin-actions"><a class="btn btn-primary" href="#/admin/hq/new">＋ 開新的分派</a></div>
-      ${data.campaigns.length ? `<div class="card-list">${data.campaigns.map((c) => {
+      <div class="admin-actions"><a class="btn btn-primary" href="#/admin/hq/new">＋ 開新的分派</a><a class="btn" href="#/admin/hq/import">📄 從檔案匯入行事曆</a></div>
+      ${data.campaigns.some((c) => c.status === 'draft') ? `<p class="hint">📝 草稿：各區還看不到，點進去補資料後按「送出給各區」。</p>` : ''}
+      ${data.campaigns.length ? `<div class="card-list">${data.campaigns.slice().sort((a, b) => ((b.status === 'draft') - (a.status === 'draft')) || (a.status === 'draft' ? a.start.localeCompare(b.start) : 0)).map((c) => {
         const ok = c.regions.filter((r) => c.delivery && c.delivery[r] === 'ok').length;
-        return `<a class="duty-card hq-card" href="#/admin/hq/${encodeURIComponent(c.id)}">
-          <span class="card-main"><span class="card-title">${esc(c.title)}</span>
+        return `<a class="duty-card hq-card${c.status === 'draft' ? ' is-draft' : ''}" href="#/admin/hq/${encodeURIComponent(c.id)}">
+          <span class="card-main"><span class="card-title">${c.status === 'draft' ? '<span class="hq-st st-seen">📝 草稿</span> ' : ''}${esc(c.title)}</span>
           <span class="card-meta">${esc(catLabel(c.category))}・${esc(when(c))}</span>
-          <span class="card-meta">送給 ${c.regions.length} 區（${esc(c.regions.map(name).join('、'))}）・送到 ${ok} 區</span></span></a>`;
+          <span class="card-meta">${c.status === 'draft' ? `預計送給 ${c.regions.length} 區` : `送給 ${c.regions.length} 區（${esc(c.regions.map(name).join('、'))}）・送到 ${ok} 區`}</span></span></a>`;
       }).join('')}</div>` : '<p class="panel-empty">還沒有分派。按「＋ 開新的分派」開始。</p>'}`;
   }
 
@@ -55,11 +57,13 @@
     if (id && !old) { body.innerHTML = '<p class="panel-empty">找不到這個分派，可能已經刪掉了。<a href="#/admin">回分派清單</a></p>'; return; }
     const c = old || { title: '', category: '勤務', nature: '', start: '', end: '', startTime: '', endTime: '', location: '', attire: '', description: '', positions: [{ name: '參加' }], deadline: '', quotaMode: 'none', quotas: {}, regions: data.targets.filter((t) => t.open).map((t) => t.code) };
     const st = { category: c.category, quotaMode: c.quotaMode };
+    let asDraft = false;
     const draw = () => {
       body.innerHTML = `
         <p><a href="${old ? '#/admin/hq/' + encodeURIComponent(old.id) : '#/admin'}">‹ 返回</a></p>
         <h2>${old ? '✏️ 修改分派' : '＋ 開新的分派'}</h2>
-        ${old ? '<p class="notice">存檔後會重新送給各區：已經放到行事曆的區，內容會跟著改；組長後台會看到「分壇有更新」。</p>' : ''}
+        ${old && old.status !== 'draft' ? '<p class="notice">存檔後會重新送給各區：已經放到行事曆的區，內容會跟著改；組長後台會看到「分壇有更新」。</p>' : ''}
+        ${old && old.status === 'draft' ? '<p class="notice">📝 這是草稿，各區還看不到。補好說明、了愿項目、名額，確認日期時間沒錯，再按「送出給各區」。</p>' : ''}
         <form class="admin-form hq-form" novalidate>
           <label class="form-row"><span>名稱</span><input class="input" name="title" maxlength="40" value="${esc(c.title)}" placeholder="例：總壇運動會觀禮" required></label>
           <div class="form-row"><span>類別（送給各區哪一組的組長）</span><div class="seg">${CATS.map(([v, l]) => `<label class="seg-item"><input type="radio" name="category" value="${v}"${st.category === v ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div></div>
@@ -88,7 +92,8 @@
             ${st.quotaMode === 'self' ? '<p class="hint">各區組長放到行事曆時自己填要幾位，總表看得到。</p>' : ''}
           </fieldset>
           <div class="form-error" data-error hidden></div>
-          <div class="form-actions"><button type="submit" class="btn btn-primary btn-block">${old ? '存檔並重新送出' : '送出給各區'}</button></div>
+          <div class="form-actions"><button type="submit" class="btn btn-primary btn-block">${old && old.status !== 'draft' ? '存檔並重新送出' : '送出給各區'}</button>
+            ${!old || old.status === 'draft' ? '<button type="button" class="btn btn-block" data-save-draft>📝 先存成草稿（不送出）</button>' : ''}</div>
         </form>`;
       const f = body.querySelector('form');
       const sync = () => {
@@ -101,8 +106,12 @@
       f.querySelectorAll('input[name=category]').forEach((r) => r.addEventListener('change', () => { sync(); st.category = r.value; c.nature = ''; draw(); }));
       f.querySelectorAll('input[name=quotaMode]').forEach((r) => r.addEventListener('change', () => { sync(); st.quotaMode = r.value; draw(); }));
       body.querySelector('[data-all-regions]').addEventListener('click', () => { data.targets.forEach((t) => { const x = f.querySelector(`input[name=regions][value=${t.code}]`); if (x) x.checked = t.open; }); });
+      const dr = body.querySelector('[data-save-draft]');
+      if (dr) dr.addEventListener('click', () => { asDraft = true; f.requestSubmit(); });
       f.addEventListener('submit', async (ev) => {
         ev.preventDefault();
+        const draft = asDraft;
+        asDraft = false;
         sync();
         const t = (v) => { const x = Fmt.parseTime(v); return x === null ? v : x; };
         const campaign = Object.assign({}, c, { id: old ? old.id : undefined, category: st.category, quotaMode: st.quotaMode, startTime: t(c.startTime), endTime: t(c.endTime), end: c.end || c.start });
@@ -110,7 +119,7 @@
         box.hidden = true;
         Busy.show('送出中⋯');
         try {
-          const r = await Api.admin('hqSave', { campaign });
+          const r = await Api.admin('hqSave', { campaign, draft });
           Busy.hide();
           location.hash = '#/admin/hq/' + encodeURIComponent(r.campaign.id);
         } catch (e) {
@@ -130,6 +139,21 @@
     try { data = await Api.admin('hqSummary', { id }); } catch (e) { if (guard(e, body)) return; body.innerHTML = `<p class="form-error">${errHtml(e)}</p><p><a href="#/admin">回分派清單</a></p>`; return; }
     const c = data.campaign;
     const rows = data.regions;
+    if (c.status === 'draft') {
+      body.innerHTML = `
+        <p><a href="#/admin">‹ 分派清單</a></p>
+        <h2><span class="hq-st st-seen">📝 草稿</span> ${esc(c.title)}</h2>
+        <p class="muted">${esc(catLabel(c.category))}・${esc(when(c))}${c.source ? '・來源：' + esc(c.source) : ''}</p>
+        <p class="notice">各區還看不到。按「✏️ 補資料、送出」補說明、了愿項目、名額，確認後送出給各區。</p>
+        ${c.description ? `<p class="hq-desc">${esc(c.description).replace(/\n/g, '<br>')}</p>` : ''}
+        <div class="admin-actions"><a class="btn btn-primary" href="#/admin/hq/edit/${encodeURIComponent(c.id)}">✏️ 補資料、送出</a><button type="button" class="btn btn-quiet-danger" data-del>🗑 刪除草稿</button></div>`;
+      body.querySelector('[data-del]').addEventListener('click', async () => {
+        if (!(await Confirm.open({ title: '確定要刪除這個草稿嗎？', rows: [['名稱', c.title], ['日期', when(c)]], confirmText: '確定刪除', cancelText: '不要刪除', danger: true }))) return;
+        Busy.show('刪除中⋯');
+        try { await Api.admin('hqDelete', { id: c.id }); Busy.hide(); location.hash = '#/admin'; } catch (e) { Busy.hide(); if (!guard(e)) alert(e.message); }
+      });
+      return;
+    }
     // 還沒開通、還沒收到的區：名額照分壇分配的寫
     rows.forEach((r) => { if (!r.quota && c.quotaMode === 'assigned' && c.quotas && c.quotas[r.code]) r.quota = c.quotas[r.code]; });
     const qOf = (r) => (r.quota && r.status !== 'not-open' && r.status !== 'declined' ? Number(r.quota) : 0);
@@ -196,6 +220,217 @@
       Busy.show('刪除中⋯');
       try { await Api.admin('hqDelete', { id: c.id }); Busy.hide(); location.hash = '#/admin'; } catch (e) { Busy.hide(); if (!guard(e)) alert(e.message); }
     });
+  }
+
+
+  // ---------- 📄 從檔案匯入行事曆（2026/11/22）：AI 讀檔 → 勾選、修改 → 存成草稿 ----------
+
+  const LUNAR_MONTH = { 正: 1, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10, 十一: 11, 冬: 11, 十二: 12, 臘: 12, 腊: 12 };
+  const LUNAR_DAY = (s) => { const m = String(s).match(/^(初|十|廿|二十|三十)?([一二三四五六七八九十])?$/); if (!m) return 0; const n = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 }; const head = m[1] || ''; const tail = m[2] ? n[m[2]] : 0; if (head === '初') return tail; if (head === '十') return 10 + tail; if (head === '廿' || head === '二十') return 20 + tail; if (head === '三十') return 30; return tail; };
+  /** 農曆「九月十五」「閏六月初一」→ 國曆（lunar-javascript）；換不出來回傳 '' */
+  function lunarToSolar(text, year) {
+    const m = String(text || '').replace(/\s/g, '').match(/^(閏)?(正|十一|十二|冬|臘|腊|一|二|三|四|五|六|七|八|九|十)月(.+)$/);
+    if (!m || !window.Lunar) return '';
+    const mo = LUNAR_MONTH[m[2]] * (m[1] ? -1 : 1);
+    const d = LUNAR_DAY(m[3]);
+    if (!d) return '';
+    try { return window.Lunar.fromYmd(Number(year) || new Date().getFullYear(), mo, d).getSolar().toYmd(); } catch (e) { return ''; }
+  }
+  /** 「6-8, 10」→ 要讀的頁碼集合（空白＝全部） */
+  function pageSet(text, max) {
+    const t = String(text || '').trim();
+    if (!t) return null;
+    const out = new Set();
+    t.split(/[,，、\s]+/).forEach((p) => { const m = p.match(/^(\d+)(?:[-～~到](\d+))?$/); if (!m) return; const a = Number(m[1]), b = Number(m[2] || m[1]); for (let i = Math.max(1, a); i <= Math.min(max, b); i++) out.add(i); });
+    return out.size ? out : null;
+  }
+  /** 圖片縮小成 JPEG（最寬 1600），回傳 base64 */
+  async function shrink(src) {
+    const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('圖片讀不到')); i.src = src; });
+    const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', 0.8).split(',')[1];
+  }
+  const fileUrl = (f) => URL.createObjectURL(f);
+
+  /** 把檔案拆成一批一批要給 AI 讀的：{ label, images: [{mime,data}], text } */
+  async function chunksOf(file, pages) {
+    const name = file.name || '檔案';
+    const ext = (name.split('.').pop() || '').toLowerCase();
+    const out = [];
+    if (/^image\//.test(file.type) || ['jpg', 'jpeg', 'png', 'webp', 'heic'].indexOf(ext) !== -1) {
+      const u = fileUrl(file);
+      try { out.push({ label: name, images: [{ mime: 'image/jpeg', data: await shrink(u) }] }); } finally { URL.revokeObjectURL(u); }
+      return out;
+    }
+    if (ext === 'pdf') {
+      await MemberFile.loadPdfJs();
+      const pdf = await window.pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+      const want = pageSet(pages, pdf.numPages);
+      let imgs = [], imgFrom = 0, imgTo = 0, texts = [], textFrom = 0, textTo = 0;
+      const flushImgs = () => { const to = imgTo; if (imgs.length) out.push({ label: `${name} 第 ${imgFrom}${to > imgFrom ? '～' + to : ''} 頁`, images: imgs }); imgs = []; };
+      const flushText = () => { const to = textTo; if (texts.length) out.push({ label: `${name} 第 ${textFrom}${to > textFrom ? '～' + to : ''} 頁`, text: texts.join('\n\n') }); texts = []; };
+      for (let p = 1; p <= pdf.numPages; p++) {
+        if (want && !want.has(p)) continue;
+        const page = await pdf.getPage(p);
+        const tc = await page.getTextContent();
+        // NFKC：PDF 的部首字（⽉⽇⼤）換回一般的字；中文字之間的空白拿掉
+        const txt = tc.items.map((it) => it.str).join(' ').normalize('NFKC').replace(/\s+/g, ' ').replace(/([㐀-鿿])\s+(?=[㐀-鿿])/g, '$1').trim();
+        if (txt.length > 80) { // 有文字的頁：直接給文字（快、準）
+          if (!texts.length) textFrom = p;
+          texts.push('【第 ' + p + ' 頁】' + txt);
+          textTo = p;
+          if (texts.join('').length > 12000) flushText();
+        } else { // 掃描的頁：畫成圖片
+          const vp = page.getViewport({ scale: Math.min(2, 1600 / page.getViewport({ scale: 1 }).width) });
+          const c = document.createElement('canvas');
+          c.width = vp.width; c.height = vp.height;
+          await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+          if (!imgs.length) imgFrom = p;
+          imgs.push({ mime: 'image/jpeg', data: c.toDataURL('image/jpeg', 0.75).split(',')[1] });
+          imgTo = p;
+          if (imgs.length >= 4) flushImgs();
+        }
+      }
+      flushImgs(); flushText();
+      return out;
+    }
+    if (['docx', 'xlsx', 'xls', 'xlsm', 'csv', 'ods'].indexOf(ext) !== -1) {
+      const srcs = await MemberFile.readFile(file);
+      const text = srcs.map((s) => '【' + s.label + '】\n' + s.rows.map((r) => r.map((x) => (x instanceof Date ? x.toISOString().slice(0, 10) : String(x == null ? '' : x))).filter(Boolean).join('\t')).filter(Boolean).join('\n')).join('\n\n');
+      for (let i = 0; i < text.length; i += 12000) out.push({ label: name + (text.length > 12000 ? ` 第 ${i / 12000 + 1} 段` : ''), text: text.slice(i, i + 12000) });
+      return out;
+    }
+    if (ext === 'doc') throw new Error(`「${name}」是舊版 Word（.doc），請用 Word 打開後「另存新檔」成 .docx 再選`);
+    throw new Error(`「${name}」不是 PDF、Word、Excel 或照片`);
+  }
+
+  async function importPage(body, guard) {
+    let data;
+    try { data = await Api.admin('hqList', {}); } catch (e) { if (guard(e, body)) return; body.innerHTML = `<p class="form-error">${errHtml(e)}</p>`; return; }
+    const today = new Date().toISOString().slice(0, 10);
+    let rows = []; // 讀到的活動 { pick, title, category, start, end, startTime, endTime, location, description, uncertain, source }
+    const st = { regions: data.targets.filter((t) => t.open).map((t) => t.code) };
+    body.innerHTML = `
+      <p><a href="#/admin">‹ 分派清單</a></p>
+      <h2>📄 從檔案匯入行事曆</h2>
+      <p class="notice">選分壇的行事曆檔案（PDF、Word、Excel 或照片，掃描的也可以），AI 會整理成一筆一筆的活動。<strong>匯入的先存成草稿，各區還看不到</strong>，補好資料再一筆一筆送出。</p>
+      <label class="btn btn-block">📂 選檔案（可以好幾個）<input type="file" accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.ods,image/*" multiple hidden data-files></label>
+      <p class="muted" data-picked></p>
+      <div class="form-grid-2">
+        <label class="form-row"><span>PDF 只讀第幾頁（可空白＝全部，例：6-8, 13）</span><input class="input" data-pages placeholder="例：6-8"></label>
+        <label class="form-row"><span>給 AI 的補充說明（可空白）</span><input class="input" data-hint placeholder="例：只要 115 年的；日期是民國年"></label>
+      </div>
+      <button type="button" class="btn btn-primary btn-block" data-read disabled>🔍 開始讀</button>
+      <p class="hint">檔案會交給 Google 的 AI 讀（和「從照片新增」一樣）。AI 可能看錯，日期、時間請一定要看過。人名、電話不會整理進來。</p>
+      <div data-progress></div>
+      <div data-rows></div>`;
+    let files = [];
+    const fin = body.querySelector('[data-files]');
+    fin.addEventListener('change', () => {
+      files = [...fin.files];
+      body.querySelector('[data-picked]').textContent = files.length ? '已選：' + files.map((f) => f.name).join('、') : '';
+      body.querySelector('[data-read]').disabled = !files.length;
+    });
+    const prog = body.querySelector('[data-progress]');
+    body.querySelector('[data-read]').addEventListener('click', async (ev) => {
+      const btn = ev.currentTarget;
+      btn.disabled = true;
+      const errs = [];
+      let chunks = [];
+      prog.innerHTML = '<p class="muted">準備檔案中⋯</p>';
+      for (const f of files) {
+        try { chunks = chunks.concat((await chunksOf(f, body.querySelector('[data-pages]').value)).map((c) => Object.assign(c, { file: f.name }))); } catch (e) { errs.push(e.message || String(e)); }
+      }
+      const found = [];
+      for (let i = 0; i < chunks.length; i++) {
+        const c = chunks[i];
+        prog.innerHTML = `<p class="muted">AI 讀檔中⋯（${i + 1}／${chunks.length}：${esc(c.label)}）每一批大約 10～40 秒</p><progress max="${chunks.length}" value="${i}"></progress>`;
+        try {
+          const r = await Api.admin('hqImportAi', { images: c.images || [], text: c.text || '', hint: body.querySelector('[data-hint]').value, part: c.label });
+          r.items.forEach((x) => found.push(Object.assign({}, x, { source: c.label })));
+        } catch (e) {
+          if (e.code === 'UNAUTHORIZED') { guard(e); return; }
+          errs.push(`${c.label}：${e.message}`);
+          if (e.code === 'AI_LIMIT' || e.code === 'CONFIG') break;
+        }
+      }
+      btn.disabled = false;
+      // 整理：農曆換國曆、同名同天只留一筆、過去的不勾
+      const seen = new Set();
+      rows = found.map((x) => {
+        let start = /^\d{4}-\d{2}-\d{2}$/.test(x.start || '') ? x.start : '';
+        if (!start && x.lunarDate) start = lunarToSolar(x.lunarDate, x.lunarYear);
+        const end = /^\d{4}-\d{2}-\d{2}$/.test(x.end || '') && x.end >= start ? x.end : start;
+        const tt = (v) => { const t = Fmt.parseTime(String(v || '')); return t || ''; };
+        return { title: String(x.title || '').trim().slice(0, 40), category: ['勤務', '道務', '教育'].indexOf(x.category) !== -1 ? x.category : '勤務', start, end, startTime: tt(x.startTime), endTime: tt(x.endTime), location: String(x.location || '').slice(0, 40), description: String(x.description || '').slice(0, 2000), lunar: x.lunarDate || '', uncertain: Array.isArray(x.uncertain) ? x.uncertain.join('；') : '', source: x.source };
+      }).filter((x) => { const k = x.title + '|' + x.start; if (!x.title || seen.has(k)) return false; seen.add(k); return true; })
+        .sort((a, b) => (a.start || '9999').localeCompare(b.start || '9999'));
+      rows.forEach((x) => { x.pick = !!x.start && x.start >= today; });
+      prog.innerHTML = (errs.length ? `<p class="form-error">${errs.map(esc).join('<br>')}</p>` : '') + `<p>讀到 <strong>${rows.length}</strong> 筆活動${rows.length ? '，看一下、改一下，不要的取消勾選。已經過去的日期先不勾。' : '。'}</p>`;
+      drawRows();
+    });
+
+    function drawRows() {
+      const box = body.querySelector('[data-rows]');
+      if (!rows.length) { box.innerHTML = ''; return; }
+      const n = rows.filter((x) => x.pick).length;
+      box.innerHTML = `
+        <div class="hq-import-list">${rows.map((x, i) => `
+          <div class="hq-import-row${x.pick ? '' : ' is-off'}${x.start && x.start < today ? ' is-past' : ''}" data-i="${i}">
+            <label class="check"><input type="checkbox" data-k="pick"${x.pick ? ' checked' : ''}></label>
+            <div class="hq-import-fields">
+              <input class="input" data-k="title" value="${esc(x.title)}" aria-label="名稱">
+              <div class="hq-import-line">
+                <select class="input" data-k="category" aria-label="類別">${CATS.map(([v, l]) => `<option value="${v}"${x.category === v ? ' selected' : ''}>${l}</option>`).join('')}</select>
+                <input class="input" type="date" data-k="start" value="${esc(x.start)}" aria-label="日期">
+                <input class="input" type="date" data-k="end" value="${esc(x.end && x.end !== x.start ? x.end : '')}" aria-label="結束日">
+                <input class="input" data-k="startTime" value="${esc(x.startTime)}" placeholder="開始" aria-label="開始時間">
+                <input class="input" data-k="endTime" value="${esc(x.endTime)}" placeholder="結束" aria-label="結束時間">
+                <input class="input" data-k="location" value="${esc(x.location)}" placeholder="地點" aria-label="地點">
+              </div>
+              <small class="muted">${x.lunar ? '農曆' + esc(x.lunar) + (x.start ? '（已換成國曆）' : '（換不出國曆，請自己填日期）') + '・' : ''}${x.start && x.start < today ? '已經過了・' : ''}來源：${esc(x.source)}${x.description ? '・' + esc(x.description.slice(0, 80)) : ''}</small>
+              ${x.uncertain ? `<small class="form-error">AI 不確定：${esc(x.uncertain)}</small>` : ''}
+            </div>
+          </div>`).join('')}</div>
+        <fieldset class="form-block">
+          <legend>這些草稿預設送給哪幾區（之後每一筆還可以改）</legend>
+          <div class="hq-regions">${data.targets.map((t) => `<label class="check"><input type="checkbox" data-region="${t.code}"${st.regions.indexOf(t.code) !== -1 ? ' checked' : ''}> ${esc(t.name)}${t.open ? '' : '<small class="muted">（還沒開通）</small>'}</label>`).join('')}</div>
+        </fieldset>
+        <div class="form-error" data-error hidden></div>
+        <button type="button" class="btn btn-primary btn-block" data-save${n ? '' : ' disabled'}>📝 存成草稿（${n} 筆）</button>`;
+      box.querySelectorAll('[data-i]').forEach((row) => {
+        const x = rows[Number(row.dataset.i)];
+        row.querySelectorAll('[data-k]').forEach((el) => el.addEventListener('change', () => {
+          const k = el.dataset.k;
+          if (k === 'pick') { x.pick = el.checked; drawRows(); return; }
+          x[k] = el.value;
+          if ((k === 'startTime' || k === 'endTime') && el.value) { const t = Fmt.parseTime(el.value); if (t) { x[k] = t; el.value = t; } }
+        }));
+      });
+      box.querySelectorAll('[data-region]').forEach((el) => el.addEventListener('change', () => { st.regions = [...box.querySelectorAll('[data-region]:checked')].map((y) => y.dataset.region); }));
+      box.querySelector('[data-save]').addEventListener('click', async () => {
+        const err = box.querySelector('[data-error]');
+        err.hidden = true;
+        const items = rows.filter((x) => x.pick).map((x) => ({ title: x.title, category: x.category, start: x.start, end: x.end || x.start, startTime: x.startTime, endTime: x.endTime, location: x.location, description: x.description, positions: [], quotaMode: 'none', regions: st.regions, source: x.source }));
+        const noDate = items.filter((x) => !x.start);
+        if (noDate.length) { err.textContent = '有 ' + noDate.length + ' 筆沒有日期，請填日期或取消勾選：' + noDate.map((x) => x.title).join('、'); err.hidden = false; return; }
+        Busy.show('存成草稿中⋯');
+        try {
+          const r = await Api.admin('hqSaveDrafts', { items });
+          Busy.hide();
+          location.hash = '#/admin';
+          setTimeout(() => { const b = document.querySelector('[data-body]'); if (b) b.insertAdjacentHTML('afterbegin', `<div class="notice notice-success" role="status"><p>✅ 已存成 ${r.saved} 筆草稿。點每一筆補說明、了愿項目、名額，再按「送出給各區」。</p></div>`); }, 800);
+        } catch (e) {
+          Busy.hide();
+          if (guard(e)) return;
+          err.innerHTML = errHtml(e);
+          err.hidden = false;
+        }
+      });
+    }
   }
 
   window.HqAdminPage = { show };

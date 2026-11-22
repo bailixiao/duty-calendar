@@ -127,3 +127,50 @@ test('名額由各區自己報：放上去時一定要填', async () => {
   const ev = (await R.she.call({ action: 'getEvents', from: '2026-12-01', to: '2026-12-31' }, 'GET')).data.duties;
   assert.equal(ev[0].positions[0].max, 5);
 });
+
+test('從檔案匯入：存成草稿（各區看不到）→ 補資料送出才收到；AI 讀檔用教全區的金鑰', async () => {
+  const R = await setup();
+  R.main.store.setProp('GEMINI_API_KEY', 'main-key');
+  // 草稿：一次存好幾筆，不送
+  let r = await R.hq.admin('hqSaveDrafts', { items: [
+    { title: '測試中秋聯誼', category: '勤務', start: '2026-12-25', regions: ['she'], source: '測試.pdf 第 1 頁' },
+    { title: '測試法會', category: '道務', start: '2027-01-03', regions: [] }
+  ] });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.equal(r.data.saved, 2);
+  let list = (await R.hq.admin('hqList')).data.campaigns;
+  assert.deepEqual(list.map((c) => c.status).sort(), ['draft', 'draft']);
+  assert.equal((await R.she.admin('adminHqInbox')).data.items.length, 0, '草稿各區看不到');
+  const draft = list.find((c) => c.title === '測試中秋聯誼');
+  const sum = (await R.hq.admin('hqSummary', { id: draft.id })).data;
+  assert.equal(sum.regions[0].status, 'draft');
+  // 存草稿再改還是草稿；送出（draft 沒帶）才送
+  r = await R.hq.admin('hqSave', { campaign: Object.assign({}, draft, { description: '補上說明' }), draft: true });
+  assert.equal(r.data.campaign.status, 'draft');
+  assert.equal((await R.she.admin('adminHqInbox')).data.items.length, 0);
+  r = await R.hq.admin('hqSave', { campaign: Object.assign({}, draft, { description: '補上說明' }) });
+  assert.equal(r.data.campaign.status, 'sent');
+  assert.equal(r.data.campaign.source, '測試.pdf 第 1 頁', '來源留著');
+  assert.equal((await R.she.admin('adminHqInbox')).data.items.length, 1, '送出後各區收到');
+  // 送出的不能再變回草稿
+  r = await R.hq.admin('hqSave', { campaign: r.data.campaign, draft: true });
+  assert.equal(r.data.campaign.status, 'sent');
+  // 沒選區的草稿要送出會擋
+  const law = list.find((c) => c.title === '測試法會');
+  assert.equal((await R.hq.admin('hqSave', { campaign: law })).error.code, 'VALIDATION');
+
+  // AI 讀檔：分壇沒有金鑰，用教全區的
+  const realFetch = global.fetch;
+  let usedKey = '';
+  global.fetch = async (url, opt) => {
+    usedKey = opt && opt.headers && opt.headers['x-goog-api-key'];
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify([{ title: '測試大典', category: '道務', start: '2027-02-01', startTime: '09:00' }, { notTitle: 1 }]) }] } }] }), { status: 200 });
+  };
+  try {
+    r = await R.hq.admin('hqImportAi', { text: '2/1 測試大典 9:00', part: '測試.docx' });
+  } finally { global.fetch = realFetch; }
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.equal(usedKey, 'main-key');
+  assert.deepEqual(r.data.items.map((x) => x.title), ['測試大典']);
+  assert.equal((await R.she.admin('hqImportAi', { text: 'x' })).error.code, 'FORBIDDEN', '只有分壇能用');
+});
