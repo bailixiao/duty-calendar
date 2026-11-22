@@ -5,7 +5,7 @@
 
   const TOP = 20;
   const MEDAL = ['🥇', '🥈', '🥉'];
-  const ARTS = ['img/guanyin.webp', 'img/maitreya.webp', 'img/jigong.webp']; // 三位仙佛，同感謝狀（彌勒祖師在中間）
+  const ARTS = ['img/jigong.webp', 'img/maitreya.webp', 'img/guanyin.webp']; // 三位仙佛，同感謝狀：濟公活佛在左、彌勒祖師在中間、觀世音菩薩在右（2026/11/22）
   let cache = null; // 這次打開網站讀過的資料，切回來先顯示
   let showAll = false;
   let token = 0;

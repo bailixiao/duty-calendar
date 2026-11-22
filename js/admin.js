@@ -1060,92 +1060,168 @@
     m.el.querySelector('[data-line]').addEventListener('click', () => window.open('https://line.me/R/msg/text/?' + encodeURIComponent(text), '_blank', 'noopener'));
   }
 
-  /** 管理者加人：當天與過去叫「補登」（沒報名但有來的人，記為出席）；未來叫「幫人報名」（不受截止日限制） */
+  /**
+   * 管理者加人：當天與過去叫「補登」（沒報名但有來的人，記為出席）；未來叫「幫人報名」（不受截止日限制）。
+   * 2026/11/22 起可以一次好幾位：像報名一樣用「、」或空白隔開，或點名字提示一個一個加，每位各選身分。
+   */
   function addAttendee(p, date) {
     const d = dutyPage.data;
     const past = date <= d.today;
     const word = past ? '補登' : '報名';
+    const IDS = ['道親', '壇辦', '未求道'];
+    const people = []; // { name, temple, identity, accompany, error }
+    let changed = false;
     const m = Modal.open(`
       <form class="modal-form" novalidate>
         <h2 class="modal-title">${past ? '補登出席' : '幫人報名'}</h2>
         <p class="modal-note">${esc(d.name)}・${esc(Fmt.rocDate(date))}・${esc(p.name)}</p>
-        <label class="form-row"><span>姓名</span><input class="input" name="name" autocomplete="off" required placeholder="打一兩個字，下面會出現成員名單"></label>
+        <label class="form-row"><span>姓名</span>
+          <span class="add-name-row"><input class="input" name="name" autocomplete="off" placeholder="打一兩個字會出現名單；好幾位用「、」或空白隔開"><button type="button" class="btn" data-add-name>＋ 加入</button></span></label>
         <div class="suggestions" data-suggestions aria-live="polite"></div>
-        <div class="form-row"><span>身分</span><div class="seg">
-          <label class="seg-item"><input type="radio" name="identity" value="道親"><span>道親</span></label>
-          <label class="seg-item"><input type="radio" name="identity" value="壇辦"><span>壇辦</span></label>
-          <label class="seg-item"><input type="radio" name="identity" value="未求道"><span>未求道</span></label>
-        </div></div>
-        <label class="check" data-acc-row hidden><input type="checkbox" name="accompany"> 陪同（不算人數）</label>
-        ${d.tickets ? '<label class="form-row"><span>張數</span><input class="input" name="tickets" inputmode="numeric" maxlength="2" value="1"></label>' : ''}
-        ${d.layout === '職司表' ? '<label class="form-row"><span>註記（可空白）</span><input class="input" name="note" maxlength="100" placeholder="例：8:00-19:00、代理人"></label>' : ''}
+        <ul class="name-list" data-people></ul>
+        ${d.tickets ? '<label class="form-row"><span>張數（每位）</span><input class="input" name="tickets" inputmode="numeric" maxlength="2" value="1"></label>' : ''}
+        ${d.layout === '職司表' ? '<label class="form-row"><span>註記（可空白，每位都一樣）</span><input class="input" name="note" maxlength="100" placeholder="例：8:00-19:00、代理人"></label>' : ''}
         <div class="form-error" data-error hidden></div>
         <div class="modal-actions">
-          <button type="submit" class="btn btn-block btn-primary">${past ? '補登' : '確認報名'}</button>
+          <button type="submit" class="btn btn-block btn-primary" data-submit>${past ? '補登' : '確認報名'}</button>
           <button type="button" class="btn btn-block" data-close>返回</button>
         </div>
-      </form>`);
+      </form>`, () => { if (changed) afterChange(); });
     const f = m.el.querySelector('form');
-    f.elements.name.focus();
-    // 成員名單提示：打字時列出名字含有這幾個字的成員（啟用中），點了帶入姓名與身分
+    const input = f.elements.name;
+    const sug = f.querySelector('[data-suggestions]');
+    const listEl = f.querySelector('[data-people]');
+    const box = f.querySelector('[data-error]');
+    input.focus();
+    // 成員名單：打字時列出名字含有這幾個字的成員（啟用中），點了就加入；名單上登記的身分自動帶入
     let members = [];
     const cached = memo.get('members');
     (cached ? Promise.resolve(cached.data) : fetchShared('members', () => Api.admin('adminMembers', {}, true)))
-      .then((data) => { members = (data.members || []).filter((x) => x.active !== false); onName(); })
+      .then((data) => { members = (data.members || []).filter((x) => x.active !== false); onName(); paint(); })
       .catch(() => {});
-    const sug = f.querySelector('[data-suggestions]');
-    const setIdentity = (id) => {
-      const r = f.querySelector(`input[name=identity][value="${id}"]`);
-      if (r) { r.checked = true; f.dispatchEvent(new Event('change')); }
+    const lookup = (name, temple) => {
+      const same = members.filter((x) => x.name === name || (x.aliases || []).indexOf(name) !== -1);
+      if (temple !== undefined) return same.find((x) => (x.temple || '') === temple) || null;
+      return same.length === 1 ? same[0] : null;
     };
+    function add(name, temple) {
+      name = String(name || '').trim();
+      if (!name) return;
+      const hit = lookup(name, temple);
+      const t = hit ? (hit.temple || '') : (temple || '');
+      const realName = hit ? hit.name : name;
+      if (people.some((x) => x.name === realName && x.temple === t)) return; // 已經在下面了
+      const id = hit && IDS.indexOf(hit.identity) !== -1 ? hit.identity : '';
+      people.push({ name: realName, temple: t, identity: id, accompany: false, error: '' });
+    }
+    function addTyped() {
+      const parts = SignupForm.splitInput(input.value);
+      parts.forEach((x) => add(x));
+      input.value = '';
+      onName();
+      paint();
+      return parts.length;
+    }
+    function paint() {
+      listEl.innerHTML = people.map((x, i) => `
+        <li class="name-item${x.error || (box.dataset.missing && !x.identity) ? ' is-missing' : ''}">
+          <div class="name-top">
+            <span class="name-text">${esc(x.name)}${x.temple ? `<small class="name-temple">${esc(x.temple)}</small>` : ''}</span>
+            <button type="button" class="btn-remove" data-remove="${i}" aria-label="移除 ${esc(x.name)}">×</button>
+          </div>
+          <div class="seg" role="radiogroup" aria-label="${esc(x.name)} 的身分">${IDS.map((v) => `<label class="seg-item"><input type="radio" name="id-${i}" value="${v}" data-id="${i}"${x.identity === v ? ' checked' : ''}><span>${v}</span></label>`).join('')}</div>
+          ${x.identity === '壇辦' ? `<label class="check"><input type="checkbox" data-acc="${i}"${x.accompany ? ' checked' : ''}> 陪同（不算人數）</label>` : ''}
+          ${x.error ? `<p class="form-error">${esc(x.error)}</p>` : ''}
+        </li>`).join('');
+      const btn = f.querySelector('[data-submit]');
+      btn.textContent = (past ? '補登' : '確認報名') + (people.length > 1 ? `（${people.length} 位）` : '');
+    }
     function onName() {
-      const q = f.elements.name.value.trim();
-      const sameName = members.filter((x) => x.name === q);
-      const exact = sameName.find((x) => (x.temple || '') === (f.dataset.temple || '')) || (sameName.length === 1 ? sameName[0] : null);
-      if (exact && exact.identity) setIdentity(exact.identity); // 名單上已登記的身分自動帶入
-      if (exact && sameName.length === 1) f.dataset.temple = exact.temple || '';
-      const list = q ? members.filter((x) => (x.name.indexOf(q) !== -1 && (x.name !== q || sameName.length > 1)) || (x.aliases || []).some((a) => a.indexOf(q) !== -1)).slice(0, 8) : [];
+      const q = input.value.trim();
+      const list = q && !/[、,，\s]/.test(q) ? members.filter((x) => x.name.indexOf(q) !== -1 || (x.aliases || []).some((a2) => a2.indexOf(q) !== -1)).slice(0, 8) : [];
       sug.innerHTML = list.map((x) => `<button type="button" class="suggestion" data-suggest="${esc(x.name)}" data-temple="${esc(x.temple || '')}">${esc(x.name)}${(x.aliases || []).length ? `<small>${esc(x.aliases.join('、'))}</small>` : ''}${x.temple ? `<small>${esc(x.temple)}</small>` : ''}${x.identity ? `<small>${esc(x.identity)}</small>` : ''}</button>`).join('');
     }
-    f.elements.name.addEventListener('input', () => { f.dataset.temple = ''; onName(); });
-    sug.addEventListener('click', (ev) => {
-      const b = ev.target.closest('[data-suggest]');
-      if (!b) return;
-      f.elements.name.value = b.dataset.suggest;
-      f.dataset.temple = b.dataset.temple || '';
+    input.addEventListener('input', () => {
+      // 打了「、」或逗號：前面的名字先加入下面
+      if (/[、,，;；]/.test(input.value)) {
+        const parts = input.value.split(/[、,，;；]/);
+        const last = parts.pop();
+        SignupForm.splitInput(parts.join('、')).forEach((x) => add(x));
+        input.value = last.trimStart();
+        paint();
+      }
       onName();
     });
-    f.addEventListener('change', () => {
-      const tan = f.querySelector('input[name=identity]:checked');
-      f.querySelector('[data-acc-row]').hidden = !(tan && tan.value === '壇辦');
-      if (!(tan && tan.value === '壇辦')) f.elements.accompany.checked = false;
+    input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); addTyped(); } });
+    f.querySelector('[data-add-name]').addEventListener('click', () => { addTyped(); input.focus(); });
+    sug.addEventListener('click', (ev) => {
+      const b2 = ev.target.closest('[data-suggest]');
+      if (!b2) return;
+      add(b2.dataset.suggest, b2.dataset.temple || '');
+      input.value = '';
+      onName();
+      paint();
+      input.focus();
+    });
+    listEl.addEventListener('click', (ev) => {
+      const r = ev.target.closest('[data-remove]');
+      if (!r) return;
+      people.splice(Number(r.dataset.remove), 1);
+      paint();
+    });
+    listEl.addEventListener('change', (ev) => {
+      const t = ev.target;
+      if (t.dataset.id !== undefined) {
+        const x = people[Number(t.dataset.id)];
+        x.identity = t.value;
+        if (x.identity !== '壇辦') x.accompany = false;
+        x.error = '';
+        paint();
+      } else if (t.dataset.acc !== undefined) {
+        people[Number(t.dataset.acc)].accompany = t.checked;
+      }
     });
     m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
     f.addEventListener('submit', async (ev) => {
       ev.preventDefault();
-      const box = f.querySelector('[data-error]');
-      const identity = f.querySelector('input[name=identity]:checked');
-      const name = f.elements.name.value.trim();
-      if (!name || !identity) {
-        box.textContent = !name ? '請填姓名' : '請選道親、壇辦或未求道';
+      if (input.value.trim()) addTyped();
+      box.hidden = true;
+      if (!people.length) { box.textContent = '請填姓名'; box.hidden = false; return; }
+      const missing = people.filter((x) => !x.identity);
+      if (missing.length) {
+        box.dataset.missing = '1';
+        paint();
+        box.textContent = '請選身分（道親、壇辦或未求道）：' + missing.map((x) => x.name).join('、');
         box.hidden = false;
         return;
       }
       m.el.setAttribute('data-locked', '');
-      Busy.show(word + '中⋯');
-      try {
-        const res = await Api.admin('adminAddAttendee', { dutyId: d.id, positionId: p.id, date, name, temple: f.dataset.temple || '', identity: identity.value, accompany: f.elements.accompany.checked, note: f.elements.note ? f.elements.note.value.trim() : '', tickets: f.elements.tickets ? f.elements.tickets.value.trim() : undefined });
-        Busy.hide();
-        m.close();
-        dutyPage.flash = notice('success', '已' + word, `${name}・${Fmt.shortDate(date)}・${p.name}${res.warnings.length ? '（注意：' + res.warnings.join('；') + '）' : ''}`);
-        afterChange();
-      } catch (err) {
-        Busy.hide();
-        m.el.removeAttribute('data-locked');
-        if (err.code === 'UNAUTHORIZED') { m.close(); guard(err); return; }
-        box.innerHTML = `<strong>${esc(err.message)}</strong>${(err.details || []).map((x) => '<br>' + esc(x.message)).join('')}`;
-        box.hidden = false;
+      const done = [];
+      const warns = [];
+      for (let i = 0; i < people.length; i++) {
+        const x = people[i];
+        Busy.show(`${word}中⋯${people.length > 1 ? `（${i + 1}／${people.length}）` : ''}`);
+        try {
+          const res = await Api.admin('adminAddAttendee', { dutyId: d.id, positionId: p.id, date, name: x.name, temple: x.temple || '', identity: x.identity, accompany: x.accompany, note: f.elements.note ? f.elements.note.value.trim() : '', tickets: f.elements.tickets ? f.elements.tickets.value.trim() : undefined });
+          x.done = true;
+          done.push(x.name);
+          (res.warnings || []).forEach((w) => warns.push(x.name + '：' + w));
+        } catch (err) {
+          if (err.code === 'UNAUTHORIZED') { Busy.hide(); m.el.removeAttribute('data-locked'); m.close(); guard(err); return; }
+          x.error = err.message + (err.details || []).map((y) => '；' + y.message).join('');
+        }
       }
+      Busy.hide();
+      m.el.removeAttribute('data-locked');
+      if (done.length) changed = true;
+      const left = people.filter((x) => !x.done);
+      dutyPage.flash = done.length ? notice('success', '已' + word + (done.length > 1 ? ` ${done.length} 位` : ''), `${done.join('、')}・${Fmt.shortDate(date)}・${p.name}${warns.length ? '（注意：' + warns.join('；') + '）' : ''}`) : dutyPage.flash;
+      if (!left.length) { m.close(); return; }
+      // 有人沒成功：留在視窗，成功的拿掉，失敗的標出原因
+      people.splice(0, people.length, ...left);
+      paint();
+      box.textContent = (done.length ? `已${word}：${done.join('、')}。` : '') + `下面 ${left.length} 位沒有${word}成功，看一下原因，改好再按一次，或按返回。`;
+      box.hidden = false;
     });
   }
 

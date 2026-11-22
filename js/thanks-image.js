@@ -87,11 +87,11 @@
     return lines;
   }
 
-  // 最上面的三位仙佛（同報名成功的祝福圖）：觀世音菩薩、彌勒祖師（中間）、濟公活佛（2026/11/15）
+  // 最上面的三位仙佛（同報名成功的祝福圖）：濟公活佛在左、彌勒祖師在中間、觀世音菩薩在右（2026/11/22 左右對調）
   const ARTS = [
-    { src: 'img/guanyin.webp', alt: '觀世音菩薩' },
+    { src: 'img/jigong.webp', alt: '濟公活佛' },
     { src: 'img/maitreya.webp', alt: '彌勒祖師' },
-    { src: 'img/jigong.webp', alt: '濟公活佛' }
+    { src: 'img/guanyin.webp', alt: '觀世音菩薩' }
   ];
   const ART_H = 270;
   const ART_GAP = 24;
