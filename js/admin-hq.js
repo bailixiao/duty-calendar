@@ -256,7 +256,7 @@
   const fileUrl = (f) => URL.createObjectURL(f);
 
   /** 把檔案拆成一批一批要給 AI 讀的：{ label, images: [{mime,data}], text } */
-  async function chunksOf(file, pages) {
+  async function chunksOf(file, pages, onPage) {
     const name = file.name || '檔案';
     const ext = (name.split('.').pop() || '').toLowerCase();
     const out = [];
@@ -274,6 +274,7 @@
       const flushText = () => { const to = textTo; if (texts.length) out.push({ label: `${name} 第 ${textFrom}${to > textFrom ? '～' + to : ''} 頁`, text: texts.join('\n\n') }); texts = []; };
       for (let p = 1; p <= pdf.numPages; p++) {
         if (want && !want.has(p)) continue;
+        if (onPage) onPage(p, pdf.numPages);
         const page = await pdf.getPage(p);
         const tc = await page.getTextContent();
         // NFKC：PDF 的部首字（⽉⽇⼤）換回一般的字；中文字之間的空白拿掉
@@ -323,7 +324,7 @@
         <label class="form-row"><span>PDF 只讀第幾頁（可空白＝全部，例：6-8, 13）</span><input class="input" data-pages placeholder="例：6-8"></label>
         <label class="form-row"><span>給 AI 的補充說明（可空白）</span><input class="input" data-hint placeholder="例：只要 115 年的；日期是民國年"></label>
       </div>
-      <button type="button" class="btn btn-primary btn-block" data-read disabled>🔍 開始讀</button>
+      <button type="button" class="btn btn-primary btn-block" data-read disabled>先選檔案，才能開始讀</button>
       <p class="hint">檔案會交給 Google 的 AI 讀（和「從照片新增」一樣）。AI 可能看錯，日期、時間請一定要看過。人名、電話不會整理進來。</p>
       <div data-progress></div>
       <div data-rows></div>`;
@@ -346,7 +347,7 @@
     fin.addEventListener('change', () => {
       files = [...fin.files];
       body.querySelector('[data-picked]').textContent = files.length ? '已選：' + files.map((f) => f.name).join('、') : '';
-      body.querySelector('[data-read]').disabled = !files.length;
+      const rb = body.querySelector('[data-read]'); rb.disabled = !files.length; rb.textContent = files.length ? '🔍 開始讀' : '先選檔案，才能開始讀';
     });
     const prog = body.querySelector('[data-progress]');
     body.querySelector('[data-read]').addEventListener('click', async (ev) => {
@@ -356,20 +357,20 @@
       let chunks = [];
       prog.innerHTML = '<p class="muted">準備檔案中⋯</p>';
       for (const f of files) {
-        try { chunks = chunks.concat((await chunksOf(f, body.querySelector('[data-pages]').value)).map((c) => Object.assign(c, { file: f.name }))); } catch (e) { errs.push(e.message || String(e)); }
+        try { chunks = chunks.concat((await chunksOf(f, body.querySelector('[data-pages]').value, (p, n) => { prog.innerHTML = `<p class="muted">準備檔案中⋯（${esc(f.name)} 第 ${p}／${n} 頁）</p>`; })).map((c) => Object.assign(c, { file: f.name }))); } catch (e) { errs.push(e.message || String(e)); }
       }
       const found = [];
       for (let i = 0; i < chunks.length; i++) {
         const c = chunks[i];
-        prog.innerHTML = `<p class="muted">AI 讀檔中⋯（${i + 1}／${chunks.length}：${esc(c.label)}）每一批大約 10～40 秒</p><progress max="${chunks.length}" value="${i}"></progress>`;
+        const t0 = Date.now(); const paint = () => { prog.innerHTML = `<p class="muted">AI 讀檔中⋯（${i + 1}／${chunks.length}：${esc(c.label)}）已經 ${Math.round((Date.now() - t0) / 1000)} 秒，每一批大約 10～60 秒</p><progress max="${chunks.length}" value="${i}"></progress>`; }; paint(); const tick = setInterval(paint, 1000);
         try {
           const r = await Api.admin('hqImportAi', { images: c.images || [], text: c.text || '', hint: body.querySelector('[data-hint]').value, part: c.label });
           r.items.forEach((x) => found.push(Object.assign({}, x, { source: c.label })));
         } catch (e) {
           if (e.code === 'UNAUTHORIZED') { guard(e); return; }
-          errs.push(`${c.label}：${e.message}`);
+          errs.push(`${c.label}：${e.code === 'NETWORK' ? '等太久沒有回應（這一批可能太多頁，可以用「只讀第幾頁」分開讀）' : e.message}`);
           if (e.code === 'AI_LIMIT' || e.code === 'CONFIG') break;
-        }
+        } finally { clearInterval(tick); }
       }
       btn.disabled = false;
       // 整理：農曆換國曆、同名同天只留一筆、過去的不勾
