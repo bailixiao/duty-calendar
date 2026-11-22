@@ -56,54 +56,122 @@
     reload();
   }
 
-  /** 匯入成員資料：貼上整理好的 JSON（佛堂、年齡、身分），依名字更新 */
+  /**
+   * 匯入成員資料（2026/11/22 起可以選檔案）：Excel、Word（.docx）、PDF，或貼上從 Excel 複製的表格、Claude 整理的文字。
+   * 自動找出姓名、佛堂、年齡（出生年）、身分、清口、國外（MemberFile.detect），對錯了可以自己改；
+   * 依名字（或別名）幫成員補上有給的欄位，不會清掉原本的資料。檔案只在瀏覽器裡讀，不會上傳。
+   */
   function importMembers(guard, reload) {
     const md = Modal.open(`
       <h2 class="modal-title">📋 匯入成員資料</h2>
-      <p class="modal-note">貼上整理好的資料（Claude 整理的文字），會依名字（或別名）幫成員補上佛堂、年齡、身分、清口、國外；只更新有給的欄位，不會清掉原本的資料。</p>
-      <textarea class="input day-text" rows="7" data-text placeholder='{"type":"成員資料","items":[...]}'></textarea>
-      <label class="check"><input type="checkbox" data-add> 名單上找不到的，直接新增成員</label>
+      <p class="modal-note">選 <strong>Excel、Word、PDF</strong> 檔，或把表格貼在下面，會自動找出<strong>姓名、佛堂、年齡（出生年）、身分、清口、國外</strong>，依名字幫成員補上。只更新有給的欄位，不會清掉原本的資料。</p>
+      <label class="btn btn-block">📂 選檔案（Excel、Word、PDF，可以好幾個）<input type="file" accept=".xlsx,.xls,.xlsm,.csv,.ods,.docx,.doc,.pdf" multiple hidden data-file></label>
+      <details class="import-paste"><summary>或貼上表格／文字</summary>
+        <textarea class="input day-text" rows="6" data-text placeholder="從 Excel 複製整張表貼上（第一列是標題：姓名、佛堂、年齡⋯），或貼上 Claude 整理的文字"></textarea>
+        <button type="button" class="btn btn-small" data-read-text>讀這段文字</button>
+      </details>
+      <p class="hint">檔案只在這台手機／電腦上讀，不會上傳。掃描成圖片的 PDF 讀不到字，請改用 Excel／Word。</p>
+      <div data-sources></div>
       <div data-out></div>
+      <label class="check" data-add-row hidden><input type="checkbox" data-add> 名單上找不到的，直接新增成員</label>
       <div class="modal-actions">
-        <button type="button" class="btn btn-block" data-check>檢查</button>
         <button type="button" class="btn btn-primary btn-block" data-go disabled>確定匯入</button>
         <button type="button" class="btn btn-block" data-close>返回</button>
       </div>`);
     const el = md.el;
-    let items = null;
+    let sources = []; // { label, rows, det }
+    let items = [];
+    let done = false;
     el.querySelector('[data-close]').addEventListener('click', () => md.close());
-    el.querySelector('[data-text]').addEventListener('input', () => { items = null; el.querySelector('[data-go]').disabled = true; });
-    el.querySelector('[data-check]').addEventListener('click', () => {
-      const out = el.querySelector('[data-out]');
-      try {
-        const j = JSON.parse(el.querySelector('[data-text]').value);
-        if (!j || !Array.isArray(j.items) || !j.items.length) throw new Error('找不到 items');
-        items = j.items;
-      } catch (e) {
-        out.innerHTML = `<p class="form-error">看不懂這段文字：${esc(e.message || '')}。請確認整段都有貼上。</p>`;
-        return;
+    const out = el.querySelector('[data-out]');
+    const srcBox = el.querySelector('[data-sources]');
+    const known = () => new Set(memberList.flatMap((m) => [m.name].concat(m.aliases || [])));
+    const FIELD_LABEL = { name: '姓名', temple: '佛堂', age: '年齡', birth: '出生年', identity: '身分', vegetarian: '清口', overseas: '國外' };
+    const show = (it) => [it.temple, it.age ? it.age + ' 歲' : (it.birthYear ? it.birthYear + ' 年生' : ''), it.identity, it.vegetarian ? '清口' : '', it.overseas].filter(Boolean).join('・');
+
+    function paint() {
+      items = [];
+      srcBox.innerHTML = sources.map((src, si) => {
+        if (!src.det) return `<div class="import-src"><h3>${esc(src.label)}</h3><p class="form-error">找不到姓名那一欄。請確認第一列有「姓名」標題，或改用貼上。</p></div>`;
+        const list = MemberFile.toItems(src.rows, src.det, { overseas: (window.SITE && SITE.overseas) || undefined });
+        items = items.concat(list);
+        const opts = (k) => `<option value="">（沒有）</option>${src.det.headers.map((h, c) => `<option value="${c}"${src.det.map[k] === c ? ' selected' : ''}>${esc(h)}</option>`).join('')}`;
+        return `<div class="import-src">
+          <h3>${esc(src.label)}：讀到 ${list.length} 位</h3>
+          <div class="import-map">${MemberFile.FIELD_KEYS.map((k) => `<label><span>${FIELD_LABEL[k]}</span><select class="input" data-map="${si}:${k}">${opts(k)}</select></label>`).join('')}</div>
+          <p class="hint">自動對的欄位，不對可以改。</p>
+        </div>`;
+      }).join('');
+      if (!sources.length) { out.innerHTML = ''; el.querySelector('[data-go]').disabled = true; return; }
+      const k = known();
+      const miss = items.filter((x) => !k.has(x.name));
+      const useful = items.filter((x) => Object.keys(x).length > 1).length;
+      out.innerHTML = items.length ? `<p>共 ${items.length} 位：名單上找得到 ${items.length - miss.length} 位${miss.length ? `，<strong>找不到 ${miss.length} 位</strong>` : ''}；有資料可以補的 ${useful} 位。</p>
+        <div class="import-preview"><table><thead><tr><th>姓名</th><th>會補上</th></tr></thead><tbody>${items.slice(0, 30).map((x) => `<tr class="${k.has(x.name) ? '' : 'is-miss'}"><td>${esc(x.name)}${k.has(x.name) ? '' : '<small>找不到</small>'}</td><td>${esc(show(x)) || '<span class="muted">（沒有資料）</span>'}</td></tr>`).join('')}</tbody></table>
+        ${items.length > 30 ? `<p class="hint">只列前 30 位，其他 ${items.length - 30} 位一起匯入。</p>` : ''}</div>` : '<p class="form-error">沒有讀到名字。</p>';
+      el.querySelector('[data-add-row]').hidden = !miss.length;
+      el.querySelector('[data-go]').disabled = !items.length || done;
+      done = false;
+    }
+    srcBox.addEventListener('change', (ev) => {
+      const t = ev.target.closest('[data-map]');
+      if (!t) return;
+      const [si, key] = t.dataset.map.split(':');
+      const det = sources[Number(si)].det;
+      if (t.value === '') delete det.map[key]; else det.map[key] = Number(t.value);
+      if (key === 'age' && t.value !== '') delete det.map.birth;
+      if (key === 'birth' && t.value !== '') delete det.map.age;
+      paint();
+    });
+    const addRows = (label, rows) => sources.push({ label, rows, det: MemberFile.detect(rows) });
+    el.querySelector('[data-file]').addEventListener('change', async (ev) => {
+      const files = [...ev.target.files];
+      ev.target.value = '';
+      if (!files.length) return;
+      Busy.show('讀檔中⋯');
+      const errs = [];
+      for (const f of files) {
+        try { (await MemberFile.readFile(f)).forEach((x) => addRows(x.label, x.rows)); } catch (e) { errs.push(e.message || String(e)); }
       }
-      const known = new Set(memberList.flatMap((m) => [m.name].concat(m.aliases || [])));
-      const miss = items.filter((x) => !known.has(String(x.name || '').trim()));
-      out.innerHTML = `<p>共 ${items.length} 位：名單上找得到 ${items.length - miss.length} 位${miss.length ? `，<strong>找不到 ${miss.length} 位</strong>（${esc(miss.map((x) => x.name).join('、'))}）` : ''}。</p>`;
-      el.querySelector('[data-go]').disabled = false;
+      Busy.hide();
+      paint();
+      if (errs.length) out.insertAdjacentHTML('afterbegin', `<p class="form-error">${errs.map(esc).join('<br>')}</p>`);
+    });
+    el.querySelector('[data-read-text]').addEventListener('click', () => {
+      const text = el.querySelector('[data-text]').value.trim();
+      if (!text) return;
+      // Claude 整理的 JSON：直接用
+      if (/^\s*\{/.test(text)) {
+        try {
+          const j = JSON.parse(text);
+          if (!j || !Array.isArray(j.items) || !j.items.length) throw new Error('找不到 items');
+          const rows = [['姓名', '佛堂', '年齡', '出生年', '身分', '清口', '國外']].concat(j.items.map((x) => [x.name, x.temple || '', x.age == null ? '' : x.age, x.birthYear || '', x.identity || '', x.vegetarian ? '是' : '', x.overseas || '']));
+          addRows('貼上的文字', rows);
+        } catch (e) {
+          out.innerHTML = `<p class="form-error">看不懂這段文字：${esc(e.message || '')}。請確認整段都有貼上。</p>`;
+          return;
+        }
+      } else addRows('貼上的表格', MemberFile.textToRows(text));
+      el.querySelector('[data-text]').value = '';
+      paint();
     });
     el.querySelector('[data-go]').addEventListener('click', async () => {
-      if (!items) return;
+      if (!items.length) return;
       Busy.show('匯入中⋯');
       try {
         const res = await Api.admin('adminImportMembers', { items, addMissing: el.querySelector('[data-add]').checked });
         Busy.hide();
-        el.querySelector('[data-out]').innerHTML = `<div class="notice notice-success" role="status"><p><strong>✅ 匯入完成</strong>：更新 ${res.updated.length} 位${res.added.length ? `、新增 ${res.added.length} 位` : ''}</p>
+        out.innerHTML = `<div class="notice notice-success" role="status"><p><strong>✅ 匯入完成</strong>：更新 ${res.updated.length} 位${res.added.length ? `、新增 ${res.added.length} 位` : ''}</p>
           ${res.missing.length ? `<p>找不到（沒改）：${esc(res.missing.join('、'))}</p>` : ''}
           ${res.ambiguous.length ? `<p>同名好幾位、分不出來（沒改）：${esc(res.ambiguous.join('、'))}</p>` : ''}</div>`;
         el.querySelector('[data-go]').disabled = true;
+        done = true;
         AdminPage.clearMemo();
         el.querySelector('[data-close]').addEventListener('click', () => reload(), { once: true });
       } catch (err) {
         Busy.hide();
         if (guard(err)) return;
-        el.querySelector('[data-out]').innerHTML = `<p class="form-error">${errorHtml(err)}</p>`;
+        out.innerHTML = `<p class="form-error">${errorHtml(err)}</p>`;
       }
     });
   }

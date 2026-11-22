@@ -1038,6 +1038,21 @@ button.more-item { width: 100%; text-align: left; font: inherit; cursor: pointer
 .add-ways { display: grid; gap: 10px; margin: 8px 0 4px; }
 .tidy-q { margin: 12px 0 4px; }
 .fill-note { margin-top: 8px; }
+/* 匯入成員資料：Excel／Word／PDF（2026/11/22） */
+.import-paste { margin: 8px 0; }
+.import-paste summary { cursor: pointer; color: var(--accent); }
+.import-paste .btn { margin-top: 6px; }
+.import-src { margin: 12px 0 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
+.import-src h3 { margin: 0 0 8px; font-size: 1.05rem; }
+.import-map { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px 10px; }
+.import-map label { display: grid; gap: 2px; font-size: .9rem; color: var(--ink-2); }
+.import-map .input { min-height: 40px; padding: 4px 8px; font-size: .95rem; }
+.import-preview { max-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+.import-preview table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+.import-preview th, .import-preview td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.import-preview th { position: sticky; top: 0; background: var(--paper); }
+.import-preview tr.is-miss td:first-child { color: var(--accent); }
+.import-preview td small { display: block; font-size: .8rem; }
 /* 姓名欄連動成員名單（2026/11/22） */
 .member-sug:empty { display: none; }
 .member-sug { margin: -4px 0 10px; }
