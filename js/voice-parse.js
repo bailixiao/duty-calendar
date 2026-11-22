@@ -97,6 +97,13 @@
     let options;
     if (top > 0) options = pool.filter((s) => s.score >= Math.max(1, top - 1)).sort((a, b) => b.score - a.score || a.date.localeCompare(b.date));
     else options = found ? pool.slice() : []; // 只講日期：那天的全部
+    // 講的那天沒有這個勤務：改列這個勤務別天的（dateMiss，畫面會說「那天沒有」）
+    let dateMiss = false;
+    if (found && !options.some((o) => o.score > 0) && nameScore) {
+      const all = slots.map((x) => Object.assign({}, x, { score: nameScore(x.duty.name, t) }));
+      const top2 = Math.max(0, ...all.map((x) => x.score));
+      if (top2 >= 2) { options = all.filter((x) => x.score >= top2 - 1).sort((a2, b2) => b2.score - a2.score || a2.date.localeCompare(b2.date)); dateMiss = true; }
+    }
     // 同一個勤務好幾天、沒講日期：最近的那天排前面
     options = options.slice(0, 8);
     const best = options[0];
@@ -124,7 +131,7 @@
     const self = /(^|[^自])我(?!們)/.test(rest.replace(/我要|我想|幫我/g, ''));
     rest = rest.replace(FILLER, ' ').replace(/我們|我|自己/g, ' ');
     const nameChunks = rest.split(/[\s、，,]+/).map((x) => x.replace(/[^一-鿿·‧]/g, '')).filter((x) => x.length >= 2);
-    return { text: t, date: found ? found.date : '', dateText: found ? found.text : '', options, position, nameChunks, self };
+    return { text: t, date: found ? found.date : '', dateText: found ? found.text : '', dateMiss, options, position, nameChunks, self };
   }
 
   /**

@@ -102,11 +102,12 @@
         out.innerHTML = `<div class="notice notice-error"><p>找不到要報名的勤務${r.date ? `（${esc(Fmt.shortDate(r.date))}）` : ''}。</p><p>請講<strong>日期</strong>和<strong>勤務名稱</strong>，例如「12 月 13 號闡道班勤務」，或按「返回」到行事曆點勤務。</p></div>`;
         return;
       }
-      let pick = r.options.length === 1 ? 0 : -1;
+      let pick = r.options.length === 1 && !r.dateMiss ? 0 : -1;
       const draw = () => {
         const o = pick >= 0 ? r.options[pick] : null;
         const timeOf = (x) => [x.duty.startTime ? x.duty.startTime + (x.duty.endTime ? '–' + x.duty.endTime : '') : '', x.duty.location].filter(Boolean).join('・');
         out.innerHTML = `
+          ${r.dateMiss ? `<p class="notice">${esc(Fmt.shortDate(r.date))} 沒有這個勤務，下面是別天的：</p>` : ''}
           ${o ? '' : `<p class="voice-ask">是哪一個？請點一下：</p><div class="voice-options">${r.options.map((x, i) => `<button type="button" class="voice-option" data-pick="${i}"><strong>${esc(Fmt.shortDate(x.date))}　${esc(x.duty.name)}</strong><small>${esc(timeOf(x))}</small></button>`).join('')}</div>`}
           ${o ? `<div class="voice-confirm">
             <p class="voice-q">要幫下面的人報名嗎？</p>

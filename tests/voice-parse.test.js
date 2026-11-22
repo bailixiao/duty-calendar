@@ -57,3 +57,10 @@ test('黏在一起的名字到名單核對後拆開；中間的「和」可以�
   assert.deepEqual(await V.splitNames('陳正和王五', isName), ['陳正和', '王五']);
   assert.deepEqual(await V.splitNames('某某某', isName), ['某某某'], '名單上沒有就照原樣');
 });
+
+test('講的那天沒有這個勤務：列出這個勤務別天的，並標出「那天沒有」', () => {
+  const r = V.parse('12月10號宏宗打掃', DUTIES, TODAY);
+  assert.equal(r.dateMiss, true);
+  assert.equal(r.options[0].duty.id, 'C');
+  assert.equal(r.options[0].date, '2026-12-09');
+});
