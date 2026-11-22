@@ -24,6 +24,7 @@
 
   async function show(body, guard, sub) {
     if (sub === 'hq/import') return importPage(body, guard);
+    if (/^hq\/group\//.test(sub || '')) return groupPage(body, guard, decodeURIComponent(sub.slice(9)));
     const m = (sub || '').match(/^hq\/(new|edit\/([^/]+)|([^/]+))$/);
     if (m && m[1] === 'new') return form(body, guard, null);
     if (m && m[2]) return form(body, guard, decodeURIComponent(m[2]));
@@ -40,14 +41,168 @@
       <div class="notice"><p>📣 <strong>分派</strong>：開一個活動送給各區。各區的<strong>總務・勤務／道務／教育組長</strong>會在後台先看到，看過按「放到本區行事曆」才會出現在那一區的行事曆，家人在自己區報名；這裡的總表看得到每一區的狀態、人數和名字。</p>
       <p class="muted">13 區已開通 ${openN} 區；還沒開通的區收不到。</p></div>
       <div class="admin-actions"><a class="btn btn-primary" href="#/admin/hq/new">＋ 開新的分派</a><a class="btn" href="#/admin/hq/import">📄 從檔案匯入行事曆</a></div>
-      ${data.campaigns.some((c) => c.status === 'draft') ? `<p class="hint">📝 草稿：各區還看不到，點進去補資料後按「送出給各區」。</p>` : ''}
-      ${data.campaigns.length ? `<div class="card-list">${data.campaigns.slice().sort((a, b) => ((b.status === 'draft') - (a.status === 'draft')) || (a.status === 'draft' ? a.start.localeCompare(b.start) : 0)).map((c) => {
+      ${data.campaigns.some((c) => c.status === 'draft') ? `<p class="hint">📝 草稿：各區還看不到。同一個名稱的併成一組，點進去一起檢查一次，按「送出給各區」。</p>` : ''}
+      ${data.campaigns.length ? `<div class="card-list">${draftGroups(data.campaigns).map((g) => `<a class="duty-card hq-card is-draft" href="#/admin/hq/group/${encodeURIComponent(g.key)}">
+          <span class="card-main"><span class="card-title"><span class="hq-st st-seen">📝 草稿</span> ${esc(g.items[0].title)}${g.items.length > 1 ? `<small>（${g.items.length} 個日期）</small>` : ''}</span>
+          <span class="card-meta">${esc(catLabel(g.items[0].category))}・${esc(datesText(g.items))}</span>
+          <span class="card-meta">${g.items.length > 1 ? '一起檢查一次就好・' : ''}預計送給 ${new Set([].concat(...g.items.map((c) => c.regions))).size} 區</span></span></a>`).join('')}${data.campaigns.filter((c) => c.status !== 'draft').map((c) => {
         const ok = c.regions.filter((r) => c.delivery && c.delivery[r] === 'ok').length;
         return `<a class="duty-card hq-card${c.status === 'draft' ? ' is-draft' : ''}" href="#/admin/hq/${encodeURIComponent(c.id)}">
           <span class="card-main"><span class="card-title">${c.status === 'draft' ? '<span class="hq-st st-seen">📝 草稿</span> ' : ''}${esc(c.title)}</span>
           <span class="card-meta">${esc(catLabel(c.category))}・${esc(when(c))}</span>
           <span class="card-meta">${c.status === 'draft' ? `預計送給 ${c.regions.length} 區` : `送給 ${c.regions.length} 區（${esc(c.regions.map(name).join('、'))}）・送到 ${ok} 區`}</span></span></a>`;
       }).join('')}</div>` : '<p class="panel-empty">還沒有分派。按「＋ 開新的分派」開始。</p>'}`;
+  }
+
+  /** 草稿依名稱＋類別分組（同名的一起檢查、一起送出），組內照日期排、組照最早日期排 */
+  const groupKey = (c) => c.title.replace(/\s/g, '') + '|' + c.category;
+  function draftGroups(campaigns) {
+    const m = new Map();
+    campaigns.filter((c) => c.status === 'draft').forEach((c) => { const k = groupKey(c); if (!m.has(k)) m.set(k, { key: k, items: [] }); m.get(k).items.push(c); });
+    const gs = [...m.values()];
+    gs.forEach((g) => g.items.sort((a, b) => a.start.localeCompare(b.start)));
+    return gs.sort((a, b) => a.items[0].start.localeCompare(b.items[0].start));
+  }
+  /** 「11/22、11/24、11/29⋯共 12 天」 */
+  function datesText(items) {
+    const ds = items.map((c) => Fmt.shortDate(c.start) + (c.end && c.end !== c.start ? '～' + Fmt.shortDate(c.end) : ''));
+    return ds.length > 4 ? ds.slice(0, 3).join('、') + `⋯共 ${ds.length} 個日期` : ds.join('、');
+  }
+  const addDays = (ymd, n) => { const d = new Date(ymd + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+
+  /** 同名草稿一起檢查：共同的資料填一次，每個日期可改時間、送給哪幾區，一次送出 */
+  async function groupPage(body, guard, key) {
+    let data;
+    try { data = await Api.admin('hqList', {}); } catch (e) { if (guard(e, body)) return; body.innerHTML = `<p class="form-error">${errHtml(e)}</p>`; return; }
+    const g = draftGroups(data.campaigns).find((x) => x.key === key);
+    if (!g) { body.innerHTML = '<p class="panel-empty">找不到這一組草稿，可能已經送出或刪掉了。<a href="#/admin">回分派清單</a></p>'; return; }
+    const f0 = g.items[0];
+    const c = { title: f0.title, category: f0.category, nature: f0.nature, location: f0.location, attire: f0.attire || '', description: f0.description, positions: f0.positions && f0.positions.length ? f0.positions : [{ name: '參加' }], quotaMode: f0.quotaMode || 'none', quotas: Object.assign({}, f0.quotas), deadlineDays: '' };
+    const rows = g.items.map((x) => ({ id: x.id, pick: true, start: x.start, end: x.end, startTime: x.startTime, endTime: x.endTime, regions: x.regions.slice(), description: x.description, source: x.source }));
+    const sameDesc = rows.every((r) => r.description === f0.description);
+    const regionNames = (codes) => (codes.length === data.targets.length ? '全部 ' + codes.length + ' 區' : codes.length ? data.targets.filter((t) => codes.indexOf(t.code) !== -1).map((t) => t.name.replace(/區$/, '')).join('、') : '還沒選');
+    const draw = () => {
+      const allRegions = data.targets.filter((t) => rows.some((r) => r.pick && r.regions.indexOf(t.code) !== -1));
+      const n = rows.filter((r) => r.pick).length;
+      body.innerHTML = `
+        <p><a href="#/admin">‹ 分派清單</a></p>
+        <h2><span class="hq-st st-seen">📝 草稿</span> ${esc(c.title)}${rows.length > 1 ? `<small>（${rows.length} 個日期）</small>` : ''}</h2>
+        <p class="notice">📝 各區還看不到。${rows.length > 1 ? '同一個名稱的草稿在這裡<strong>一起檢查一次</strong>：上面共同的資料填一次，下面每個日期確認時間和送給哪幾區，' : '補好說明、了愿項目、名額，確認日期時間，'}再按「送出給各區」。</p>
+        <form class="admin-form hq-form" novalidate>
+          <label class="form-row"><span>名稱</span><input class="input" name="title" maxlength="40" value="${esc(c.title)}" required></label>
+          <div class="form-row"><span>類別（送給各區哪一組的組長）</span><div class="seg">${CATS.map(([v, l]) => `<label class="seg-item"><input type="radio" name="category" value="${v}"${c.category === v ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div></div>
+          <label class="form-row"><span>性質</span><select class="input" name="nature">${NATURES[c.category].map((x) => `<option${x === c.nature ? ' selected' : ''}>${x}</option>`).join('')}</select></label>
+          <label class="form-row"><span>地點</span><input class="input" name="location" maxlength="40" value="${esc(c.location)}"></label>
+          <label class="form-row"><span>服裝（可空白）</span><input class="input" name="attire" maxlength="40" value="${esc(c.attire)}"></label>
+          <label class="form-row"><span>說明${sameDesc ? '' : '（每個日期 AI 讀到的不一樣，填了這裡就全部用這段；空白＝各自用原本的）'}</span><textarea class="input textarea" name="description" rows="4" maxlength="2000">${esc(sameDesc ? c.description : '')}</textarea></label>
+          <label class="form-row"><span>了愿項目（好幾項用「、」分開；只有一項＝大家都報這個）</span><input class="input" name="positions" value="${esc(c.positions.map((p) => p.name).join('、'))}"></label>
+          <label class="form-row"><span>報名截止：活動前幾天（可空白）</span><input class="input" name="deadlineDays" inputmode="numeric" maxlength="2" value="${esc(c.deadlineDays)}" placeholder="例：3"></label>
+          <fieldset class="form-block">
+            <legend>名額（每個日期都一樣）</legend>
+            <div class="seg">${[['none', '不限'], ['assigned', '分壇分配'], ['self', '各區自己報']].map(([v, l]) => `<label class="seg-item"><input type="radio" name="quotaMode" value="${v}"${c.quotaMode === v ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div>
+            ${c.quotaMode === 'assigned' ? `<p class="hint">每區每次幾位（空白＝那一區不限）。</p>
+              <div class="hq-quotas">${allRegions.map((t) => `<label class="form-row" data-quota-row="${t.code}"><span>${esc(t.name)}</span><input class="input" name="q-${t.code}" inputmode="numeric" maxlength="4" value="${esc(c.quotas[t.code] || '')}"></label>`).join('')}</div>` : ''}
+            ${c.quotaMode === 'self' ? '<p class="hint">各區組長放到行事曆時自己填要幾位。</p>' : ''}
+          </fieldset>
+          <fieldset class="form-block">
+            <legend>日期（${n}／${rows.length} 個要送出）</legend>
+            <div class="hq-import-dates hq-group-dates">${rows.map((r, i) => `
+              <div class="hq-import-row${r.pick ? '' : ' is-off'}" data-i="${i}">
+                <label class="check"><input type="checkbox" data-k="pick"${r.pick ? ' checked' : ''} aria-label="送出這一天"></label>
+                <div class="hq-import-fields">
+                  <div class="hq-import-line hq-import-when">
+                    <input class="input" type="date" data-k="start" value="${esc(r.start)}" aria-label="日期">
+                    <input class="input" type="date" data-k="end" value="${esc(r.end !== r.start ? r.end : '')}" aria-label="結束日（一天就空白）">
+                    <input class="input" data-k="startTime" value="${esc(r.startTime)}" placeholder="開始時間" aria-label="開始時間">
+                    <input class="input" data-k="endTime" value="${esc(r.endTime)}" placeholder="結束時間" aria-label="結束時間">
+                  </div>
+                  <details class="hq-import-to"${r.regions.length ? '' : ' open'}>
+                    <summary>📨 送給：<strong${r.regions.length ? '' : ' class="form-error"'}>${esc(regionNames(r.regions))}</strong> <small>✏️ 改</small></summary>
+                    <div class="hq-regions">${data.targets.map((t) => `<label class="check"><input type="checkbox" data-row-region="${t.code}"${r.regions.indexOf(t.code) !== -1 ? ' checked' : ''}> ${esc(t.name)}${t.open ? '' : '<small class="muted">（還沒開通）</small>'}</label>`).join('')}</div>
+                  </details>
+                  ${!sameDesc && r.description ? `<small class="muted">${esc(r.description.slice(0, 80))}</small>` : ''}
+                </div>
+              </div>`).join('')}</div>
+            ${rows.length > 1 ? `<details class="hq-import-to"><summary>📨 全部日期改成送給⋯ <small>✏️</small></summary>
+              <div class="hq-regions">${data.targets.map((t) => `<label class="check"><input type="checkbox" data-all-region="${t.code}"> ${esc(t.name)}</label>`).join('')}</div>
+              <button type="button" class="btn" data-all-apply>套用到勾選的日期</button></details>` : ''}
+          </fieldset>
+          <div class="form-error" data-error hidden></div>
+          <div class="form-actions"><button type="submit" class="btn btn-primary btn-block"${n ? '' : ' disabled'}>送出給各區（${n} 個日期）</button>
+            <button type="button" class="btn btn-block" data-save-draft>📝 先存草稿（不送出）</button>
+            <button type="button" class="btn btn-quiet-danger btn-block" data-del>🗑 刪除這${rows.length > 1 ? '一組' : '個'}草稿</button></div>
+        </form>`;
+      const f = body.querySelector('form');
+      const sync = () => {
+        ['title', 'nature', 'location', 'attire', 'description', 'deadlineDays'].forEach((k) => { c[k] = f.elements[k].value; });
+        c.positions = f.elements.positions.value.split(/[\n、,，]+/).map((x) => x.trim()).filter(Boolean).map((name) => ({ name }));
+        f.querySelectorAll('[data-quota-row]').forEach((row) => { c.quotas[row.dataset.quotaRow] = row.querySelector('input').value.trim(); });
+      };
+      const redraw = () => { sync(); const y = scrollY; draw(); scrollTo(0, y); };
+      f.querySelectorAll('input[name=category]').forEach((x) => x.addEventListener('change', () => { sync(); c.category = x.value; c.nature = ''; draw(); }));
+      f.querySelectorAll('input[name=quotaMode]').forEach((x) => x.addEventListener('change', () => { sync(); c.quotaMode = x.value; draw(); }));
+      f.querySelectorAll('[data-i]').forEach((el) => {
+        const r = rows[Number(el.dataset.i)];
+        el.querySelectorAll('[data-k]').forEach((inp) => inp.addEventListener('change', () => {
+          const k = inp.dataset.k;
+          if (k === 'pick') { r.pick = inp.checked; redraw(); return; }
+          r[k] = inp.value;
+          if ((k === 'startTime' || k === 'endTime') && inp.value) { const t = Fmt.parseTime(inp.value); if (t) { r[k] = t; inp.value = t; } }
+        }));
+        el.querySelectorAll('[data-row-region]').forEach((inp) => inp.addEventListener('change', () => {
+          r.regions = [...el.querySelectorAll('[data-row-region]:checked')].map((y) => y.dataset.rowRegion);
+          const s = el.querySelector('summary strong'); s.textContent = regionNames(r.regions); s.className = r.regions.length ? '' : 'form-error';
+        }));
+      });
+      const ap = f.querySelector('[data-all-apply]');
+      if (ap) ap.addEventListener('click', () => {
+        const codes = [...f.querySelectorAll('[data-all-region]:checked')].map((y) => y.dataset.allRegion);
+        if (!codes.length) { alert('請先勾要送給哪幾區'); return; }
+        rows.forEach((r) => { if (r.pick) r.regions = codes.slice(); });
+        redraw();
+      });
+      const save = async (draft) => {
+        sync();
+        const box = body.querySelector('[data-error]');
+        box.hidden = true;
+        const todo = draft ? rows : rows.filter((r) => r.pick);
+        const bad = todo.filter((r) => !r.start || (!draft && !r.regions.length));
+        if (bad.length) { box.textContent = bad.some((r) => !r.start) ? '有日期沒填' : '有 ' + bad.length + ' 個日期還沒選送給哪幾區：' + bad.map((r) => Fmt.shortDate(r.start)).join('、'); box.hidden = false; return; }
+        const days = Number(c.deadlineDays);
+        const t = (v) => { const x = Fmt.parseTime(v); return x === null ? v : x; };
+        const done = [];
+        try {
+          for (let i = 0; i < todo.length; i++) {
+            const r = todo[i];
+            Busy.show(`${draft ? '存草稿' : '送出'}中⋯（${i + 1}／${todo.length}）`);
+            const campaign = { id: r.id, title: c.title, category: c.category, nature: c.nature, location: c.location, attire: c.attire, description: c.description.trim() || r.description, positions: c.positions, quotaMode: c.quotaMode, quotas: c.quotas,
+              start: r.start, end: r.end || r.start, startTime: t(r.startTime), endTime: t(r.endTime), regions: r.regions, deadline: days > 0 ? addDays(r.start, -days) : '' };
+            await Api.admin('hqSave', { campaign, draft });
+            done.push(r);
+          }
+          Busy.hide();
+          location.hash = '#/admin';
+          setTimeout(() => { const b = document.querySelector('[data-body]'); if (b) b.insertAdjacentHTML('afterbegin', `<div class="notice notice-success" role="status"><p>✅ ${draft ? '已存草稿' : '已送出給各區'}：${esc(c.title)} ${done.length} 個日期。</p></div>`); }, 800);
+        } catch (e) {
+          Busy.hide();
+          if (guard(e)) return;
+          box.innerHTML = (done.length ? `已${draft ? '存' : '送出'} ${done.length} 個日期；` : '') + `${esc(Fmt.shortDate(todo[done.length].start))} 沒有成功：` + errHtml(e);
+          box.hidden = false;
+          // 已經送出的從這一組拿掉，改好再按一次只送剩下的
+          if (!draft) done.forEach((r) => rows.splice(rows.indexOf(r), 1));
+        }
+      };
+      f.addEventListener('submit', (ev) => { ev.preventDefault(); save(false); });
+      body.querySelector('[data-save-draft]').addEventListener('click', () => save(true));
+      body.querySelector('[data-del]').addEventListener('click', async () => {
+        if (!(await Confirm.open({ title: `確定要刪除${rows.length > 1 ? '這一組' : '這個'}草稿嗎？`, rows: [['名稱', c.title], ['日期', datesText(rows)]], confirmText: '確定刪除', cancelText: '不要刪除', danger: true }))) return;
+        try {
+          for (let i = 0; i < rows.length; i++) { Busy.show(`刪除中⋯（${i + 1}／${rows.length}）`); await Api.admin('hqDelete', { id: rows[i].id }); }
+          Busy.hide(); location.hash = '#/admin';
+        } catch (e) { Busy.hide(); if (!guard(e)) alert(e.message); }
+      });
+    };
+    draw();
   }
 
   async function form(body, guard, id) {
@@ -139,21 +294,7 @@
     try { data = await Api.admin('hqSummary', { id }); } catch (e) { if (guard(e, body)) return; body.innerHTML = `<p class="form-error">${errHtml(e)}</p><p><a href="#/admin">回分派清單</a></p>`; return; }
     const c = data.campaign;
     const rows = data.regions;
-    if (c.status === 'draft') {
-      body.innerHTML = `
-        <p><a href="#/admin">‹ 分派清單</a></p>
-        <h2><span class="hq-st st-seen">📝 草稿</span> ${esc(c.title)}</h2>
-        <p class="muted">${esc(catLabel(c.category))}・${esc(when(c))}${c.source ? '・來源：' + esc(c.source) : ''}</p>
-        <p class="notice">各區還看不到。按「✏️ 補資料、送出」補說明、了愿項目、名額，確認後送出給各區。</p>
-        ${c.description ? `<p class="hq-desc">${esc(c.description).replace(/\n/g, '<br>')}</p>` : ''}
-        <div class="admin-actions"><a class="btn btn-primary" href="#/admin/hq/edit/${encodeURIComponent(c.id)}">✏️ 補資料、送出</a><button type="button" class="btn btn-quiet-danger" data-del>🗑 刪除草稿</button></div>`;
-      body.querySelector('[data-del]').addEventListener('click', async () => {
-        if (!(await Confirm.open({ title: '確定要刪除這個草稿嗎？', rows: [['名稱', c.title], ['日期', when(c)]], confirmText: '確定刪除', cancelText: '不要刪除', danger: true }))) return;
-        Busy.show('刪除中⋯');
-        try { await Api.admin('hqDelete', { id: c.id }); Busy.hide(); location.hash = '#/admin'; } catch (e) { Busy.hide(); if (!guard(e)) alert(e.message); }
-      });
-      return;
-    }
+    if (c.status === 'draft') { location.replace('#/admin/hq/group/' + encodeURIComponent(groupKey(c))); return; }
     // 還沒開通、還沒收到的區：名額照分壇分配的寫
     rows.forEach((r) => { if (!r.quota && c.quotaMode === 'assigned' && c.quotas && c.quotas[r.code]) r.quota = c.quotas[r.code]; });
     const qOf = (r) => (r.quota && r.status !== 'not-open' && r.status !== 'declined' ? Number(r.quota) : 0);
@@ -500,7 +641,7 @@
           const r = await Api.admin('hqSaveDrafts', { items });
           Busy.hide();
           location.hash = '#/admin';
-          setTimeout(() => { const b = document.querySelector('[data-body]'); if (b) b.insertAdjacentHTML('afterbegin', `<div class="notice notice-success" role="status"><p>✅ 已存成 ${r.saved} 筆草稿。點每一筆補說明、了愿項目、名額，再按「送出給各區」。</p></div>`); }, 800);
+          setTimeout(() => { const b = document.querySelector('[data-body]'); if (b) b.insertAdjacentHTML('afterbegin', `<div class="notice notice-success" role="status"><p>✅ 已存成 ${r.saved} 筆草稿。同名的活動已經併成一組，點每一組補說明、了愿項目、名額，一起檢查一次就可以「送出給各區」。</p></div>`); }, 800);
         } catch (e) {
           Busy.hide();
           if (guard(e)) return;
