@@ -633,7 +633,7 @@
     return `
       <a class="duty-card kind-${st.kind}${compact ? ' is-compact' : ''}" href="${href}">
         <span class="card-main">
-          <span class="card-title">${catTag(duty)}${Fmt.esc(duty.name)}${mine.keys.has(duty.id + '|' + date) ? '<span class="card-mine">✓ 我有報名</span>' : ''}</span>
+          <span class="card-title">${catTag(duty)}${duty.fromHq ? '<span class="hq-tag" title="宏教分壇分派">📣</span>' : ''}${Fmt.esc(duty.name)}${mine.keys.has(duty.id + '|' + date) ? '<span class="card-mine">✓ 我有報名</span>' : ''}</span>
           ${meta.length ? `<span class="card-meta">${meta.map(Fmt.esc).join('・')}</span>` : ''}
           ${group && !compact ? `<span class="card-meta">${Fmt.esc(group)}</span>` : ''}
         </span>
@@ -667,7 +667,7 @@
       const meta = [Fmt.cardTime(duty, date), plus ? '' : duty.location].filter(Boolean);
       return `<a class="merge-row" href="#/duty/${encodeURIComponent(duty.id)}?date=${date}">
           <span class="card-main">
-            <span class="card-title">${catTag(duty)}${Fmt.esc(duty.name)}${mine.keys.has(duty.id + '|' + date) ? '<span class="card-mine">✓ 我有報名</span>' : ''}</span>
+            <span class="card-title">${catTag(duty)}${duty.fromHq ? '<span class="hq-tag" title="宏教分壇分派">📣</span>' : ''}${Fmt.esc(duty.name)}${mine.keys.has(duty.id + '|' + date) ? '<span class="card-mine">✓ 我有報名</span>' : ''}</span>
             ${meta.length ? `<span class="card-meta">${meta.map(Fmt.esc).join('・')}</span>` : ''}
           </span>
           <span class="badge badge-${st.kind}">${Fmt.esc(st.label)}</span>

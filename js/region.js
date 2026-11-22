@@ -9,7 +9,8 @@
 
   const REGIONS = {
     zhen: '教真區', shan: '教善區', mei: '教美區', zhi: '教志區', xiao: '教孝區', ren: '教仁區',
-    yong: '教勇區', ding: '教定區', hui: '教慧區', fa: '教發區', ci: '教慈區', she: '教捨區'
+    yong: '教勇區', ding: '教定區', hui: '教慧區', fa: '教發區', ci: '教慈區', she: '教捨區',
+    hq: '宏教分壇' // 宏教分壇（2026/11/22）：上級單位，只有「📣 分派」後台，沒有行事曆；分派送給上面 12 區和教全區（worker/src/hq.js）
   };
   const P = 'duty-calendar:';
   const SHARED = [P + 'text-size', P + 'api']; // 各區共用：字體大小（頁首一開始就要用）、API 測試開關

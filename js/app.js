@@ -32,6 +32,8 @@
   let current = 'calendar';
 
   function route() {
+    // 宏教分壇（/hq/）沒有行事曆，只有後台的「📣 分派」（2026/11/22）
+    if (window.Region && Region.code === 'hq' && !/^#\/(admin|setup)/.test(location.hash)) { location.replace('#/admin'); return; }
     const admin = location.hash.match(/^#\/admin\/?(.*)$/);
     if (admin) {
       show('admin');

@@ -129,6 +129,8 @@
     watchSession();
     applyRole();
     if (!Api.isAdmin()) return renderLogin();
+    // 宏教分壇（/hq/）：只有「📣 分派」（2026/11/22，js/admin-hq.js）
+    if (isHq()) return HqAdminPage.show(shell(''), guard, sub);
     prefetch();
     VenueAdminPage.autoWatch(); // 總管理者、場管：手機允許過通知就自動開啟場地申請通知
     if (sub === 'help') return HelpAdminPage.show(shell('help'), guard); // 📖 教學：所有後台帳號
@@ -144,6 +146,7 @@
     if (sub === 'members') return PeoplePage.members(shell('members'), guard);
     if (sub === 'groups') return PeoplePage.groups(shell('groups'), guard);
     if (sub === 'youth') return PeoplePage.youth(shell('youth'), guard);
+    if (sub === 'hqinbox' && Api.adminWho().role !== '唯讀') return HqInbox.page(shell(''), guard);
     if (sub === 'stats') return StatsPage.show(shell('stats'), guard);
     if (sub === 'history') return HistoryPage.show(shell('stats'), guard);
     if (sub === 'report') return ReportPage.show(shell('report'), guard);
@@ -170,8 +173,11 @@
    * 上方分頁（2026/11/21 合併）：[分頁網址, 名稱, 這個分頁包含哪些網址]。
    * 合在一起的頁面（通知＋推播、成員＋分組、統計＋年度總結）上方有切換；不常用的收進「⚙️ 更多」。
    */
+  const isHq = () => !!(window.Region && Region.code === 'hq');
+
   function tabList() {
     const who = Api.adminWho();
+    if (isHq()) return [['', '📣 分派', ['']]];
     const T = term();
     if (who.role === '場管') return [['venue', '場地借用', ['venue']], ['help', '📖 教學', ['help']]];
     const venueOn = !(window.SITE.features && window.SITE.features.venue === false); // 分區：沒有場地可借的區關掉
@@ -581,6 +587,7 @@
 
       body.innerHTML = `
         ${staleNote(stale)}
+        ${Api.adminWho().role === '唯讀' ? '' : '<div data-hq-inbox></div>'}
         ${seesSite() ? '<div data-onboarding></div>' : ''}
         ${Api.adminWho().role === '唯讀' ? '' : '<div data-recent-signups></div>'}
         ${['道務', '教育', '唯讀'].indexOf(Api.adminWho().role) !== -1 ? '' : '<div class="admin-actions"><button type="button" class="btn" data-general-notice>📢 總務佈達（初一十五打掃、拜香輪值）</button></div>'}
@@ -618,6 +625,7 @@
       Share.bindNoNeed(body);
       RecentSignups.mount(body.querySelector('[data-recent-signups]'), guard, recentFresh);
       mountOnboarding(body.querySelector('[data-onboarding]'));
+      HqInbox.mount(body.querySelector('[data-hq-inbox]'), guard);
       const gn = body.querySelector('[data-general-notice]');
       if (gn) gn.addEventListener('click', () => GeneralNotice.open());
       recentFresh = false;

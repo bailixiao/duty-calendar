@@ -46,7 +46,7 @@ test('區代號：沒帶是教全區（main），認得的代號照用，不認�
   assert.equal(of('?action=getEvents&region=zhen'), 'zhen');
   assert.equal(of('?region=abc'), null);
   assert.equal(of('?region=__proto__'), null);
-  assert.equal(Object.keys(regions.REGIONS).length, 12);
+  assert.equal(Object.keys(regions.REGIONS).length, 13); // 12 區＋宏教分壇（hq）
 });
 
 test('前端 js/region.js 的區清單和後端一樣', async () => {

@@ -6,6 +6,7 @@ import * as A from './async-actions.js';
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import { REGIONS, regionSiteDefaults, SITE_BASE } from './regions.js';
+import { createHq } from './hq.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -337,6 +338,27 @@ export function createApp(store, opts) {
 
   const isOpen = (region) => !region || region === 'main' || store.getProp('REGION_OPEN') === '1';
 
+  // ---------- 宏教分壇分派（2026/11/22，worker/src/hq.js、apps-script/Hq.gs） ----------
+  // opts.cross(區, 動作, 資料)：叫另一區的 Durable Object；opts.openRegions()：已經開通的區（問教全區）
+  const hq = createHq({
+    gs, store,
+    cross: (opts && opts.cross) || (async () => { throw new Error('沒有跨區連線'); }),
+    openRegions: (opts && opts.openRegions) || (async () => [])
+  });
+  Object.keys(hq.special).forEach((k) => { special[k] = (body) => hq.special[k](body, curRegion); });
+  /** 別的區（分壇）叫過來：region＝這個 Durable Object 是哪一區 */
+  function hqRpc(region, method, payload) {
+    curRegion = region || 'main';
+    if (!isOpen(curRegion)) return { status: 'not-open' };
+    applySite();
+    try {
+      return hq.rpc(method, payload);
+    } catch (e) {
+      throw new Error((e && e.message) || String(e));
+    }
+  }
+
+
   async function handle(request) {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     const url = new URL(request.url);
@@ -420,5 +442,5 @@ export function createApp(store, opts) {
     return (Array.isArray(list) ? list : []).filter((r) => Object.prototype.hasOwnProperty.call(REGIONS, r));
   }
 
-  return { gs, handle, cron, openRegions, vapidKeys, openRegion, addOpenRegion, snapshot, restore, usageToday, usageCheck };
+  return { gs, handle, cron, openRegions, vapidKeys, openRegion, addOpenRegion, snapshot, restore, usageToday, usageCheck, hqRpc };
 }

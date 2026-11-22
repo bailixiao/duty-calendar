@@ -154,6 +154,7 @@ function adminUpdateDuty_(body) {
     var signups = readTable_(SHEETS.SIGNUPS);
     var source = findById_(duties, '勤務ID', body.id);
     if (!source) throw new ApiError_('NOT_FOUND', '找不到這個勤務，可能已被刪除');
+    guardHqDuty_(source, '修改');
     var sourceOldPositions = positionsOf_(positions, source['勤務ID']);
 
     var next = normalizeDutyInput_(body.duty, ctx);
@@ -167,6 +168,7 @@ function adminUpdateDuty_(body) {
       var d = findById_(duties, '勤務ID', id);
       if (!d || d['勤務ID'] === source['勤務ID']) return;
       if (seriesKey_(d['名稱']) !== seriesKey_(source['名稱'])) throw new ApiError_('BAD_REQUEST', '只能一起修改同名的勤務');
+      guardHqDuty_(d, '修改');
       var oldPs = positionsOf_(positions, id);
       var merged = mergeBulkInput_(d, oldPs, source['名稱'], sourceOldPositions, next, fields);
       plans.push({ row: d, oldPositions: oldPs, next: normalizeDutyInput_(merged, ctx) });
@@ -248,6 +250,7 @@ function adminDeleteDuty_(body) {
     var targets = ids.map(function (id) {
       var duty = findById_(duties, '勤務ID', id);
       if (!duty) throw new ApiError_('NOT_FOUND', '找不到這個勤務，可能已被刪除');
+      guardHqDuty_(duty, '刪除');
       return duty;
     });
     var busy = targets.map(function (duty) {

@@ -315,6 +315,63 @@ async function regionShots(c, only) {
   }
 }
 
+// 宏教分壇分派（2026/11/22）：分壇開分派 → 教捨區收件匣、放到行事曆 → 報名 → 分壇總表（測試版的分壇 hq、教捨區 she 都已開通，密碼 test-pass）
+const HQ_SHOTS = ['hq-form', 'hq-summary-new', 'hq-inbox-note', 'hq-inbox-open', 'hq-summary', 'hq-list'];
+async function hqShots(c, only) {
+  const want = (n) => !only.length || only.indexOf(n) !== -1;
+  if (!HQ_SHOTS.some(want)) return;
+  const go = async (url) => { await c.send('Page.navigate', { url }); await sleep(5000); };
+  const login = PREP + `const pw = document.querySelector('#admin-password'); if (pw) { pw.value = 'test-pass'; pw.form.requestSubmit(); await __wait(2500); }`;
+  await go(BASE + 'hq/#/admin');
+  await run(c, login);
+  await run(c, PREP + `location.hash = '#/admin/hq/new'; for (let i = 0; i < 30 && !document.querySelector('.hq-form'); i++) await __wait(300);
+    const f = document.querySelector('.hq-form'); const set = (n, v) => { f.elements[n].value = v; };
+    set('title', '測試分壇大典（示範）'); set('start', '2027-02-14'); set('startTime', '0800'); set('endTime', '1200'); set('location', '測試地點');
+    set('description', '請各區派人支援接待、引導。'); set('positions', '接待、引導'); set('deadline', '2027-02-07');
+    f.querySelectorAll('input[name=regions]').forEach((x) => { x.checked = x.value === 'main' || x.value === 'she' || x.value === 'ding'; });
+    f.querySelector('input[name=quotaMode][value=assigned]').click(); await __wait(400);
+    const f3 = document.querySelector('.hq-form'); f3.elements['q-main'].value = '10'; f3.elements['q-she'].value = '6'; if (f3.elements['q-ding']) f3.elements['q-ding'].value = '5';`);
+  if (want('hq-form')) {
+    await shot(c, path.join(OUT, 'hq-form.png'), PREP + `const f = document.querySelector('.hq-form'); const a = f.querySelector('[name=title]').closest('.form-row'); a.scrollIntoView(); const r = a.getBoundingClientRect(); const e = f.querySelector('[type=submit]').getBoundingClientRect(); return { x: 0, y: r.top + scrollY - 10, width: innerWidth, height: Math.min(2600, e.bottom - r.top + 20) };`);
+    console.log('✓ hq-form');
+  }
+  await run(c, PREP + `document.querySelector('.hq-form').requestSubmit(); for (let i = 0; i < 40 && !document.querySelector('.hq-table'); i++) await __wait(300); if (!document.querySelector('.hq-table')) throw new Error('INFO ' + document.querySelector('[data-body]').innerText.slice(0, 300)); window.__hqId = location.hash.split('/').pop(); localStorage.setItem('hq-shot-id', window.__hqId);`);
+  if (want('hq-summary-new')) {
+    await shot(c, path.join(OUT, 'hq-summary-new.png'), PREP + `const b = document.querySelector('[data-body]'); b.scrollIntoView(); const r = b.getBoundingClientRect(); return { x: 0, y: r.top + scrollY - 6, width: innerWidth, height: Math.min(1600, r.height + 12) };`);
+    console.log('✓ hq-summary-new');
+  }
+  // 教捨區：首頁的提醒、收件匣、放到行事曆
+  await go(BASE + 'she/#/admin');
+  await run(c, login);
+  await run(c, PREP + `location.hash = '#/admin/more'; await __wait(300); location.hash = '#/admin'; for (let i = 0; i < 30 && !document.querySelector('.hq-inbox-note'); i++) await __wait(300); if (!document.querySelector('.hq-inbox-note')) throw new Error('INFO 沒有分派提醒');`);
+  if (want('hq-inbox-note')) {
+    await shot(c, path.join(OUT, 'hq-inbox-note.png'), PREP + `return __box('.hq-inbox-note', 6);`);
+    console.log('✓ hq-inbox-note');
+  }
+  await run(c, PREP + `location.hash = '#/admin/hqinbox'; for (let i = 0; i < 30 && !document.querySelector('[data-open]'); i++) await __wait(300); document.querySelector('[data-open]').click(); for (let i = 0; i < 30 && !document.querySelector('.modal-box form'); i++) await __wait(300); await __wait(300); document.querySelector('.modal-box [name=note]').value = '本區 7:30 在區中心集合，一起坐車。';`);
+  if (want('hq-inbox-open')) {
+    await shot(c, path.join(OUT, 'hq-inbox-open.png'), PREP + `return __box('.modal-box', 4);`);
+    console.log('✓ hq-inbox-open');
+  }
+  await run(c, PREP + `document.querySelector('.modal-box form').requestSubmit(); for (let i = 0; i < 30 && !document.querySelector('[data-body] .notice-success'); i++) await __wait(300); if (!document.querySelector('[data-body] .notice-success')) throw new Error('INFO 放不上去：' + (document.querySelector('.modal-box') || document.body).innerText.slice(0, 300));
+    const rapi = Region.api(location.origin + '/api'); const rg = (q) => fetch(rapi + '&' + new URLSearchParams(q)).then((r) => r.json()); const rp = (b) => fetch(rapi, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(b) }).then((r) => r.json());
+    const ev = (await rg({ action: 'getEvents', from: '2027-02-14', to: '2027-02-14' })).data.duties.find((d) => d.fromHq);
+    if (!ev) throw new Error('INFO 行事曆上沒有');
+    const sr = await rp({ action: 'signup', dutyId: ev.id, positionId: ev.positions[0].id, dates: ['2027-02-14'], entries: [{ name: '測試甲', identity: '道親' }, { name: '測試乙', identity: '壇辦' }] }); if (!sr.ok) throw new Error('INFO 報名失敗 ' + JSON.stringify(sr.error));`);
+  // 分壇總表
+  await go(BASE + 'hq/#/admin');
+  await run(c, PREP + `location.hash = '#/admin/hq/' + localStorage.getItem('hq-shot-id'); for (let i = 0; i < 40 && !document.querySelector('.hq-table'); i++) await __wait(300); await __wait(300);`);
+  if (want('hq-summary')) {
+    await shot(c, path.join(OUT, 'hq-summary.png'), PREP + `const b = document.querySelector('[data-body]'); b.scrollIntoView(); const r = b.getBoundingClientRect(); return { x: 0, y: r.top + scrollY - 6, width: innerWidth, height: Math.min(1600, r.height + 12) };`);
+    console.log('✓ hq-summary');
+  }
+  if (want('hq-list')) {
+    await run(c, PREP + `location.hash = '#/admin'; for (let i = 0; i < 30 && !document.querySelector('.hq-card'); i++) await __wait(300); await __wait(300);`);
+    await shot(c, path.join(OUT, 'hq-list.png'), PREP + `const b = document.querySelector('.admin-head'); b.scrollIntoView(); const r = b.getBoundingClientRect(); const e = document.querySelector('[data-body]').getBoundingClientRect(); return { x: 0, y: r.top + scrollY - 6, width: innerWidth, height: Math.min(1400, e.bottom - r.top + 12) };`);
+    console.log('✓ hq-list');
+  }
+}
+
 async function sheet(files) {
   const html = `<html><body style="margin:0;background:#bbb;display:flex;flex-wrap:wrap;gap:8px;padding:8px">${files.map((f) => `<div style="text-align:center;font:12px sans-serif"><img src="${BASE}img/help/${f}" style="height:520px;background:#fff"><br>${f}</div>`).join('')}</body></html>`;
   const tmp = path.join(os.tmpdir(), 'help-sheet.html');
@@ -370,6 +427,7 @@ async function main() {
       console.log('✓ ' + s.name);
     }
     await regionShots(c, only);
+    await hqShots(c, only);
   } finally {
     c.close();
     proc.kill();

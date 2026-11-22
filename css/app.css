@@ -1038,6 +1038,33 @@ button.more-item { width: 100%; text-align: left; font: inherit; cursor: pointer
 .add-ways { display: grid; gap: 10px; margin: 8px 0 4px; }
 .tidy-q { margin: 12px 0 4px; }
 .fill-note { margin-top: 8px; }
+/* 宏教分壇分派（2026/11/22） */
+.hq-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 6px; background: #fdecd8; color: #9a4b00; font-size: .85em; font-weight: 700; }
+.card-title .hq-tag { margin: 0 4px 0 0; padding: 0 3px; background: none; }
+.hq-card { width: 100%; text-align: left; font: inherit; cursor: pointer; }
+.hq-form .form-grid-2, .admin-form .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.hq-regions { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 12px; }
+.hq-regions label.check { display: block; white-space: normal; line-height: 1.5; }
+.hq-regions label.check small { display: block; margin-left: 1.8em; font-size: .8rem; }
+.hq-quotas { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0 12px; }
+.hq-total { margin: 12px 0; font-size: 1.15rem; }
+.hq-total strong { font-size: 1.4rem; color: var(--accent); }
+.hq-table-wrap { overflow-x: auto; }
+.hq-table { width: 100%; border-collapse: collapse; font-size: 1rem; }
+.hq-table th, .hq-table td { padding: 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.hq-table th { background: var(--paper); white-space: nowrap; }
+.hq-table td small { display: block; color: var(--ink-2); font-size: .85rem; }
+.hq-st { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .9rem; white-space: nowrap; }
+.hq-st.st-new { background: #fdecd8; color: #9a4b00; }
+.hq-st.st-seen { background: #fff6cc; color: #7a5d00; }
+.hq-st.st-ok { background: #e6f2e6; color: #2d6a2d; }
+.hq-st.st-no { background: #eee; color: #555; }
+.hq-st.st-off { background: #f3f3f3; color: #888; }
+.hq-inbox-note ul { margin: 6px 0 10px; padding-left: 1.2em; }
+.hq-inbox-note small { color: var(--ink-2); }
+.hq-inbox-link { margin: 0 0 10px; }
+.hq-desc { white-space: normal; line-height: 1.7; }
+@media (max-width: 520px) { .hq-form .form-grid-2, .admin-form .form-grid-2 { grid-template-columns: 1fr; } }
 /* 道二代、道三代（2026/11/22） */
 .tag-gen { background: #e6f2e6; color: #2d6a2d; border-color: #b9d8b9; }
 .tag-stage { background: #e8eef8; color: #2a4a7a; border-color: #bfd0ea; }

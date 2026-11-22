@@ -38,14 +38,19 @@ async function startMock() {
 // 分區（2026/11/19）：一區一份（和正式的 Durable Object 一樣）。教捨區（she）開通好、空的，管理密碼也是 test-pass；其他區沒開通。
 // 開通其他區：node tools/new-region.js fa --mock（金鑰 test-key），印出開通連結。
 const regionWorkers = {};
+// 宏教分壇分派：測試版的區對區呼叫（正式版是 Durable Object 互相呼叫）
+const mockCross = {
+  cross: async (region, method, payload) => { const w = await regionWorker(region); try { return w.app.hqRpc(region, method, payload); } finally { w.store.persist(); } },
+  openRegions: async () => { await regionWorker('she'); await regionWorker('hq'); return worker.app.openRegions(); } // 測試版的教捨區、分壇第一次用到才建立：先建好
+};
 async function regionWorker(region) {
   if (region === 'main') return worker;
   if (regionWorkers[region]) return regionWorkers[region];
   const { createApp } = await import('../worker/src/app.js');
   const { createMemoryStore } = await import('../worker/src/store.js');
   const store = createMemoryStore();
-  const app = createApp(store);
-  if (region === 'she') {
+  const app = createApp(store, mockCross);
+  if (region === 'she' || region === 'hq') {
     app.openRegion({ region, vapid: worker.app.vapidKeys(), siteBase: 'http://localhost:' + port + '/' });
     worker.app.addOpenRegion(region);
     store.setProp('ADMIN_PASSWORD', 'test-pass');

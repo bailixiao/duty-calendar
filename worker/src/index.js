@@ -13,7 +13,11 @@ export class DutyStore extends DurableObject {
     super(ctx, env);
     ctx.blockConcurrencyWhile(async () => {
       this.store = createSqlStore(ctx.storage);
-      this.app = createApp(this.store);
+      // 宏教分壇分派：叫別區的 Durable Object（worker/src/hq.js）
+      this.app = createApp(this.store, {
+        cross: (region, method, payload) => stub(env, region).hqRpc(region, method, payload),
+        openRegions: () => stub(env, 'main').openRegions()
+      });
       this.store.persist(); // 第一次啟動：建立分頁標題
     });
   }
@@ -34,6 +38,11 @@ export class DutyStore extends DurableObject {
     } finally {
       this.store.persist();
     }
+  }
+
+  /** 宏教分壇分派：分壇叫過來（送分派、收回、問報名狀況） */
+  hqRpc(region, method, payload) {
+    try { return this.app.hqRpc(region, method, payload); } finally { this.store.persist(); }
   }
 
   /** 教全區（main）記著哪些區已經開通（排程只跑這些區） */
