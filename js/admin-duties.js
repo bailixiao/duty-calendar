@@ -698,6 +698,27 @@
       </div>`;
     }
 
+    // ---- 合併顯示用選的（2026/11/22）：同一天有的項目排前面，其他用過的名稱在後面 ----
+    // 農曆日期開頭拿掉（九月初一拜香輪值 → 拜香輪值），這樣每個初一、十五都對得到
+    const LUNAR_HEAD = /^閏?[正一二三四五六七八九十冬臘腊]{1,2}月(初[一二三四五六七八九十]|十[一二三四五六七八九]?|二十[一二三四五六七八九]?|廿[一二三四五六七八九]?|三十)/;
+    function mergeOptions() {
+      const cur = String(s.merge || '').trim();
+      const mine = String(s.name || '').replace(LUNAR_HEAD, '').trim();
+      const from = s.start || '', to = s.end || s.start || '';
+      const strip = (n) => String(n || '').replace(LUNAR_HEAD, '').trim();
+      const seen = new Set(mine ? [mine] : []);
+      const take = (list) => list.map((d) => strip(d.name)).filter((n) => n && !seen.has(n) && seen.add(n));
+      const others = (ctx.duties || []).filter((d) => d.id !== s.id);
+      const sameDay = from ? take(others.filter((d) => d.start && d.start <= to && (d.end || d.start) >= from)) : [];
+      const rest = take(others.slice().sort((a, b) => (b.start || '').localeCompare(a.start || '')));
+      const opt = (n) => `<option value="${esc(n)}"${n === cur ? ' selected' : ''}>${esc(n)}</option>`;
+      const known = sameDay.concat(rest).indexOf(cur) !== -1;
+      return `<option value="">（不合併）</option>`
+        + (cur && !known ? `<option value="${esc(cur)}" selected>${esc(cur)}（目前的設定）</option>` : '')
+        + (sameDay.length ? `<optgroup label="同一天有的">${sameDay.map(opt).join('')}</optgroup>` : '')
+        + (rest.length ? `<optgroup label="其他用過的名稱">${rest.map(opt).join('')}</optgroup>` : '');
+    }
+
     // ---- 新增時打以前有過的名稱：自動帶入最近那一筆的資料（2026/11/21） ----
     // 以前的名稱（最近用過的排前面），給名稱欄的清單選
     function pastNames() {
@@ -877,8 +898,8 @@
 
           <fieldset class="form-block">
             <legend>和同一天的項目合併顯示（可空白）</legend>
-            <label class="form-row"><span>名稱含這幾個字的項目</span><input class="input" name="merge" value="${esc(s.merge || '')}" placeholder="例：拜香輪值"></label>
-            <p class="hint">例如初一十五班填「拜香輪值」：同一天有拜香輪值時，行事曆只出現一張卡片（兩個寫在一起，不寫先後），點進去也看得到另一個的時間、地點。兩個都要報名時（例：闡道班勤務填「闡道班」），卡片分上下兩行，各點各的。那天沒有的話照常單獨顯示。</p>
+            <label class="form-row"><span>要和哪一個項目合在一起</span><select class="input" name="merge" data-merge-pick>${mergeOptions()}</select></label>
+            <p class="hint">「同一天有的」是這個日期行事曆上已經有的項目。例如初一十五班選「拜香輪值」：同一天有拜香輪值時，行事曆只出現一張卡片（兩個寫在一起，不寫先後），點進去也看得到另一個的時間、地點。兩個都要報名時（例：闡道班勤務選「闡道班」），卡片分上下兩行，各點各的。那天沒有的話照常單獨顯示。</p>
           </fieldset>
 
           <fieldset class="form-block">
@@ -1163,6 +1184,14 @@
         if (n === 'groupType') { s.group = ''; st.lunar.rotation = []; st.lunar.rotationStart = 0; }
         if (n === 'dateType' && st.dateType === 'range' && !s.end) s.end = s.start;
         render();
+      });
+      // 合併顯示的選單：日期、名稱改了，「同一天有的」跟著換
+      f.addEventListener('change', (ev) => {
+        if (['start', 'end', 'name'].indexOf(ev.target.name) === -1) return;
+        const pick = f.querySelector('[data-merge-pick]');
+        if (!pick) return;
+        sync();
+        pick.innerHTML = mergeOptions();
       });
       // 時間清除：手機的時間選擇器常常沒有清除鍵
       f.querySelectorAll('[data-clear-time]').forEach((b) => b.addEventListener('click', () => {
