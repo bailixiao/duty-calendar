@@ -13,7 +13,8 @@
     withdrawn: ['已收回', 'st-no'], 'not-open': ['還沒開通', 'st-off'], none: ['沒收到', 'st-off'], error: ['連不上', 'st-off']
   };
   /** 這個帳號能選的類別（分壇的總務・勤務／道務／教育帳號只能選自己那一類，2026/11/22） */
-  const myCats = () => { const r = (Api.adminWho() || {}).role; return CATS.filter(([v]) => r === '總管理者' || r === v); };
+  const myCats = () => { const r = (Api.adminWho() || {}).role; return CATS.filter(([v]) => r === '總管理者' || r === '唯讀' || r === v); };
+  const readOnly = () => (Api.adminWho() || {}).role === '唯讀'; // 唯讀帳號：只看清單、總表、整組總覽、統計
   const catLabel = (c) => (CATS.find((x) => x[0] === c) || [c, c])[1];
   const when = (c) => [Fmt.shortDate(c.start) + (c.end && c.end !== c.start ? '～' + Fmt.shortDate(c.end) : ''), c.startTime ? c.startTime + (c.endTime ? '–' + c.endTime : '') : '', c.location].filter(Boolean).join('・');
   const quotaText = (c, q) => (c.quotaMode === 'none' ? '不限' : q ? q + ' 位' : c.quotaMode === 'self' ? '各區自己報' : '不限');
@@ -25,6 +26,7 @@
   // =====================================================================
 
   async function show(body, guard, sub) {
+    if (readOnly() && /^hq\/(new|edit\/|import|group\/)/.test(sub || '')) { location.replace('#/admin'); return; }
     if (sub === 'hq/import') return importPage(body, guard);
     if (/^hq\/group\//.test(sub || '')) return groupPage(body, guard, decodeURIComponent(sub.slice(9)));
     if (/^hq\/overview\//.test(sub || '')) return overview(body, guard, decodeURIComponent(sub.slice(12)));
@@ -44,7 +46,7 @@
     body.innerHTML = `
       <div class="notice"><p>📣 <strong>分派</strong>：開一個活動送給各區。各區的<strong>總務・勤務／道務／教育組長</strong>會在後台先看到，看過按「放到本區行事曆」才會出現在那一區的行事曆，家人在自己區報名；這裡的總表看得到每一區的狀態、人數和名字。</p>
       <p class="muted">13 區已開通 ${openN} 區；還沒開通的區收不到。</p></div>
-      <div class="admin-actions"><a class="btn btn-primary" href="#/admin/hq/new">＋ 開新的分派</a><a class="btn" href="#/admin/hq/import">📄 從檔案匯入行事曆</a></div>
+      ${readOnly() ? '<p class="role-note">👀 唯讀帳號：看得到各區的狀況、報名人數和統計，不能開或修改分派。</p>' : '<div class="admin-actions"><a class="btn btn-primary" href="#/admin/hq/new">＋ 開新的分派</a><a class="btn" href="#/admin/hq/import">📄 從檔案匯入行事曆</a></div>'}
       ${data.campaigns.some((c) => c.status === 'draft') ? `<p class="hint">📝 草稿：各區還看不到。同一個名稱的併成一組，點進去一起檢查一次，按「送出給各區」。</p>` : ''}
       ${data.campaigns.length ? `<div class="card-list">${draftGroups(data.campaigns).map((g) => `<a class="duty-card hq-card is-draft" href="#/admin/hq/group/${encodeURIComponent(g.key)}">
           <span class="card-main"><span class="card-title"><span class="hq-st st-seen">📝 草稿</span> ${esc(g.items[0].title)}${g.items.length > 1 ? `<small>（${g.items.length} 個日期）</small>` : ''}</span>
@@ -515,10 +517,10 @@
       <h2>${esc(c.title)}</h2>
       <p class="muted">${esc(catLabel(c.category))}・${esc(when(c))}${c.deadline ? '・報名截止 ' + esc(Fmt.shortDate(c.deadline)) : ''}・名額：${esc({ none: '不限', assigned: '分壇分配', self: '各區自己報' }[c.quotaMode])}</p>
       <div class="admin-actions">
-        <a class="btn" href="#/admin/hq/edit/${encodeURIComponent(c.id)}">✏️ 修改</a>
+        ${readOnly() ? '' : `<a class="btn" href="#/admin/hq/edit/${encodeURIComponent(c.id)}">✏️ 修改</a>`}
         <button type="button" class="btn" data-xlsx>⬇ 匯出 Excel</button>
         <button type="button" class="btn" data-remind>📋 提醒還沒處理的區</button>
-        <button type="button" class="btn btn-quiet-danger" data-del>🗑 刪除分派</button>
+        ${readOnly() ? '' : '<button type="button" class="btn btn-quiet-danger" data-del>🗑 刪除分派</button>'}
       </div>
       <div class="hq-total"><strong>${totalN}</strong> 位已報名${totalQ ? `／名額 ${totalQ} 位${totalN < totalQ ? `，還差 <strong>${totalQ - totalN}</strong> 位` : ''}` : ''}</div>
       <div class="hq-table-wrap"><table class="hq-table">
@@ -564,7 +566,7 @@
       } catch (e) { alert(e.message || '匯出失敗'); }
       btn.disabled = false;
     });
-    body.querySelector('[data-del]').addEventListener('click', async () => {
+    if (body.querySelector('[data-del]')) body.querySelector('[data-del]').addEventListener('click', async () => {
       const ok = await Confirm.open({ title: '確定要刪除這個分派嗎？', rows: [['名稱', c.title], ['日期', when(c)]], note: '各區的收件匣會標「分壇已收回」。已經放到行事曆、有人報名的，那一區的活動會留著，由組長自己決定。', confirmText: '確定刪除', cancelText: '不要刪除', danger: true });
       if (!ok) return;
       Busy.show('刪除中⋯');

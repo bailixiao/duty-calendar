@@ -272,3 +272,22 @@ test('分壇的總務・勤務／道務／教育帳號只管自己那一類；�
   r = await R.hq.admin('hqStats', { from: '2026-12-01', to: '2026-12-31' });
   assert.equal(r.data.campaigns.length, 3);
 });
+
+test('分壇的唯讀帳號：看得到清單、總表、整組總覽、統計（不含草稿），不能開、改、刪、匯入', async () => {
+  const R = await setup();
+  await R.hq.admin('adminSaveAccount', { account: { account: '測試唯讀', role: '唯讀', password: 'test-pass-3' } });
+  const tok = (await R.hq.call({ action: 'adminLogin', account: '測試唯讀', password: 'test-pass-3' })).data.token;
+  const ro = (action, body) => R.hq.call(Object.assign({ action, token: tok }, body || {}));
+  const c = (await R.hq.admin('hqSave', { campaign: { title: '測試打掃', category: '勤務', start: '2026-12-20', regions: ['she'] } })).data.campaign;
+  await R.hq.admin('hqSaveDrafts', { items: [{ title: '測試草稿', category: '道務', start: '2026-12-21', regions: ['she'] }] });
+  const l = await ro('hqList');
+  assert.equal(l.ok, true, JSON.stringify(l.error));
+  assert.deepEqual(l.data.campaigns.map((x) => x.title), ['測試打掃'], '草稿看不到');
+  assert.equal((await ro('hqSummary', { id: c.id })).ok, true);
+  assert.equal((await ro('hqGroupSummary', { ids: [c.id] })).ok, true);
+  assert.equal((await ro('hqStats', { from: '2026-12-01', to: '2026-12-31' })).data.campaigns.length, 1);
+  assert.equal((await ro('hqSave', { campaign: Object.assign({}, c, { title: '改名' }) })).error.code, 'FORBIDDEN');
+  assert.equal((await ro('hqDelete', { id: c.id })).error.code, 'FORBIDDEN');
+  assert.equal((await ro('hqSaveMany', { items: [c] })).error.code, 'FORBIDDEN');
+  assert.equal((await ro('hqImportAi', { text: 'x' })).error.code, 'FORBIDDEN');
+});

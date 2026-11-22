@@ -459,6 +459,7 @@
 
   /** 角色說明（勤務／道務／教育／唯讀帳號在每頁上方看到） */
   function roleNote(role) {
+    if (isHq() && role === '唯讀') return '';
     if (isHq()) return ['勤務', '道務', '教育'].indexOf(role) !== -1 ? `<p class="role-note">這個帳號管理「${role === '勤務' ? '總務・勤務' : esc(role)}」的分派；其他類別的看不到。</p>` : '';
     if (role === '唯讀') return '<p class="role-note">👀 唯讀帳號：可以查看所有資料，不能修改。</p>';
     if (role === '場管') return `<p class="role-note">🏠 ${esc(window.SITE.venue)}場管帳號：審核家人們的場地借用申請。</p>`;

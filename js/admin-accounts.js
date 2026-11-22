@@ -13,7 +13,7 @@
   };
   // 宏教分壇（2026/11/22）：只有總務・勤務／道務／教育帳號，各自只管自己那一類的分派
   const isHq = !!(window.Region && Region.code === 'hq');
-  if (isHq) { ROLE_NOTE.勤務 = '總務・勤務的分派：開、改、送出、看總表和統計'; ROLE_NOTE.道務 = '道務的分派：開、改、送出、看總表和統計'; ROLE_NOTE.教育 = '教育的分派：開、改、送出、看總表和統計'; }
+  if (isHq) { ROLE_NOTE.勤務 = '總務・勤務的分派：開、改、送出、看總表和統計'; ROLE_NOTE.道務 = '道務的分派：開、改、送出、看總表和統計'; ROLE_NOTE.教育 = '教育的分派：開、改、送出、看總表和統計'; ROLE_NOTE.唯讀 = '全部分派的總表、整組總覽、統計都看得到，什麼都不能改'; }
 
   function show(body, guard) {
     body.innerHTML = '<p class="panel-empty">載入中⋯</p>';
@@ -66,7 +66,7 @@
         <form class="admin-form" novalidate>
           <label class="form-row"><span>帳號（登入時輸入）</span><input class="input" id="acc-account" name="account" value="${esc(a ? a.account : '')}" placeholder="例：道務組" autocomplete="off"></label>
           <label class="form-row"><span>名稱或負責人（選填）</span><input class="input" id="acc-name" name="name" value="${esc(a ? a.name : '')}"></label>
-          <div class="form-row"><span>角色</span><div class="role-pick">${data.roles.filter((r) => !isHq || ['勤務', '道務', '教育'].indexOf(r) !== -1).map((r) => `
+          <div class="form-row"><span>角色</span><div class="role-pick">${data.roles.filter((r) => !isHq || ['勤務', '道務', '教育', '唯讀'].indexOf(r) !== -1).map((r) => `
             <label class="role-option"><input type="radio" name="role" value="${esc(r)}"${(a ? a.role : '') === r ? ' checked' : ''}><b>${esc(isHq && r === '勤務' ? '總務・勤務' : r)}</b><small>${esc(ROLE_NOTE[r] || '')}</small></label>`).join('')}</div></div>
           <label class="form-row"><span>${isNew ? '密碼' : '新密碼（不改就留空）'}</span>
             <div class="pw-row"><input class="input" id="acc-password" name="password" type="text" autocomplete="new-password"><button type="button" class="btn btn-small" data-gen>產生一組</button></div></label>

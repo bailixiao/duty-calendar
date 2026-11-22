@@ -17,14 +17,16 @@ export function createHq({ gs, store, cross, openRegions }) {
   const err = (code, msg, details) => new gs.ApiError_(code, msg, details);
   const list = () => { try { const a = JSON.parse(store.getProp('HQ_CAMPAIGNS') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
   const save = (a) => store.setProp('HQ_CAMPAIGNS', JSON.stringify(a));
-  function requireHqAdmin(body, curRegion) {
+  /** read＝只看的功能（清單、總表、整組總覽、統計）：唯讀帳號也可以（2026/11/22） */
+  function requireHqAdmin(body, curRegion, read) {
     if (curRegion !== HQ_CODE) throw err('FORBIDDEN', '這是宏教分壇才能用的功能');
     const who = gs.requireAdmin_(body);
-    if (['總管理者'].concat(CATS).indexOf(who.role) === -1) throw err('FORBIDDEN', '這個帳號不能用分派（分壇的帳號只有總管理者、總務・勤務、道務、教育）');
+    if (who.role === '唯讀') { if (read) return who; throw err('FORBIDDEN', '唯讀帳號只能看，不能修改'); }
+    if (['總管理者'].concat(CATS).indexOf(who.role) === -1) throw err('FORBIDDEN', '這個帳號不能用分派（分壇的帳號只有總管理者、總務・勤務、道務、教育、唯讀）');
     return who;
   }
   /** 這個帳號能不能管這一類（總管理者全部；勤務／道務／教育只管自己那一類） */
-  const canCat = (who, cat) => who.role === '總管理者' || who.role === cat;
+  const canCat = (who, cat) => who.role === '總管理者' || who.role === '唯讀' || who.role === cat;
   const catName = (cat) => (cat === '勤務' ? '總務・勤務' : cat);
   function guardCat(who, c) {
     if (c && !canCat(who, c.category)) throw err('FORBIDDEN', '這個帳號只能管「' + catName(who.role) + '」的分派，「' + (c.title || '') + '」是「' + catName(c.category) + '」的');
@@ -111,9 +113,9 @@ export function createHq({ gs, store, cross, openRegions }) {
   const special = {};
   /** 分派清單（新的排前面） */
   special.hqList = async (body, curRegion) => {
-    const who = requireHqAdmin(body, curRegion);
+    const who = requireHqAdmin(body, curRegion, true);
     const open = await openSet();
-    return { role: who.role, campaigns: list().filter((c) => canCat(who, c.category)).slice().sort((a, b) => b.start.localeCompare(a.start)), targets: TARGETS.map(([code, name]) => ({ code, name, open: open.has(code) })) };
+    return { role: who.role, campaigns: list().filter((c) => canCat(who, c.category) && !(who.role === '唯讀' && c.status === 'draft')).slice().sort((a, b) => b.start.localeCompare(a.start)), targets: TARGETS.map(([code, name]) => ({ code, name, open: open.has(code) })) };
   };
   /** 新增或修改分派（body.campaign；有 id＝修改），存好馬上送出去 */
   special.hqSave = async (body, curRegion) => {
@@ -208,7 +210,7 @@ export function createHq({ gs, store, cross, openRegions }) {
   };
   /** 總表：每一區的狀態、名額、報名人數、名字 */
   special.hqSummary = async (body, curRegion) => {
-    const who = requireHqAdmin(body, curRegion);
+    const who = requireHqAdmin(body, curRegion, true);
     const c = list().find((x) => x.id === body.id);
     if (!c) throw err('NOT_FOUND', '找不到這個分派');
     guardCat(who, c);
@@ -226,7 +228,7 @@ export function createHq({ gs, store, cross, openRegions }) {
    * 每一區只問一次（hqReportMany），回傳 { campaigns, regions: [{code,name,open}], cells: { 分派代號: { 區: 回報 } } }
    */
   special.hqGroupSummary = async (body, curRegion) => {
-    const who = requireHqAdmin(body, curRegion);
+    const who = requireHqAdmin(body, curRegion, true);
     const ids = Array.isArray(body.ids) ? body.ids.map(String) : [];
     const cs = list().filter((x) => ids.indexOf(x.id) !== -1 && x.status !== 'draft' && canCat(who, x.category)).sort((a, b) => a.start.localeCompare(b.start));
     if (!cs.length) throw err('NOT_FOUND', '找不到這些分派，可能已經刪掉了');
@@ -237,7 +239,7 @@ export function createHq({ gs, store, cross, openRegions }) {
    * 回傳和整組總覽一樣的格式，但不含名字（只要狀態、名額、人數）；畫面上再依區、類別、活動加總。
    */
   special.hqStats = async (body, curRegion) => {
-    const who = requireHqAdmin(body, curRegion);
+    const who = requireHqAdmin(body, curRegion, true);
     const from = DATE.test(String(body.from || '')) ? body.from : '0000-00-00';
     const to = DATE.test(String(body.to || '')) ? body.to : '9999-99-99';
     const cs = list().filter((x) => x.status !== 'draft' && canCat(who, x.category) && x.start >= from && x.start <= to).sort((a, b) => a.start.localeCompare(b.start));
