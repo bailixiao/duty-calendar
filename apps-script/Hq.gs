@@ -263,6 +263,7 @@ function hqImportPrompt_(hint, part) {
     '  "startTime": "HH:mm", "endTime": "HH:mm"（沒寫就空字串）,',
     '  "location": 地點（沒寫就空字串）,',
     '  "description": 注意事項、內容、對象（照原文整理成一兩行；沒有就空字串）,',
+    '  "regions": [表上寫明這個活動是哪幾區負責或參加（輪值區別、負責區、參加區），照原文寫區名，例如「仁孝」「教志區」；沒寫就空陣列],',
     '  "uncertain": [看不清楚或不確定的地方，用中文簡短說明]',
     '}',
     '規則：',

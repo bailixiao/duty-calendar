@@ -1052,6 +1052,8 @@ button.more-item { width: 100%; text-align: left; font: inherit; cursor: pointer
 .hq-import-fields small { display: block; }
 .hq-card { width: 100%; text-align: left; font: inherit; cursor: pointer; }
 .hq-form .form-grid-2, .admin-form .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.hq-import-to summary { cursor: pointer; font-size: .95rem; padding: 2px 0; }
+.hq-import-to[open] summary { margin-bottom: 4px; }
 .hq-regions { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 12px; }
 .hq-regions label.check { display: block; white-space: normal; line-height: 1.5; }
 .hq-regions label.check small { display: block; margin-left: 1.8em; font-size: .8rem; }

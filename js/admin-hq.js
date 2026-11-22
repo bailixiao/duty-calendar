@@ -327,6 +327,20 @@
       <p class="hint">檔案會交給 Google 的 AI 讀（和「從照片新增」一樣）。AI 可能看錯，日期、時間請一定要看過。人名、電話不會整理進來。</p>
       <div data-progress></div>
       <div data-rows></div>`;
+    /** AI 寫的區名（「仁孝」「教志區」「全部」）→ 區代號；「仁孝」這種兩個字的，一個字一區 */
+    function regionsOf(names) {
+      const out = new Set();
+      (Array.isArray(names) ? names : []).forEach((s) => {
+        s = String(s || '').replace(/\s/g, '');
+        if (!s) return;
+        if (/全部|各區/.test(s)) { data.targets.forEach((t) => out.add(t.code)); return; }
+        const full = data.targets.find((t) => s === t.name || s + '區' === t.name || '教' + s + '區' === t.name || '教' + s === t.name);
+        if (full) { out.add(full.code); return; }
+        s.replace(/[教區]/g, '').split('').forEach((ch) => { const t = data.targets.find((y) => y.name === '教' + ch + '區'); if (t) out.add(t.code); });
+      });
+      return data.targets.map((t) => t.code).filter((c) => out.has(c));
+    }
+    const regionNames = (codes) => (codes.length === data.targets.length ? '全部 ' + codes.length + ' 區' : codes.length ? data.targets.filter((t) => codes.indexOf(t.code) !== -1).map((t) => t.name.replace(/區$/, '')).join('、') : '還沒選');
     let files = [];
     const fin = body.querySelector('[data-files]');
     fin.addEventListener('change', () => {
@@ -365,7 +379,8 @@
         if (!start && x.lunarDate) start = lunarToSolar(x.lunarDate, x.lunarYear);
         const end = /^\d{4}-\d{2}-\d{2}$/.test(x.end || '') && x.end >= start ? x.end : start;
         const tt = (v) => { const t = Fmt.parseTime(String(v || '')); return t || ''; };
-        return { title: String(x.title || '').trim().slice(0, 40), category: ['勤務', '道務', '教育'].indexOf(x.category) !== -1 ? x.category : '勤務', start, end, startTime: tt(x.startTime), endTime: tt(x.endTime), location: String(x.location || '').slice(0, 40), description: String(x.description || '').slice(0, 2000), lunar: x.lunarDate || '', uncertain: Array.isArray(x.uncertain) ? x.uncertain.join('；') : '', source: x.source };
+        const named = regionsOf(x.regions);
+        return { regions: named.length ? named : st.regions.slice(), byAi: named.length > 0, title: String(x.title || '').trim().slice(0, 40), category: ['勤務', '道務', '教育'].indexOf(x.category) !== -1 ? x.category : '勤務', start, end, startTime: tt(x.startTime), endTime: tt(x.endTime), location: String(x.location || '').slice(0, 40), description: String(x.description || '').slice(0, 2000), lunar: x.lunarDate || '', uncertain: Array.isArray(x.uncertain) ? x.uncertain.join('；') : '', source: x.source };
       }).filter((x) => { const k = x.title + '|' + x.start; if (!x.title || seen.has(k)) return false; seen.add(k); return true; })
         .sort((a, b) => (a.start || '9999').localeCompare(b.start || '9999'));
       rows.forEach((x) => { x.pick = !!x.start && x.start >= today; });
@@ -378,6 +393,11 @@
       if (!rows.length) { box.innerHTML = ''; return; }
       const n = rows.filter((x) => x.pick).length;
       box.innerHTML = `
+        <fieldset class="form-block">
+          <legend>預設送給哪幾區</legend>
+          <p class="hint">表上沒寫哪一區的活動都用這裡的設定；表上有寫「輪值區別」的，會自動勾那幾區。每一筆下面的「送給」可以再單獨改。</p>
+          <div class="hq-regions">${data.targets.map((t) => `<label class="check"><input type="checkbox" data-region="${t.code}"${st.regions.indexOf(t.code) !== -1 ? ' checked' : ''}> ${esc(t.name)}${t.open ? '' : '<small class="muted">（還沒開通）</small>'}</label>`).join('')}</div>
+        </fieldset>
         <div class="hq-import-list">${rows.map((x, i) => `
           <div class="hq-import-row${x.pick ? '' : ' is-off'}${x.start && x.start < today ? ' is-past' : ''}" data-i="${i}">
             <label class="check"><input type="checkbox" data-k="pick"${x.pick ? ' checked' : ''}></label>
@@ -393,12 +413,12 @@
               </div>
               <small class="muted">${x.lunar ? '農曆' + esc(x.lunar) + (x.start ? '（已換成國曆）' : '（換不出國曆，請自己填日期）') + '・' : ''}${x.start && x.start < today ? '已經過了・' : ''}來源：${esc(x.source)}${x.description ? '・' + esc(x.description.slice(0, 80)) : ''}</small>
               ${x.uncertain ? `<small class="form-error">AI 不確定：${esc(x.uncertain)}</small>` : ''}
+              <details class="hq-import-to"${x.regions.length ? '' : ' open'}>
+                <summary>📨 送給：<strong${x.regions.length ? '' : ' class="form-error"'}>${esc(regionNames(x.regions))}</strong>${x.byAi && !x.custom ? '<small class="muted">（表上寫的）</small>' : ''} <small>✏️ 改</small></summary>
+                <div class="hq-regions">${data.targets.map((t) => `<label class="check"><input type="checkbox" data-row-region="${t.code}"${x.regions.indexOf(t.code) !== -1 ? ' checked' : ''}> ${esc(t.name)}</label>`).join('')}</div>
+              </details>
             </div>
           </div>`).join('')}</div>
-        <fieldset class="form-block">
-          <legend>這些草稿預設送給哪幾區（之後每一筆還可以改）</legend>
-          <div class="hq-regions">${data.targets.map((t) => `<label class="check"><input type="checkbox" data-region="${t.code}"${st.regions.indexOf(t.code) !== -1 ? ' checked' : ''}> ${esc(t.name)}${t.open ? '' : '<small class="muted">（還沒開通）</small>'}</label>`).join('')}</div>
-        </fieldset>
         <div class="form-error" data-error hidden></div>
         <button type="button" class="btn btn-primary btn-block" data-save${n ? '' : ' disabled'}>📝 存成草稿（${n} 筆）</button>`;
       box.querySelectorAll('[data-i]').forEach((row) => {
@@ -409,14 +429,28 @@
           x[k] = el.value;
           if ((k === 'startTime' || k === 'endTime') && el.value) { const t = Fmt.parseTime(el.value); if (t) { x[k] = t; el.value = t; } }
         }));
+        row.querySelectorAll('[data-row-region]').forEach((el) => el.addEventListener('change', () => {
+          x.regions = [...row.querySelectorAll('[data-row-region]:checked')].map((y) => y.dataset.rowRegion);
+          x.custom = true;
+          const s = row.querySelector('.hq-import-to summary strong');
+          s.textContent = regionNames(x.regions);
+          s.className = x.regions.length ? '' : 'form-error';
+          const m = row.querySelector('.hq-import-to summary .muted'); if (m) m.remove();
+        }));
       });
-      box.querySelectorAll('[data-region]').forEach((el) => el.addEventListener('change', () => { st.regions = [...box.querySelectorAll('[data-region]:checked')].map((y) => y.dataset.region); }));
+      box.querySelectorAll('[data-region]').forEach((el) => el.addEventListener('change', () => {
+        st.regions = [...box.querySelectorAll('[data-region]:checked')].map((y) => y.dataset.region);
+        rows.forEach((x) => { if (!x.byAi && !x.custom) x.regions = st.regions.slice(); });
+        const y = scrollY; drawRows(); scrollTo(0, y);
+      }));
       box.querySelector('[data-save]').addEventListener('click', async () => {
         const err = box.querySelector('[data-error]');
         err.hidden = true;
-        const items = rows.filter((x) => x.pick).map((x) => ({ title: x.title, category: x.category, start: x.start, end: x.end || x.start, startTime: x.startTime, endTime: x.endTime, location: x.location, description: x.description, positions: [], quotaMode: 'none', regions: st.regions, source: x.source }));
+        const items = rows.filter((x) => x.pick).map((x) => ({ title: x.title, category: x.category, start: x.start, end: x.end || x.start, startTime: x.startTime, endTime: x.endTime, location: x.location, description: x.description, positions: [], quotaMode: 'none', regions: x.regions, source: x.source }));
         const noDate = items.filter((x) => !x.start);
         if (noDate.length) { err.textContent = '有 ' + noDate.length + ' 筆沒有日期，請填日期或取消勾選：' + noDate.map((x) => x.title).join('、'); err.hidden = false; return; }
+        const noRegion = items.filter((x) => !x.regions.length);
+        if (noRegion.length) { err.textContent = '有 ' + noRegion.length + ' 筆還沒選送給哪幾區：' + noRegion.map((x) => x.title).join('、'); err.hidden = false; return; }
         Busy.show('存成草稿中⋯');
         try {
           const r = await Api.admin('hqSaveDrafts', { items });
