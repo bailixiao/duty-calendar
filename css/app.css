@@ -1043,6 +1043,7 @@ button.more-item { width: 100%; text-align: left; font: inherit; cursor: pointer
 .add-name-row .input { flex: 1; min-width: 0; }
 .modal-form .name-item .seg { margin: 8px 10px 0 0; }
 .modal-form .name-item .check { margin: 6px 0 0; }
+.modal-form .name-item .identity-fixed { margin: 6px 10px 0 0; }
 .modal-form .name-item .form-error { margin: 6px 10px 0 0; }
 /* 🚀 開始使用（新開通的區，2026/11/21） */
 .onboard { margin: 0 0 16px; padding: 14px 16px; border: 2px solid var(--accent); border-radius: var(--radius); background: var(--paper); }

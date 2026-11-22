@@ -1097,13 +1097,28 @@
     let members = [];
     const cached = memo.get('members');
     (cached ? Promise.resolve(cached.data) : fetchShared('members', () => Api.admin('adminMembers', {}, true)))
-      .then((data) => { members = (data.members || []).filter((x) => x.active !== false); onName(); paint(); })
+      .then((data) => { members = (data.members || []).filter((x) => x.active !== false); people.forEach(fromMember); onName(); paint(); })
       .catch(() => {});
+    const sameOf = (name) => members.filter((x) => x.name === name || (x.aliases || []).indexOf(name) !== -1);
     const lookup = (name, temple) => {
-      const same = members.filter((x) => x.name === name || (x.aliases || []).indexOf(name) !== -1);
+      const same = sameOf(name);
       if (temple !== undefined) return same.find((x) => (x.temple || '') === temple) || null;
       return same.length === 1 ? same[0] : null;
     };
+    /**
+     * 成員資料登記的身分（壇辦、道親、點傳師⋯）自動帶入、不用選（2026/11/22）；伺服器也以名單為準。
+     * 同名好幾位（不同佛堂）但身分都一樣，也帶入。
+     */
+    function fromMember(x) {
+      const hit = lookup(x.name, x.temple || undefined) || lookup(x.name);
+      let id = hit ? hit.identity : '';
+      if (!hit) {
+        const ids = [...new Set(sameOf(x.name).map((y) => y.identity).filter(Boolean))];
+        if (ids.length === 1) id = ids[0];
+      }
+      if (hit && !x.temple) x.temple = hit.temple || '';
+      if (id) { x.identity = id; x.locked = true; if (id !== '壇辦') x.accompany = false; }
+    }
     function add(name, temple) {
       name = String(name || '').trim();
       if (!name) return;
@@ -1111,8 +1126,9 @@
       const t = hit ? (hit.temple || '') : (temple || '');
       const realName = hit ? hit.name : name;
       if (people.some((x) => x.name === realName && x.temple === t)) return; // 已經在下面了
-      const id = hit && IDS.indexOf(hit.identity) !== -1 ? hit.identity : '';
-      people.push({ name: realName, temple: t, identity: id, accompany: false, error: '' });
+      const x = { name: realName, temple: t, identity: '', accompany: false, error: '' };
+      fromMember(x);
+      people.push(x);
     }
     function addTyped() {
       const parts = SignupForm.splitInput(input.value);
@@ -1129,7 +1145,7 @@
             <span class="name-text">${esc(x.name)}${x.temple ? `<small class="name-temple">${esc(x.temple)}</small>` : ''}</span>
             <button type="button" class="btn-remove" data-remove="${i}" aria-label="移除 ${esc(x.name)}">×</button>
           </div>
-          <div class="seg" role="radiogroup" aria-label="${esc(x.name)} 的身分">${IDS.map((v) => `<label class="seg-item"><input type="radio" name="id-${i}" value="${v}" data-id="${i}"${x.identity === v ? ' checked' : ''}><span>${v}</span></label>`).join('')}</div>
+          ${x.locked ? `<p class="identity-fixed">身分：<strong>${esc(x.identity)}</strong><span class="muted">（成員資料登記的）</span></p>` : `<div class="seg" role="radiogroup" aria-label="${esc(x.name)} 的身分">${IDS.map((v) => `<label class="seg-item"><input type="radio" name="id-${i}" value="${v}" data-id="${i}"${x.identity === v ? ' checked' : ''}><span>${v}</span></label>`).join('')}</div>`}
           ${x.identity === '壇辦' ? `<label class="check"><input type="checkbox" data-acc="${i}"${x.accompany ? ' checked' : ''}> 陪同（不算人數）</label>` : ''}
           ${x.error ? `<p class="form-error">${esc(x.error)}</p>` : ''}
         </li>`).join('');
