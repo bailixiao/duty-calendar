@@ -146,7 +146,7 @@
     if (sub === 'members') return PeoplePage.members(shell('members'), guard);
     if (sub === 'groups') return PeoplePage.groups(shell('groups'), guard);
     if (sub === 'youth') return PeoplePage.youth(shell('youth'), guard);
-    if (sub === 'hqinbox' && Api.adminWho().role !== '唯讀') return HqInbox.page(shell(''), guard);
+    if (sub === 'hqinbox' && Api.adminWho().role !== '唯讀') return HqInbox.page(shell('hqinbox'), guard);
     if (sub === 'stats') return StatsPage.show(shell('stats'), guard);
     if (sub === 'history') return HistoryPage.show(shell('stats'), guard);
     if (sub === 'report') return ReportPage.show(shell('report'), guard);
@@ -182,6 +182,7 @@
     if (who.role === '場管') return [['venue', '場地借用', ['venue']], ['help', '📖 教學', ['help']]];
     const venueOn = !(window.SITE.features && window.SITE.features.venue === false); // 分區：沒有場地可借的區關掉
     const tabs = [['', '近期' + T, ['']]];
+    if (who.role !== '唯讀') tabs.push(['hqinbox', '📥 分壇分派', ['hqinbox']]); // 宏教分壇分派（2026/11/22）：有分派才出現，待處理的加 ❗件數（HqInbox.tab）
     if (who.role !== '唯讀') tabs.push(['duties', T + '管理', ['duties']]); // 唯讀帳號：不顯示勤務管理
     if (seesRoster()) tabs.push(['day', '📢 通知', ['day', 'roster', 'push']]); // 通知、推播：總管理者、勤務、道務、教育
     tabs.push(['members', '👥 人員', ['members', 'groups', 'youth']]);
@@ -384,10 +385,11 @@
       </div>
       ${roleNote(who.role)}
       <nav class="admin-tabs" aria-label="管理功能">
-        ${tabs.map(([k, label]) => `<a href="#/admin${k ? '/' + k : ''}" class="admin-tab${k === cur ? ' is-active' : ''}">${label}</a>`).join('')}
+        ${tabs.map(([k, label]) => `<a href="#/admin${k ? '/' + k : ''}" class="admin-tab${k === cur ? ' is-active' : ''}"${k === 'hqinbox' ? ' data-hq-tab' + (cur === 'hqinbox' ? '' : ' hidden') : ''}>${label}</a>`).join('')}
       </nav>
       ${subnavHtml(active)}
       <div class="admin-body" data-body><p class="panel-empty">載入中⋯</p></div>`;
+    if (window.HqInbox) HqInbox.tab(root.querySelector('[data-hq-tab]'));
     root.querySelector('[data-mypw]').addEventListener('click', changeMyPassword);
     root.querySelector('[data-logout]').addEventListener('click', () => {
       Api.adminLogout();

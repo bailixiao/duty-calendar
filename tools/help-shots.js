@@ -316,7 +316,7 @@ async function regionShots(c, only) {
 }
 
 // 宏教分壇分派（2026/11/22）：分壇開分派 → 教捨區收件匣、放到行事曆 → 報名 → 分壇總表（測試版的分壇 hq、教捨區 she 都已開通，密碼 test-pass）
-const HQ_SHOTS = ['hq-form', 'hq-summary-new', 'hq-inbox-note', 'hq-inbox-open', 'hq-summary', 'hq-list', 'hq-import', 'hq-drafts', 'hq-group'];
+const HQ_SHOTS = ['hq-form', 'hq-summary-new', 'hq-inbox-note', 'hq-inbox-page', 'hq-inbox-open', 'hq-summary', 'hq-list', 'hq-import', 'hq-drafts', 'hq-group'];
 async function hqShots(c, only) {
   const want = (n) => !only.length || only.indexOf(n) !== -1;
   if (!HQ_SHOTS.some(want)) return;
@@ -324,7 +324,7 @@ async function hqShots(c, only) {
   const login = PREP + `const pw = document.querySelector('#admin-password'); if (pw) { pw.value = 'test-pass'; pw.form.requestSubmit(); await __wait(2500); }`;
   await go(BASE + 'hq/#/admin');
   await run(c, login);
-  if (['hq-form', 'hq-summary-new', 'hq-inbox-note', 'hq-inbox-open', 'hq-summary'].some(want)) await hqLoop();
+  if (['hq-form', 'hq-summary-new', 'hq-inbox-note', 'hq-inbox-page', 'hq-inbox-open', 'hq-summary'].some(want)) await hqLoop();
   async function hqLoop() {
   await run(c, PREP + `location.hash = '#/admin/hq/new'; for (let i = 0; i < 30 && !document.querySelector('.hq-form'); i++) await __wait(300);
     const f = document.querySelector('.hq-form'); const set = (n, v) => { f.elements[n].value = v; };
@@ -345,12 +345,18 @@ async function hqShots(c, only) {
   // 教捨區：首頁的提醒、收件匣、放到行事曆
   await go(BASE + 'she/#/admin');
   await run(c, login);
-  await run(c, PREP + `location.hash = '#/admin/more'; await __wait(300); location.hash = '#/admin'; for (let i = 0; i < 30 && !document.querySelector('.hq-inbox-note'); i++) await __wait(300); if (!document.querySelector('.hq-inbox-note')) throw new Error('INFO 沒有分派提醒');`);
+  await run(c, PREP + `location.hash = '#/admin/more'; await __wait(300); location.hash = '#/admin'; for (let i = 0; i < 30 && !document.querySelector('.hq-alert'); i++) await __wait(300); if (!document.querySelector('.hq-alert')) throw new Error('INFO 沒有分派提醒');`);
   if (want('hq-inbox-note')) {
-    await shot(c, path.join(OUT, 'hq-inbox-note.png'), PREP + `return __box('.hq-inbox-note', 6);`);
+    await shot(c, path.join(OUT, 'hq-inbox-note.png'), PREP + `return __box('.hq-alert', 6);`);
     console.log('✓ hq-inbox-note');
   }
-  await run(c, PREP + `location.hash = '#/admin/hqinbox'; for (let i = 0; i < 30 && !document.querySelector('[data-open]'); i++) await __wait(300); document.querySelector('[data-open]').click(); for (let i = 0; i < 30 && !document.querySelector('.modal-box form'); i++) await __wait(300); await __wait(300); document.querySelector('.modal-box [name=note]').value = '本區 7:30 在區中心集合，一起坐車。';`);
+  // 上方「📥 分壇分派 ❗1」分頁＋收件匣（同名的一組）
+  await run(c, PREP + `location.hash = '#/admin/hqinbox'; for (let i = 0; i < 30 && !document.querySelector('[data-open]'); i++) await __wait(300); if (!document.querySelector('[data-hq-tab] .tab-alert')) throw new Error('INFO 分頁沒有驚嘆號'); await __wait(300);`);
+  if (want('hq-inbox-page')) {
+    await shot(c, path.join(OUT, 'hq-inbox-page.png'), PREP + `const a = document.querySelector('.admin-tabs').getBoundingClientRect(); const b = document.querySelector('.hq-inbox-groups').getBoundingClientRect(); return { x: 0, y: a.top + scrollY - 6, width: innerWidth, height: b.bottom - a.top + 16 };`);
+    console.log('✓ hq-inbox-page');
+  }
+  await run(c, PREP + `document.querySelector('[data-open]').click(); for (let i = 0; i < 30 && !document.querySelector('.modal-box form'); i++) await __wait(300); await __wait(300); document.querySelector('.modal-box [name=note]').value = '本區 7:30 在區中心集合，一起坐車。';`);
   if (want('hq-inbox-open')) {
     await shot(c, path.join(OUT, 'hq-inbox-open.png'), PREP + `return __box('.modal-box', 4);`);
     console.log('✓ hq-inbox-open');

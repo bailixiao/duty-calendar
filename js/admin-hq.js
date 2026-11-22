@@ -658,17 +658,47 @@
   const pendingOf = (x) => x.status === 'new' || x.status === 'seen' || x.updated;
 
   /** 後台首頁最上面：有待處理的才顯示 */
+  /** 收件匣依名稱＋類別分組（同名的好幾個日期一組），組照最早日期排 */
+  function inboxGroups(items) {
+    const m = new Map();
+    items.forEach((x) => { const k = x.c.title.replace(/\s/g, '') + '|' + x.c.category; if (!m.has(k)) m.set(k, []); m.get(k).push(x); });
+    const gs = [...m.values()];
+    gs.forEach((g) => g.sort((a, b) => a.c.start.localeCompare(b.c.start)));
+    return gs.sort((a, b) => ((b.some(pendingOf)) - (a.some(pendingOf))) || a[0].c.start.localeCompare(b[0].c.start));
+  }
+  const shortDates = (xs, max) => { const ds = xs.map((x) => Fmt.shortDate(x.c.start).replace(/（.）/, '')); return ds.length > max ? ds.slice(0, max).join('、') + `⋯等 ${ds.length} 天` : ds.join('、'); };
+
+  /** 後台首頁最上面：有待處理的才顯示 */
   async function mount(box, guard) {
     if (!box) return;
     const paint = (d) => {
       if (!box.isConnected || !d) return;
       const todo = d.items.filter(pendingOf);
       if (!d.items.length) { box.innerHTML = ''; return; }
-      box.innerHTML = todo.length ? `<div class="notice hq-inbox-note" role="status">
-          <p>📥 <strong>${esc(d.hqName)}分派：${todo.length} 件待處理</strong></p>
-          <ul>${todo.slice(0, 5).map((x) => `<li>${x.updated && x.status === 'published' ? '🔄 ' : ''}${esc(Fmt.shortDate(x.c.start))}　${esc(x.c.title)}<small>（${esc(catLabel(x.c.category))}${x.updated && x.status === 'published' ? '，分壇有更新' : ''}）</small></li>`).join('')}</ul>
-          <a class="btn btn-primary" href="#/admin/hqinbox">去看看 ›</a></div>`
-        : `<p class="hq-inbox-link"><a href="#/admin/hqinbox">📥 ${esc(d.hqName)}分派（${d.items.length} 件）›</a></p>`;
+      const gs = inboxGroups(todo);
+      box.innerHTML = todo.length ? `<div class="hq-alert" role="status">
+          <div class="hq-alert-head"><span class="hq-alert-icon" aria-hidden="true">!</span>
+            <div><strong>${esc(d.hqName)}分派：${todo.length} 件待處理</strong><small>看過按「放到本區行事曆」家人才報得了名</small></div></div>
+          <ul class="hq-alert-list">${gs.slice(0, 4).map((g) => { const upd = g.some((x) => x.updated && x.status === 'published'); return `<li>
+            <span class="hq-alert-title">${upd ? '🔄 ' : ''}${esc(g[0].c.title)}<small>${esc(catLabel(g[0].c.category))}</small></span>
+            <span class="hq-alert-dates">${g.length > 1 ? `<b>${g.length} 個日期</b>：` : ''}${esc(shortDates(g, 4))}${upd ? '（分壇有更新）' : ''}</span></li>`; }).join('')}
+            ${gs.length > 4 ? `<li class="muted">還有 ${gs.length - 4} 個活動⋯</li>` : ''}</ul>
+          <a class="btn btn-primary hq-alert-btn" href="#/admin/hqinbox">📥 去處理分派 ›</a></div>`
+        : '';
+    };
+    paint(inboxMemo);
+    try { inboxMemo = await Api.admin('adminHqInbox', {}, true); paint(inboxMemo); } catch (e) { /* 讀不到就不顯示 */ }
+  }
+
+  /** 後台上方的「📥 分壇分派」分頁：有分派才出現，有待處理的加紅色驚嘆號和件數 */
+  async function tab(el) {
+    if (!el) return;
+    const paint = (d) => {
+      if (!el.isConnected || !d) return;
+      if (!d.items.length) { el.hidden = true; return; }
+      const n = d.items.filter(pendingOf).length;
+      el.hidden = false;
+      el.innerHTML = `📥 分壇分派${n ? `<span class="tab-alert" aria-label="${n} 件待處理">! ${n}</span>` : ''}`;
     };
     paint(inboxMemo);
     try { inboxMemo = await Api.admin('adminHqInbox', {}, true); paint(inboxMemo); } catch (e) { /* 讀不到就不顯示 */ }
@@ -681,16 +711,21 @@
     const groupsP = Api.admin('adminGroups', {}, true).then((x) => x.groups || []).catch(() => []);
     const draw = () => {
       body.innerHTML = `
-        <p><a href="#/admin">‹ 回近期勤務</a></p>
         <h2>📥 ${esc(d.hqName)}分派</h2>
         <p class="hint">分壇送來的活動，看過按「📅 放到本區行事曆」才會出現在本區的行事曆，家人才能報名；不參加請按「本區不參加」寫原因（分壇看得到）。內容由分壇統一改。</p>
-        ${d.items.length ? `<div class="card-list">${d.items.map((x, i) => {
-          const [l, cls] = STATUS[x.status] || [x.status, ''];
-          return `<button type="button" class="duty-card hq-card" data-open="${i}">
-            <span class="card-main"><span class="card-title">${esc(x.c.title)}</span>
-            <span class="card-meta">${esc(catLabel(x.c.category))}・${esc(when(x.c))}・名額 ${esc(quotaText(x.c, x.quota))}</span>
-            <span class="card-meta"><span class="hq-st ${cls}">${l}</span>${x.status === 'published' ? `　${x.count} 位報名` : ''}${x.updated ? '　<span class="hq-st st-new">分壇有更新</span>' : ''}</span></span></button>`;
-        }).join('')}</div>` : '<p class="panel-empty">目前沒有分壇分派。</p>'}`;
+        ${d.items.length ? `<div class="hq-inbox-groups">${inboxGroups(d.items).map((g) => { const todo = g.filter(pendingOf).length; return `
+          <section class="hq-inbox-group${todo ? ' has-todo' : ''}">
+            <div class="hq-inbox-ghead">
+              ${todo ? `<span class="hq-alert-icon" aria-hidden="true">!</span>` : '<span class="hq-ok-icon" aria-hidden="true">✓</span>'}
+              <div><strong>${esc(g[0].c.title)}</strong><small>${esc(catLabel(g[0].c.category))}${g.length > 1 ? `・${g.length} 個日期` : ''}${todo ? `・<b class="hq-todo-n">${todo} 件待處理</b>` : '・都處理好了'}</small></div>
+            </div>
+            <div class="hq-inbox-rows">${g.map((x) => { const [l, cls] = STATUS[x.status] || [x.status, '']; return `
+              <button type="button" class="hq-inbox-row${pendingOf(x) ? ' is-todo' : ''}" data-open="${d.items.indexOf(x)}">
+                <span class="hq-inbox-when">${esc(when(x.c))}</span>
+                <span class="hq-inbox-st"><span class="hq-st ${cls}">${l}</span>${x.status === 'published' ? `<small>${x.count} 位報名</small>` : ''}${x.updated ? '<span class="hq-st st-new">分壇有更新</span>' : ''}</span>
+                <span class="hq-inbox-go" aria-hidden="true">›</span>
+              </button>`; }).join('')}</div>
+          </section>`; }).join('')}</div>` : '<p class="panel-empty">目前沒有分壇分派。</p>'}`;
       body.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => open(d.items[Number(b.dataset.open)])));
     };
     async function act(action, payload, busy) {
@@ -765,5 +800,5 @@
     draw();
   }
 
-  window.HqInbox = { mount, page };
+  window.HqInbox = { mount, page, tab };
 })();
