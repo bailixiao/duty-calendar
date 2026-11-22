@@ -130,7 +130,11 @@
     applyRole();
     if (!Api.isAdmin()) return renderLogin();
     // 宏教分壇（/hq/）：只有「📣 分派」（2026/11/22，js/admin-hq.js）
-    if (isHq()) return HqAdminPage.show(shell(''), guard, sub);
+    if (isHq()) {
+      if (sub === 'accounts' && Api.adminWho().role === '總管理者') return AccountsPage.show(shell('accounts'), guard);
+      if (sub === 'help') return HelpAdminPage.show(shell('help'), guard);
+      return HqAdminPage.show(shell(sub === 'hqstats' ? 'hqstats' : ''), guard, sub);
+    }
     prefetch();
     VenueAdminPage.autoWatch(); // 總管理者、場管：手機允許過通知就自動開啟場地申請通知
     if (sub === 'help') return HelpAdminPage.show(shell('help'), guard); // 📖 教學：所有後台帳號
@@ -177,7 +181,8 @@
 
   function tabList() {
     const who = Api.adminWho();
-    if (isHq()) return [['', '📣 分派', ['']]];
+    // 分壇：分派、統計；總管理者另外有帳號（新增總務・勤務／道務／教育帳號，2026/11/22）
+    if (isHq()) return [['', '📣 分派', ['']], ['hqstats', '📊 統計', ['hqstats']]].concat(who.role === '總管理者' ? [['accounts', '👤 帳號', ['accounts']]] : []);
     const T = term();
     if (who.role === '場管') return [['venue', '場地借用', ['venue']], ['help', '📖 教學', ['help']]];
     const venueOn = !(window.SITE.features && window.SITE.features.venue === false); // 分區：沒有場地可借的區關掉
@@ -454,6 +459,7 @@
 
   /** 角色說明（勤務／道務／教育／唯讀帳號在每頁上方看到） */
   function roleNote(role) {
+    if (isHq()) return ['勤務', '道務', '教育'].indexOf(role) !== -1 ? `<p class="role-note">這個帳號管理「${role === '勤務' ? '總務・勤務' : esc(role)}」的分派；其他類別的看不到。</p>` : '';
     if (role === '唯讀') return '<p class="role-note">👀 唯讀帳號：可以查看所有資料，不能修改。</p>';
     if (role === '場管') return `<p class="role-note">🏠 ${esc(window.SITE.venue)}場管帳號：審核家人們的場地借用申請。</p>`;
     if (role === '勤務') return '<p class="role-note">這個帳號管理「勤務」類的勤務；成員、分組只能查看。</p>';

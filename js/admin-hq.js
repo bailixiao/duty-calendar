@@ -12,6 +12,8 @@
     new: ['還沒看', 'st-new'], seen: ['看過了，還沒放', 'st-seen'], published: ['已放到行事曆', 'st-ok'], declined: ['不參加', 'st-no'],
     withdrawn: ['已收回', 'st-no'], 'not-open': ['還沒開通', 'st-off'], none: ['沒收到', 'st-off'], error: ['連不上', 'st-off']
   };
+  /** 這個帳號能選的類別（分壇的總務・勤務／道務／教育帳號只能選自己那一類，2026/11/22） */
+  const myCats = () => { const r = (Api.adminWho() || {}).role; return CATS.filter(([v]) => r === '總管理者' || r === v); };
   const catLabel = (c) => (CATS.find((x) => x[0] === c) || [c, c])[1];
   const when = (c) => [Fmt.shortDate(c.start) + (c.end && c.end !== c.start ? '～' + Fmt.shortDate(c.end) : ''), c.startTime ? c.startTime + (c.endTime ? '–' + c.endTime : '') : '', c.location].filter(Boolean).join('・');
   const quotaText = (c, q) => (c.quotaMode === 'none' ? '不限' : q ? q + ' 位' : c.quotaMode === 'self' ? '各區自己報' : '不限');
@@ -26,6 +28,7 @@
     if (sub === 'hq/import') return importPage(body, guard);
     if (/^hq\/group\//.test(sub || '')) return groupPage(body, guard, decodeURIComponent(sub.slice(9)));
     if (/^hq\/overview\//.test(sub || '')) return overview(body, guard, decodeURIComponent(sub.slice(12)));
+    if (sub === 'hqstats') return stats(body, guard);
     const m = (sub || '').match(/^hq\/(new|edit\/([^/]+)|([^/]+))$/);
     if (m && m[1] === 'new') return form(body, guard, null);
     if (m && m[2]) return form(body, guard, decodeURIComponent(m[2]));
@@ -165,6 +168,114 @@
     });
   }
 
+  /**
+   * 📊 分壇統計（2026/11/22）：選期間（今年、去年、這個月、自訂）和類別，看各區的配合度與人數：
+   * 收到幾次（區 × 日期）、放到行事曆、不參加、還沒處理、報名人次、名額；也依活動加總。可以匯出 Excel。
+   */
+  async function stats(body, guard) {
+    const y = new Date().getFullYear();
+    const ym = new Date().toISOString().slice(0, 7);
+    const st = { period: 'year', from: y + '-01-01', to: y + '-12-31', cat: '' };
+    const periods = { year: ['今年', y + '-01-01', y + '-12-31'], last: ['去年', (y - 1) + '-01-01', (y - 1) + '-12-31'], month: ['這個月', ym + '-01', ym + '-31'], custom: ['自訂', '', ''] };
+    const cats = myCats();
+    let d = null;
+    const load = async () => {
+      body.querySelector('[data-out]').innerHTML = '<p class="panel-empty">問各區的狀況中⋯</p>';
+      try { d = await Api.admin('hqStats', { from: st.from, to: st.to }); } catch (e) { if (guard(e, body)) return; body.querySelector('[data-out]').innerHTML = `<p class="form-error">${errHtml(e)}</p>`; return; }
+      paint();
+    };
+    body.innerHTML = `
+      <h2>📊 分壇統計</h2>
+      <p class="hint">看各區有沒有配合分派、報名多少人。只算已經送出的分派（草稿不算），用活動日期算期間；同一個活動好幾個日期，每個日期各算一次。</p>
+      <div class="form-row"><span>期間</span><div class="seg">${Object.keys(periods).map((k) => `<label class="seg-item"><input type="radio" name="period" value="${k}"${st.period === k ? ' checked' : ''}><span>${periods[k][0]}</span></label>`).join('')}</div></div>
+      <div class="form-grid-2" data-custom hidden>
+        <label class="form-row"><span>從</span><input class="input" type="date" name="from" value="${st.from}"></label>
+        <label class="form-row"><span>到</span><input class="input" type="date" name="to" value="${st.to}"></label>
+      </div>
+      ${cats.length > 1 ? `<div class="form-row"><span>類別</span><div class="seg"><label class="seg-item"><input type="radio" name="cat" value="" checked><span>全部</span></label>${cats.map(([v, l]) => `<label class="seg-item"><input type="radio" name="cat" value="${v}"><span>${l}</span></label>`).join('')}</div></div>` : `<p class="muted">類別：${esc(cats[0][1])}</p>`}
+      <div data-out></div>`;
+    body.querySelectorAll('input[name=period]').forEach((x) => x.addEventListener('change', () => {
+      st.period = x.value;
+      body.querySelector('[data-custom]').hidden = x.value !== 'custom';
+      if (x.value !== 'custom') { st.from = periods[x.value][1]; st.to = periods[x.value][2]; load(); }
+    }));
+    ['from', 'to'].forEach((k) => body.querySelector(`input[name=${k}]`).addEventListener('change', (ev) => { st[k] = ev.target.value; if (st.from && st.to) load(); }));
+    body.querySelectorAll('input[name=cat]').forEach((x) => x.addEventListener('change', () => { st.cat = x.value; paint(); }));
+
+    function compute() {
+      const today = new Date().toISOString().slice(0, 10);
+      const cs = d.campaigns.filter((c) => !st.cat || c.category === st.cat);
+      const reg = {};
+      d.regions.forEach((r) => { reg[r.code] = { r, got: 0, pub: 0, dec: 0, todo: 0, late: 0, n: 0, q: 0, off: 0 }; });
+      const acts = new Map();
+      cs.forEach((c) => {
+        const k = groupKey(c);
+        if (!acts.has(k)) acts.set(k, { title: c.title, category: c.category, dates: 0, regions: new Set(), pub: 0, n: 0, q: 0 });
+        const a = acts.get(k);
+        a.dates++;
+        c.regions.forEach((code) => {
+          const g = reg[code]; const x = (d.cells[c.id] || {})[code];
+          if (!g || !x) return;
+          a.regions.add(code);
+          if (x.status === 'not-open' || x.status === 'none' || x.status === 'error') { g.off++; return; }
+          g.got++;
+          const q = x.status === 'declined' ? 0 : Number(x.quota || (c.quotaMode === 'assigned' && c.quotas ? c.quotas[code] : '')) || 0;
+          if (x.status === 'published') { g.pub++; a.pub++; }
+          else if (x.status === 'declined') g.dec++;
+          else if (x.status === 'new' || x.status === 'seen') { if (c.end < today) g.late++; else g.todo++; }
+          g.n += x.count || 0; a.n += x.count || 0; g.q += q; a.q += q;
+        });
+      });
+      const rows = Object.values(reg).filter((g) => g.got || g.off);
+      return { cs, rows, acts: [...acts.values()].sort((p, q) => q.dates - p.dates || p.title.localeCompare(q.title)) };
+    }
+    const pct = (a, b) => (b ? Math.round((a / b) * 100) + '%' : '—');
+    function paint() {
+      const out = body.querySelector('[data-out]');
+      if (!d) return;
+      const { cs, rows, acts } = compute();
+      if (!cs.length) { out.innerHTML = '<p class="panel-empty">這段期間沒有送出的分派。</p>'; return; }
+      const sum = (k) => rows.reduce((s, g) => s + g[k], 0);
+      out.innerHTML = `
+        <div class="hq-tiles">
+          <div class="hq-tile"><b>${acts.length}</b><span>個活動</span><small>${cs.length} 個日期</small></div>
+          <div class="hq-tile"><b>${pct(sum('pub'), sum('got'))}</b><span>放到行事曆</span><small>${sum('pub')}／${sum('got')} 次</small></div>
+          <div class="hq-tile"><b>${sum('n')}</b><span>報名人次</span><small>${sum('q') ? `名額 ${sum('q')}・${pct(sum('n'), sum('q'))}` : '　'}</small></div>
+          <div class="hq-tile${sum('late') + sum('todo') ? ' is-warn' : ''}"><b>${sum('late') + sum('todo')}</b><span>還沒處理</span><small>${sum('late') ? `其中 ${sum('late')} 次已經過了` : '　'}</small></div>
+        </div>
+        <div class="admin-actions"><button type="button" class="btn" data-xlsx>⬇ 匯出 Excel</button></div>
+        <h3>各區</h3>
+        <p class="hint">收到＝分派到這一區的次數（區 × 日期）；放上去的比例越高越配合。「過了沒處理」＝活動日期過了還沒放也沒回不參加。</p>
+        <div class="hq-table-wrap"><table class="hq-table hq-stat-table">
+          <thead><tr><th>區</th><th>收到</th><th>放到行事曆</th><th>不參加</th><th>還沒處理</th><th>過了沒處理</th><th>報名人次</th><th>名額</th></tr></thead>
+          <tbody>${rows.sort((a, b) => b.pub / (b.got || 1) - a.pub / (a.got || 1) || b.n - a.n).map((g) => `<tr>
+            <th>${esc(g.r.name)}${g.off && !g.got ? '<small>還沒開通</small>' : ''}</th><td>${g.got}</td>
+            <td><b>${g.pub}</b><small>${pct(g.pub, g.got)}</small></td><td>${g.dec || '—'}</td>
+            <td>${g.todo ? `<span class="hq-st st-new">${g.todo}</span>` : '—'}</td><td>${g.late ? `<span class="hq-st st-no">${g.late}</span>` : '—'}</td>
+            <td><b>${g.n}</b></td><td>${g.q ? `${g.q}<small>${pct(g.n, g.q)}</small>` : '—'}</td></tr>`).join('')}</tbody>
+          <tfoot><tr><th>合計</th><td>${sum('got')}</td><td><b>${sum('pub')}</b><small>${pct(sum('pub'), sum('got'))}</small></td><td>${sum('dec')}</td><td>${sum('todo')}</td><td>${sum('late')}</td><td><b>${sum('n')}</b></td><td>${sum('q') || '—'}</td></tr></tfoot>
+        </table></div>
+        <h3>各活動</h3>
+        <div class="hq-table-wrap"><table class="hq-table hq-stat-table">
+          <thead><tr><th>活動</th><th>類別</th><th>日期數</th><th>送給幾區</th><th>報名人次</th><th>名額</th></tr></thead>
+          <tbody>${acts.map((a) => `<tr><th>${esc(a.title)}</th><td>${esc(catLabel(a.category))}</td><td>${a.dates}</td><td>${a.regions.size}</td><td><b>${a.n}</b></td><td>${a.q ? `${a.q}<small>${pct(a.n, a.q)}</small>` : '—'}</td></tr>`).join('')}</tbody>
+        </table></div>`;
+      out.querySelector('[data-xlsx]').addEventListener('click', async (ev) => {
+        const btn = ev.currentTarget;
+        btn.disabled = true;
+        try {
+          await loadXlsx();
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['區', '收到', '放到行事曆', '比例', '不參加', '還沒處理', '過了沒處理', '報名人次', '名額']].concat(rows.map((g) => [g.r.name, g.got, g.pub, pct(g.pub, g.got), g.dec, g.todo, g.late, g.n, g.q || '']))), '各區');
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['活動', '類別', '日期數', '送給幾區', '報名人次', '名額']].concat(acts.map((a) => [a.title, catLabel(a.category), a.dates, a.regions.size, a.n, a.q || '']))), '各活動');
+          XLSX.writeFile(wb, `分壇統計_${st.from}_${st.to}${st.cat ? '_' + catLabel(st.cat) : ''}.xlsx`);
+        } catch (e) { alert(e.message || '匯出失敗'); }
+        btn.disabled = false;
+      });
+    }
+    load();
+  }
+
   /** 「11/22、11/24、11/29⋯共 12 天」 */
   function datesText(items) {
     const ds = items.map((c) => Fmt.shortDate(c.start) + (c.end && c.end !== c.start ? '～' + Fmt.shortDate(c.end) : ''));
@@ -192,7 +303,7 @@
         <p class="notice">📝 各區還看不到。${rows.length > 1 ? '同一個名稱的草稿在這裡<strong>一起檢查一次</strong>：上面共同的資料填一次，下面每個日期確認時間和送給哪幾區，' : '補好說明、了愿項目、名額，確認日期時間，'}再按「送出給各區」。</p>
         <form class="admin-form hq-form" novalidate>
           <label class="form-row"><span>名稱</span><input class="input" name="title" maxlength="40" value="${esc(c.title)}" required></label>
-          <div class="form-row"><span>類別（送給各區哪一組的組長）</span><div class="seg">${CATS.map(([v, l]) => `<label class="seg-item"><input type="radio" name="category" value="${v}"${c.category === v ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div></div>
+          <div class="form-row"><span>類別（送給各區哪一組的組長）</span><div class="seg">${myCats().map(([v, l]) => `<label class="seg-item"><input type="radio" name="category" value="${v}"${c.category === v ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div></div>
           <label class="form-row"><span>性質</span><select class="input" name="nature">${NATURES[c.category].map((x) => `<option${x === c.nature ? ' selected' : ''}>${x}</option>`).join('')}</select></label>
           <label class="form-row"><span>地點</span><input class="input" name="location" maxlength="40" value="${esc(c.location)}"></label>
           <label class="form-row"><span>服裝（可空白）</span><input class="input" name="attire" maxlength="40" value="${esc(c.attire)}"></label>
@@ -308,7 +419,7 @@
     try { data = await Api.admin('hqList', {}); } catch (e) { if (guard(e, body)) return; body.innerHTML = `<p class="form-error">${errHtml(e)}</p>`; return; }
     const old = id ? data.campaigns.find((c) => c.id === id) : null;
     if (id && !old) { body.innerHTML = '<p class="panel-empty">找不到這個分派，可能已經刪掉了。<a href="#/admin">回分派清單</a></p>'; return; }
-    const c = old || { title: '', category: '勤務', nature: '', start: '', end: '', startTime: '', endTime: '', location: '', attire: '', description: '', positions: [{ name: '參加' }], deadline: '', quotaMode: 'none', quotas: {}, regions: data.targets.filter((t) => t.open).map((t) => t.code) };
+    const c = old || { title: '', category: myCats()[0][0], nature: '', start: '', end: '', startTime: '', endTime: '', location: '', attire: '', description: '', positions: [{ name: '參加' }], deadline: '', quotaMode: 'none', quotas: {}, regions: data.targets.filter((t) => t.open).map((t) => t.code) };
     const st = { category: c.category, quotaMode: c.quotaMode };
     let asDraft = false;
     const draw = () => {
@@ -319,7 +430,7 @@
         ${old && old.status === 'draft' ? '<p class="notice">📝 這是草稿，各區還看不到。補好說明、了愿項目、名額，確認日期時間沒錯，再按「送出給各區」。</p>' : ''}
         <form class="admin-form hq-form" novalidate>
           <label class="form-row"><span>名稱</span><input class="input" name="title" maxlength="40" value="${esc(c.title)}" placeholder="例：總壇運動會觀禮" required></label>
-          <div class="form-row"><span>類別（送給各區哪一組的組長）</span><div class="seg">${CATS.map(([v, l]) => `<label class="seg-item"><input type="radio" name="category" value="${v}"${st.category === v ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div></div>
+          <div class="form-row"><span>類別（送給各區哪一組的組長）</span><div class="seg">${myCats().map(([v, l]) => `<label class="seg-item"><input type="radio" name="category" value="${v}"${st.category === v ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div></div>
           <label class="form-row"><span>性質</span><select class="input" name="nature">${NATURES[st.category].map((n) => `<option${n === c.nature ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
           <div class="form-grid-2">
             <label class="form-row"><span>日期</span><input class="input" type="date" name="start" value="${esc(c.start)}" required></label>
@@ -620,7 +731,7 @@
         const end = /^\d{4}-\d{2}-\d{2}$/.test(x.end || '') && x.end >= start ? x.end : start;
         const tt = (v) => { const t = Fmt.parseTime(String(v || '')); return t || ''; };
         const named = regionsOf(x.regions);
-        return { regions: named.length ? named : st.regions.slice(), byAi: named.length > 0, title: String(x.title || '').trim().slice(0, 40), category: ['勤務', '道務', '教育'].indexOf(x.category) !== -1 ? x.category : '勤務', start, end, startTime: tt(x.startTime), endTime: tt(x.endTime), location: String(x.location || '').slice(0, 40), description: String(x.description || '').slice(0, 2000), lunar: x.lunarDate || '', uncertain: Array.isArray(x.uncertain) ? x.uncertain.join('；') : '', source: x.source };
+        return { regions: named.length ? named : st.regions.slice(), byAi: named.length > 0, title: String(x.title || '').trim().slice(0, 40), category: myCats().some(([v]) => v === x.category) ? x.category : myCats()[0][0], start, end, startTime: tt(x.startTime), endTime: tt(x.endTime), location: String(x.location || '').slice(0, 40), description: String(x.description || '').slice(0, 2000), lunar: x.lunarDate || '', uncertain: Array.isArray(x.uncertain) ? x.uncertain.join('；') : '', source: x.source };
       }).filter((x) => { const k = x.title + '|' + x.start; if (!x.title || seen.has(k)) return false; seen.add(k); return true; })
         .sort((a, b) => (a.start || '9999').localeCompare(b.start || '9999'));
       rows.forEach((x) => { x.pick = !!x.start && x.start >= today; });
@@ -656,7 +767,7 @@
               <div class="hq-import-fields">
                 <input class="input hq-import-title" data-gk="title" value="${esc(f0.title)}" aria-label="活動名稱">
                 <div class="hq-import-line">
-                  <select class="input" data-gk="category" aria-label="類別">${CATS.map(([v, l]) => `<option value="${v}"${f0.category === v ? ' selected' : ''}>${l}</option>`).join('')}</select>
+                  <select class="input" data-gk="category" aria-label="類別">${myCats().map(([v, l]) => `<option value="${v}"${f0.category === v ? ' selected' : ''}>${l}</option>`).join('')}</select>
                   <input class="input" data-gk="location" value="${esc(f0.location)}" placeholder="地點" aria-label="地點">
                 </div>
                 <small class="muted">${g.items.length} 個日期，勾了 ${on} 個・來源：${esc(srcs.join('、'))}</small>

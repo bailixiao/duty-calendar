@@ -11,6 +11,9 @@
     唯讀: '什麼都能看，什麼都不能改',
     場管: window.SITE.venue + '場管：只看、只審核場地借用'
   };
+  // 宏教分壇（2026/11/22）：只有總務・勤務／道務／教育帳號，各自只管自己那一類的分派
+  const isHq = !!(window.Region && Region.code === 'hq');
+  if (isHq) { ROLE_NOTE.勤務 = '總務・勤務的分派：開、改、送出、看總表和統計'; ROLE_NOTE.道務 = '道務的分派：開、改、送出、看總表和統計'; ROLE_NOTE.教育 = '教育的分派：開、改、送出、看總表和統計'; }
 
   function show(body, guard) {
     body.innerHTML = '<p class="panel-empty">載入中⋯</p>';
@@ -27,19 +30,19 @@
   function render(body, guard, data, flash) {
     body.innerHTML = `
       ${flash || ''}
-      <div class="admin-toolbar"><button type="button" class="btn btn-primary" data-new>＋ 新增帳號</button><button type="button" class="btn" data-backup>💾 下載完整備份</button></div>
-      <p class="hint">完整備份：所有資料存成一個 Excel 檔（不含帳號密碼、手機推播網址），建議每個月下載一次留在電腦裡。</p>
+      <div class="admin-toolbar"><button type="button" class="btn btn-primary" data-new>＋ 新增帳號</button>${isHq ? '' : '<button type="button" class="btn" data-backup>💾 下載完整備份</button>'}</div>
+      ${isHq ? '<p class="notice">分壇的總務・勤務、道務、教育負責人各開一個帳號：登入後只看得到、改得了自己那一類的分派（也看得到那一類的統計）。總管理者看得到全部。</p>' : '<p class="hint">完整備份：所有資料存成一個 Excel 檔（不含帳號密碼、手機推播網址），建議每個月下載一次留在電腦裡。</p>'}
       <p class="hint">總管理者就是你現在用的帳號（帳號欄留空或填「總管理者」＋原本的管理密碼），不會列在下面。</p>
       ${data.accounts.length ? `<ul class="account-list">${data.accounts.map((a, i) => `
         <li class="account-item${a.active ? '' : ' is-off'}">
           <button type="button" class="account-main" data-edit="${i}">
             <span class="account-name">${esc(a.account)}${a.name ? `<small>${esc(a.name)}</small>` : ''}</span>
-            <span class="account-role role-${esc(a.role)}">${esc(a.role)}</span>
+            <span class="account-role role-${esc(a.role)}">${esc(isHq && a.role === '勤務' ? '總務・勤務' : a.role)}</span>
             <span class="account-meta">${a.active ? '' : '已停用・'}${a.lastLogin ? '最後登入 ' + esc(a.lastLogin) : '還沒登入過'}${a.active && staleLogin(a) ? '<strong class="account-stale">⚠️ 很久沒登入，可以考慮停用</strong>' : ''}</span>
           </button>
         </li>`).join('')}</ul>` : '<p class="panel-empty">還沒有其他帳號，按上面的「＋ 新增帳號」建立。</p>'}`;
     body.querySelector('[data-new]').addEventListener('click', () => edit(null));
-    body.querySelector('[data-backup]').addEventListener('click', async (ev) => {
+    if (body.querySelector('[data-backup]')) body.querySelector('[data-backup]').addEventListener('click', async (ev) => {
       const btn = ev.target;
       btn.disabled = true;
       btn.textContent = '準備備份中⋯';
@@ -63,8 +66,8 @@
         <form class="admin-form" novalidate>
           <label class="form-row"><span>帳號（登入時輸入）</span><input class="input" id="acc-account" name="account" value="${esc(a ? a.account : '')}" placeholder="例：道務組" autocomplete="off"></label>
           <label class="form-row"><span>名稱或負責人（選填）</span><input class="input" id="acc-name" name="name" value="${esc(a ? a.name : '')}"></label>
-          <div class="form-row"><span>角色</span><div class="role-pick">${data.roles.map((r) => `
-            <label class="role-option"><input type="radio" name="role" value="${esc(r)}"${(a ? a.role : '') === r ? ' checked' : ''}><b>${esc(r)}</b><small>${esc(ROLE_NOTE[r] || '')}</small></label>`).join('')}</div></div>
+          <div class="form-row"><span>角色</span><div class="role-pick">${data.roles.filter((r) => !isHq || ['勤務', '道務', '教育'].indexOf(r) !== -1).map((r) => `
+            <label class="role-option"><input type="radio" name="role" value="${esc(r)}"${(a ? a.role : '') === r ? ' checked' : ''}><b>${esc(isHq && r === '勤務' ? '總務・勤務' : r)}</b><small>${esc(ROLE_NOTE[r] || '')}</small></label>`).join('')}</div></div>
           <label class="form-row"><span>${isNew ? '密碼' : '新密碼（不改就留空）'}</span>
             <div class="pw-row"><input class="input" id="acc-password" name="password" type="text" autocomplete="new-password"><button type="button" class="btn btn-small" data-gen>產生一組</button></div></label>
           <p class="hint">密碼設定後只會加密保存，之後看不到原本的密碼；忘記了就在這裡重設。請把帳號、密碼親自交給負責的人。</p>

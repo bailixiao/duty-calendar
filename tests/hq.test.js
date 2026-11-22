@@ -240,3 +240,35 @@ test('整組總覽（hqGroupSummary）：日期 × 各區的狀態、人數，�
   assert.ok(['not-open', 'new'].indexOf(r.data.cells[ids[0]].zhen.status) !== -1);
   assert.equal((await R.she.admin('hqGroupSummary', { ids })).error.code, 'FORBIDDEN', '只有分壇能看');
 });
+
+test('分壇的總務・勤務／道務／教育帳號只管自己那一類；統計（hqStats）只算看得到的', async () => {
+  const R = await setup();
+  let r = await R.hq.admin('adminSaveAccount', { account: { account: '測試道務', role: '道務', password: 'test-pass-2' } });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  const tok = (await R.hq.call({ action: 'adminLogin', account: '測試道務', password: 'test-pass-2' })).data.token;
+  const dao = (action, body) => R.hq.call(Object.assign({ action, token: tok }, body || {}));
+  // 總管理者開兩類
+  await R.hq.admin('hqSave', { campaign: { title: '測試打掃', category: '勤務', start: '2026-12-20', regions: ['she'] } });
+  await R.hq.admin('hqSave', { campaign: { title: '測試法會', category: '道務', start: '2026-12-21', regions: ['she'] } });
+  // 道務帳號只看到道務
+  const mine = (await dao('hqList')).data.campaigns;
+  assert.deepEqual(mine.map((c) => c.title), ['測試法會']);
+  // 不能開、改、刪勤務的
+  assert.equal((await dao('hqSave', { campaign: { title: '測試支援', category: '勤務', start: '2026-12-22', regions: ['she'] } })).error.code, 'FORBIDDEN');
+  const work = (await R.hq.admin('hqList')).data.campaigns.find((c) => c.category === '勤務');
+  assert.equal((await dao('hqDelete', { id: work.id })).error.code, 'FORBIDDEN');
+  assert.equal((await dao('hqSummary', { id: work.id })).error.code, 'FORBIDDEN');
+  // 自己那一類可以開
+  r = await dao('hqSave', { campaign: { title: '測試研究班', category: '道務', start: '2026-12-23', regions: ['she'] } });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  // 統計：教捨區放一個法會
+  const law = (await R.she.admin('adminHqInbox')).data.items.find((x) => x.c.title === '測試法會');
+  await R.she.admin('adminHqPublish', { id: law.id });
+  r = await dao('hqStats', { from: '2026-12-01', to: '2026-12-31' });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.deepEqual(r.data.campaigns.map((c) => c.title).sort(), ['測試法會', '測試研究班']);
+  assert.equal(r.data.cells[law.id].she.status, 'published');
+  assert.equal(r.data.cells[law.id].she.people, undefined, '統計不帶名字');
+  r = await R.hq.admin('hqStats', { from: '2026-12-01', to: '2026-12-31' });
+  assert.equal(r.data.campaigns.length, 3);
+});

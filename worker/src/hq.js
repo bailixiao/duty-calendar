@@ -20,8 +20,14 @@ export function createHq({ gs, store, cross, openRegions }) {
   function requireHqAdmin(body, curRegion) {
     if (curRegion !== HQ_CODE) throw err('FORBIDDEN', '這是宏教分壇才能用的功能');
     const who = gs.requireAdmin_(body);
-    if (who.role !== '總管理者') throw err('FORBIDDEN', '只有分壇的總管理者可以開分派');
+    if (['總管理者'].concat(CATS).indexOf(who.role) === -1) throw err('FORBIDDEN', '這個帳號不能用分派（分壇的帳號只有總管理者、總務・勤務、道務、教育）');
     return who;
+  }
+  /** 這個帳號能不能管這一類（總管理者全部；勤務／道務／教育只管自己那一類） */
+  const canCat = (who, cat) => who.role === '總管理者' || who.role === cat;
+  const catName = (cat) => (cat === '勤務' ? '總務・勤務' : cat);
+  function guardCat(who, c) {
+    if (c && !canCat(who, c.category)) throw err('FORBIDDEN', '這個帳號只能管「' + catName(who.role) + '」的分派，「' + (c.title || '') + '」是「' + catName(c.category) + '」的');
   }
   /** 現在已經開通的區（教全區一直都在） */
   async function openSet() {
@@ -105,9 +111,9 @@ export function createHq({ gs, store, cross, openRegions }) {
   const special = {};
   /** 分派清單（新的排前面） */
   special.hqList = async (body, curRegion) => {
-    requireHqAdmin(body, curRegion);
+    const who = requireHqAdmin(body, curRegion);
     const open = await openSet();
-    return { campaigns: list().slice().sort((a, b) => b.start.localeCompare(a.start)), targets: TARGETS.map(([code, name]) => ({ code, name, open: open.has(code) })) };
+    return { role: who.role, campaigns: list().filter((c) => canCat(who, c.category)).slice().sort((a, b) => b.start.localeCompare(a.start)), targets: TARGETS.map(([code, name]) => ({ code, name, open: open.has(code) })) };
   };
   /** 新增或修改分派（body.campaign；有 id＝修改），存好馬上送出去 */
   special.hqSave = async (body, curRegion) => {
@@ -117,7 +123,9 @@ export function createHq({ gs, store, cross, openRegions }) {
     if (body.campaign && body.campaign.id && !old) throw err('NOT_FOUND', '找不到這個分派，可能已經刪掉了');
     // 草稿（2026/11/22，從檔案匯入的先存草稿）：存起來不送；已經送出的不能再變回草稿
     const draft = !!body.draft && (!old || old.status === 'draft');
+    guardCat(who, old);
     const c = clean(body.campaign || {}, old, draft);
+    guardCat(who, c);
     c.version = (old ? old.version : 0) + 1;
     c.createdAt = old ? old.createdAt : gs.nowString_();
     c.updatedAt = gs.nowString_();
@@ -146,7 +154,9 @@ export function createHq({ gs, store, cross, openRegions }) {
       if (it && it.id && !old) { errors.push({ message: '第 ' + (i + 1) + ' 筆找不到，可能已經刪掉了' }); return null; }
       const draft = !!body.draft && (!old || old.status === 'draft');
       try {
+        guardCat(who, old);
         const c = clean(it || {}, old, draft);
+        guardCat(who, c);
         Object.assign(c, { version: (old ? old.version : 0) + 1, createdAt: old ? old.createdAt : gs.nowString_(), updatedAt: gs.nowString_(), by: who.account || '總管理者', status: draft ? 'draft' : 'sent', delivery: {} });
         if (old && old.source) c.source = old.source;
         return { c, old, removed: old && old.status !== 'draft' ? old.regions.filter((r) => c.regions.indexOf(r) === -1) : [] };
@@ -178,28 +188,30 @@ export function createHq({ gs, store, cross, openRegions }) {
   };
   /** 刪掉分派：各區收回（已經放上行事曆的留著，組長自己決定） */
   special.hqDelete = async (body, curRegion) => {
-    requireHqAdmin(body, curRegion);
+    const who = requireHqAdmin(body, curRegion);
     const all = list();
     const c = all.find((x) => x.id === body.id);
     if (!c) throw err('NOT_FOUND', '找不到這個分派');
+    guardCat(who, c);
     if (c.status !== 'draft') await deliver({ id: c.id, regions: [] }, c.regions);
     save(all.filter((x) => x.id !== c.id));
     return { deleted: c.id };
   };
   /** 一次刪好幾個草稿（同名草稿整組刪）；已經送出的不在這裡刪 */
   special.hqDeleteDrafts = async (body, curRegion) => {
-    requireHqAdmin(body, curRegion);
+    const who = requireHqAdmin(body, curRegion);
     const ids = Array.isArray(body.ids) ? body.ids.map(String) : [];
     const all = list();
-    const gone = all.filter((x) => ids.indexOf(x.id) !== -1 && x.status === 'draft').map((x) => x.id);
+    const gone = all.filter((x) => ids.indexOf(x.id) !== -1 && x.status === 'draft' && canCat(who, x.category)).map((x) => x.id);
     save(all.filter((x) => gone.indexOf(x.id) === -1));
     return { deleted: gone.length };
   };
   /** 總表：每一區的狀態、名額、報名人數、名字 */
   special.hqSummary = async (body, curRegion) => {
-    requireHqAdmin(body, curRegion);
+    const who = requireHqAdmin(body, curRegion);
     const c = list().find((x) => x.id === body.id);
     if (!c) throw err('NOT_FOUND', '找不到這個分派');
+    guardCat(who, c);
     const open = await openSet();
     if (c.status === 'draft') return { campaign: c, regions: TARGETS.filter(([r]) => c.regions.indexOf(r) !== -1).map(([code, name]) => ({ code, name, status: 'draft', count: 0, people: [] })) };
     const rows = await Promise.all(TARGETS.filter(([r]) => c.regions.indexOf(r) !== -1).map(async ([code, name]) => {
@@ -214,10 +226,25 @@ export function createHq({ gs, store, cross, openRegions }) {
    * 每一區只問一次（hqReportMany），回傳 { campaigns, regions: [{code,name,open}], cells: { 分派代號: { 區: 回報 } } }
    */
   special.hqGroupSummary = async (body, curRegion) => {
-    requireHqAdmin(body, curRegion);
+    const who = requireHqAdmin(body, curRegion);
     const ids = Array.isArray(body.ids) ? body.ids.map(String) : [];
-    const cs = list().filter((x) => ids.indexOf(x.id) !== -1 && x.status !== 'draft').sort((a, b) => a.start.localeCompare(b.start));
+    const cs = list().filter((x) => ids.indexOf(x.id) !== -1 && x.status !== 'draft' && canCat(who, x.category)).sort((a, b) => a.start.localeCompare(b.start));
     if (!cs.length) throw err('NOT_FOUND', '找不到這些分派，可能已經刪掉了');
+    return collect(cs, 'hqReportMany');
+  };
+  /**
+   * 分壇統計（2026/11/22）：body = { from, to }（yyyy-MM-dd，看活動日期）。只算送出的、這個帳號看得到的類別。
+   * 回傳和整組總覽一樣的格式，但不含名字（只要狀態、名額、人數）；畫面上再依區、類別、活動加總。
+   */
+  special.hqStats = async (body, curRegion) => {
+    const who = requireHqAdmin(body, curRegion);
+    const from = DATE.test(String(body.from || '')) ? body.from : '0000-00-00';
+    const to = DATE.test(String(body.to || '')) ? body.to : '9999-99-99';
+    const cs = list().filter((x) => x.status !== 'draft' && canCat(who, x.category) && x.start >= from && x.start <= to).sort((a, b) => a.start.localeCompare(b.start));
+    if (!cs.length) return { campaigns: [], regions: [], cells: {} };
+    return collect(cs, 'hqCountMany');
+  };
+  async function collect(cs, method) {
     const open = await openSet();
     const regions = TARGETS.filter(([r]) => cs.some((c) => c.regions.indexOf(r) !== -1)).map(([code, name]) => ({ code, name, open: open.has(code) }));
     const cells = {};
@@ -226,12 +253,12 @@ export function createHq({ gs, store, cross, openRegions }) {
       const mine = cs.filter((c) => c.regions.indexOf(g.code) !== -1);
       if (!g.open) { mine.forEach((c) => { cells[c.id][g.code] = { status: 'not-open', count: 0, people: [] }; }); return; }
       try {
-        const res = await cross(g.code, 'hqReportMany', mine.map((c) => c.id));
+        const res = await cross(g.code, method, mine.map((c) => c.id));
         mine.forEach((c, i) => { cells[c.id][g.code] = (res && res[i]) || { status: 'none', count: 0, people: [] }; });
       } catch (e) { mine.forEach((c) => { cells[c.id][g.code] = { status: 'error', error: (e && e.message) || String(e), count: 0, people: [] }; }); }
     }));
     return { campaigns: cs, regions, cells };
-  };
+  }
 
   /** 從檔案匯入：勾好的活動一次存成草稿。body.items＝分派陣列（同 hqSave 的 campaign） */
   special.hqSaveDrafts = async (body, curRegion) => {
@@ -243,6 +270,7 @@ export function createHq({ gs, store, cross, openRegions }) {
     const made = items.map((it, i) => {
       try {
         const c = clean(it || {}, null, true);
+        guardCat(who, c);
         return Object.assign(c, { version: 1, status: 'draft', createdAt: gs.nowString_(), updatedAt: gs.nowString_(), by: who.account || '總管理者', delivery: {}, source: String(it.source || '').slice(0, 60) });
       } catch (e) { errors.push({ message: '第 ' + (i + 1) + ' 筆（' + String((it && it.title) || '') .slice(0, 20) + '）：' + e.message }); return null; }
     });
@@ -293,6 +321,8 @@ export function createHq({ gs, store, cross, openRegions }) {
     if (method === 'hqWithdraw') return gs.hqWithdraw_(payload);
     if (method === 'hqReport') return gs.hqReport_(payload);
     if (method === 'hqReportMany') return (Array.isArray(payload) ? payload : []).map((id) => gs.hqReport_(id));
+    // 統計用：不要名字，只要狀態、名額、人數
+    if (method === 'hqCountMany') return (Array.isArray(payload) ? payload : []).map((id) => { const x = gs.hqReport_(id); delete x.people; return x; });
     // 教全區把 AI 金鑰借給分壇（只有 Durable Object 之間叫得到）
     if (method === 'hqAiKey') {
       const p = gs.propsForAsync_();

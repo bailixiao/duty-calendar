@@ -996,6 +996,7 @@ body.has-modal { overflow: hidden; }
   margin-bottom: 16px;
   border-bottom: 1px solid var(--line);
   overflow-x: auto;
+  flex-wrap: wrap; /* 分頁多了（📥 分壇分派）：電腦上也折行，不要出現左右捲軸 */
 }
 
 .admin-tab {
@@ -1093,7 +1094,7 @@ button.more-item { width: 100%; text-align: left; font: inherit; cursor: pointer
 .hq-alert-title { display: block; font-weight: 700; }
 .hq-alert-title small { margin-left: 8px; font-weight: 400; color: var(--ink-2); font-size: .85rem; }
 .hq-alert-dates { display: block; color: var(--ink-2); font-size: .95rem; }
-.hq-alert-btn { display: flex; justify-content: center; width: 100%; min-height: 48px; font-size: 1.05rem; text-decoration: none; border-radius: 12px; }
+.hq-alert-btn { display: flex; justify-content: center; align-items: center; text-align: center; padding-top: 0; padding-bottom: 0; line-height: 1.2; width: 100%; min-height: 52px; font-size: 1.05rem; text-decoration: none; border-radius: 12px; }
 .tab-alert { display: inline-block; margin-left: 4px; padding: 0 7px; border-radius: 999px; background: #d9480f; color: #fff; font-size: .8rem; font-weight: 700; line-height: 1.6; vertical-align: 2px; }
 .hq-group-pub { margin-top: 10px; min-height: 48px; border-radius: 12px; }
 /* 整組總覽（日期 × 各區） */
@@ -1109,6 +1110,18 @@ button.more-item { width: 100%; text-align: left; font: inherit; cursor: pointer
 .ov-past td, .ov-past th { opacity: .55; }
 .ov-none { color: var(--muted); }
 .ov-sum { font-weight: 700; }
+/* 分壇統計 */
+.hq-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin: 12px 0; }
+.hq-tile { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; display: grid; }
+.hq-tile b { font-size: 1.7rem; line-height: 1.2; color: var(--accent); }
+.hq-tile span { font-weight: 700; }
+.hq-tile small { color: var(--ink-2); }
+.hq-tile.is-warn { border: 2px solid #e0a040; background: #fff8ec; }
+.hq-tile.is-warn b { color: #d9480f; }
+.hq-stat-table td, .hq-stat-table th { text-align: center; white-space: nowrap; }
+.hq-stat-table tbody th, .hq-stat-table tfoot th { text-align: left; }
+.hq-stat-table td small, .hq-stat-table th small { display: block; font-weight: 400; color: var(--ink-2); }
+.hq-stat-table tfoot td, .hq-stat-table tfoot th { font-weight: 700; border-top: 2px solid var(--line); }
 .hq-inbox-groups { display: grid; gap: 12px; }
 .hq-inbox-group { border: 1px solid var(--line); border-radius: var(--radius); background: #fff; padding: 10px 12px; }
 .hq-inbox-group.has-todo { border: 2px solid #e0a040; background: #fffaf2; }
