@@ -25,6 +25,7 @@
   async function show(body, guard, sub) {
     if (sub === 'hq/import') return importPage(body, guard);
     if (/^hq\/group\//.test(sub || '')) return groupPage(body, guard, decodeURIComponent(sub.slice(9)));
+    if (/^hq\/overview\//.test(sub || '')) return overview(body, guard, decodeURIComponent(sub.slice(12)));
     const m = (sub || '').match(/^hq\/(new|edit\/([^/]+)|([^/]+))$/);
     if (m && m[1] === 'new') return form(body, guard, null);
     if (m && m[2]) return form(body, guard, decodeURIComponent(m[2]));
@@ -45,7 +46,15 @@
       ${data.campaigns.length ? `<div class="card-list">${draftGroups(data.campaigns).map((g) => `<a class="duty-card hq-card is-draft" href="#/admin/hq/group/${encodeURIComponent(g.key)}">
           <span class="card-main"><span class="card-title"><span class="hq-st st-seen">📝 草稿</span> ${esc(g.items[0].title)}${g.items.length > 1 ? `<small>（${g.items.length} 個日期）</small>` : ''}</span>
           <span class="card-meta">${esc(catLabel(g.items[0].category))}・${esc(datesText(g.items))}</span>
-          <span class="card-meta">${g.items.length > 1 ? '一起檢查一次就好・' : ''}預計送給 ${new Set([].concat(...g.items.map((c) => c.regions))).size} 區</span></span></a>`).join('')}${data.campaigns.filter((c) => c.status !== 'draft').map((c) => {
+          <span class="card-meta">${g.items.length > 1 ? '一起檢查一次就好・' : ''}預計送給 ${new Set([].concat(...g.items.map((c) => c.regions))).size} 區</span></span></a>`).join('')}${sentGroups(data.campaigns).filter((g) => g.items.length > 1).map((g) => {
+        const rs = [...new Set([].concat(...g.items.map((c) => c.regions)))];
+        const today = new Date().toISOString().slice(0, 10);
+        const next = g.items.filter((c) => c.end >= today).length;
+        return `<a class="duty-card hq-card" href="#/admin/hq/overview/${encodeURIComponent(g.key)}">
+          <span class="card-main"><span class="card-title">${esc(g.items[0].title)}<small>（${g.items.length} 個日期）</small></span>
+          <span class="card-meta">${esc(catLabel(g.items[0].category))}・${esc(datesText(g.items))}</span>
+          <span class="card-meta">送給 ${rs.length} 區・${next ? `還有 ${next} 個日期沒到` : '都過了'}・<strong>點開看整組總覽 ›</strong></span></span></a>`;
+      }).join('')}${sentGroups(data.campaigns).filter((g) => g.items.length === 1).map((g) => g.items[0]).sort((a, b) => b.start.localeCompare(a.start)).map((c) => {
         const ok = c.regions.filter((r) => c.delivery && c.delivery[r] === 'ok').length;
         return `<a class="duty-card hq-card${c.status === 'draft' ? ' is-draft' : ''}" href="#/admin/hq/${encodeURIComponent(c.id)}">
           <span class="card-main"><span class="card-title">${c.status === 'draft' ? '<span class="hq-st st-seen">📝 草稿</span> ' : ''}${esc(c.title)}</span>
@@ -63,6 +72,99 @@
     gs.forEach((g) => g.items.sort((a, b) => a.start.localeCompare(b.start)));
     return gs.sort((a, b) => a.items[0].start.localeCompare(b.items[0].start));
   }
+  /** 已送出的依名稱＋類別分組（好幾個日期的一張卡，點開看整組總覽）；組照最近的日期排（新的在前） */
+  function sentGroups(campaigns) {
+    const m = new Map();
+    campaigns.filter((c) => c.status !== 'draft').forEach((c) => { const k = groupKey(c); if (!m.has(k)) m.set(k, { key: k, items: [] }); m.get(k).items.push(c); });
+    const gs = [...m.values()];
+    gs.forEach((g) => g.items.sort((a, b) => a.start.localeCompare(b.start)));
+    return gs.sort((a, b) => b.items[b.items.length - 1].start.localeCompare(a.items[a.items.length - 1].start));
+  }
+
+  /**
+   * 整組總覽（2026/11/22）：同一個活動好幾個日期 × 各區。每格：狀態或報名人數（有名額的寫「2／3」，不夠的紅字）。
+   * 點日期看那一天的總表；點格子看名字。上面有每一區還沒處理幾天、全部報名人數；可以一次提醒、匯出 Excel。
+   */
+  async function overview(body, guard, key) {
+    body.innerHTML = '<p class="panel-empty">問各區的狀況中⋯</p>';
+    let list0, d;
+    try {
+      list0 = await Api.admin('hqList', {});
+      const g = sentGroups(list0.campaigns).find((x) => x.key === key);
+      if (!g) { body.innerHTML = '<p class="panel-empty">找不到這一組分派，可能已經刪掉了。<a href="#/admin">回分派清單</a></p>'; return; }
+      d = await Api.admin('hqGroupSummary', { ids: g.items.map((c) => c.id) });
+    } catch (e) { if (guard(e, body)) return; body.innerHTML = `<p class="form-error">${errHtml(e)}</p><p><a href="#/admin">回分派清單</a></p>`; return; }
+    const cs = d.campaigns;
+    const c0 = cs[0];
+    const today = new Date().toISOString().slice(0, 10);
+    const cell = (c, r) => d.cells[c.id] && d.cells[c.id][r.code];
+    const quotaOf = (c, r, x) => { const q = (x && x.quota) || (c.quotaMode === 'assigned' && c.quotas ? c.quotas[r.code] : ''); return x && (x.status === 'declined' || x.status === 'not-open') ? 0 : Number(q) || 0; };
+    const todoBy = {};
+    d.regions.forEach((r) => { todoBy[r.code] = cs.filter((c) => { const x = cell(c, r); return x && (x.status === 'new' || x.status === 'seen') && c.end >= today; }).length; });
+    let totalN = 0, totalQ = 0;
+    cs.forEach((c) => d.regions.forEach((r) => { const x = cell(c, r); if (x) { totalN += x.count || 0; totalQ += quotaOf(c, r, x); } }));
+    const cellHtml = (c, r) => {
+      const x = cell(c, r);
+      if (!x) return '<td class="ov-none">·</td>';
+      const q = quotaOf(c, r, x);
+      if (x.status === 'published') return `<td class="ov-ok${q && x.count < q ? ' ov-short' : ''}"><button type="button" class="link-btn" data-cell="${esc(c.id)}|${r.code}">${q ? `${x.count}／${q}` : `✓ ${x.count}`}</button></td>`;
+      const [l, cls] = STATUS[x.status] || [x.status, ''];
+      return `<td><span class="hq-st ${cls}" title="${esc(x.declineReason || '')}">${esc(x.status === 'seen' ? '看過' : l)}</span></td>`;
+    };
+    const pending = d.regions.filter((r) => todoBy[r.code]);
+    body.innerHTML = `
+      <p><a href="#/admin">‹ 分派清單</a></p>
+      <h2>${esc(c0.title)}<small>（${cs.length} 個日期）</small></h2>
+      <p class="muted">${esc(catLabel(c0.category))}・${esc(c0.location || '')}${c0.startTime ? '・' + esc(c0.startTime) + (c0.endTime ? '–' + esc(c0.endTime) : '') : ''}</p>
+      <div class="hq-total"><strong>${totalN}</strong> 位已報名${totalQ ? `／名額 ${totalQ} 位${totalN < totalQ ? `，還差 <strong>${totalQ - totalN}</strong> 位` : ''}` : ''}</div>
+      ${pending.length ? `<div class="hq-alert"><div class="hq-alert-head"><span class="hq-alert-icon" aria-hidden="true">!</span><div><strong>${pending.length} 區還有日期沒處理</strong><small>${pending.map((r) => esc(r.name) + ' ' + todoBy[r.code] + ' 天').join('、')}</small></div></div></div>` : '<p class="notice notice-success">✅ 各區都處理好了。</p>'}
+      <div class="admin-actions">
+        <button type="button" class="btn" data-remind>📋 提醒還沒處理的區</button>
+        <button type="button" class="btn" data-xlsx>⬇ 匯出 Excel</button>
+      </div>
+      <p class="hint">每格：✓ 幾位＝已放到行事曆、幾位報名（有名額的寫「報名／名額」，不夠的紅字）；點數字看名字。點日期看那一天的總表、修改或刪除。</p>
+      <div class="hq-table-wrap ov-wrap"><table class="hq-table ov-table">
+        <thead><tr><th class="ov-date">日期</th>${d.regions.map((r) => `<th>${esc(r.name.replace(/區$/, ''))}${todoBy[r.code] ? `<span class="tab-alert">! ${todoBy[r.code]}</span>` : ''}</th>`).join('')}<th>合計</th></tr></thead>
+        <tbody>${cs.map((c) => { const n = d.regions.reduce((s, r) => s + ((cell(c, r) || {}).count || 0), 0); const q = d.regions.reduce((s, r) => s + quotaOf(c, r, cell(c, r)), 0); return `
+          <tr class="${c.end < today ? 'ov-past' : ''}"><th class="ov-date"><a href="#/admin/hq/${encodeURIComponent(c.id)}">${esc(Fmt.shortDate(c.start))}</a></th>${d.regions.map((r) => cellHtml(c, r)).join('')}<td class="ov-sum${q && n < q ? ' ov-short' : ''}">${q ? `${n}／${q}` : n}</td></tr>`; }).join('')}</tbody>
+      </table></div>`;
+    body.querySelectorAll('[data-cell]').forEach((b) => b.addEventListener('click', () => {
+      const [id, code] = b.dataset.cell.split('|');
+      const c = cs.find((x) => x.id === id);
+      const r = d.regions.find((x) => x.code === code);
+      const x = cell(c, r);
+      const pm = Modal.open(`<h2 class="modal-title">${esc(r.name)}・${esc(Fmt.shortDate(c.start))}：${x.count} 位</h2>
+        ${x.people && x.people.length ? `<div class="hq-table-wrap"><table class="hq-table"><thead><tr><th>姓名</th><th>身分</th><th>佛堂</th><th>項目</th></tr></thead>
+        <tbody>${x.people.map((p) => `<tr><td>${esc(p.name)}${p.accompany ? '<small>陪同</small>' : ''}</td><td>${esc(p.identity)}</td><td>${esc(p.temple)}</td><td>${esc(p.position)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="panel-empty">還沒有人報名。</p>'}
+        <div class="modal-actions"><button type="button" class="btn btn-block" data-close>關閉</button></div>`);
+      pm.el.querySelector('[data-close]').addEventListener('click', () => pm.close());
+    }));
+    body.querySelector('[data-remind]').addEventListener('click', () => {
+      const text = `🙏【宏教分壇分派】${c0.title}（${cs.length} 個日期）\n\n${pending.length ? pending.map((r) => `${r.name}：還有 ${todoBy[r.code]} 天沒處理`).join('\n') + `\n\n請${catLabel(c0.category)}組長到後台「📥 分壇分派」，可以按「📅 一次放到本區行事曆」（或寫原因不參加）。` : '各區都處理好了，感恩 🙏'}`;
+      const m = Modal.open(`<h2 class="modal-title">📋 提醒還沒處理的區</h2><p class="modal-note">${pending.length ? `${pending.length} 區還沒處理完。複製下面的文字傳給他們的組長：` : '各區都處理好了。'}</p>
+        <textarea class="day-text" rows="8" readonly>${esc(text)}</textarea>
+        <div class="modal-actions"><button type="button" class="btn btn-primary btn-block" data-copy>複製文字</button><button type="button" class="btn btn-line btn-block" data-line>傳到 LINE</button><button type="button" class="btn btn-block" data-close>關閉</button></div>`);
+      m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+      m.el.querySelector('[data-copy]').addEventListener('click', async (ev) => { ev.target.textContent = (await Share.copyText(text)) ? '已複製 ✓' : '請長按框內文字複製'; });
+      m.el.querySelector('[data-line]').addEventListener('click', () => window.open('https://line.me/R/msg/text/?' + encodeURIComponent(text), '_blank', 'noopener'));
+    });
+    body.querySelector('[data-xlsx]').addEventListener('click', async (ev) => {
+      const btn = ev.currentTarget;
+      btn.disabled = true;
+      try {
+        await loadXlsx();
+        const wb = XLSX.utils.book_new();
+        const txt = (c, r) => { const x = cell(c, r); if (!x) return ''; const q = quotaOf(c, r, x); return x.status === 'published' ? (q ? `${x.count}/${q}` : x.count) : (STATUS[x.status] || [x.status])[0]; };
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['日期'].concat(d.regions.map((r) => r.name), ['合計'])].concat(cs.map((c) => [c.start].concat(d.regions.map((r) => txt(c, r)), [d.regions.reduce((s, r) => s + ((cell(c, r) || {}).count || 0), 0)])))), '總覽');
+        const people = [];
+        cs.forEach((c) => d.regions.forEach((r) => ((cell(c, r) || {}).people || []).forEach((p) => people.push([c.start, r.name, p.name, p.identity, p.temple, p.position, p.accompany ? '是' : '']))));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['日期', '區', '姓名', '身分', '佛堂', '了愿項目', '陪同']].concat(people)), '名單');
+        XLSX.writeFile(wb, `${c0.title}_整組總覽_${today}.xlsx`);
+      } catch (e) { alert(e.message || '匯出失敗'); }
+      btn.disabled = false;
+    });
+  }
+
   /** 「11/22、11/24、11/29⋯共 12 天」 */
   function datesText(items) {
     const ds = items.map((c) => Fmt.shortDate(c.start) + (c.end && c.end !== c.start ? '～' + Fmt.shortDate(c.end) : ''));
@@ -298,7 +400,7 @@
     const totalN = rows.reduce((n, r) => n + (r.count || 0), 0);
     const statusHtml = (r) => { const [l, cls] = STATUS[r.status] || [r.status, '']; return `<span class="hq-st ${cls}">${l}</span>${r.status === 'declined' && r.declineReason ? `<small>${esc(r.declineReason)}</small>` : ''}${r.syncError ? `<small class="form-error">更新失敗：${esc(r.syncError)}</small>` : ''}`; };
     body.innerHTML = `
-      <p><a href="#/admin">‹ 分派清單</a></p>
+      <p><a href="#/admin">‹ 分派清單</a>　<a href="#/admin/hq/overview/${encodeURIComponent(groupKey(c))}">📊 同名的整組總覽</a></p>
       <h2>${esc(c.title)}</h2>
       <p class="muted">${esc(catLabel(c.category))}・${esc(when(c))}${c.deadline ? '・報名截止 ' + esc(Fmt.shortDate(c.deadline)) : ''}・名額：${esc({ none: '不限', assigned: '分壇分配', self: '各區自己報' }[c.quotaMode])}</p>
       <div class="admin-actions">

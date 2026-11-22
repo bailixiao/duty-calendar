@@ -223,3 +223,20 @@ test('各區整組放到行事曆（adminHqPublishMany）：補充說明、名�
   const ev = (await R.she.call({ action: 'getEvents', from: '2026-12-01', to: '2027-01-31' }, 'GET')).data.duties;
   assert.equal(ev.filter((d) => d.name === '測試輪值').length, 2);
 });
+
+test('整組總覽（hqGroupSummary）：日期 × 各區的狀態、人數，每一區只問一次', async () => {
+  const R = await setup();
+  await R.hq.admin('hqSaveDrafts', { items: ['2026-12-20', '2026-12-27'].map((d) => ({ title: '測試輪值', category: '勤務', start: d, regions: ['she', 'zhen'] })) });
+  const ds = (await R.hq.admin('hqList')).data.campaigns;
+  await R.hq.admin('hqSaveMany', { items: ds });
+  const ids = (await R.she.admin('adminHqInbox')).data.items.map((x) => x.id).sort();
+  await R.she.admin('adminHqPublish', { id: ids[0] });
+  const r = await R.hq.admin('hqGroupSummary', { ids });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.equal(r.data.campaigns.length, 2);
+  assert.deepEqual(r.data.regions.map((x) => x.code).sort(), ['she', 'zhen']);
+  assert.equal(r.data.cells[ids[0]].she.status, 'published');
+  assert.equal(r.data.cells[ids[1]].she.status, 'new');
+  assert.ok(['not-open', 'new'].indexOf(r.data.cells[ids[0]].zhen.status) !== -1);
+  assert.equal((await R.she.admin('hqGroupSummary', { ids })).error.code, 'FORBIDDEN', '只有分壇能看');
+});

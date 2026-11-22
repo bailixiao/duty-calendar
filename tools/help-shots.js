@@ -316,7 +316,7 @@ async function regionShots(c, only) {
 }
 
 // 宏教分壇分派（2026/11/22）：分壇開分派 → 教捨區收件匣、放到行事曆 → 報名 → 分壇總表（測試版的分壇 hq、教捨區 she 都已開通，密碼 test-pass）
-const HQ_SHOTS = ['hq-form', 'hq-summary-new', 'hq-inbox-note', 'hq-inbox-page', 'hq-inbox-open', 'hq-summary', 'hq-list', 'hq-import', 'hq-drafts', 'hq-group', 'hq-inbox-group'];
+const HQ_SHOTS = ['hq-form', 'hq-summary-new', 'hq-inbox-note', 'hq-inbox-page', 'hq-inbox-open', 'hq-summary', 'hq-list', 'hq-import', 'hq-drafts', 'hq-group', 'hq-inbox-group', 'hq-overview'];
 async function hqShots(c, only) {
   const want = (n) => !only.length || only.indexOf(n) !== -1;
   if (!HQ_SHOTS.some(want)) return;
@@ -375,7 +375,7 @@ async function hqShots(c, only) {
   }
   }
   // 從檔案匯入（測試版沒有 AI 金鑰：AI 的回答換成假的，看畫面、農曆換算、存草稿）
-  if (want('hq-import') || want('hq-drafts') || want('hq-group') || want('hq-inbox-group')) {
+  if (want('hq-import') || want('hq-drafts') || want('hq-group') || want('hq-inbox-group') || want('hq-overview')) {
     await run(c, PREP + `location.hash = '#/admin/hq/import'; for (let i = 0; i < 30 && !document.querySelector('[data-files]'); i++) await __wait(300);
       const orig = Api.admin; Api.admin = (a, p, r) => (a === 'hqImportAi' ? new Promise((ok) => setTimeout(() => ok({ items: [
         { title: '測試分壇法會', category: '道務', start: '2027-03-05', startTime: '0900', endTime: '12:00', location: '測試地點', description: '各區道親參加' },
@@ -402,8 +402,8 @@ async function hqShots(c, only) {
       console.log('✓ hq-drafts');
     }
     // 各區：同一個活動好幾個日期，整組一次放到行事曆
-    if (want('hq-inbox-group')) {
-      await run(c, PREP + `let r = await Api.admin('hqSaveDrafts', { items: ['2027-03-07', '2027-03-14', '2027-03-21'].map((d) => ({ title: '測試志工輪值', category: '勤務', start: d, startTime: '08:00', endTime: '12:00', location: '測試地點', regions: ['she'] })) });
+    if (want('hq-inbox-group') || want('hq-overview')) {
+      await run(c, PREP + `let r = await Api.admin('hqSaveDrafts', { items: ['2027-03-07', '2027-03-14', '2027-03-21'].map((d) => ({ title: '測試志工輪值', category: '勤務', start: d, startTime: '08:00', endTime: '12:00', location: '測試地點', regions: ['main', 'she'] })) });
         const ds = (await Api.admin('hqList', {})).campaigns.filter((x) => x.title === '測試志工輪值' && x.status === 'draft'); r = await Api.admin('hqSaveMany', { items: ds.map((x) => Object.assign({}, x, { positions: [{ name: '輪值' }] })) }); if (r.sent !== 3) throw new Error('INFO sent=' + r.sent);`);
       await go(BASE + 'she/#/admin');
       await run(c, login);
@@ -413,10 +413,16 @@ async function hqShots(c, only) {
       await run(c, PREP + `document.querySelector('[data-group-pub]').click(); for (let i = 0; i < 30 && !document.querySelector('.modal-box form'); i++) await __wait(300); document.querySelector('.modal-box [name=note]').value = '測試集合說明'; document.querySelector('.modal-box form').requestSubmit(); for (let i = 0; i < 30 && !document.querySelector('[data-body] .notice-success'); i++) await __wait(300);
         const t = (document.querySelector('[data-body] .notice-success') || {}).innerText || ''; if (!/3 個日期/.test(t)) throw new Error('INFO ' + t + document.body.innerText.slice(0, 200));`);
       await go(BASE + 'hq/#/admin');
+      await run(c, login);
+      await run(c, PREP + `await __wait(800); const card = [...document.querySelectorAll('.hq-card')].find((x) => /測試志工輪值/.test(x.textContent) && /整組總覽/.test(x.textContent)); if (!card) throw new Error('INFO 沒有整組卡'); card.click(); for (let i = 0; i < 40 && !document.querySelector('.ov-table'); i++) await __wait(300); if (!document.querySelector('.ov-table')) throw new Error('INFO 沒有總覽表'); await __wait(300);`);
+      if (want('hq-overview')) {
+        await shot(c, path.join(OUT, 'hq-overview.png'), PREP + `const b = document.querySelector('[data-body]'); b.scrollIntoView(); const r = b.getBoundingClientRect(); return { x: 0, y: r.top + scrollY - 6, width: innerWidth, height: Math.min(1800, r.height + 12) };`);
+        console.log('✓ hq-overview');
+      }
     }
     // 同名草稿一起檢查、一起送出
     if (want('hq-group')) {
-      await run(c, PREP + `const card = [...document.querySelectorAll('.hq-card.is-draft')].find((x) => /測試大掃除/.test(x.textContent)); if (!card || !/2 個日期/.test(card.textContent)) throw new Error('INFO card=' + (card && card.textContent)); card.click(); for (let i = 0; i < 30 && !document.querySelector('.hq-group-dates'); i++) await __wait(300); await __wait(500);`);
+      await run(c, PREP + `location.hash = '#/admin'; for (let i = 0; i < 30 && !document.querySelector('.hq-card'); i++) await __wait(300); await __wait(500); const card = [...document.querySelectorAll('.hq-card.is-draft')].find((x) => /測試大掃除/.test(x.textContent)); if (!card || !/2 個日期/.test(card.textContent)) throw new Error('INFO card=' + (card && card.textContent)); card.click(); for (let i = 0; i < 30 && !document.querySelector('.hq-group-dates'); i++) await __wait(300); await __wait(500);`);
       await shot(c, path.join(OUT, 'hq-group.png'), PREP + `const f = document.querySelector('.hq-form'); const r = f.getBoundingClientRect(); return { x: 0, y: r.top + scrollY - 140, width: innerWidth, height: Math.min(3000, r.height + 150) };`);
       console.log('✓ hq-group');
       await run(c, PREP + `document.querySelector('.hq-form [name=positions]').value = '打掃'; document.querySelector('.hq-form [type=submit]').click(); for (let i = 0; i < 40 && !/已送出給各區/.test(document.body.innerText); i++) await __wait(300);

@@ -1096,6 +1096,19 @@ button.more-item { width: 100%; text-align: left; font: inherit; cursor: pointer
 .hq-alert-btn { display: flex; justify-content: center; width: 100%; min-height: 48px; font-size: 1.05rem; text-decoration: none; border-radius: 12px; }
 .tab-alert { display: inline-block; margin-left: 4px; padding: 0 7px; border-radius: 999px; background: #d9480f; color: #fff; font-size: .8rem; font-weight: 700; line-height: 1.6; vertical-align: 2px; }
 .hq-group-pub { margin-top: 10px; min-height: 48px; border-radius: 12px; }
+/* 整組總覽（日期 × 各區） */
+.ov-wrap { max-height: 75vh; overflow: auto; }
+.ov-table { border-collapse: separate; border-spacing: 0; }
+.ov-table th, .ov-table td { text-align: center; white-space: nowrap; }
+.ov-table thead th { position: sticky; top: 0; z-index: 2; }
+.ov-table .ov-date { position: sticky; left: 0; z-index: 1; background: var(--paper); text-align: left; }
+.ov-table thead .ov-date { z-index: 3; }
+.ov-table .tab-alert { display: block; margin: 2px auto 0; width: fit-content; }
+.ov-ok { background: #eef7ee; font-weight: 700; }
+.ov-short, .ov-short .link-btn { color: #c0392b; background: #fdecec; }
+.ov-past td, .ov-past th { opacity: .55; }
+.ov-none { color: var(--muted); }
+.ov-sum { font-weight: 700; }
 .hq-inbox-groups { display: grid; gap: 12px; }
 .hq-inbox-group { border: 1px solid var(--line); border-radius: var(--radius); background: #fff; padding: 10px 12px; }
 .hq-inbox-group.has-todo { border: 2px solid #e0a040; background: #fffaf2; }

@@ -209,6 +209,30 @@ export function createHq({ gs, store, cross, openRegions }) {
     return { campaign: c, regions: rows };
   };
 
+  /**
+   * 整組總覽（2026/11/22）：同一個活動好幾個日期 × 各區的狀態、名額、人數、名字。body.ids＝分派代號。
+   * 每一區只問一次（hqReportMany），回傳 { campaigns, regions: [{code,name,open}], cells: { 分派代號: { 區: 回報 } } }
+   */
+  special.hqGroupSummary = async (body, curRegion) => {
+    requireHqAdmin(body, curRegion);
+    const ids = Array.isArray(body.ids) ? body.ids.map(String) : [];
+    const cs = list().filter((x) => ids.indexOf(x.id) !== -1 && x.status !== 'draft').sort((a, b) => a.start.localeCompare(b.start));
+    if (!cs.length) throw err('NOT_FOUND', '找不到這些分派，可能已經刪掉了');
+    const open = await openSet();
+    const regions = TARGETS.filter(([r]) => cs.some((c) => c.regions.indexOf(r) !== -1)).map(([code, name]) => ({ code, name, open: open.has(code) }));
+    const cells = {};
+    cs.forEach((c) => { cells[c.id] = {}; });
+    await Promise.all(regions.map(async (g) => {
+      const mine = cs.filter((c) => c.regions.indexOf(g.code) !== -1);
+      if (!g.open) { mine.forEach((c) => { cells[c.id][g.code] = { status: 'not-open', count: 0, people: [] }; }); return; }
+      try {
+        const res = await cross(g.code, 'hqReportMany', mine.map((c) => c.id));
+        mine.forEach((c, i) => { cells[c.id][g.code] = (res && res[i]) || { status: 'none', count: 0, people: [] }; });
+      } catch (e) { mine.forEach((c) => { cells[c.id][g.code] = { status: 'error', error: (e && e.message) || String(e), count: 0, people: [] }; }); }
+    }));
+    return { campaigns: cs, regions, cells };
+  };
+
   /** 從檔案匯入：勾好的活動一次存成草稿。body.items＝分派陣列（同 hqSave 的 campaign） */
   special.hqSaveDrafts = async (body, curRegion) => {
     const who = requireHqAdmin(body, curRegion);
@@ -268,6 +292,7 @@ export function createHq({ gs, store, cross, openRegions }) {
     if (method === 'hqDeliverMany') return (Array.isArray(payload) ? payload : []).map((c) => { try { gs.hqDeliver_(c); return 'ok'; } catch (e) { return 'error：' + ((e && e.message) || e); } });
     if (method === 'hqWithdraw') return gs.hqWithdraw_(payload);
     if (method === 'hqReport') return gs.hqReport_(payload);
+    if (method === 'hqReportMany') return (Array.isArray(payload) ? payload : []).map((id) => gs.hqReport_(id));
     // 教全區把 AI 金鑰借給分壇（只有 Durable Object 之間叫得到）
     if (method === 'hqAiKey') {
       const p = gs.propsForAsync_();
