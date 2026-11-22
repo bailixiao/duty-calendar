@@ -63,6 +63,7 @@
         </div>
       </form>`);
     const f = m.el.querySelector('form');
+    MemberSuggest.attach(f.elements.name); // 姓名連動成員名單（2026/11/22）
     const err = f.querySelector('[data-err]');
     m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
     const drawPhotos = () => {

@@ -718,6 +718,13 @@
     }, guard, g ? `<button type="button" class="btn btn-block btn-quiet-danger" data-delete${deletable ? '' : ' disabled'}>刪除這一組</button>
       ${deletable ? '' : '<p class="hint">還有勤務由這一組負責，不能刪除。</p>'}` : '');
 
+    // 組長、佐理、組員：連動成員名單（2026/11/22）
+    const gf = m.el.querySelector('form');
+    if (gf) {
+      MemberSuggest.attach(gf.elements.leader);
+      MemberSuggest.attach(gf.elements.assistant, { multi: true });
+      MemberSuggest.attach(gf.elements.members, { multi: true });
+    }
     const del = m.el.querySelector('[data-delete]');
     if (del && deletable) del.addEventListener('click', async () => {
       m.close();

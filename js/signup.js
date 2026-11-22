@@ -24,7 +24,7 @@
     const text = String(raw || '').replace(LIST_MARK, '、').replace(/\r?\n/g, '、');
     const byMark = text.split(/[、,，.。．\/／;；|]+/).map(cleanPart).filter(Boolean);
     return byMark.flatMap((part) => {
-      const bySpace = part.split(/[\s　]+/).filter(Boolean);
+      const bySpace = part.split(/[\s　]+/).map(cleanPart).filter(Boolean);
       return bySpace.length > 1 && bySpace.every((x) => /^[一-鿿]{2,}$/.test(x)) ? bySpace : [part];
     });
   }

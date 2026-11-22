@@ -1110,6 +1110,12 @@
      * 同名好幾位（不同佛堂）但身分都一樣，也帶入。
      */
     function fromMember(x) {
+      // 只打名字、沒打姓（例：玉蘭）：名單上只有一位「〇玉蘭」就換成全名；好幾位就列出來請他點（同報名頁）
+      if (!x.typed && x.name.length >= 2 && !sameOf(x.name).length) {
+        const given = members.filter((y) => y.name.length > x.name.length && y.name.length <= x.name.length + 2 && y.name.slice(-x.name.length) === x.name);
+        if (given.length === 1) { x.typed = x.name; x.name = given[0].name; x.temple = given[0].temple || ''; x.choices = null; }
+        else if (given.length > 1) { x.choices = given.slice(0, 8).map((y) => ({ name: y.name, temple: y.temple || '' })); return; }
+      }
       const hit = lookup(x.name, x.temple || undefined) || lookup(x.name);
       let id = hit ? hit.identity : '';
       if (!hit) {
@@ -1142,9 +1148,10 @@
       listEl.innerHTML = people.map((x, i) => `
         <li class="name-item${x.error || (box.dataset.missing && !x.identity) ? ' is-missing' : ''}">
           <div class="name-top">
-            <span class="name-text">${esc(x.name)}${x.temple ? `<small class="name-temple">${esc(x.temple)}</small>` : ''}</span>
+            <span class="name-text">${esc(x.name)}${x.temple ? `<small class="name-temple">${esc(x.temple)}</small>` : ''}${x.typed ? `<small class="name-typed">打「${esc(x.typed)}」，已對到成員名單</small>` : ''}</span>
             <button type="button" class="btn-remove" data-remove="${i}" aria-label="移除 ${esc(x.name)}">×</button>
           </div>
+          ${x.choices ? `<div class="name-choices"><span>名單上有好幾位「${esc(x.name)}」，是哪一位？</span>${x.choices.map((c, j) => `<button type="button" class="suggestion" data-choose="${i}:${j}">${esc(c.name)}${c.temple ? `<small>${esc(c.temple)}</small>` : ''}</button>`).join('')}<button type="button" class="link-btn" data-choose="${i}:-1">都不是（新朋友）</button></div>` : ''}
           ${x.locked ? `<p class="identity-fixed">身分：<strong>${esc(x.identity)}</strong><span class="muted">（成員資料登記的）</span></p>` : `<div class="seg" role="radiogroup" aria-label="${esc(x.name)} 的身分">${IDS.map((v) => `<label class="seg-item"><input type="radio" name="id-${i}" value="${v}" data-id="${i}"${x.identity === v ? ' checked' : ''}><span>${v}</span></label>`).join('')}</div>`}
           ${x.identity === '壇辦' ? `<label class="check"><input type="checkbox" data-acc="${i}"${x.accompany ? ' checked' : ''}> 陪同（不算人數）</label>` : ''}
           ${x.error ? `<p class="form-error">${esc(x.error)}</p>` : ''}
@@ -1180,6 +1187,17 @@
       input.focus();
     });
     listEl.addEventListener('click', (ev) => {
+      const ch = ev.target.closest('[data-choose]');
+      if (ch) {
+        const [i, j] = ch.dataset.choose.split(':').map(Number);
+        const x = people[i];
+        if (j >= 0) { const c = x.choices[j]; x.typed = x.name; x.name = c.name; x.temple = c.temple; }
+        else x.typed = x.name; // 都不是：照打的名字，不再問
+        x.choices = null;
+        fromMember(x);
+        paint();
+        return;
+      }
       const r = ev.target.closest('[data-remove]');
       if (!r) return;
       people.splice(Number(r.dataset.remove), 1);
@@ -1203,6 +1221,12 @@
       if (input.value.trim()) addTyped();
       box.hidden = true;
       if (!people.length) { box.textContent = '請填姓名'; box.hidden = false; return; }
+      const unsure = people.filter((x) => x.choices);
+      if (unsure.length) {
+        box.textContent = '請點選是哪一位（或「都不是」）：' + unsure.map((x) => x.name).join('、');
+        box.hidden = false;
+        return;
+      }
       const missing = people.filter((x) => !x.identity);
       if (missing.length) {
         box.dataset.missing = '1';

@@ -1160,6 +1160,8 @@
 
     function bind() {
       const f = body.querySelector('form');
+      // 師資、講師、帶班、助理帶班：連動成員名單（2026/11/22）
+      ['teachers', 'lecturers', 'leaders', 'assistants'].forEach((n) => { if (f.elements[n]) MemberSuggest.attach(f.elements[n], { multi: true }); });
       if (!editing && !ctx.source && f.elements.name) {
         f.elements.name.addEventListener('change', () => { sync(); autoFill(false); });
       }
