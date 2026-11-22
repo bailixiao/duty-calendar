@@ -1052,6 +1052,16 @@ button.more-item { width: 100%; text-align: left; font: inherit; cursor: pointer
 .hq-import-fields small { display: block; }
 .hq-card { width: 100%; text-align: left; font: inherit; cursor: pointer; }
 .hq-form .form-grid-2, .admin-form .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.hq-import-group { border: 1px solid var(--line); border-radius: var(--radius); background: #fff; padding: 10px; display: grid; gap: 8px; }
+.hq-import-group.is-off { opacity: .6; }
+.hq-import-head { display: flex; gap: 8px; }
+.hq-import-title { font-weight: 700; font-size: 1.05rem !important; }
+.hq-import-dates { display: grid; gap: 6px; margin-left: 28px; }
+.hq-import-dates .hq-import-row { border-style: dashed; background: #fffdf8; padding: 6px 8px; }
+.hq-import-when { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+.hq-import-all { margin-left: 28px; }
+.hq-import-all .btn { margin-top: 6px; }
+@media (max-width: 520px) { .hq-import-dates, .hq-import-all { margin-left: 0; } }
 .hq-import-to summary { cursor: pointer; font-size: .95rem; padding: 2px 0; }
 .hq-import-to[open] summary { margin-bottom: 4px; }
 .hq-regions { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 12px; }

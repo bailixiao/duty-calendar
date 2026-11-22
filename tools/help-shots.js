@@ -375,16 +375,17 @@ async function hqShots(c, only) {
         { title: '測試分壇法會', category: '道務', start: '2027-03-05', startTime: '0900', endTime: '12:00', location: '測試地點', description: '各區道親參加' },
         { title: '測試初一班', category: '道務', lunarDate: '二月初一', lunarYear: 2027, startTime: '19:30' },
         { title: '測試大掃除', category: '勤務', start: '2027-01-17', location: '測試地點', regions: ['仁孝'], uncertain: ['時間看不清楚'] },
+        { title: '測試大掃除', category: '勤務', start: '2027-01-24', location: '測試地點', regions: ['志美'] },
         { title: '測試過去的活動', category: '勤務', start: '2026-01-10' }] }), 300)) : orig(a, p, r));
       const cv = document.createElement('canvas'); cv.width = 400; cv.height = 300; cv.getContext('2d').fillRect(0, 0, 10, 10);
       const blob = await new Promise((ok) => cv.toBlob(ok, 'image/png'));
       const dt = new DataTransfer(); dt.items.add(new File([blob], '測試行事曆.png', { type: 'image/png' }));
       const fin = document.querySelector('[data-files]'); fin.files = dt.files; fin.dispatchEvent(new Event('change', { bubbles: true }));
       document.querySelector('[data-read]').click(); for (let i = 0; i < 40 && !document.querySelector('.hq-import-row'); i++) await __wait(300);
-      const rows = [...document.querySelectorAll('.hq-import-row')]; if (rows.length !== 4) throw new Error('INFO rows=' + rows.length + ' ' + document.querySelector('[data-progress]').innerText);
-      const lunar = rows.find((x) => x.querySelector('[data-k=title]').value === '測試初一班').querySelector('[data-k=start]').value;
-      const past = rows.find((x) => x.querySelector('[data-k=title]').value === '測試過去的活動').querySelector('[data-k=pick]').checked;
-      const to = rows.find((x) => x.querySelector('[data-k=title]').value === '測試大掃除').querySelector('.hq-import-to strong').textContent; if (to !== '教孝、教仁' && to !== '教仁、教孝') throw new Error('INFO to=' + to); window.__info = 'lunar=' + lunar + ' pastPicked=' + past; if (lunar !== '2027-03-08' || past) throw new Error('INFO ' + window.__info);`);
+      const rows = [...document.querySelectorAll('.hq-import-row')]; if (rows.length !== 5) throw new Error('INFO rows=' + rows.length + ' ' + document.querySelector('[data-progress]').innerText);
+      const lunar = rows.find((x) => x.closest('.hq-import-group').querySelector('[data-gk=title]').value === '測試初一班').querySelector('[data-k=start]').value;
+      const past = rows.find((x) => x.closest('.hq-import-group').querySelector('[data-gk=title]').value === '測試過去的活動').querySelector('[data-k=pick]').checked;
+      const to = rows.find((x) => x.closest('.hq-import-group').querySelector('[data-gk=title]').value === '測試大掃除').querySelector('.hq-import-to strong').textContent; if (to !== '教孝、教仁' && to !== '教仁、教孝') throw new Error('INFO to=' + to); window.__info = 'lunar=' + lunar + ' pastPicked=' + past; if (lunar !== '2027-03-08' || past) throw new Error('INFO ' + window.__info);`);
     if (want('hq-import')) {
       await shot(c, path.join(OUT, 'hq-import.png'), PREP + `const a = document.querySelector('[data-progress]'); a.scrollIntoView(); const r = a.getBoundingClientRect(); const e = document.querySelector('[data-save]').getBoundingClientRect(); return { x: 0, y: r.top + scrollY - 10, width: innerWidth, height: Math.min(2600, e.bottom - r.top + 20) };`);
       console.log('✓ hq-import');

@@ -393,40 +393,83 @@
       const box = body.querySelector('[data-rows]');
       if (!rows.length) { box.innerHTML = ''; return; }
       const n = rows.filter((x) => x.pick).length;
+      const redraw = () => { const y = scrollY; drawRows(); scrollTo(0, y); };
+      // 同一個活動名稱（同類別）整理成一組，下面一個日期一行
+      const gm = new Map();
+      rows.forEach((x, i) => { const k = x.title.replace(/\s/g, '') + '|' + x.category; if (!gm.has(k)) gm.set(k, { items: [] }); gm.get(k).items.push(i); });
+      const groups = [...gm.values()];
+      groups.forEach((g) => g.items.sort((p, q) => (rows[p].start || '9999').localeCompare(rows[q].start || '9999')));
+      groups.sort((p, q) => (rows[p.items[0]].start || '9999').localeCompare(rows[q.items[0]].start || '9999'));
       box.innerHTML = `
         <fieldset class="form-block">
           <legend>預設送給哪幾區</legend>
-          <p class="hint">表上沒寫哪一區的活動都用這裡的設定；表上有寫「輪值區別」的，會自動勾那幾區。每一筆下面的「送給」可以再單獨改。</p>
+          <p class="hint">下面同一個名稱的活動整理成一組，每個日期一行。表上沒寫哪一區的都用這裡的設定；表上有寫「輪值區別」的，會自動勾那幾區。每個日期的「送給」可以單獨改，也可以用「這一組全部改成送給⋯」一次改。</p>
           <div class="hq-regions">${data.targets.map((t) => `<label class="check"><input type="checkbox" data-region="${t.code}"${st.regions.indexOf(t.code) !== -1 ? ' checked' : ''}> ${esc(t.name)}${t.open ? '' : '<small class="muted">（還沒開通）</small>'}</label>`).join('')}</div>
         </fieldset>
-        <div class="hq-import-list">${rows.map((x, i) => `
-          <div class="hq-import-row${x.pick ? '' : ' is-off'}${x.start && x.start < today ? ' is-past' : ''}" data-i="${i}">
-            <label class="check"><input type="checkbox" data-k="pick"${x.pick ? ' checked' : ''}></label>
-            <div class="hq-import-fields">
-              <input class="input" data-k="title" value="${esc(x.title)}" aria-label="名稱">
-              <div class="hq-import-line">
-                <select class="input" data-k="category" aria-label="類別">${CATS.map(([v, l]) => `<option value="${v}"${x.category === v ? ' selected' : ''}>${l}</option>`).join('')}</select>
-                <input class="input" type="date" data-k="start" value="${esc(x.start)}" aria-label="日期">
-                <input class="input" type="date" data-k="end" value="${esc(x.end && x.end !== x.start ? x.end : '')}" aria-label="結束日">
-                <input class="input" data-k="startTime" value="${esc(x.startTime)}" placeholder="開始" aria-label="開始時間">
-                <input class="input" data-k="endTime" value="${esc(x.endTime)}" placeholder="結束" aria-label="結束時間">
-                <input class="input" data-k="location" value="${esc(x.location)}" placeholder="地點" aria-label="地點">
+        <div class="hq-import-list">${groups.map((g, gi) => {
+          const on = g.items.filter((x) => rows[x].pick).length;
+          const f0 = rows[g.items[0]];
+          const srcs = [...new Set(g.items.map((x) => rows[x].source))];
+          return `
+          <section class="hq-import-group${on ? '' : ' is-off'}" data-g="${gi}">
+            <div class="hq-import-head">
+              <label class="check" title="整組勾選"><input type="checkbox" data-gk="pick"${on === g.items.length ? ' checked' : ''}${on && on < g.items.length ? ' data-partial' : ''} aria-label="整組勾選"></label>
+              <div class="hq-import-fields">
+                <input class="input hq-import-title" data-gk="title" value="${esc(f0.title)}" aria-label="活動名稱">
+                <div class="hq-import-line">
+                  <select class="input" data-gk="category" aria-label="類別">${CATS.map(([v, l]) => `<option value="${v}"${f0.category === v ? ' selected' : ''}>${l}</option>`).join('')}</select>
+                  <input class="input" data-gk="location" value="${esc(f0.location)}" placeholder="地點" aria-label="地點">
+                </div>
+                <small class="muted">${g.items.length} 個日期，勾了 ${on} 個・來源：${esc(srcs.join('、'))}</small>
               </div>
-              <small class="muted">${x.lunar ? '農曆' + esc(x.lunar) + (x.start ? '（已換成國曆）' : '（換不出國曆，請自己填日期）') + '・' : ''}${x.start && x.start < today ? '已經過了・' : ''}來源：${esc(x.source)}${x.description ? '・' + esc(x.description.slice(0, 80)) : ''}</small>
-              ${x.uncertain ? `<small class="form-error">AI 不確定：${esc(x.uncertain)}</small>` : ''}
-              <details class="hq-import-to"${x.regions.length ? '' : ' open'}>
-                <summary>📨 送給：<strong${x.regions.length ? '' : ' class="form-error"'}>${esc(regionNames(x.regions))}</strong>${x.byAi && !x.custom ? '<small class="muted">（表上寫的）</small>' : ''} <small>✏️ 改</small></summary>
-                <div class="hq-regions">${data.targets.map((t) => `<label class="check"><input type="checkbox" data-row-region="${t.code}"${x.regions.indexOf(t.code) !== -1 ? ' checked' : ''}> ${esc(t.name)}</label>`).join('')}</div>
-              </details>
             </div>
-          </div>`).join('')}</div>
+            <div class="hq-import-dates">${g.items.map((i) => { const x = rows[i]; return `
+              <div class="hq-import-row${x.pick ? '' : ' is-off'}${x.start && x.start < today ? ' is-past' : ''}" data-i="${i}">
+                <label class="check"><input type="checkbox" data-k="pick"${x.pick ? ' checked' : ''} aria-label="這一天"></label>
+                <div class="hq-import-fields">
+                  <div class="hq-import-line hq-import-when">
+                    <input class="input" type="date" data-k="start" value="${esc(x.start)}" aria-label="日期">
+                    <input class="input" type="date" data-k="end" value="${esc(x.end && x.end !== x.start ? x.end : '')}" aria-label="結束日（一天就空白）">
+                    <input class="input" data-k="startTime" value="${esc(x.startTime)}" placeholder="開始時間" aria-label="開始時間">
+                    <input class="input" data-k="endTime" value="${esc(x.endTime)}" placeholder="結束時間" aria-label="結束時間">
+                  </div>
+                  <details class="hq-import-to"${x.regions.length ? '' : ' open'}>
+                    <summary>📨 送給：<strong${x.regions.length ? '' : ' class="form-error"'}>${esc(regionNames(x.regions))}</strong>${x.byAi && !x.custom ? '<small class="muted">（表上寫的）</small>' : ''} <small>✏️ 改</small></summary>
+                    <div class="hq-regions">${data.targets.map((t) => `<label class="check"><input type="checkbox" data-row-region="${t.code}"${x.regions.indexOf(t.code) !== -1 ? ' checked' : ''}> ${esc(t.name)}</label>`).join('')}</div>
+                  </details>
+                  ${x.lunar || (x.start && x.start < today) || x.description ? `<small class="muted">${x.lunar ? '農曆' + esc(x.lunar) + (x.start ? '（已換成國曆）' : '（換不出國曆，請自己填日期）') + '・' : ''}${x.start && x.start < today ? '已經過了・' : ''}${esc(x.description.slice(0, 60))}</small>` : ''}
+                  ${x.uncertain ? `<small class="form-error">AI 不確定：${esc(x.uncertain)}</small>` : ''}
+                </div>
+              </div>`; }).join('')}</div>
+            ${g.items.length > 1 ? `<details class="hq-import-to hq-import-all">
+              <summary>📨 這一組全部改成送給⋯ <small>✏️</small></summary>
+              <div class="hq-regions">${data.targets.map((t) => `<label class="check"><input type="checkbox" data-g-region="${t.code}"> ${esc(t.name)}</label>`).join('')}</div>
+              <button type="button" class="btn" data-g-apply>套用到這一組勾選的日期</button>
+            </details>` : ''}
+          </section>`; }).join('')}</div>
         <div class="form-error" data-error hidden></div>
         <button type="button" class="btn btn-primary btn-block" data-save${n ? '' : ' disabled'}>📝 存成草稿（${n} 筆）</button>`;
+      box.querySelectorAll('[data-partial]').forEach((el) => { el.indeterminate = true; });
+      box.querySelectorAll('[data-g]').forEach((sec) => {
+        const g = groups[Number(sec.dataset.g)];
+        sec.querySelectorAll('[data-gk]').forEach((el) => el.addEventListener('change', () => {
+          const k = el.dataset.gk;
+          if (k === 'pick') { g.items.forEach((i) => { rows[i].pick = el.checked; }); redraw(); return; }
+          g.items.forEach((i) => { rows[i][k] = k === 'title' ? el.value.trim() : el.value; });
+        }));
+        const ap = sec.querySelector('[data-g-apply]');
+        if (ap) ap.addEventListener('click', () => {
+          const codes = [...sec.querySelectorAll('[data-g-region]:checked')].map((y) => y.dataset.gRegion);
+          if (!codes.length) { alert('請先勾要送給哪幾區'); return; }
+          g.items.forEach((i) => { if (rows[i].pick) { rows[i].regions = codes.slice(); rows[i].custom = true; } });
+          redraw();
+        });
+      });
       box.querySelectorAll('[data-i]').forEach((row) => {
         const x = rows[Number(row.dataset.i)];
         row.querySelectorAll('[data-k]').forEach((el) => el.addEventListener('change', () => {
           const k = el.dataset.k;
-          if (k === 'pick') { x.pick = el.checked; drawRows(); return; }
+          if (k === 'pick') { x.pick = el.checked; redraw(); return; }
           x[k] = el.value;
           if ((k === 'startTime' || k === 'endTime') && el.value) { const t = Fmt.parseTime(el.value); if (t) { x[k] = t; el.value = t; } }
         }));
@@ -442,7 +485,7 @@
       box.querySelectorAll('[data-region]').forEach((el) => el.addEventListener('change', () => {
         st.regions = [...box.querySelectorAll('[data-region]:checked')].map((y) => y.dataset.region);
         rows.forEach((x) => { if (!x.byAi && !x.custom) x.regions = st.regions.slice(); });
-        const y = scrollY; drawRows(); scrollTo(0, y);
+        redraw();
       }));
       box.querySelector('[data-save]').addEventListener('click', async () => {
         const err = box.querySelector('[data-error]');
