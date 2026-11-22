@@ -6,6 +6,7 @@
   const IN_DAO = ['道親', '壇辦', '點傳師']; // 有求道的才算「道」的一代
   const GEN_LABEL = { 2: '道二代', 3: '道三代', 4: '道四代', 5: '道五代' };
   const STAGES = ['學齡前', '幼兒園', '國小', '國中', '高中', '大學'];
+  const MAX_AGE = 45; // 道二代、道三代只算 45 歲（含）以下；沒填年齡的照算（2026/11/22）
 
   /**
    * 學齡：依出生年和今天（台灣學年 9 月開始）推算。只有出生年，9 月以後出生的可能差一個年級。
@@ -59,11 +60,18 @@
       visiting.delete(m);
       return x.gen;
     };
-    members.forEach((m) => { const x = info.get(m); genOf(m); x.label = GEN_LABEL[x.gen] || (x.gen > 5 ? `道${x.gen}代` : ''); });
+    // gen＝真正第幾代（算子女用）；超過 45 歲的不標、不算進統計：label 空白、shownGen＝1
+    members.forEach((m) => {
+      const x = info.get(m);
+      genOf(m);
+      const tooOld = m.age !== '' && m.age !== undefined && m.age !== null && Number(m.age) > MAX_AGE;
+      x.label = tooOld ? '' : GEN_LABEL[x.gen] || (x.gen > 5 ? `道${x.gen}代` : '');
+      x.shownGen = x.label ? x.gen : 1;
+    });
     return info; // 用成員物件查（同名不同佛堂才不會混在一起）
   }
 
-  const api = { schoolStage, generations, STAGES, IN_DAO };
+  const api = { schoolStage, generations, STAGES, IN_DAO, MAX_AGE };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Family = api;
 })(typeof window !== 'undefined' ? window : globalThis);

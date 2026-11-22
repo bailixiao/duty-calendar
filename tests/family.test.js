@@ -62,3 +62,19 @@ test('父母、學校、興趣：存檔、只改家庭資料、改名時別人�
   const k2 = call('adminMembers').data.members.find((m) => m.name === '測試小孩二');
   assert.deepEqual([k2.parents, k2.school], [['測試爸爸改'], '測試高中']);
 });
+
+test('道二代、道三代只算 45 歲以下（沒填年齡的照算）；超過的照樣讓子女算得出代數', () => {
+  const ms = [
+    { name: '測試阿公', identity: '壇辦', age: 75, parents: [] },
+    { name: '測試爸爸', identity: '道親', age: 50, parents: ['測試阿公'] },
+    { name: '測試小孩', identity: '道親', age: 20, parents: ['測試爸爸'] },
+    { name: '測試阿姨', identity: '道親', age: 45, parents: ['測試阿公'] },
+    { name: '測試表弟', identity: '道親', age: '', parents: ['測試阿姨'] }
+  ];
+  const g = Family.generations(ms);
+  const at = (n) => g.get(ms.find((m) => m.name === n));
+  assert.deepEqual([at('測試爸爸').gen, at('測試爸爸').label, at('測試爸爸').shownGen], [2, '', 1], '50 歲不標道二代');
+  assert.equal(at('測試小孩').label, '道三代', '爸爸超過 45 歲，小孩照樣是道三代');
+  assert.equal(at('測試阿姨').label, '道二代', '45 歲還算');
+  assert.equal(at('測試表弟').label, '道三代', '沒填年齡照算');
+});

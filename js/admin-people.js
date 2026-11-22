@@ -837,7 +837,7 @@
   function familyAutoText(m, ageText, parentsText, idInput) {
     const today = new Date().toISOString().slice(0, 10);
     const by = /^\d{1,3}$/.test(ageText) ? Number(today.slice(0, 4)) - Number(ageText) : (m && m.birthYear) || '';
-    const me = Object.assign({}, m || { name: '' }, { parents: String(parentsText || '').split(/[、，,\s]+/).filter(Boolean), identity: idInput ? idInput.value : (m && m.identity) });
+    const me = Object.assign({}, m || { name: '' }, { age: /^\d{1,3}$/.test(ageText) ? Number(ageText) : '', parents: String(parentsText || '').split(/[、，,\s]+/).filter(Boolean), identity: idInput ? idInput.value : (m && m.identity) });
     const list = memberList.filter((x) => !m || x.row !== m.row).concat([me]);
     const f = Family.generations(list).get(me);
     const st = Family.schoolStage(by, today);
@@ -866,15 +866,15 @@
     const all = data.members.filter((m) => m.active && !m.pending);
     const fam = Family.generations(data.members);
     const rows = all.map((m) => ({ m, f: fam.get(m), st: Family.schoolStage(m.birthYear, today) }));
-    const kids = rows.filter((r) => r.f.gen >= 2 || r.st);
+    const kids = rows.filter((r) => r.f.shownGen >= 2 || r.st);
     const count = (fn) => rows.filter(fn).length;
-    const gens = [2, 3, 4].map((g) => [g, count((r) => (g === 4 ? r.f.gen >= 4 : r.f.gen === g))]).filter(([g, n]) => n || g < 4);
+    const gens = [2, 3, 4].map((g) => [g, count((r) => (g === 4 ? r.f.shownGen >= 4 : r.f.shownGen === g))]).filter(([g, n]) => n || g < 4);
     const stages = Family.STAGES.map((s) => [s, count((r) => r.st && r.st.stage === s)]);
     const canEdit = canEditPeople();
     body.innerHTML = `
       ${AdminPage.staleNote(stale)}
       ${flash}
-      <p class="hint">成員資料填了<strong>父母</strong>（成員名單上的爸爸、媽媽）就會自動算第幾代：父母有求道＝道二代，父母是道二代＝道三代。<strong>學齡</strong>看年齡自動算（9 月開始新學年；只有出生年，9 月以後生日的可能差一個年級）。</p>
+      <p class="hint">成員資料填了<strong>父母</strong>（成員名單上的爸爸、媽媽）就會自動算第幾代：父母有求道＝道二代，父母是道二代＝道三代，<strong>只算 45 歲以下</strong>（沒填年齡的照算）。<strong>學齡</strong>看年齡自動算（9 月開始新學年；只有出生年，9 月以後生日的可能差一個年級）。</p>
       <div class="youth-sum">
         ${gens.map(([g, n]) => `<button type="button" class="youth-stat${youthState.gen === String(g) ? ' is-active' : ''}" data-gen="${g}"><strong>${n}</strong><span>${g === 4 ? '道四代以上' : g === 2 ? '道二代' : '道三代'}</span></button>`).join('')}
         ${stages.filter(([, n]) => n).map(([s, n]) => `<button type="button" class="youth-stat${youthState.stage === s ? ' is-active' : ''}" data-stage="${s}"><strong>${n}</strong><span>${s}</span></button>`).join('')}
@@ -899,15 +899,15 @@
       const order = { '學齡前': 0, '幼兒園': 1, '國小': 2, '國中': 3, '高中': 4, '大學': 5 };
       return rows.filter((r) => {
         const g = youthState.gen;
-        if (g === 'kids' && !(r.f.gen >= 2 || r.st)) return false;
-        if (g === '2' && r.f.gen !== 2) return false;
-        if (g === '3' && r.f.gen !== 3) return false;
-        if (g === '4' && r.f.gen < 4) return false;
+        if (g === 'kids' && !(r.f.shownGen >= 2 || r.st)) return false;
+        if (g === '2' && r.f.shownGen !== 2) return false;
+        if (g === '3' && r.f.shownGen !== 3) return false;
+        if (g === '4' && r.f.shownGen < 4) return false;
         if (g === 'noparent' && !(r.st && !r.f.parents.length)) return false;
         if (youthState.stage === 'adult' ? !!r.st : (youthState.stage && !(r.st && r.st.stage === youthState.stage))) return false;
         const hay = [r.m.name, r.m.temple, r.m.school, r.m.interest].concat(r.f.parents.map((p) => p.name), r.m.aliases || []).join(' ');
         return !q || hay.indexOf(q) !== -1;
-      }).sort((a, b) => (a.st ? order[a.st.stage] * 10 + a.st.grade : 99) - (b.st ? order[b.st.stage] * 10 + b.st.grade : 99) || b.f.gen - a.f.gen || Fmt.byStroke(a.m.name, b.m.name));
+      }).sort((a, b) => (a.st ? order[a.st.stage] * 10 + a.st.grade : 99) - (b.st ? order[b.st.stage] * 10 + b.st.grade : 99) || b.f.shownGen - a.f.shownGen || Fmt.byStroke(a.m.name, b.m.name));
     };
     const box = body.querySelector('[data-yrows]');
     function draw() {
