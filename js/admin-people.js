@@ -278,7 +278,7 @@
   const MISSING = [['temple', '沒填佛堂', (m) => !m.temple], ['age', '沒填年齡', (m) => m.age === '' || m.age === undefined || m.age === null], ['identity', '沒填身分', (m) => !m.identity]];
   const missingOf = (m) => MISSING.filter(([, , f]) => f(m));
   const IDENTITY_ORDER = [['點傳師', '點傳師'], ['壇辦', '壇辦'], ['道親', '道親'], ['未求道', '未求道'], ['', '未填身分']];
-  const SHORT = { '未填身分': '未填' }; // 篩選按鈕用短一點的字，手機上才排得下一列
+  const SHORT = {}; // 篩選按鈕的短名稱（2026/11/22 起「未填身分」寫完整，才不會以為是沒填佛堂、年齡）
 
   function members(body, guard) {
     const reload = () => members(body, guard);
