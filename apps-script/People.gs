@@ -70,8 +70,10 @@ function adminSaveMember_(body) {
       values['別名'] = aliases.join('、');
     }
     MEMBER_GROUP_COLUMNS.forEach(function (type) { values[type] = groups[type]; });
+    Object.assign(values, familyValues_(input, name));
     var summary;
     if (row) {
+      if (normalizeName_(row['姓名']) !== name) renameParentRefs_(rows, normalizeName_(row['姓名']), name);
       summary = '修改｜' + row['姓名'] + (row['姓名'] !== name ? ' → ' + name : '') +
         (row['啟用中'] !== values['啟用中'] ? (values['啟用中'] === '否' ? '（停用）' : '（重新啟用）') : '');
       updateRow_(SHEETS.MEMBERS, row, values);
@@ -190,12 +192,68 @@ function adminDeleteGroup_(body) {
 
 // ---- 共用 ----
 
+/**
+ * 父母、學校、興趣（2026/11/22）：input 有給的才回傳。父母＝名字陣列或「、」分開的字串，不能是自己；skipEmpty＝匯入時空白不寫。
+ */
+function familyValues_(input, selfName, skipEmpty) {
+  var out = {};
+  if (input.parents !== undefined) {
+    var ps = (Array.isArray(input.parents) ? input.parents : splitAliases_(input.parents)).map(normalizeName_)
+      .filter(function (p, i, arr) { return p && p !== selfName && arr.indexOf(p) === i; }).slice(0, 4);
+    if (ps.length || !skipEmpty) out['父母'] = ps.join('、');
+  }
+  if (input.school !== undefined) { var sc = cleanText_(input.school).slice(0, 50); if (sc || !skipEmpty) out['學校'] = sc; }
+  if (input.interest !== undefined) { var it = String(input.interest || '').replace(/\r/g, '').trim().slice(0, 200); if (it || !skipEmpty) out['興趣'] = it; }
+  return out;
+}
+
+/** 成員改名或合併：別人「父母」欄裡的舊名字換成新名字 */
+function renameParentRefs_(rows, oldName, newName) {
+  var n = 0;
+  rows.forEach(function (m) {
+    var ps = splitAliases_(m['父母']);
+    if (ps.indexOf(oldName) === -1) return;
+    var next = ps.map(function (p) { return p === oldName ? newName : p; }).filter(function (p, i, arr) { return p && p !== normalizeName_(m['姓名']) && arr.indexOf(p) === i; });
+    updateRow_(SHEETS.MEMBERS, m, { '父母': next.join('、') });
+    n++;
+  });
+  return n;
+}
+
+/**
+ * 只改父母、學校、興趣、年齡（2026/11/22）：「👨‍👩‍👧 道二代」頁用；總管理者、道務、教育帳號。
+ * body = { row, original, parents?, school?, interest?, age? }
+ */
+function adminSetFamily_(body) {
+  if (body.age !== undefined && body.age !== '' && birthYearOf_(body.age) === null) throw new ApiError_('VALIDATION', '年齡請填 0～120 的數字');
+  return withSignupLock_(function () {
+    var rows = readTable_(SHEETS.MEMBERS);
+    var row = findRowChecked_(rows, body.row, '姓名', body.original, '成員');
+    var name = normalizeName_(row['姓名']);
+    var ch = familyValues_(body, name);
+    if (body.age !== undefined) ch['出生年'] = body.age === '' ? '' : birthYearOf_(body.age);
+    if (ch['父母']) {
+      var names = {};
+      rows.forEach(function (m) { names[normalizeName_(m['姓名'])] = true; splitAliases_(m['別名']).forEach(function (a) { names[a] = true; }); });
+      var unknown = splitAliases_(ch['父母']).filter(function (p) { return !names[p]; });
+      if (unknown.length) throw new ApiError_('VALIDATION', '父母要是成員名單上的人：' + unknown.join('、') + ' 不在名單上，請先新增成員');
+    }
+    if (!Object.keys(ch).length) return { members: adminMembers_().members };
+    updateRow_(SHEETS.MEMBERS, row, ch);
+    writeDutyLog_('成員', '家庭資料｜' + name + (ch['父母'] !== undefined ? ' 父母：' + (ch['父母'] || '（空白）') : '') + (ch['學校'] !== undefined ? ' 學校：' + (ch['學校'] || '（空白）') : '') + (ch['興趣'] !== undefined ? ' 更新興趣' : '') + (ch['出生年'] !== undefined ? ' 年齡：' + (body.age === '' ? '（清掉）' : body.age + ' 歲') : ''));
+    SpreadsheetApp.flush();
+    invalidateTable_(SHEETS.MEMBERS);
+    return { members: adminMembers_().members };
+  });
+}
+
 function memberToJson_(m) {
   var groups = {};
   MEMBER_GROUP_COLUMNS.forEach(function (t) { groups[t] = m[t]; });
   var by = Number(m['出生年']) || 0;
   return { row: m._row, name: m['姓名'], identity: m['身分'], groups: groups, note: m['備註'], active: m['啟用中'] !== '否', pending: m['待確認'] === '是',
-    vegetarian: m['清口'] === '是', birthYear: by || '', age: by ? Number(todayString_().slice(0, 4)) - by : '', temple: m['佛堂'] || '', aliases: splitAliases_(m['別名']), overseas: m['國外'] || '', careNote: m['成全紀錄'] || '' };
+    vegetarian: m['清口'] === '是', birthYear: by || '', age: by ? Number(todayString_().slice(0, 4)) - by : '', temple: m['佛堂'] || '', aliases: splitAliases_(m['別名']), overseas: m['國外'] || '', careNote: m['成全紀錄'] || '',
+    parents: splitAliases_(m['父母']), school: m['學校'] || '', interest: m['興趣'] || '' };
 }
 
 /** 以列號找資料並核對原本的值（姓名或組名），不符代表資料已被移動或修改 */
@@ -537,7 +595,8 @@ function adminMergeMembers_(body) {
     var aliases = splitAliases_(kk['別名']).concat([dropName], splitAliases_(dd['別名']))
       .filter(function (a, i, arr) { return a && a !== keepName && arr.indexOf(a) === i; });
     var ch = { '別名': aliases.join('、') };
-    ['身分', '勤務了愿組', '打掃組', '拜香輪值組', '出生年', '佛堂', '清口'].forEach(function (h) { if (!kk[h] && dd[h]) ch[h] = dd[h]; });
+    ['身分', '勤務了愿組', '打掃組', '拜香輪值組', '出生年', '佛堂', '清口', '父母', '學校', '興趣'].forEach(function (h) { if (!kk[h] && dd[h]) ch[h] = dd[h]; });
+    if (keepName !== dropName) renameParentRefs_(fresh, dropName, keepName);
     if (dd['備註'] && String(kk['備註'] || '').indexOf(dd['備註']) === -1) ch['備註'] = [kk['備註'], dd['備註']].filter(Boolean).join('；');
     if (dd['待確認'] !== '是' && kk['待確認'] === '是') ch['待確認'] = '';
     updateRow_(SHEETS.MEMBERS, kk, ch);
@@ -578,6 +637,7 @@ function adminImportMembers_(body) {
       if (it.identity && OPTIONS.identity.indexOf(it.identity) !== -1) ch['身分'] = it.identity;
       if (it.vegetarian === true) ch['清口'] = '是';
       if (it.overseas && SITE.overseas.indexOf(it.overseas) !== -1) ch['國外'] = it.overseas;
+      Object.assign(ch, familyValues_({ parents: it.parents, school: it.school || undefined, interest: it.interest || undefined }, name, true));
       var hits = rows.filter(function (m) { return normalizeName_(m['姓名']) === name; });
       if (!hits.length) hits = rows.filter(function (m) { return splitAliases_(m['別名']).indexOf(name) !== -1; });
       // 同名好幾位：用佛堂分

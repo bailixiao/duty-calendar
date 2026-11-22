@@ -64,7 +64,7 @@
   function importMembers(guard, reload) {
     const md = Modal.open(`
       <h2 class="modal-title">📋 匯入成員資料</h2>
-      <p class="modal-note">選 <strong>Excel、Word、PDF</strong> 檔，或把表格貼在下面，會自動找出<strong>姓名、佛堂、年齡（出生年）、身分、清口、國外</strong>，依名字幫成員補上。只更新有給的欄位，不會清掉原本的資料。</p>
+      <p class="modal-note">選 <strong>Excel、Word、PDF</strong> 檔，或把表格貼在下面，會自動找出<strong>姓名、佛堂、年齡（出生年）、身分、清口、國外、父母、學校、興趣</strong>，依名字幫成員補上。只更新有給的欄位，不會清掉原本的資料。</p>
       <label class="btn btn-block">📂 選檔案（Excel、Word、PDF，可以好幾個）<input type="file" accept=".xlsx,.xls,.xlsm,.csv,.ods,.docx,.doc,.pdf" multiple hidden data-file></label>
       <details class="import-paste"><summary>或貼上表格／文字</summary>
         <textarea class="input day-text" rows="6" data-text placeholder="從 Excel 複製整張表貼上（第一列是標題：姓名、佛堂、年齡⋯），或貼上 Claude 整理的文字"></textarea>
@@ -86,8 +86,8 @@
     const out = el.querySelector('[data-out]');
     const srcBox = el.querySelector('[data-sources]');
     const known = () => new Set(memberList.flatMap((m) => [m.name].concat(m.aliases || [])));
-    const FIELD_LABEL = { name: '姓名', temple: '佛堂', age: '年齡', birth: '出生年', identity: '身分', vegetarian: '清口', overseas: '國外' };
-    const show = (it) => [it.temple, it.age ? it.age + ' 歲' : (it.birthYear ? it.birthYear + ' 年生' : ''), it.identity, it.vegetarian ? '清口' : '', it.overseas].filter(Boolean).join('・');
+    const FIELD_LABEL = { name: '姓名', temple: '佛堂', age: '年齡', birth: '出生年', identity: '身分', vegetarian: '清口', overseas: '國外', parents: '父母', parents2: '父母（另一欄）', school: '學校', interest: '興趣' };
+    const show = (it) => [it.temple, it.age ? it.age + ' 歲' : (it.birthYear ? it.birthYear + ' 年生' : ''), it.identity, it.vegetarian ? '清口' : '', it.overseas, it.parents ? '父母：' + it.parents.join('、') : '', it.school, it.interest].filter(Boolean).join('・');
 
     function paint() {
       items = [];
@@ -312,11 +312,13 @@
       <p class="hint">停用的成員不會出現在報名的名字提示裡；過去的報名紀錄不受影響。改名也不會改到過去的報名紀錄。</p>`;
     flash = '';
     const rows = body.querySelector('[data-rows]');
+    const fam = Family.generations(data.members);
+    const famTags = (m) => { const f = fam.get(m); const st = Family.schoolStage(m.birthYear, data.today); return (f && f.label ? `<span class="tag tag-gen">${esc(f.label)}</span>` : '') + (st ? `<span class="tag tag-stage">${esc(st.label)}</span>` : ''); };
     const card = (m) => `
           <li><button type="button" class="person-card${m.active ? '' : ' is-inactive'}" data-row="${m.row}">
             <span class="person-card-name">${esc(m.name)}${m.aliases && m.aliases.length ? `<small class="person-alias">（${esc(m.aliases.join('、'))}）</small>` : ''}${m.temple ? `<span class="tag tag-temple">${esc(m.temple)}</span>` : ''}${m.overseas ? `<span class="tag tag-temple">🌏 ${esc(m.overseas)}</span>` : ''}
               ${m.identity ? `<span class="tag">${esc(m.identity)}</span>` : '<span class="tag tag-warn">未填身分</span>'}
-              ${m.active ? '' : '<span class="tag">已停用</span>'}${m.pending ? '<span class="tag tag-warn">待確認</span>' : ''}${m.identity === '道親' && m.vegetarian ? '<span class="tag">🥬 清口</span>' : ''}${m.age !== '' && m.age !== undefined ? `<span class="tag">${m.age} 歲</span>` : ''}</span>
+              ${m.active ? '' : '<span class="tag">已停用</span>'}${m.pending ? '<span class="tag tag-warn">待確認</span>' : ''}${m.identity === '道親' && m.vegetarian ? '<span class="tag">🥬 清口</span>' : ''}${m.age !== '' && m.age !== undefined ? `<span class="tag">${m.age} 歲</span>` : ''}${famTags(m)}</span>
             <span class="person-card-meta">${esc(GROUP_TYPES.filter((t) => m.groups[t]).map((t) => `${t.replace('組', '')}：${m.groups[t]}`).join('・') || '未分組')}${m.note ? '・' + esc(m.note) : ''}</span>
           </button></li>`;
     function draw() {
@@ -454,6 +456,13 @@
           </select></label>`).join('')}
       <label class="form-row"><span>年齡（選填，今年幾歲；之後每年自動加一歲）</span><input class="input" name="age" inputmode="numeric" maxlength="3" value="${esc(v.age === undefined ? '' : v.age)}" placeholder="例：45"></label>
       <label class="check" data-veg-row${(v.identity || '') === '道親' ? '' : ' hidden'}><input type="checkbox" name="vegetarian"${v.vegetarian ? ' checked' : ''}> 🥬 已清口</label>
+      <fieldset class="form-block family-block">
+        <legend>👨‍👩‍👧 家人（道二代、道三代）</legend>
+        <label class="form-row"><span>父母（成員名單上的爸爸、媽媽，用「、」分開）</span><input class="input" name="parents" value="${esc((v.parents || []).join('、'))}" placeholder="打一兩個字會出現名單"></label>
+        <p class="family-auto" data-family-auto></p>
+        <label class="form-row"><span>學校（選填）</span><input class="input" name="school" maxlength="50" value="${esc(v.school || '')}" placeholder="例：某某國小"></label>
+        <label class="form-row"><span>興趣、其他（選填）</span><input class="input" name="interest" maxlength="200" value="${esc(v.interest || '')}" placeholder="例：畫畫、打鼓、喜歡幫忙"></label>
+      </fieldset>
       <label class="form-row"><span>備註</span><input class="input" name="note" value="${esc(v.note)}"></label>
       <label class="check"><input type="checkbox" name="active"${v.active ? ' checked' : ''}> 啟用中（取消勾選＝停用）</label>`,
     async (f) => {
@@ -462,7 +471,7 @@
       await Api.admin('adminSaveMember', {
         row: m ? m.row : undefined, original: m ? m.name : undefined,
         member: { name: f.elements.name.value, identity: f.querySelector('input[name=identity]:checked').value, groups: g, note: f.elements.note.value, active: f.elements.active.checked,
-          age: f.elements.age.value.trim(), temple: f.elements.temple.value, aliases: f.elements.aliases.value, overseas: f.querySelector('input[name=overseas]:checked') ? f.querySelector('input[name=overseas]:checked').value : undefined, vegetarian: f.querySelector('input[name=identity]:checked').value === '道親' && f.elements.vegetarian.checked }
+          age: f.elements.age.value.trim(), temple: f.elements.temple.value, parents: f.elements.parents.value, school: f.elements.school.value, interest: f.elements.interest.value, aliases: f.elements.aliases.value, overseas: f.querySelector('input[name=overseas]:checked') ? f.querySelector('input[name=overseas]:checked').value : undefined, vegetarian: f.querySelector('input[name=identity]:checked').value === '道親' && f.elements.vegetarian.checked }
       });
       notice(AdminPage.notice('success', m ? '已存檔' : '已新增成員', f.elements.name.value.trim()));
       afterWrite(reload);
@@ -470,6 +479,14 @@
       : (m ? '<p class="hint">要刪除成員，請先取消勾選「啟用中」存檔（停用），再回來刪除。</p>' : '')));
 
     modal.el.querySelectorAll('input[name=identity]').forEach((r) => r.addEventListener('change', () => { modal.el.querySelector('[data-veg-row]').hidden = r.value !== '道親' || !r.checked; }));
+    // 家人：父母連動成員名單；學齡、第幾代、子女自動算
+    const ef = modal.el.querySelector('form');
+    MemberSuggest.attach(ef.elements.parents, { multi: true });
+    const autoFamily = () => familyAutoText(m, ef.elements.age.value.trim(), ef.elements.parents.value, ef.querySelector('input[name=identity]:checked'));
+    const paintAuto = () => { modal.el.querySelector('[data-family-auto]').innerHTML = autoFamily(); };
+    ['age', 'parents'].forEach((n) => ef.elements[n].addEventListener('input', paintAuto));
+    ef.elements.parents.addEventListener('change', paintAuto);
+    paintAuto();
     const mg = modal.el.querySelector('[data-merge-member]');
     if (mg) mg.addEventListener('click', () => { modal.close(); mergeMembers(m, guard, reload); });
     const del = modal.el.querySelector('[data-delete-member]');
@@ -816,5 +833,142 @@
     });
   }
 
-  window.PeoplePage = { members, groups };
+  /** 編輯成員的「家人」區：依現在填的年齡、父母，算學齡、第幾代，列出子女 */
+  function familyAutoText(m, ageText, parentsText, idInput) {
+    const today = new Date().toISOString().slice(0, 10);
+    const by = /^\d{1,3}$/.test(ageText) ? Number(today.slice(0, 4)) - Number(ageText) : (m && m.birthYear) || '';
+    const me = Object.assign({}, m || { name: '' }, { parents: String(parentsText || '').split(/[、，,\s]+/).filter(Boolean), identity: idInput ? idInput.value : (m && m.identity) });
+    const list = memberList.filter((x) => !m || x.row !== m.row).concat([me]);
+    const f = Family.generations(list).get(me);
+    const st = Family.schoolStage(by, today);
+    const known = new Set(memberList.flatMap((x) => [x.name].concat(x.aliases || [])));
+    const unknown = me.parents.filter((p) => !known.has(p));
+    const bits = [];
+    if (st) bits.push(`📚 ${esc(st.label)}`);
+    if (f && f.label) bits.push(`🌱 ${esc(f.label)}`);
+    if (f && f.children.length) bits.push(`子女：${esc(f.children.map((c) => c.name).join('、'))}`);
+    return (bits.length ? bits.join('・') + '<small>（自動算的：學齡看年齡，第幾代看父母有沒有求道）</small>' : '<small>學齡、道二代會依年齡和父母自動算。</small>')
+      + (unknown.length ? `<small class="form-error">不在成員名單上：${esc(unknown.join('、'))}（請先新增成員，才算得出第幾代）</small>` : '');
+  }
+
+  // ---------- 👨‍👩‍👧 道二代、道三代（2026/11/22）：教育組分類、統計 ----------
+
+  const youthState = { gen: 'kids', stage: '', q: '' };
+
+  function youth(body, guard) {
+    const reload = () => youth(body, guard);
+    AdminPage.swr('members', () => Api.admin('adminMembers', {}, true), (data, stale) => renderYouth(body, guard, data, stale, reload), body);
+  }
+
+  function renderYouth(body, guard, data, stale, reload) {
+    memberList = data.members;
+    const today = data.today || new Date().toISOString().slice(0, 10);
+    const all = data.members.filter((m) => m.active && !m.pending);
+    const fam = Family.generations(data.members);
+    const rows = all.map((m) => ({ m, f: fam.get(m), st: Family.schoolStage(m.birthYear, today) }));
+    const kids = rows.filter((r) => r.f.gen >= 2 || r.st);
+    const count = (fn) => rows.filter(fn).length;
+    const gens = [2, 3, 4].map((g) => [g, count((r) => (g === 4 ? r.f.gen >= 4 : r.f.gen === g))]).filter(([g, n]) => n || g < 4);
+    const stages = Family.STAGES.map((s) => [s, count((r) => r.st && r.st.stage === s)]);
+    const canEdit = canEditPeople();
+    body.innerHTML = `
+      ${AdminPage.staleNote(stale)}
+      ${flash}
+      <p class="hint">成員資料填了<strong>父母</strong>（成員名單上的爸爸、媽媽）就會自動算第幾代：父母有求道＝道二代，父母是道二代＝道三代。<strong>學齡</strong>看年齡自動算（9 月開始新學年；只有出生年，9 月以後生日的可能差一個年級）。</p>
+      <div class="youth-sum">
+        ${gens.map(([g, n]) => `<button type="button" class="youth-stat${youthState.gen === String(g) ? ' is-active' : ''}" data-gen="${g}"><strong>${n}</strong><span>${g === 4 ? '道四代以上' : g === 2 ? '道二代' : '道三代'}</span></button>`).join('')}
+        ${stages.filter(([, n]) => n).map(([s, n]) => `<button type="button" class="youth-stat${youthState.stage === s ? ' is-active' : ''}" data-stage="${s}"><strong>${n}</strong><span>${s}</span></button>`).join('')}
+      </div>
+      <div class="list-filter">
+        <select class="input" data-yf-gen aria-label="世代">
+          <option value="kids"${youthState.gen === 'kids' ? ' selected' : ''}>道二代以上，或學齡中（${kids.length}）</option>
+          <option value="2"${youthState.gen === '2' ? ' selected' : ''}>道二代</option>
+          <option value="3"${youthState.gen === '3' ? ' selected' : ''}>道三代</option>
+          <option value="4"${youthState.gen === '4' ? ' selected' : ''}>道四代以上</option>
+          <option value="noparent"${youthState.gen === 'noparent' ? ' selected' : ''}>學齡中、還沒填父母</option>
+          <option value="all"${youthState.gen === 'all' ? ' selected' : ''}>全部成員</option>
+        </select>
+        <select class="input" data-yf-stage aria-label="學齡"><option value="">全部學齡</option>${Family.STAGES.map((s) => `<option${youthState.stage === s ? ' selected' : ''}>${s}</option>`).join('')}<option value="adult"${youthState.stage === 'adult' ? ' selected' : ''}>成年／沒填年齡</option></select>
+        <input class="input" type="search" data-yf-q placeholder="搜尋姓名、父母、${esc(window.SITE.temple)}、學校、興趣" value="${esc(youthState.q)}">
+      </div>
+      <div class="admin-actions"><button type="button" class="btn" data-yf-xlsx>⬇ 匯出 Excel</button></div>
+      <div data-yrows></div>`;
+    flash = '';
+    const pick = () => {
+      const q = youthState.q.trim();
+      const order = { '學齡前': 0, '幼兒園': 1, '國小': 2, '國中': 3, '高中': 4, '大學': 5 };
+      return rows.filter((r) => {
+        const g = youthState.gen;
+        if (g === 'kids' && !(r.f.gen >= 2 || r.st)) return false;
+        if (g === '2' && r.f.gen !== 2) return false;
+        if (g === '3' && r.f.gen !== 3) return false;
+        if (g === '4' && r.f.gen < 4) return false;
+        if (g === 'noparent' && !(r.st && !r.f.parents.length)) return false;
+        if (youthState.stage === 'adult' ? !!r.st : (youthState.stage && !(r.st && r.st.stage === youthState.stage))) return false;
+        const hay = [r.m.name, r.m.temple, r.m.school, r.m.interest].concat(r.f.parents.map((p) => p.name), r.m.aliases || []).join(' ');
+        return !q || hay.indexOf(q) !== -1;
+      }).sort((a, b) => (a.st ? order[a.st.stage] * 10 + a.st.grade : 99) - (b.st ? order[b.st.stage] * 10 + b.st.grade : 99) || b.f.gen - a.f.gen || Fmt.byStroke(a.m.name, b.m.name));
+    };
+    const box = body.querySelector('[data-yrows]');
+    function draw() {
+      const list = pick();
+      box.innerHTML = list.length ? `<p class="muted">${list.length} 位</p><ul class="people-list">${list.map((r) => `
+        <li><button type="button" class="person-card" data-yrow="${r.m.row}">
+          <span class="person-card-name">${esc(r.m.name)}${r.m.temple ? `<span class="tag tag-temple">${esc(r.m.temple)}</span>` : ''}${r.f.label ? `<span class="tag tag-gen">${esc(r.f.label)}</span>` : ''}${r.st ? `<span class="tag tag-stage">${esc(r.st.label)}</span>` : ''}${r.m.age !== '' && r.m.age !== undefined ? `<span class="tag">${r.m.age} 歲</span>` : ''}${r.m.identity ? `<span class="tag">${esc(r.m.identity)}</span>` : ''}</span>
+          <span class="person-card-meta">${esc([r.f.parents.length ? '父母：' + r.f.parents.map((p) => p.name).join('、') : (r.st ? '還沒填父母' : ''), r.f.children.length ? '子女：' + r.f.children.map((c) => c.name).join('、') : '', r.m.school ? '🏫 ' + r.m.school : '', r.m.interest ? '⭐ ' + r.m.interest : ''].filter(Boolean).join('・') || '（還沒填家人資料）')}</span>
+        </button></li>`).join('')}</ul>` : '<p class="panel-empty">沒有符合的成員。到「成員」點一位，在「👨‍👩‍👧 家人」填父母、年齡就會出現在這裡。</p>';
+    }
+    draw();
+    body.querySelector('[data-yf-gen]').addEventListener('change', (ev) => { youthState.gen = ev.target.value; renderYouth(body, guard, data, stale, reload); });
+    body.querySelector('[data-yf-stage]').addEventListener('change', (ev) => { youthState.stage = ev.target.value; renderYouth(body, guard, data, stale, reload); });
+    body.querySelector('[data-yf-q]').addEventListener('input', (ev) => { youthState.q = ev.target.value; draw(); });
+    body.querySelectorAll('[data-gen]').forEach((b) => b.addEventListener('click', () => { youthState.gen = youthState.gen === b.dataset.gen ? 'kids' : b.dataset.gen; renderYouth(body, guard, data, stale, reload); }));
+    body.querySelectorAll('[data-stage]').forEach((b) => b.addEventListener('click', () => { youthState.stage = youthState.stage === b.dataset.stage ? '' : b.dataset.stage; renderYouth(body, guard, data, stale, reload); }));
+    box.addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-yrow]');
+      if (!b) return;
+      const r = rows.find((x) => String(x.m.row) === b.dataset.yrow);
+      if (r && canEdit) editFamily(r, guard, reload);
+    });
+    body.querySelector('[data-yf-xlsx]').addEventListener('click', async (ev) => {
+      const btn = ev.currentTarget;
+      btn.disabled = true;
+      try {
+        if (!window.XLSX) await new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = ok; s.onerror = () => no(new Error('無法載入 Excel 工具，請檢查網路')); document.head.appendChild(s); });
+        const aoa = [['姓名', window.SITE.temple, '第幾代', '學齡', '年齡', '身分', '父母', '子女', '學校', '興趣、其他']].concat(pick().map((r) => [r.m.name, r.m.temple || '', r.f.label || '', r.st ? r.st.label : '', r.m.age === '' ? '' : r.m.age, r.m.identity || '', r.f.parents.map((p) => p.name).join('、'), r.f.children.map((c) => c.name).join('、'), r.m.school || '', r.m.interest || '']));
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet(aoa);
+        ws['!cols'] = [8, 8, 8, 10, 5, 6, 16, 16, 14, 24].map((w) => ({ wch: w * 2 }));
+        XLSX.utils.book_append_sheet(wb, ws, '道二代道三代');
+        XLSX.writeFile(wb, `道二代道三代_${today}.xlsx`);
+      } catch (e) { alert(e.message || '匯出失敗'); }
+      btn.disabled = false;
+    });
+  }
+
+  /** 道二代頁點一位：只改父母、年齡、學校、興趣（adminSetFamily） */
+  function editFamily(r, guard, reload) {
+    const m = r.m;
+    const { m: modal } = formModal(`
+      <h2 class="modal-title">👨‍👩‍👧 ${esc(m.name)}</h2>
+      <p class="modal-note">${esc([m.temple, m.identity].filter(Boolean).join('・'))}</p>
+      <label class="form-row"><span>父母（成員名單上的爸爸、媽媽，用「、」分開）</span><input class="input" name="parents" value="${esc((m.parents || []).join('、'))}" placeholder="打一兩個字會出現名單"></label>
+      <label class="form-row"><span>年齡（今年幾歲；之後每年自動加一歲）</span><input class="input" name="age" inputmode="numeric" maxlength="3" value="${esc(m.age === undefined ? '' : m.age)}"></label>
+      <p class="family-auto" data-family-auto></p>
+      <label class="form-row"><span>學校（選填）</span><input class="input" name="school" maxlength="50" value="${esc(m.school || '')}" placeholder="例：某某國小"></label>
+      <label class="form-row"><span>興趣、其他（選填）</span><input class="input" name="interest" maxlength="200" value="${esc(m.interest || '')}" placeholder="例：畫畫、打鼓、喜歡幫忙"></label>`,
+    async (f) => {
+      await Api.admin('adminSetFamily', { row: m.row, original: m.name, parents: f.elements.parents.value, age: f.elements.age.value.trim(), school: f.elements.school.value, interest: f.elements.interest.value });
+      notice(AdminPage.notice('success', '已存檔', m.name));
+      afterWrite(reload);
+    }, guard, '');
+    const f = modal.el.querySelector('form');
+    MemberSuggest.attach(f.elements.parents, { multi: true });
+    const paint = () => { modal.el.querySelector('[data-family-auto]').innerHTML = familyAutoText(m, f.elements.age.value.trim(), f.elements.parents.value, null); };
+    ['age', 'parents'].forEach((n) => f.elements[n].addEventListener('input', paint));
+    f.elements.parents.addEventListener('change', paint);
+    paint();
+  }
+
+  window.PeoplePage = { members, groups, youth };
 })();

@@ -356,6 +356,7 @@ function adminRun_(body) {
     case 'adminImportAttendance': return adminImportAttendance_(body);
     case 'adminRepairs': return adminRepairs_(body);
     case 'adminSetMemberExtra': return adminSetMemberExtra_(body);
+    case 'adminSetFamily': return adminSetFamily_(body);
     case 'adminSplitSignup': return adminSplitSignup_(body);
     case 'adminMergeMembers': return adminMergeMembers_(body);
     case 'adminImportMembers': return adminImportMembers_(body);

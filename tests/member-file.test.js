@@ -78,3 +78,15 @@ test('PDF 讀成部首字（⾝分、清⼝、測試⼄）也認得', () => {
   const rows = [['姓名', '⾝分', '清⼝'], ['測試⼄', '道親', 'V']];
   assert.deepStrictEqual(MF.toItems(rows, MF.detect(rows)), [{ name: '測試乙', identity: '道親', vegetarian: true }]);
 });
+
+test('父母（父親、母親分兩欄也可以）、學校、興趣；「父親姓名」不會被當成姓名', () => {
+  const rows = [['姓名', '父親姓名', '母親姓名', '就讀學校', '興趣'], ['測試小孩', '測試爸爸', '測試媽媽', '測試國小', '畫畫']];
+  const det = MF.detect(rows);
+  assert.strictEqual(det.map.name, 0);
+  assert.deepStrictEqual(MF.toItems(rows, det), [{ name: '測試小孩', parents: ['測試爸爸', '測試媽媽'], school: '測試國小', interest: '畫畫' }]);
+});
+
+test('「家長電話」不會被當成父母', () => {
+  const rows = [['姓名', '家長電話', '家長'], ['測試小孩', '0900-000000', '測試爸爸']];
+  assert.deepStrictEqual(MF.toItems(rows, MF.detect(rows)), [{ name: '測試小孩', parents: ['測試爸爸'] }]);
+});

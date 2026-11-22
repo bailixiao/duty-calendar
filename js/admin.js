@@ -143,6 +143,7 @@
     if (sub === 'import') return ImportPage.show(shell('duties'), guard);
     if (sub === 'members') return PeoplePage.members(shell('members'), guard);
     if (sub === 'groups') return PeoplePage.groups(shell('groups'), guard);
+    if (sub === 'youth') return PeoplePage.youth(shell('youth'), guard);
     if (sub === 'stats') return StatsPage.show(shell('stats'), guard);
     if (sub === 'history') return HistoryPage.show(shell('stats'), guard);
     if (sub === 'report') return ReportPage.show(shell('report'), guard);
@@ -177,7 +178,7 @@
     const tabs = [['', '近期' + T, ['']]];
     if (who.role !== '唯讀') tabs.push(['duties', T + '管理', ['duties']]); // 唯讀帳號：不顯示勤務管理
     if (seesRoster()) tabs.push(['day', '📢 通知', ['day', 'roster', 'push']]); // 通知、推播：總管理者、勤務、道務、教育
-    tabs.push(['members', '👥 人員', ['members', 'groups']]);
+    tabs.push(['members', '👥 人員', ['members', 'groups', 'youth']]);
     tabs.push(['stats', '📊 統計', ['stats', 'report']]);
     if (venueOn && ['總管理者', '唯讀'].indexOf(who.role) !== -1) tabs.push(['venue', '場地借用', ['venue']]);
     const more = moreItems();
@@ -191,8 +192,9 @@
     day: [['day', '📣 佈達'], ['roster', '📋 分壇名單'], ['push', '📱 手機推播']],
     roster: [['day', '📣 佈達'], ['roster', '📋 分壇名單'], ['push', '📱 手機推播']],
     push: [['day', '📣 佈達'], ['roster', '📋 分壇名單'], ['push', '📱 手機推播']],
-    members: [['members', '成員'], ['groups', '分組']],
-    groups: [['members', '成員'], ['groups', '分組']],
+    members: [['members', '成員'], ['groups', '分組'], ['youth', '👨‍👩‍👧 道二代']],
+    groups: [['members', '成員'], ['groups', '分組'], ['youth', '👨‍👩‍👧 道二代']],
+    youth: [['members', '成員'], ['groups', '分組'], ['youth', '👨‍👩‍👧 道二代']],
     stats: [['stats', '統計'], ['report', '📑 年度總結']],
     report: [['stats', '統計'], ['report', '📑 年度總結']]
   };

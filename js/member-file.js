@@ -16,9 +16,16 @@
     ['birth', '出生年', /出\s*生|生\s*日|生\s*年|年\s*次/],
     ['identity', '身分', /身\s*[分份]|職\s*稱|類\s*別/],
     ['vegetarian', '清口', /清\s*口|吃\s*素|素\s*食|茹素/],
-    ['overseas', '國外', /國\s*外|地\s*區|國\s*家/]
+    ['overseas', '國外', /國\s*外|地\s*區|國\s*家/],
+    // 道二代、道三代（2026/11/22）：父親、母親分兩欄也可以
+    ['parents', '父母', /父\s*母|家\s*長|父\s*親|母\s*親|爸|媽/],
+    ['parents2', '父母（另一欄）', /父\s*母|家\s*長|父\s*親|母\s*親|爸|媽/],
+    ['school', '學校', /學\s*校|就\s*讀|校\s*名/],
+    ['interest', '興趣', /興\s*趣|專\s*長|嗜\s*好|才\s*藝/]
   ];
   const FIELD_KEYS = FIELDS.map((f) => f[0]);
+  // 找表頭時先看父母（「父親姓名」不要被當成姓名）
+  const DETECT_ORDER = FIELDS.filter((f) => /^parents/.test(f[0])).concat(FIELDS.filter((f) => !/^parents/.test(f[0])));
 
   // NFKC：PDF 常把「身、口、乙」讀成長得一樣的部首字（⾝、⼝、⼄），換回一般的字
   const clean = (v) => String(v == null ? '' : v).normalize('NFKC').replace(/[\s　]+/g, ' ').trim();
@@ -82,7 +89,8 @@
       (rows[i] || []).forEach((cell, c) => {
         const t = clean(cell && cell.text !== undefined ? cell.text : cell);
         if (!t || t.length > 12) return;
-        const f = FIELDS.find(([k, , re]) => map[k] === undefined && re.test(t));
+        if (/電話|手機|地址|信箱|e-?mail|line/i.test(t)) return; // 家長電話、地址不要對到父母（也不會匯入）
+        const f = DETECT_ORDER.find(([k, , re]) => map[k] === undefined && re.test(t));
         if (f) { map[f[0]] = c; hits++; }
       });
       if (map.name !== undefined && (!best || hits > best.hits)) best = { index: i, map, hits };
@@ -154,6 +162,12 @@
       if (map.vegetarian !== undefined && parseVegetarian(get('vegetarian'))) it.vegetarian = true;
       const ov = parseOverseas(get('overseas'), overseasOptions);
       if (ov) it.overseas = ov;
+      const ps = [get('parents'), get('parents2')].map(clean).join('、').split(/[、，,;；/／\s]+/).map((p) => p.replace(/[(（][^)）]*[)）]/g, '')).filter((p) => p && p !== name);
+      if (ps.length) it.parents = ps.filter((p, k) => ps.indexOf(p) === k);
+      const school = clean(get('school'));
+      if (school) it.school = school;
+      const interest = clean(get('interest'));
+      if (interest) it.interest = interest;
       const key = name + '|' + (it.temple || '');
       if (seen.has(key)) return;
       seen.add(key);
