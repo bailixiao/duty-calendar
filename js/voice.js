@@ -44,37 +44,79 @@
     let events = null;
     const loadEvents = () => events || (events = Api.getEvents(Fmt.addDays(todayIso(), 1), Fmt.addDays(todayIso(), 120)).then((r) => r));
     loadEvents().catch(() => { events = null; });
-    el.querySelector('[data-close]').addEventListener('click', () => { if (rec) try { rec.abort(); } catch (e) { /* 已停 */ } m.close(); });
+    el.querySelector('[data-close]').addEventListener('click', () => { listening = false; clearInterval(timer); if (rec) try { rec.abort(); } catch (e) { /* 已停 */ } m.close(); });
 
+    /**
+     * 聽：長輩講話中間會停下來想（想名字），一停就結束太快（2026/11/22 改）。
+     *   - 瀏覽器自己停掉時（停頓、Android 一段一段的）自動再接著聽，已經聽到的字留著
+     *   - 有聽到字之後，安靜 SILENCE_MS 才真的結束；還沒講話等 WAIT_MS；最長 MAX_MS；也可以按「講完了」
+     */
+    const SILENCE_MS = 4000, WAIT_MS = 10000, MAX_MS = 40000;
     const mic = el.querySelector('[data-mic]');
-    if (mic) mic.addEventListener('click', () => {
-      if (rec) { rec.stop(); return; }
+    let listening = false;
+    let heard = ''; // 前幾段已經確定的字
+    let lastHeard = 0, startedAt = 0, timer = null;
+    const micText = (t) => { mic.querySelector('[data-mic-text]').textContent = t; };
+    function finish() {
+      listening = false;
+      clearInterval(timer);
+      if (rec) { const r = rec; rec = null; try { r.stop(); } catch (e) { /* 已停 */ } }
+      mic.classList.remove('is-on');
+      micText('再講一次');
+      if (ta.value.trim()) find();
+    }
+    let restarts = 0;
+    function startOnce() {
       rec = new SR();
       rec.lang = 'zh-TW';
       rec.interimResults = true;
-      rec.continuous = false;
-      let finalText = '';
-      mic.classList.add('is-on');
-      mic.querySelector('[data-mic-text]').textContent = '我在聽⋯講完會自動停';
+      rec.continuous = true;
+      let session = ''; // 這一段確定的字
       rec.onresult = (ev) => {
         let interim = '';
         for (let i = ev.resultIndex; i < ev.results.length; i++) {
-          if (ev.results[i].isFinal) finalText += ev.results[i][0].transcript; else interim += ev.results[i][0].transcript;
+          const t = ev.results[i][0].transcript;
+          if (ev.results[i].isFinal) {
+            // Android 有時候每次都給「到目前為止的全部」：開頭一樣就換掉，不要重複
+            session = t.indexOf(session) === 0 ? t : session + t;
+          } else interim += t;
         }
-        ta.value = finalText + interim;
+        ta.value = heard + session + interim;
+        lastHeard = Date.now();
       };
       rec.onerror = (ev) => {
-        const msg = { 'not-allowed': '麥克風沒有開放：請在跳出來的視窗按「允許」，或到瀏覽器設定打開麥克風', 'no-speech': '沒有聽到聲音，請再按一次、靠近手機講', 'network': '網路不穩，聽不到，請再試一次或用打字' }[ev.error] || '聽不清楚，請再試一次或用打字';
+        if (ev.error === 'no-speech' || ev.error === 'aborted') return; // 安靜：交給計時器決定要不要結束
+        if (restarts && /not-allowed/.test(ev.error)) { listening = false; return; } // 自動接著聽被擋（iOS）：用已經聽到的字
+        listening = false;
+        const msg = { 'not-allowed': '麥克風沒有開放：請在跳出來的視窗按「允許」，或到瀏覽器設定打開麥克風', 'service-not-allowed': '麥克風沒有開放：請在跳出來的視窗按「允許」，或到瀏覽器設定打開麥克風', 'network': '網路不穩，聽不到，請再試一次或用打字' }[ev.error] || '聽不清楚，請再試一次或用打字';
         out.innerHTML = `<p class="form-error">${esc(msg)}</p>`;
       };
       rec.onend = () => {
-        rec = null;
-        mic.classList.remove('is-on');
-        mic.querySelector('[data-mic-text]').textContent = '再講一次';
-        if (ta.value.trim()) find();
+        heard = ta.value; // 這一段的字留著
+        if (listening) { try { restarts++; startOnce(); return; } catch (e) { /* 接不上就結束 */ } }
+        if (rec) finish();
       };
+      rec.start();
+    }
+    if (mic) mic.addEventListener('click', () => {
+      if (listening) { finish(); return; }
+      listening = true;
+      heard = ta.value.trim() ? ta.value.trim() + ' ' : '';
+      startedAt = Date.now();
+      lastHeard = 0;
+      restarts = 0;
+      mic.classList.add('is-on');
+      micText('我在聽⋯講完了按這裡');
       out.innerHTML = '';
-      try { rec.start(); } catch (e) { rec = null; mic.classList.remove('is-on'); }
+      timer = setInterval(() => {
+        const now = Date.now();
+        if (!listening) return;
+        if ((lastHeard && now - lastHeard > SILENCE_MS) || (!lastHeard && now - startedAt > WAIT_MS) || now - startedAt > MAX_MS) {
+          if (!lastHeard) out.innerHTML = '<p class="form-error">沒有聽到聲音，請再按一次、靠近手機講</p>';
+          finish();
+        }
+      }, 300);
+      try { startOnce(); } catch (e) { finish(); }
     });
     el.querySelector('[data-find]').addEventListener('click', find);
 
