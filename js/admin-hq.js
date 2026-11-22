@@ -118,7 +118,7 @@
     };
     const pending = d.regions.filter((r) => todoBy[r.code]);
     body.innerHTML = `
-      <p><a href="#/admin">‹ 分派清單</a></p>
+      <a class="back-link" href="#/admin">‹ 分派清單</a>
       <h2>${esc(c0.title)}<small>（${cs.length} 個日期）</small></h2>
       <p class="muted">${esc(catLabel(c0.category))}・${esc(c0.location || '')}${c0.startTime ? '・' + esc(c0.startTime) + (c0.endTime ? '–' + esc(c0.endTime) : '') : ''}</p>
       <div class="hq-total"><strong>${totalN}</strong> 位已報名${totalQ ? `／名額 ${totalQ} 位${totalN < totalQ ? `，還差 <strong>${totalQ - totalN}</strong> 位` : ''}` : ''}</div>
@@ -300,7 +300,7 @@
       const allRegions = data.targets.filter((t) => rows.some((r) => r.pick && r.regions.indexOf(t.code) !== -1));
       const n = rows.filter((r) => r.pick).length;
       body.innerHTML = `
-        <p><a href="#/admin">‹ 分派清單</a></p>
+        <a class="back-link" href="#/admin">‹ 分派清單</a>
         <h2><span class="hq-st st-seen">📝 草稿</span> ${esc(c.title)}${rows.length > 1 ? `<small>（${rows.length} 個日期）</small>` : ''}</h2>
         <p class="notice">📝 各區還看不到。${rows.length > 1 ? '同一個名稱的草稿在這裡<strong>一起檢查一次</strong>：上面共同的資料填一次，下面每個日期確認時間和送給哪幾區，' : '補好說明、了愿項目、名額，確認日期時間，'}再按「送出給各區」。</p>
         <form class="admin-form hq-form" novalidate>
@@ -426,7 +426,7 @@
     let asDraft = false;
     const draw = () => {
       body.innerHTML = `
-        <p><a href="${old ? '#/admin/hq/' + encodeURIComponent(old.id) : '#/admin'}">‹ 返回</a></p>
+        <a class="back-link" href="${old ? '#/admin/hq/' + encodeURIComponent(old.id) : '#/admin'}">‹ 返回</a>
         <h2>${old ? '✏️ 修改分派' : '＋ 開新的分派'}</h2>
         ${old && old.status !== 'draft' ? '<p class="notice">存檔後會重新送給各區：已經放到行事曆的區，內容會跟著改；組長後台會看到「分壇有更新」。</p>' : ''}
         ${old && old.status === 'draft' ? '<p class="notice">📝 這是草稿，各區還看不到。補好說明、了愿項目、名額，確認日期時間沒錯，再按「送出給各區」。</p>' : ''}
@@ -513,7 +513,7 @@
     const totalN = rows.reduce((n, r) => n + (r.count || 0), 0);
     const statusHtml = (r) => { const [l, cls] = STATUS[r.status] || [r.status, '']; return `<span class="hq-st ${cls}">${l}</span>${r.status === 'declined' && r.declineReason ? `<small>${esc(r.declineReason)}</small>` : ''}${r.syncError ? `<small class="form-error">更新失敗：${esc(r.syncError)}</small>` : ''}`; };
     body.innerHTML = `
-      <p><a href="#/admin">‹ 分派清單</a>　<a href="#/admin/hq/overview/${encodeURIComponent(groupKey(c))}">📊 同名的整組總覽</a></p>
+      <p class="hq-back-row"><a class="back-link" href="#/admin">‹ 分派清單</a><a class="link-btn" href="#/admin/hq/overview/${encodeURIComponent(groupKey(c))}">📊 同名的整組總覽</a></p>
       <h2>${esc(c.title)}</h2>
       <p class="muted">${esc(catLabel(c.category))}・${esc(when(c))}${c.deadline ? '・報名截止 ' + esc(Fmt.shortDate(c.deadline)) : ''}・名額：${esc({ none: '不限', assigned: '分壇分配', self: '各區自己報' }[c.quotaMode])}</p>
       <div class="admin-actions">
@@ -667,7 +667,7 @@
     let rows = []; // 讀到的活動 { pick, title, category, start, end, startTime, endTime, location, description, uncertain, source }
     const st = { regions: data.targets.filter((t) => t.open).map((t) => t.code) };
     body.innerHTML = `
-      <p><a href="#/admin">‹ 分派清單</a></p>
+      <a class="back-link" href="#/admin">‹ 分派清單</a>
       <h2>📄 從檔案匯入行事曆</h2>
       <p class="notice">選分壇的行事曆檔案（PDF、Word、Excel 或照片，掃描的也可以），AI 會整理成一筆一筆的活動。<strong>匯入的先存成草稿，各區還看不到</strong>，補好資料再一筆一筆送出。</p>
       <label class="btn btn-block">📂 選檔案（可以好幾個）<input type="file" accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.ods,image/*" multiple hidden data-files></label>

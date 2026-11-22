@@ -78,7 +78,15 @@ a { color: var(--accent); }
 
 /* ---------- 按鈕 ---------- */
 
+/* 按鈕（2026/11/22 統一）：連結做的按鈕（<a class="btn">）也要文字上下左右置中、沒有底線 */
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  text-decoration: none;
+  line-height: 1.3;
   min-height: var(--tap);
   min-width: var(--tap);
   padding: 0 14px;
@@ -468,13 +476,25 @@ a { color: var(--accent); }
 
 /* ---------- 勤務詳情頁 ---------- */
 
+/* 返回鍵（2026/11/22 統一）：圓角小按鈕，比一般連結好認、好按 */
 .back-link {
   display: inline-flex;
   align-items: center;
-  min-height: var(--tap);
+  gap: 4px;
+  min-height: 44px;
+  margin: 0 0 10px;
+  padding: 0 16px 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--accent);
   font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.2;
   text-decoration: none;
 }
+.back-link:hover { border-color: var(--accent); background: var(--accent-soft); }
+.back-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .duty-detail { max-width: 680px; }
 
@@ -811,7 +831,7 @@ a { color: var(--accent); }
 
 .btn-primary:hover { background: #8a3319; }
 .btn-primary:disabled { opacity: .6; cursor: wait; }
-.btn-block { display: block; width: 100%; min-height: 52px; }
+.btn-block { display: flex; width: 100%; min-height: 52px; padding-top: 6px; padding-bottom: 6px; }
 
 .form-error {
   margin: 0 0 12px;
@@ -1076,6 +1096,8 @@ button.more-item { width: 100%; text-align: left; font: inherit; cursor: pointer
 .hq-table th, .hq-table td { padding: 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
 .hq-table th { background: var(--paper); white-space: nowrap; }
 .hq-table td small { display: block; color: var(--ink-2); font-size: .85rem; }
+.hq-table td:first-child, .hq-table th:first-child, .hq-table td:nth-child(3), .hq-table td:nth-child(4), .hq-table td:nth-child(5) { white-space: nowrap; }
+.hq-table .link-btn { white-space: nowrap; }
 .hq-st { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .9rem; white-space: nowrap; }
 .hq-st.st-new { background: #fdecd8; color: #9a4b00; }
 .hq-st.st-seen { background: #fff6cc; color: #7a5d00; }
@@ -1122,6 +1144,7 @@ button.more-item { width: 100%; text-align: left; font: inherit; cursor: pointer
 .hq-stat-table tbody th, .hq-stat-table tfoot th { text-align: left; }
 .hq-stat-table td small, .hq-stat-table th small { display: block; font-weight: 400; color: var(--ink-2); }
 .hq-stat-table tfoot td, .hq-stat-table tfoot th { font-weight: 700; border-top: 2px solid var(--line); }
+.hq-back-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 0; }
 .hq-inbox-groups { display: grid; gap: 12px; }
 .hq-inbox-group { border: 1px solid var(--line); border-radius: var(--radius); background: #fff; padding: 10px 12px; }
 .hq-inbox-group.has-todo { border: 2px solid #e0a040; background: #fffaf2; }
@@ -1708,6 +1731,7 @@ select.input { appearance: auto; }
 .pos-chip:focus-within { outline: 3px solid var(--accent); outline-offset: 1px; }
 .pos-same { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 40px; }
 /* 小按鈕（2026/10/12 起原本的底線文字連結都改成這個，手機好按） */
+.link-btn { white-space: nowrap; }
 .link-btn, .help-inline, .my-next-switch, .gp-foot a, .app-footer a { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 36px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--accent); font: inherit; font-size: .92rem; font-weight: 600; line-height: 1.3; text-decoration: none; cursor: pointer; vertical-align: middle; }
 .link-btn:hover, .help-inline:hover, .my-next-switch:hover, .gp-foot a:hover, .app-footer a:hover { border-color: var(--accent); background: var(--accent-soft); }
 .link-btn:focus-visible, .help-inline:focus-visible, .my-next-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
