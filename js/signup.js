@@ -886,20 +886,6 @@
     renderDates();
     renderPositions(); // 日期可能因額滿被移除，了愿項目狀態再算一次
     renderNames();
-
-    // 🎤 用講的報名帶過來的：日期、了愿項目、名字先填好，長輩只要按「確認報名」（2026/11/22）
-    const pf = window.VoicePrefill && VoicePrefill.take(duty.id);
-    if (pf) {
-      if (multiDay && pf.date && openDates.indexOf(pf.date) !== -1) { state.dates = new Set([pf.date]); renderDates(); }
-      if (pf.positionId && !perPerson && duty.positions.some((p) => p.id === pf.positionId)) { state.positionIds = new Set([pf.positionId]); renderPositions(); }
-      if (pf.names.length && !duty.templePick) { input.value = pf.names.join('、'); addFromInput(); input.blur(); }
-      else if (pf.names.length) input.value = pf.names.join('、'); // 報名選佛堂：先選佛堂再按加入
-      const note = document.createElement('p');
-      note.className = 'notice notice-success voice-note';
-      note.innerHTML = `🎤 已經幫您填好了，${duty.positions.length > 1 && !state.positionIds.size && !perPerson ? '請<strong>選了愿項目</strong>，' : ''}看一下沒問題就按最下面的<strong>「確認報名」</strong>。`;
-      form.insertAdjacentElement('beforebegin', note);
-      setTimeout(() => el.scrollIntoView({ block: 'start', behavior: 'smooth' }), 300);
-    }
   }
 
   window.SignupForm = { mount, splitInput };

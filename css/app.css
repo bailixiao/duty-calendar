@@ -1038,25 +1038,6 @@ button.more-item { width: 100%; text-align: left; font: inherit; cursor: pointer
 .add-ways { display: grid; gap: 10px; margin: 8px 0 4px; }
 .tidy-q { margin: 12px 0 4px; }
 .fill-note { margin-top: 8px; }
-/* 🎤 用講的報名（2026/11/22） */
-.voice-signup { display: block; width: 100%; min-height: 56px; font-size: 1.2rem; font-weight: 700; border: 2px solid var(--accent); color: var(--accent); background: var(--paper); }
-.voice-example { font-size: 1.05rem; line-height: 1.7; }
-.voice-mic { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; margin: 8px 0 12px; padding: 18px 10px; border: 0; border-radius: var(--radius); background: var(--accent); color: #fff; font: inherit; font-size: 1.2rem; font-weight: 700; cursor: pointer; }
-.voice-mic-icon { font-size: 3rem; line-height: 1; }
-.voice-mic.is-on { animation: voice-pulse 1.2s ease-in-out infinite; }
-@keyframes voice-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(160, 60, 40, .5); } 50% { box-shadow: 0 0 0 14px rgba(160, 60, 40, 0); } }
-@media (prefers-reduced-motion: reduce) { .voice-mic.is-on { animation: none; outline: 4px solid var(--accent-soft); } }
-.voice-text { font-size: 1.15rem; }
-.btn-big { min-height: 56px; font-size: 1.2rem; }
-.voice-ask, .voice-q { margin: 14px 0 8px; font-size: 1.2rem; font-weight: 700; }
-.voice-options { display: grid; gap: 8px; }
-.voice-option { display: grid; gap: 2px; padding: 12px 14px; border: 2px solid var(--line); border-radius: var(--radius); background: #fff; font: inherit; font-size: 1.1rem; text-align: left; cursor: pointer; }
-.voice-option small, .voice-duty small { display: block; color: var(--ink-2); font-size: .95rem; }
-.voice-confirm { margin-top: 10px; padding: 12px 14px; border: 2px solid var(--accent); border-radius: var(--radius); background: var(--paper); }
-.voice-duty { font-size: 1.2rem; line-height: 1.6; margin: 0 0 8px; }
-.voice-people { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; font-size: 1.2rem; }
-.voice-people small { display: block; color: var(--accent); font-size: .9rem; }
-.voice-note { margin-bottom: 10px; font-size: 1.05rem; }
 /* 道二代、道三代（2026/11/22） */
 .tag-gen { background: #e6f2e6; color: #2d6a2d; border-color: #b9d8b9; }
 .tag-stage { background: #e8eef8; color: #2a4a7a; border-color: #bfd0ea; }
