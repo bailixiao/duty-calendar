@@ -200,3 +200,26 @@ test('同名草稿一次送出（hqSaveMany）：每一區一次收好幾筆；�
   assert.equal(r.data.deleted, 1);
   assert.equal((await R.hq.admin('hqList')).data.campaigns.length, 2);
 });
+
+test('各區整組放到行事曆（adminHqPublishMany）：補充說明、名額填一次；收回的跳過', async () => {
+  const R = await setup();
+  let r = await R.hq.admin('hqSaveDrafts', { items: ['2026-12-20', '2026-12-27', '2027-01-03'].map((d) => ({ title: '測試輪值', category: '勤務', start: d, regions: ['she'], quotaMode: 'self' })) });
+  const ds = (await R.hq.admin('hqList')).data.campaigns;
+  r = await R.hq.admin('hqSaveMany', { items: ds });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  const ids = (await R.she.admin('adminHqInbox')).data.items.map((x) => x.id);
+  assert.equal(ids.length, 3);
+  // 各區自己報名額：沒填就整組擋
+  assert.equal((await R.she.admin('adminHqPublishMany', { ids })).error.code, 'VALIDATION');
+  // 分壇收回一個
+  await R.hq.admin('hqDelete', { id: ids[2] });
+  r = await R.she.admin('adminHqPublishMany', { ids, quota: 2, note: '測試集合' });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.equal(r.data.done, 2);
+  assert.equal(r.data.skipped, 1);
+  const items = r.data.items.filter((x) => x.status === 'published');
+  assert.equal(items.length, 2);
+  assert.ok(items.every((x) => x.note === '測試集合' && x.quota === 2 && x.dutyId));
+  const ev = (await R.she.call({ action: 'getEvents', from: '2026-12-01', to: '2027-01-31' }, 'GET')).data.duties;
+  assert.equal(ev.filter((d) => d.name === '測試輪值').length, 2);
+});

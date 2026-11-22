@@ -1095,6 +1095,7 @@ button.more-item { width: 100%; text-align: left; font: inherit; cursor: pointer
 .hq-alert-dates { display: block; color: var(--ink-2); font-size: .95rem; }
 .hq-alert-btn { display: flex; justify-content: center; width: 100%; min-height: 48px; font-size: 1.05rem; text-decoration: none; border-radius: 12px; }
 .tab-alert { display: inline-block; margin-left: 4px; padding: 0 7px; border-radius: 999px; background: #d9480f; color: #fff; font-size: .8rem; font-weight: 700; line-height: 1.6; vertical-align: 2px; }
+.hq-group-pub { margin-top: 10px; min-height: 48px; border-radius: 12px; }
 .hq-inbox-groups { display: grid; gap: 12px; }
 .hq-inbox-group { border: 1px solid var(--line); border-radius: var(--radius); background: #fff; padding: 10px 12px; }
 .hq-inbox-group.has-todo { border: 2px solid #e0a040; background: #fffaf2; }

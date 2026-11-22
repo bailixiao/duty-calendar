@@ -184,39 +184,72 @@ function adminHqSeen_(body) {
 function adminHqPublish_(body) {
   return withSignupLock_(function () {
     var inbox = hqInbox_();
-    var e = hqEntryFor_(inbox, body.id);
-    if (e.status === 'withdrawn') throw new ApiError_('FORBIDDEN', '分壇已經收回這個分派，不能再放上去');
-    e.note = String(body.note || '').replace(/\r/g, '').trim().slice(0, 500);
-    e.groupType = cleanText_(body.groupType || '');
-    e.group = cleanText_(body.group || '');
-    if (e.c.quotaMode === 'self') {
-      var q = String(body.quota === undefined || body.quota === null ? '' : body.quota).trim();
-      if (!/^\d{1,4}$/.test(q) || Number(q) < 1) throw new ApiError_('VALIDATION', '這個分派要各區自己報名額，請填本區要幾位');
-      e.quota = Number(q);
-    }
-    if (e.status === 'published' && e.dutyId) {
-      hqSyncDuty_(e);
-      if (e.syncError) throw new ApiError_('VALIDATION', e.syncError);
-    } else {
-      HQ_INTERNAL_ = true;
-      try {
-        var res = adminCreateDuties_({ duties: [hqDutyInput_(e, null)], allowDuplicate: true });
-        e.dutyId = res.ids[0];
-      } finally { HQ_INTERNAL_ = false; }
-      var row = findById_(readTable_(SHEETS.DUTIES), '勤務ID', e.dutyId);
-      updateRow_(SHEETS.DUTIES, row, { '來源': HQ_SOURCE_PREFIX + e.c.id });
-      invalidateTable_(SHEETS.DUTIES);
-      e.status = 'published';
-      e.publishedAt = nowString_();
-      e.publishedBy = hqWho_();
-      e.declineReason = '';
-      if (!e.seenAt) { e.seenAt = e.publishedAt; e.seenBy = e.publishedBy; }
-      writeDutyLog_('新增勤務', HQ_NAME + '分派放到行事曆｜' + e.c.title + '｜' + e.c.start + '｜名額 ' + hqQuotaText_(e));
-    }
-    e.updated = false;
+    var e = hqPublishOne_(inbox, body);
     hqInboxSave_(inbox);
     return Object.assign(adminHqInbox_(), { dutyId: e.dutyId });
   });
+}
+
+/**
+ * 同一個活動好幾個日期，整組一次放到本區行事曆（2026/11/22）：body = { ids, note, quota, groupType, group }。
+ * 分壇已收回的跳過；某一天放不上去的寫在 errors，其他天照放。
+ */
+function adminHqPublishMany_(body) {
+  var ids = Array.isArray(body.ids) ? body.ids.map(String) : [];
+  if (!ids.length) throw new ApiError_('BAD_REQUEST', '沒有要放的日期');
+  if (ids.length > 200) throw new ApiError_('BAD_REQUEST', '一次最多 200 個日期');
+  return withSignupLock_(function () {
+    var inbox = hqInbox_();
+    var done = 0, skipped = 0, errors = [];
+    ids.forEach(function (id) {
+      var e = inbox[id];
+      if (e && e.status === 'withdrawn') { skipped++; return; }
+      try {
+        hqPublishOne_(inbox, { id: id, note: body.note, quota: body.quota, groupType: body.groupType, group: body.group });
+        done++;
+      } catch (err) {
+        if (err instanceof ApiError_ && err.code === 'VALIDATION' && /名額/.test(err.message)) throw err; // 名額沒填：整組都一樣，直接擋
+        errors.push({ message: (e ? e.c.start + ' ' : '') + err.message });
+      }
+    });
+    hqInboxSave_(inbox);
+    return Object.assign(adminHqInbox_(), { done: done, skipped: skipped, errors: errors });
+  });
+}
+
+/** 放一筆到本區行事曆（已經放的就更新補充說明等）；呼叫的人負責上鎖和存收件匣 */
+function hqPublishOne_(inbox, body) {
+  var e = hqEntryFor_(inbox, body.id);
+  if (e.status === 'withdrawn') throw new ApiError_('FORBIDDEN', '分壇已經收回這個分派，不能再放上去');
+  e.note = String(body.note || '').replace(/\r/g, '').trim().slice(0, 500);
+  e.groupType = cleanText_(body.groupType || '');
+  e.group = cleanText_(body.group || '');
+  if (e.c.quotaMode === 'self') {
+    var q = String(body.quota === undefined || body.quota === null ? '' : body.quota).trim();
+    if (!/^\d{1,4}$/.test(q) || Number(q) < 1) throw new ApiError_('VALIDATION', '這個分派要各區自己報名額，請填本區要幾位');
+    e.quota = Number(q);
+  }
+  if (e.status === 'published' && e.dutyId) {
+    hqSyncDuty_(e);
+    if (e.syncError) throw new ApiError_('VALIDATION', e.syncError);
+  } else {
+    HQ_INTERNAL_ = true;
+    try {
+      var res = adminCreateDuties_({ duties: [hqDutyInput_(e, null)], allowDuplicate: true });
+      e.dutyId = res.ids[0];
+    } finally { HQ_INTERNAL_ = false; }
+    var row = findById_(readTable_(SHEETS.DUTIES), '勤務ID', e.dutyId);
+    updateRow_(SHEETS.DUTIES, row, { '來源': HQ_SOURCE_PREFIX + e.c.id });
+    invalidateTable_(SHEETS.DUTIES);
+    e.status = 'published';
+    e.publishedAt = nowString_();
+    e.publishedBy = hqWho_();
+    e.declineReason = '';
+    if (!e.seenAt) { e.seenAt = e.publishedAt; e.seenBy = e.publishedBy; }
+    writeDutyLog_('新增勤務', HQ_NAME + '分派放到行事曆｜' + e.c.title + '｜' + e.c.start + '｜名額 ' + hqQuotaText_(e));
+  }
+  e.updated = false;
+  return e;
 }
 
 /** 本區不參加（要寫原因）；已經放上去又沒人報名的，從行事曆拿下來 */

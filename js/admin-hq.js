@@ -713,7 +713,7 @@
       body.innerHTML = `
         <h2>📥 ${esc(d.hqName)}分派</h2>
         <p class="hint">分壇送來的活動，看過按「📅 放到本區行事曆」才會出現在本區的行事曆，家人才能報名；不參加請按「本區不參加」寫原因（分壇看得到）。內容由分壇統一改。</p>
-        ${d.items.length ? `<div class="hq-inbox-groups">${inboxGroups(d.items).map((g) => { const todo = g.filter(pendingOf).length; return `
+        ${d.items.length ? `<div class="hq-inbox-groups">${(groupsNow = inboxGroups(d.items)).map((g, gi) => { const todo = g.filter(pendingOf).length; const fresh = g.filter((x) => x.status === 'new' || x.status === 'seen').length; return `
           <section class="hq-inbox-group${todo ? ' has-todo' : ''}">
             <div class="hq-inbox-ghead">
               ${todo ? `<span class="hq-alert-icon" aria-hidden="true">!</span>` : '<span class="hq-ok-icon" aria-hidden="true">✓</span>'}
@@ -725,9 +725,59 @@
                 <span class="hq-inbox-st"><span class="hq-st ${cls}">${l}</span>${x.status === 'published' ? `<small>${x.count} 位報名</small>` : ''}${x.updated ? '<span class="hq-st st-new">分壇有更新</span>' : ''}</span>
                 <span class="hq-inbox-go" aria-hidden="true">›</span>
               </button>`; }).join('')}</div>
+            ${fresh > 1 ? `<button type="button" class="btn btn-primary btn-block hq-group-pub" data-group-pub="${gi}">📅 這 ${fresh} 個日期一次放到本區行事曆</button>` : ''}
           </section>`; }).join('')}</div>` : '<p class="panel-empty">目前沒有分壇分派。</p>'}`;
       body.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => open(d.items[Number(b.dataset.open)])));
+      body.querySelectorAll('[data-group-pub]').forEach((b) => b.addEventListener('click', () => openGroup(groupsNow[Number(b.dataset.groupPub)])));
     };
+    let groupsNow = [];
+    /** 同一個活動好幾個日期：補充說明、負責組、名額填一次，整組放到本區行事曆 */
+    async function openGroup(g) {
+      const xs = g.filter((x) => x.status === 'new' || x.status === 'seen');
+      if (!xs.length) return;
+      const groups = await groupsP;
+      const types = [...new Set(groups.map((y) => y.type))];
+      const c = xs[0].c;
+      const self = xs.some((x) => x.c.quotaMode === 'self');
+      const m = Modal.open(`
+        <h2 class="modal-title">📅 ${esc(c.title)}：一次放 ${xs.length} 個日期</h2>
+        <p class="modal-note">${esc(catLabel(c.category))}・${esc(shortDates(xs, 8))}</p>
+        <dl class="modal-rows">
+          ${c.attire ? `<div><dt>服裝</dt><dd>${esc(c.attire)}</dd></div>` : ''}
+          <div><dt>了愿項目</dt><dd>${esc((c.positions || []).map((p) => p.name).join('、') || '參加')}</dd></div>
+          <div><dt>名額</dt><dd>${esc(self ? '各區自己報（下面填）' : quotaText(c, xs[0].quota))}</dd></div>
+        </dl>
+        ${c.description ? `<p class="hq-desc">${esc(c.description).replace(/\n/g, '<br>')}</p>` : ''}
+        <form class="admin-form" novalidate>
+          ${self ? '<label class="form-row"><span>本區每次要幾位</span><input class="input" name="quota" inputmode="numeric" maxlength="4"></label>' : ''}
+          <label class="form-row"><span>本區補充說明（每個日期都一樣；可空白）</span><textarea class="input textarea" name="note" rows="3" maxlength="500"></textarea></label>
+          ${types.length ? `<div class="form-grid-2"><label class="form-row"><span>負責組（可空白）</span><select class="input" name="groupType"><option value="">（不指定）</option>${types.map((t) => `<option>${esc(t)}</option>`).join('')}</select></label>
+            <label class="form-row"><span>&nbsp;</span><select class="input" name="group" disabled><option value="">（不指定）</option></select></label></div>` : ''}
+          <p class="hint">要分開設定的日期（例如不同負責組），先點那一天單獨處理，剩下的再一次放。</p>
+          <div class="form-error" data-error hidden></div>
+          <div class="modal-actions">
+            <button type="submit" class="btn btn-primary btn-block">📅 ${xs.length} 個日期一次放到本區行事曆</button>
+            <button type="button" class="btn btn-block" data-close>返回</button>
+          </div></form>`);
+      m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+      const f = m.el.querySelector('form');
+      const gSel = f.elements.group;
+      if (gSel) f.elements.groupType.addEventListener('change', () => { const t = f.elements.groupType.value; gSel.innerHTML = `<option value="">（不指定）</option>${groups.filter((y) => y.type === t).map((y) => `<option>${esc(y.name)}</option>`).join('')}`; gSel.disabled = !t; });
+      const box = f.querySelector('[data-error]');
+      f.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        box.hidden = true;
+        try {
+          const r = await act('adminHqPublishMany', { ids: xs.map((x) => x.id), note: f.elements.note.value, quota: f.elements.quota ? f.elements.quota.value : undefined, groupType: f.elements.groupType ? f.elements.groupType.value : '', group: gSel ? gSel.value : '' }, `放到行事曆中⋯（${xs.length} 個日期）`);
+          if (!r) return;
+          m.close();
+          draw();
+          body.insertAdjacentHTML('afterbegin', `<div class="notice notice-success" role="status"><p>✅ 已放到本區行事曆：${esc(c.title)} ${r.done} 個日期${r.errors && r.errors.length ? `<br>⚠️ 這幾天沒放上去：${r.errors.map((e) => esc(e.message)).join('；')}` : ''}</p></div>`);
+          if (window.CalendarPage) CalendarPage.refresh();
+          AdminPage.clearMemo();
+        } catch (e) { box.innerHTML = errHtml(e); box.hidden = false; }
+      });
+    }
     async function act(action, payload, busy) {
       Busy.show(busy);
       try { const r = await Api.admin(action, payload); Busy.hide(); d = inboxMemo = r; return r; } catch (e) { Busy.hide(); if (guard(e)) return null; throw e; }

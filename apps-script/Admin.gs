@@ -360,6 +360,7 @@ function adminRun_(body) {
     case 'adminHqInbox': return adminHqInbox_();
     case 'adminHqSeen': return adminHqSeen_(body);
     case 'adminHqPublish': return adminHqPublish_(body);
+    case 'adminHqPublishMany': return adminHqPublishMany_(body);
     case 'adminHqDecline': return adminHqDecline_(body);
     case 'adminAssignGroups': return adminAssignGroups_(body);
     case 'adminSplitSignup': return adminSplitSignup_(body);
