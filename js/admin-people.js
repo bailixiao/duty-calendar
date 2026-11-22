@@ -497,6 +497,14 @@
     ['age', 'parents'].forEach((n) => ef.elements[n].addEventListener('input', paintAuto));
     ef.elements.parents.addEventListener('change', paintAuto);
     paintAuto();
+    // 選了佛堂、勤務了愿組還空著：照同佛堂的人帶入（2026/11/22，後端存檔時也會帶）
+    const tgSel = ef.elements['g-勤務了愿組'];
+    if (tgSel) ef.elements.temple.addEventListener('change', () => {
+      const g = templeGroupOf(ef.elements.temple.value, m);
+      const note = modal.el.querySelector('[data-tg-note]') || (() => { const p = document.createElement('p'); p.className = 'hint'; p.setAttribute('data-tg-note', ''); tgSel.closest('.form-row').after(p); return p; })();
+      if (g && !tgSel.value && [...tgSel.options].some((o) => o.value === g)) { tgSel.value = g; note.textContent = `已依佛堂帶入「${g}」（同佛堂的人都是這一組），不對可以改。`; }
+      else note.textContent = '';
+    });
     const mg = modal.el.querySelector('[data-merge-member]');
     if (mg) mg.addEventListener('click', () => { modal.close(); mergeMembers(m, guard, reload); });
     const del = modal.el.querySelector('[data-delete-member]');
@@ -921,6 +929,16 @@
         if (!guard(err)) { notice(`<div class="notice notice-error" role="alert"><p>${errorHtml(err)}</p></div>`); reload(); }
       }
     });
+  }
+
+  /** 這個佛堂的人大多是勤務了愿組哪一組（2/3 以上同一組才算；同後端 templeGroupMap_） */
+  function templeGroupOf(temple, self) {
+    if (!temple) return '';
+    const c = {};
+    memberList.forEach((x) => { if (x !== self && (!self || x.row !== self.row) && x.temple === temple && x.groups && x.groups['勤務了愿組']) c[x.groups['勤務了愿組']] = (c[x.groups['勤務了愿組']] || 0) + 1; });
+    const total = Object.values(c).reduce((a, b) => a + b, 0);
+    const best = Object.keys(c).sort((a, b) => c[b] - c[a])[0];
+    return best && c[best] * 3 >= total * 2 ? best : '';
   }
 
   /** 編輯成員的「家人」區：依現在填的年齡、父母，算學齡、第幾代，列出子女 */

@@ -71,6 +71,10 @@ function adminSaveMember_(body) {
     }
     MEMBER_GROUP_COLUMNS.forEach(function (type) { values[type] = groups[type]; });
     Object.assign(values, familyValues_(input, name));
+    if (values['佛堂'] && (!row || cleanText_(row['佛堂']) !== values['佛堂'])) {
+      var autoGroup = templeGroupFor_(templeGroupMap_(rows), values['佛堂'], values[TEMPLE_GROUP_TYPE]);
+      if (autoGroup) values[TEMPLE_GROUP_TYPE] = autoGroup;
+    }
     var summary;
     if (row) {
       if (normalizeName_(row['姓名']) !== name) renameParentRefs_(rows, normalizeName_(row['姓名']), name);
@@ -248,6 +252,33 @@ function adminSetFamily_(body) {
 }
 
 /**
+ * 填了佛堂自動帶入勤務了愿組（2026/11/22）：勤務了愿組是依佛堂分的（行事表冊「各佛堂全年勤務了愿排序表」）。
+ * 看同一個佛堂的成員現在是哪一組：有設組的人裡 2/3 以上是同一組，就用那一組；沒有人設過或分不出來＝不帶入。
+ */
+var TEMPLE_GROUP_TYPE = '勤務了愿組';
+function templeGroupMap_(rows) {
+  var count = {};
+  rows.forEach(function (m) {
+    var t = cleanText_(m['佛堂']), g = m[TEMPLE_GROUP_TYPE];
+    if (!t || !g) return;
+    count[t] = count[t] || {};
+    count[t][g] = (count[t][g] || 0) + 1;
+  });
+  var map = {};
+  Object.keys(count).forEach(function (t) {
+    var gs = count[t], total = 0, best = '';
+    Object.keys(gs).forEach(function (g) { total += gs[g]; if (!best || gs[g] > gs[best]) best = g; });
+    if (gs[best] * 3 >= total * 2) map[t] = best;
+  });
+  return map;
+}
+/** 佛堂有、勤務了愿組空白：回傳該帶入的組（沒有就空字串） */
+function templeGroupFor_(map, temple, current) {
+  if (current) return '';
+  return map[cleanText_(temple)] || '';
+}
+
+/**
  * 依名單設定成員的組別（2026/11/22）：例如道務行事表冊上「第1組：某某佛堂、某某佛堂」「第一組：王小明、測試甲」。
  * body = { type: '打掃組', items: [{ group: '第一組', names: [...], temples: [...] }], clearOthers, apply }
  *   - 組名「第一組」「第1組」都對得到後台的分組；names 對姓名或別名；temples（寫了「佛堂」的）那個佛堂的人全部設成這一組。
@@ -397,13 +428,17 @@ function adminAddMembers_(body) {
     var has = {};
     readTable_(SHEETS.MEMBERS).forEach(function (m) { has[normalizeName_(m['姓名']) + '|' + (m['佛堂'] || '')] = true; });
     var rows = [];
+    var tgMap = templeGroupMap_(readTable_(SHEETS.MEMBERS));
     var skipped = 0;
     input.forEach(function (m) {
       var name = normalizeName_(m && m.name);
       var key = name + '|' + cleanText_((m && m.temple) || '');
       if (!name || has[key]) { skipped++; return; }
       has[key] = true;
-      rows.push({ '姓名': name, '身分': OPTIONS.identity.indexOf(m.identity) !== -1 ? m.identity : '', '佛堂': cleanText_((m && m.temple) || ''), '啟用中': '是' });
+      var t0 = cleanText_((m && m.temple) || '');
+      var r0 = { '姓名': name, '身分': OPTIONS.identity.indexOf(m.identity) !== -1 ? m.identity : '', '佛堂': t0, '啟用中': '是' };
+      r0[TEMPLE_GROUP_TYPE] = templeGroupFor_(tgMap, t0, '');
+      rows.push(r0);
     });
     appendRows_(SHEETS.MEMBERS, rows);
     if (rows.length) writeDutyLog_('成員', '從出勤紀錄加入 ' + rows.length + ' 位');
@@ -529,6 +564,7 @@ function addPendingMembers_(signupRows, dutyName) {
   var has = {};
   readTable_(SHEETS.MEMBERS).forEach(function (m) { if (m['姓名']) { has[normalizeName_(m['姓名'])] = true; has[normalizeName_(m['姓名']) + '|' + (m['佛堂'] || '')] = true; } });
   var add = [];
+  var tgMap = templeGroupMap_(readTable_(SHEETS.MEMBERS));
   signupRows.forEach(function (r) {
     var name = normalizeName_(r['姓名']);
     var temple = r['佛堂'] || '';
@@ -536,7 +572,9 @@ function addPendingMembers_(signupRows, dutyName) {
     if (!name || has[name + '|' + temple] || (!temple && has[name])) return;
     has[name + '|' + temple] = true;
     has[name] = true;
-    add.push({ '姓名': name, '身分': OPTIONS.identity.indexOf(r['身分']) !== -1 ? r['身分'] : '', '佛堂': temple, '備註': '自動加入：' + r['日期'] + ' ' + (dutyName || ''), '啟用中': '是', '待確認': '是' });
+    var p0 = { '姓名': name, '身分': OPTIONS.identity.indexOf(r['身分']) !== -1 ? r['身分'] : '', '佛堂': temple, '備註': '自動加入：' + r['日期'] + ' ' + (dutyName || ''), '啟用中': '是', '待確認': '是' };
+    p0[TEMPLE_GROUP_TYPE] = templeGroupFor_(tgMap, temple, '');
+    add.push(p0);
   });
   if (!add.length) return 0;
   appendRows_(SHEETS.MEMBERS, add);
@@ -617,6 +655,7 @@ function adminSetMemberExtra_(body) {
         ch['身分'] = x.identity || '';
       }
       if (x.careNote !== undefined) ch['成全紀錄'] = String(x.careNote || '').replace(/\r/g, '').trim().slice(0, 300);
+      if (ch['佛堂'] && cleanText_(row['佛堂']) !== ch['佛堂']) { var ag = templeGroupFor_(templeGroupMap_(rows), ch['佛堂'], row[TEMPLE_GROUP_TYPE]); if (ag) ch[TEMPLE_GROUP_TYPE] = ag; }
       if (!Object.keys(ch).length) return;
       updateRow_(SHEETS.MEMBERS, row, ch);
       done.push(row['姓名'] + (ch['清口'] !== undefined ? (ch['清口'] ? ' 已清口' : ' 還沒清口') : '') + (ch['出生年'] !== undefined ? (ch['出生年'] ? ' ' + x.age + ' 歲' : ' 清掉年齡') : '') + (ch['佛堂'] !== undefined ? ' 佛堂：' + (ch['佛堂'] || '（空白）') : '') + (ch['身分'] !== undefined ? ' 身分：' + (ch['身分'] || '（空白）') : '') + (ch['成全紀錄'] !== undefined ? ' 更新成全紀錄' : ''));
@@ -690,6 +729,7 @@ function adminImportMembers_(body) {
   var year = Number(todayString_().slice(0, 4));
   return withSignupLock_(function () {
     var rows = readTable_(SHEETS.MEMBERS).filter(function (m) { return m['姓名']; });
+    var tgMap = templeGroupMap_(rows);
     var updated = [];
     var missing = [];
     var ambiguous = [];
@@ -712,14 +752,17 @@ function adminImportMembers_(body) {
       // 同名好幾位：用佛堂分
       if (hits.length > 1 && temple) hits = hits.filter(function (m) { return m['佛堂'] === temple; });
       if (hits.length > 1) { ambiguous.push(name); return; }
+      var tgFor = function (cur) { return ch['佛堂'] ? templeGroupFor_(tgMap, ch['佛堂'], cur) : ''; };
       if (!hits.length) {
         if (body.addMissing) {
           var row = Object.assign({ '姓名': name, '啟用中': '是' }, ch);
+          if (tgFor('')) row[TEMPLE_GROUP_TYPE] = tgFor('');
           appendRows_(SHEETS.MEMBERS, [row]);
           added.push(name);
         } else missing.push(name);
         return;
       }
+      if (tgFor(hits[0][TEMPLE_GROUP_TYPE])) ch[TEMPLE_GROUP_TYPE] = tgFor(hits[0][TEMPLE_GROUP_TYPE]);
       if (!Object.keys(ch).length) return;
       updateRow_(SHEETS.MEMBERS, hits[0], ch);
       updated.push(name);
