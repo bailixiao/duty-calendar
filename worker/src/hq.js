@@ -130,6 +130,52 @@ export function createHq({ gs, store, cross, openRegions }) {
     save(next);
     return { campaign: c };
   };
+  /**
+   * 同名草稿一起存／送出（2026/11/22）：body.items＝分派陣列（都要有 id），body.draft＝只存不送。
+   * 先全部檢查，有一筆不對就都不存；送出時每一區只叫一次（那一區的好幾筆一起給），所以 30 幾筆也很快。
+   */
+  special.hqSaveMany = async (body, curRegion) => {
+    const who = requireHqAdmin(body, curRegion);
+    const items = Array.isArray(body.items) ? body.items : [];
+    if (!items.length) throw err('BAD_REQUEST', '沒有要送出的日期');
+    if (items.length > 200) throw err('BAD_REQUEST', '一次最多 200 筆');
+    const all = list();
+    const errors = [];
+    const made = items.map((it, i) => {
+      const old = it && it.id ? all.find((x) => x.id === it.id) : null;
+      if (it && it.id && !old) { errors.push({ message: '第 ' + (i + 1) + ' 筆找不到，可能已經刪掉了' }); return null; }
+      const draft = !!body.draft && (!old || old.status === 'draft');
+      try {
+        const c = clean(it || {}, old, draft);
+        Object.assign(c, { version: (old ? old.version : 0) + 1, createdAt: old ? old.createdAt : gs.nowString_(), updatedAt: gs.nowString_(), by: who.account || '總管理者', status: draft ? 'draft' : 'sent', delivery: {} });
+        if (old && old.source) c.source = old.source;
+        return { c, old, removed: old && old.status !== 'draft' ? old.regions.filter((r) => c.regions.indexOf(r) === -1) : [] };
+      } catch (e) { errors.push({ message: '第 ' + (i + 1) + ' 筆（' + String((it && it.start) || '') + '）：' + e.message }); return null; }
+    });
+    if (errors.length) throw err('VALIDATION', '有幾筆資料不對，都沒有送出', errors);
+    const send = made.filter((m) => m.c.status === 'sent');
+    if (send.length) {
+      const open = await openSet();
+      const byRegion = {};
+      send.forEach((m) => m.c.regions.forEach((r) => {
+        if (!open.has(r)) { m.c.delivery[r] = 'not-open'; return; }
+        (byRegion[r] = byRegion[r] || []).push(m);
+      }));
+      await Promise.all(Object.keys(byRegion).map(async (r) => {
+        const ms = byRegion[r];
+        try {
+          const res = await cross(r, 'hqDeliverMany', ms.map((m) => forRegion(m.c, r)));
+          ms.forEach((m, i) => { m.c.delivery[r] = (res && res[i]) || 'ok'; });
+        } catch (e) { ms.forEach((m) => { m.c.delivery[r] = 'error：' + ((e && e.message) || e); }); }
+      }));
+      await Promise.all([].concat(...send.map((m) => m.removed.filter((r) => open.has(r)).map((r) => cross(r, 'hqWithdraw', m.c.id).catch(() => {})))));
+    }
+    const byId = {};
+    made.forEach((m) => { byId[m.c.id] = m.c; });
+    const next = all.map((x) => byId[x.id] || x).concat(made.filter((m) => !m.old).map((m) => m.c));
+    save(next);
+    return { saved: made.length, sent: send.length, campaigns: made.map((m) => m.c) };
+  };
   /** 刪掉分派：各區收回（已經放上行事曆的留著，組長自己決定） */
   special.hqDelete = async (body, curRegion) => {
     requireHqAdmin(body, curRegion);
@@ -139,6 +185,15 @@ export function createHq({ gs, store, cross, openRegions }) {
     if (c.status !== 'draft') await deliver({ id: c.id, regions: [] }, c.regions);
     save(all.filter((x) => x.id !== c.id));
     return { deleted: c.id };
+  };
+  /** 一次刪好幾個草稿（同名草稿整組刪）；已經送出的不在這裡刪 */
+  special.hqDeleteDrafts = async (body, curRegion) => {
+    requireHqAdmin(body, curRegion);
+    const ids = Array.isArray(body.ids) ? body.ids.map(String) : [];
+    const all = list();
+    const gone = all.filter((x) => ids.indexOf(x.id) !== -1 && x.status === 'draft').map((x) => x.id);
+    save(all.filter((x) => gone.indexOf(x.id) === -1));
+    return { deleted: gone.length };
   };
   /** 總表：每一區的狀態、名額、報名人數、名字 */
   special.hqSummary = async (body, curRegion) => {
@@ -209,6 +264,8 @@ export function createHq({ gs, store, cross, openRegions }) {
   /** 各區這一邊：分壇叫過來（Durable Object 之間；不經過網路，不用登入） */
   function rpc(method, payload) {
     if (method === 'hqDeliver') return gs.hqDeliver_(payload);
+    // 一次收好幾筆（同名草稿一起送出，2026/11/22）：一筆失敗不影響其他筆
+    if (method === 'hqDeliverMany') return (Array.isArray(payload) ? payload : []).map((c) => { try { gs.hqDeliver_(c); return 'ok'; } catch (e) { return 'error：' + ((e && e.message) || e); } });
     if (method === 'hqWithdraw') return gs.hqWithdraw_(payload);
     if (method === 'hqReport') return gs.hqReport_(payload);
     // 教全區把 AI 金鑰借給分壇（只有 Durable Object 之間叫得到）

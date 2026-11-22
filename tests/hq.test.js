@@ -174,3 +174,29 @@ test('從檔案匯入：存成草稿（各區看不到）→ 補資料送出才�
   assert.deepEqual(r.data.items.map((x) => x.title), ['測試大典']);
   assert.equal((await R.she.admin('hqImportAi', { text: 'x' })).error.code, 'FORBIDDEN', '只有分壇能用');
 });
+
+test('同名草稿一次送出（hqSaveMany）：每一區一次收好幾筆；有一筆不對就都不送；整組刪草稿', async () => {
+  const R = await setup();
+  let r = await R.hq.admin('hqSaveDrafts', { items: ['2026-12-20', '2026-12-27', '2027-01-03'].map((d) => ({ title: '測試輪值', category: '勤務', start: d, regions: ['she'] })) });
+  assert.equal(r.data.saved, 3);
+  const ds = (await R.hq.admin('hqList')).data.campaigns;
+  // 有一筆沒有區 → 都不送
+  r = await R.hq.admin('hqSaveMany', { items: ds.map((c, i) => Object.assign({}, c, { regions: i ? ['she'] : [] })) });
+  assert.equal(r.error.code, 'VALIDATION');
+  assert.equal((await R.she.admin('adminHqInbox')).data.items.length, 0);
+  // 送出兩筆、一筆留草稿
+  r = await R.hq.admin('hqSaveMany', { items: ds.slice(0, 2).map((c) => Object.assign({}, c, { positions: [{ name: '打掃' }] })) });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.equal(r.data.sent, 2);
+  assert.deepEqual(r.data.campaigns.map((c) => c.delivery.she), ['ok', 'ok']);
+  const inbox = (await R.she.admin('adminHqInbox')).data.items;
+  assert.equal(inbox.length, 2);
+  assert.equal(inbox[0].c.positions[0].name, '打掃');
+  const after = (await R.hq.admin('hqList')).data.campaigns;
+  assert.equal(after.length, 3);
+  assert.equal(after.filter((c) => c.status === 'sent').length, 2);
+  // 整組刪草稿：送出的不會被刪
+  r = await R.hq.admin('hqDeleteDrafts', { ids: after.map((c) => c.id) });
+  assert.equal(r.data.deleted, 1);
+  assert.equal((await R.hq.admin('hqList')).data.campaigns.length, 2);
+});

@@ -170,34 +170,30 @@
         if (bad.length) { box.textContent = bad.some((r) => !r.start) ? '有日期沒填' : '有 ' + bad.length + ' 個日期還沒選送給哪幾區：' + bad.map((r) => Fmt.shortDate(r.start)).join('、'); box.hidden = false; return; }
         const days = Number(c.deadlineDays);
         const t = (v) => { const x = Fmt.parseTime(v); return x === null ? v : x; };
-        const done = [];
+        // 一次送出（hqSaveMany：每一區只叫一次），不用一筆一筆等
+        const items = todo.map((r) => ({ id: r.id, title: c.title, category: c.category, nature: c.nature, location: c.location, attire: c.attire, description: c.description.trim() || r.description, positions: c.positions, quotaMode: c.quotaMode, quotas: c.quotas,
+          start: r.start, end: r.end || r.start, startTime: t(r.startTime), endTime: t(r.endTime), regions: r.regions, deadline: days > 0 ? addDays(r.start, -days) : '' }));
+        Busy.show(`${draft ? '存草稿' : '送出'}中⋯（${todo.length} 個日期）`);
         try {
-          for (let i = 0; i < todo.length; i++) {
-            const r = todo[i];
-            Busy.show(`${draft ? '存草稿' : '送出'}中⋯（${i + 1}／${todo.length}）`);
-            const campaign = { id: r.id, title: c.title, category: c.category, nature: c.nature, location: c.location, attire: c.attire, description: c.description.trim() || r.description, positions: c.positions, quotaMode: c.quotaMode, quotas: c.quotas,
-              start: r.start, end: r.end || r.start, startTime: t(r.startTime), endTime: t(r.endTime), regions: r.regions, deadline: days > 0 ? addDays(r.start, -days) : '' };
-            await Api.admin('hqSave', { campaign, draft });
-            done.push(r);
-          }
+          const res = await Api.admin('hqSaveMany', { items, draft });
           Busy.hide();
+          const bad = draft ? 0 : res.campaigns.filter((x) => Object.values(x.delivery || {}).some((v) => /^error/.test(v))).length;
           location.hash = '#/admin';
-          setTimeout(() => { const b = document.querySelector('[data-body]'); if (b) b.insertAdjacentHTML('afterbegin', `<div class="notice notice-success" role="status"><p>✅ ${draft ? '已存草稿' : '已送出給各區'}：${esc(c.title)} ${done.length} 個日期。</p></div>`); }, 800);
+          setTimeout(() => { const b = document.querySelector('[data-body]'); if (b) b.insertAdjacentHTML('afterbegin', `<div class="notice notice-success" role="status"><p>✅ ${draft ? '已存草稿' : '已送出給各區'}：${esc(c.title)} ${res.saved} 個日期。${bad ? `<br>⚠️ 有 ${bad} 個日期某幾區沒送到，點進去看，按「✏️ 修改」再存一次會重送。` : ''}</p></div>`); }, 800);
         } catch (e) {
           Busy.hide();
           if (guard(e)) return;
-          box.innerHTML = (done.length ? `已${draft ? '存' : '送出'} ${done.length} 個日期；` : '') + `${esc(Fmt.shortDate(todo[done.length].start))} 沒有成功：` + errHtml(e);
+          box.innerHTML = errHtml(e);
           box.hidden = false;
-          // 已經送出的從這一組拿掉，改好再按一次只送剩下的
-          if (!draft) done.forEach((r) => rows.splice(rows.indexOf(r), 1));
         }
       };
       f.addEventListener('submit', (ev) => { ev.preventDefault(); save(false); });
       body.querySelector('[data-save-draft]').addEventListener('click', () => save(true));
       body.querySelector('[data-del]').addEventListener('click', async () => {
         if (!(await Confirm.open({ title: `確定要刪除${rows.length > 1 ? '這一組' : '這個'}草稿嗎？`, rows: [['名稱', c.title], ['日期', datesText(rows)]], confirmText: '確定刪除', cancelText: '不要刪除', danger: true }))) return;
+        Busy.show('刪除中⋯');
         try {
-          for (let i = 0; i < rows.length; i++) { Busy.show(`刪除中⋯（${i + 1}／${rows.length}）`); await Api.admin('hqDelete', { id: rows[i].id }); }
+          await Api.admin('hqDeleteDrafts', { ids: rows.map((r) => r.id) });
           Busy.hide(); location.hash = '#/admin';
         } catch (e) { Busy.hide(); if (!guard(e)) alert(e.message); }
       });
