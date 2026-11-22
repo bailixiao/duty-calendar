@@ -247,6 +247,75 @@ function adminSetFamily_(body) {
   });
 }
 
+/**
+ * 依名單設定成員的組別（2026/11/22）：例如道務行事表冊上「第1組：某某佛堂、某某佛堂」「第一組：王小明、測試甲」。
+ * body = { type: '打掃組', items: [{ group: '第一組', names: [...], temples: [...] }], clearOthers, apply }
+ *   - 組名「第一組」「第1組」都對得到後台的分組；names 對姓名或別名；temples（寫了「佛堂」的）那個佛堂的人全部設成這一組。
+ *   - 名字比佛堂優先；clearOthers＝名單上沒有的人，這一類的組別清掉。
+ *   - apply 沒給＝只預覽：{ changes: [{ row, name, temple, from, to, by }], unknownNames, unknownTemples, ambiguous, badGroups, same }
+ */
+function adminAssignGroups_(body) {
+  var type = String(body.type || '');
+  if (MEMBER_GROUP_COLUMNS.indexOf(type) === -1) throw new ApiError_('BAD_REQUEST', '分組類型只能是' + MEMBER_GROUP_COLUMNS.join('、'));
+  var items = Array.isArray(body.items) ? body.items : [];
+  if (!items.length) throw new ApiError_('BAD_REQUEST', '沒有名單');
+  var numKey = function (s) {
+    var digits = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 };
+    return String(s || '').replace(/[（(][^）)]*[）)]/g, '').replace(/[\s　]/g, '').replace(/[一二三四五六七八九十]/g, function (c) { return digits[c]; });
+  };
+  var templeKey = function (s) { return String(s || '').replace(/[\s　]/g, '').replace(/佛堂$/, ''); };
+  var groups = readTableCached_(SHEETS.GROUPS).filter(function (g) { return g['分組類型'] === type; }).map(function (g) { return g['組名']; });
+  var badGroups = [];
+  var plan = items.map(function (it) {
+    var g = groups.filter(function (x) { return x === it.group || numKey(x) === numKey(it.group); })[0];
+    if (!g) badGroups.push(String(it.group || ''));
+    return { group: g, names: (it.names || []).map(normalizeName_).filter(Boolean), temples: (it.temples || []).map(templeKey).filter(Boolean) };
+  });
+  if (badGroups.length) throw new ApiError_('VALIDATION', '「' + type + '」沒有這些組：' + badGroups.join('、') + '（後台現在有：' + (groups.join('、') || '還沒有分組') + '）');
+
+  var run = function () {
+    var rows = readTable_(SHEETS.MEMBERS).filter(function (m) { return m['姓名'] && m['待確認'] !== '是'; });
+    var target = {}; // row → { to, by }
+    var unknownNames = [], ambiguous = [], unknownTemples = [];
+    // 佛堂：成員的佛堂去掉「佛堂」兩個字後一樣，或一個包含另一個（蔡氏岩蘊佛堂 ↔ 蔡氏岩蘊、岩蘊）
+    plan.forEach(function (p) {
+      p.temples.forEach(function (t) {
+        var hit = rows.filter(function (m) { var mt = templeKey(m['佛堂']); return mt && (mt === t || (mt.length >= 2 && (t.indexOf(mt) !== -1 || mt.indexOf(t) !== -1))); });
+        if (!hit.length) { unknownTemples.push(t); return; }
+        hit.forEach(function (m) { if (!target[m._row] || target[m._row].by !== 'name') target[m._row] = { m: m, to: p.group, by: 'temple' }; });
+      });
+    });
+    plan.forEach(function (p) {
+      p.names.forEach(function (n) {
+        var hit = rows.filter(function (m) { return normalizeName_(m['姓名']) === n; });
+        if (!hit.length) hit = rows.filter(function (m) { return splitAliases_(m['別名']).indexOf(n) !== -1; });
+        if (!hit.length) { unknownNames.push(n); return; }
+        if (hit.length > 1) { ambiguous.push(n + '（' + hit.map(function (m) { return m['佛堂'] || '未填佛堂'; }).join('、') + '）'); return; }
+        target[hit[0]._row] = { m: hit[0], to: p.group, by: 'name' };
+      });
+    });
+    var changes = [], same = 0;
+    rows.forEach(function (m) {
+      var t = target[m._row];
+      var from = m[type] || '';
+      var to = t ? t.to : (body.clearOthers && m['啟用中'] !== '否' ? '' : from);
+      if (to === from) { if (t) same++; return; }
+      changes.push({ row: m._row, name: m['姓名'], temple: m['佛堂'] || '', from: from, to: to, by: t ? t.by : 'clear', _m: m });
+    });
+    if (body.apply) {
+      changes.forEach(function (c) { var ch = {}; ch[type] = c.to; updateRow_(SHEETS.MEMBERS, c._m, ch); });
+      if (changes.length) writeDutyLog_('成員', '依名單設定組別｜' + type + '：' + changes.length + ' 位');
+      SpreadsheetApp.flush();
+      invalidateTable_(SHEETS.MEMBERS);
+    }
+    return {
+      changes: changes.map(function (c) { return { row: c.row, name: c.name, temple: c.temple, from: c.from, to: c.to, by: c.by }; }),
+      unknownNames: unknownNames, unknownTemples: unknownTemples, ambiguous: ambiguous, same: same, applied: !!body.apply
+    };
+  };
+  return body.apply ? withSignupLock_(run) : run();
+}
+
 function memberToJson_(m) {
   var groups = {};
   MEMBER_GROUP_COLUMNS.forEach(function (t) { groups[t] = m[t]; });

@@ -273,7 +273,10 @@
 
   // ---------- 成員 ----------
 
-  const memberState = { q: '', filter: 'active', identity: 'all' };
+  const memberState = { q: '', filter: 'active', identity: 'all', missing: '' };
+  // 還沒填的資料（2026/11/22）：後台人員整理成員用
+  const MISSING = [['temple', '沒填佛堂', (m) => !m.temple], ['age', '沒填年齡', (m) => m.age === '' || m.age === undefined || m.age === null], ['identity', '沒填身分', (m) => !m.identity]];
+  const missingOf = (m) => MISSING.filter(([, , f]) => f(m));
   const IDENTITY_ORDER = [['點傳師', '點傳師'], ['壇辦', '壇辦'], ['道親', '道親'], ['未求道', '未求道'], ['', '未填身分']];
   const SHORT = { '未填身分': '未填' }; // 篩選按鈕用短一點的字，手機上才排得下一列
 
@@ -305,6 +308,11 @@
           <option value="inactive"${memberState.filter === 'inactive' ? ' selected' : ''}>已停用（${counts.inactive}）</option>
           <option value="all"${memberState.filter === 'all' ? ' selected' : ''}>全部（${data.members.length}）</option>
         </select>
+        <select class="input" data-missing aria-label="還沒填的資料">
+          <option value="">資料：全部</option>
+          ${MISSING.map(([k, label, f]) => `<option value="${k}"${memberState.missing === k ? ' selected' : ''}>${label}（${data.members.filter((m) => m.active && f(m)).length}）</option>`).join('')}
+          <option value="any"${memberState.missing === 'any' ? ' selected' : ''}>有任何一項沒填（${data.members.filter((m) => m.active && missingOf(m).length).length}）</option>
+        </select>
         <input class="input" type="search" data-q placeholder="搜尋姓名、${esc(window.SITE.temple)}或組別" value="${esc(memberState.q)}">
       </div>
       <div class="seg identity-filter" data-identity-filter></div>
@@ -318,7 +326,7 @@
           <li><button type="button" class="person-card${m.active ? '' : ' is-inactive'}" data-row="${m.row}">
             <span class="person-card-name">${esc(m.name)}${m.aliases && m.aliases.length ? `<small class="person-alias">（${esc(m.aliases.join('、'))}）</small>` : ''}${m.temple ? `<span class="tag tag-temple">${esc(m.temple)}</span>` : ''}${m.overseas ? `<span class="tag tag-temple">🌏 ${esc(m.overseas)}</span>` : ''}
               ${m.identity ? `<span class="tag">${esc(m.identity)}</span>` : '<span class="tag tag-warn">未填身分</span>'}
-              ${m.active ? '' : '<span class="tag">已停用</span>'}${m.pending ? '<span class="tag tag-warn">待確認</span>' : ''}${m.identity === '道親' && m.vegetarian ? '<span class="tag">🥬 清口</span>' : ''}${m.age !== '' && m.age !== undefined ? `<span class="tag">${m.age} 歲</span>` : ''}${famTags(m)}</span>
+              ${m.active ? '' : '<span class="tag">已停用</span>'}${m.pending ? '<span class="tag tag-warn">待確認</span>' : ''}${m.identity === '道親' && m.vegetarian ? '<span class="tag">🥬 清口</span>' : ''}${m.age !== '' && m.age !== undefined ? `<span class="tag">${m.age} 歲</span>` : ''}${famTags(m)}${memberState.missing ? missingOf(m).filter(([k]) => k !== 'identity').map(([, label]) => `<span class="tag tag-warn">${label.replace('沒填', '未填')}</span>`).join('') : ''}</span>
             <span class="person-card-meta">${esc(GROUP_TYPES.filter((t) => m.groups[t]).map((t) => `${t.replace('組', '')}：${m.groups[t]}`).join('・') || '未分組')}${m.note ? '・' + esc(m.note) : ''}</span>
           </button></li>`;
     function draw() {
@@ -327,6 +335,7 @@
       const base = data.members.filter((m) => {
         if (memberState.filter === 'active' && !m.active) return false;
         if (memberState.filter === 'inactive' && m.active) return false;
+        if (memberState.missing === 'any' ? !missingOf(m).length : (memberState.missing && !MISSING.find(([k]) => k === memberState.missing)[2](m))) return false;
         return !q || m.name.indexOf(q) !== -1 || (m.aliases || []).some((a) => a.indexOf(q) !== -1) || (m.temple || '').indexOf(q) !== -1 || GROUP_TYPES.some((t) => (m.groups[t] || '').indexOf(q) !== -1);
       });
       base.sort((a, b) => Fmt.byStroke(a.name, b.name)); // 姓的筆劃少到多
@@ -421,6 +430,7 @@
     const sp = body.querySelector('[data-show-pending]');
     if (sp) sp.addEventListener('click', () => { memberState.filter = 'pending'; renderMembers(body, guard, data, false, reload); });
     body.querySelector('[data-filter]').addEventListener('change', (ev) => { memberState.filter = ev.target.value; renderMembers(body, guard, data, false, reload); });
+    body.querySelector('[data-missing]').addEventListener('change', (ev) => { memberState.missing = ev.target.value; draw(); });
     body.querySelector('[data-q]').addEventListener('input', (ev) => { memberState.q = ev.target.value; draw(); });
     if (canEditPeople()) {
       body.querySelector('[data-add]').addEventListener('click', () => editMember(null, data.groups, guard, reload));
@@ -752,7 +762,7 @@
     body.innerHTML = `
       ${AdminPage.staleNote(stale)}
       ${flash}
-      ${canEditPeople() ? '<div class="admin-actions"><button type="button" class="btn btn-primary" data-add>＋ 新增分組</button></div>' : ''}
+      ${canEditPeople() ? '<div class="admin-actions"><button type="button" class="btn btn-primary" data-add>＋ 新增分組</button><button type="button" class="btn" data-assign>📋 依名單設定組別</button></div>' : ''}
       ${GROUP_TYPES.map((t) => {
         const items = data.groups.filter((g) => g.type === t);
         return `
@@ -769,10 +779,90 @@
     flash = '';
     const addG = body.querySelector('[data-add]');
     if (addG) addG.addEventListener('click', () => editGroup(null, guard, reload));
+    const asg = body.querySelector('[data-assign]');
+    if (asg) asg.addEventListener('click', () => assignGroups(data.groups, guard, reload));
     body.querySelectorAll('[data-row]').forEach((b) => b.addEventListener('click', () => {
       if (!canEditPeople()) return; // 總管理者、道務、教育帳號能改分組
       editGroup(data.groups.find((g) => g.row === Number(b.dataset.row)), guard, reload);
     }));
+  }
+
+  /**
+   * 📋 依名單設定組別（2026/11/22）：貼上「第1組：某某佛堂、某某」一行一組，先預覽誰會換到哪一組，按「確定設定」才改。
+   * 寫了「佛堂」的＝那個佛堂的人全部設成這一組；其他當成姓名（名字比佛堂優先）。
+   */
+  function assignGroups(groupList, guard, reload) {
+    const md = Modal.open(`
+      <h2 class="modal-title">📋 依名單設定組別</h2>
+      <p class="modal-note">把行事表冊上的分組貼進來，一行一組，例如：<br>第1組：某某佛堂、某某佛堂<br>第一組：王小明、測試甲、測試乙<br>寫「佛堂」的，那個佛堂的人全部設成這一組；其他當成名字。先按「檢查」看誰會換組，確定再設定。</p>
+      <label class="form-row"><span>分組類型</span><select class="input" data-type>${GROUP_TYPES.map((t) => `<option>${esc(t)}</option>`).join('')}</select></label>
+      <p class="hint" data-have></p>
+      <textarea class="input day-text" rows="8" data-text placeholder="第1組：某某佛堂、某某佛堂&#10;第2組：王小明、測試甲"></textarea>
+      <button type="button" class="btn btn-small" data-from-groups>用各組的「組員」欄</button>
+      <label class="check"><input type="checkbox" data-clear> 名單上沒有的人，這一類的組別清掉（新年度重排時用）</label>
+      <div data-out></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-block" data-check>檢查</button>
+        <button type="button" class="btn btn-primary btn-block" data-go disabled>確定設定</button>
+        <button type="button" class="btn btn-block" data-close>返回</button>
+      </div>`);
+    const el = md.el;
+    const out = el.querySelector('[data-out]');
+    const go = el.querySelector('[data-go]');
+    let changed = false;
+    let body = null;
+    el.querySelector('[data-close]').addEventListener('click', () => { md.close(); if (changed) reload(); });
+    const type = () => el.querySelector('[data-type]').value;
+    const showHave = () => { el.querySelector('[data-have]').textContent = '後台現在的組：' + (groupList.filter((g) => g.type === type()).map((g) => g.name).join('、') || '還沒有，請先新增分組'); };
+    showHave();
+    const reset = () => { body = null; go.disabled = true; };
+    el.querySelector('[data-type]').addEventListener('change', () => { showHave(); reset(); out.innerHTML = ''; });
+    el.querySelector('[data-text]').addEventListener('input', reset);
+    el.querySelector('[data-clear]').addEventListener('change', reset);
+    el.querySelector('[data-from-groups]').addEventListener('click', () => {
+      el.querySelector('[data-text]').value = groupList.filter((g) => g.type === type()).map((g) => `${g.name}：${[g.leader].concat(g.assistant ? g.assistant.split(/[、，,\s]+/) : [], g.members).filter(Boolean).join('、')}`).join('\n');
+      reset();
+    });
+    // 一行一組：「組名：名單」；組名後面也可以只用空白隔開
+    const parse = (text) => String(text || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean).map((l) => {
+      const m = l.match(/^(.+?組(?:[（(][^）)]*[）)])?)\s*[:：]?\s*(.*)$/);
+      if (!m) return null;
+      // 「佐理：」「組員：」這種標題拿掉（只拿後面有冒號的，或單獨一格的；名字裡剛好有這幾個字不會被切開）
+      const LABEL = /^(召集人|副組長|組長|佐理|組員)$/;
+      const tokens = m[2].replace(/(召集人|副組長|組長|佐理|組員)\s*[:：]/g, '、').split(/[、，,;；\s]+/).map((x) => x.replace(/[()（）]/g, '').trim()).filter((x) => x && !LABEL.test(x));
+      return { group: m[1].trim(), names: tokens.filter((x) => !/佛堂$/.test(x)), temples: tokens.filter((x) => /佛堂$/.test(x)) };
+    });
+    const run = async (apply) => {
+      const items = parse(el.querySelector('[data-text]').value);
+      if (!items.length || items.some((x) => !x)) { out.innerHTML = '<p class="form-error">看不懂：每一行要是「組名：名單」，例如「第1組：某某佛堂、王小明」。</p>'; return; }
+      body = { type: type(), items, clearOthers: el.querySelector('[data-clear]').checked };
+      Busy.show(apply ? '設定中⋯' : '檢查中⋯');
+      try {
+        const r = await Api.admin('adminAssignGroups', Object.assign({ apply }, body));
+        Busy.hide();
+        const warn = [
+          r.unknownTemples.length ? `<p class="form-error">對不到成員佛堂的：${esc(r.unknownTemples.join('、'))}（成員的佛堂可能還沒填，或寫法不一樣）</p>` : '',
+          r.unknownNames.length ? `<p class="form-error">名單上找不到的名字：${esc(r.unknownNames.join('、'))}</p>` : '',
+          r.ambiguous.length ? `<p class="form-error">同名好幾位、分不出來（沒改）：${esc(r.ambiguous.join('、'))}</p>` : ''
+        ].join('');
+        if (apply) {
+          changed = true;
+          out.innerHTML = `<div class="notice notice-success" role="status"><p><strong>✅ 已設定 ${r.changes.length} 位</strong>的${esc(body.type)}${r.same ? `（另外 ${r.same} 位本來就是這一組）` : ''}</p></div>${warn}`;
+          go.disabled = true;
+          AdminPage.clearMemo();
+          return;
+        }
+        out.innerHTML = `<p>會換組的 <strong>${r.changes.length} 位</strong>${r.same ? `，本來就是這一組的 ${r.same} 位` : ''}。</p>${warn}
+          ${r.changes.length ? `<div class="import-preview"><table><thead><tr><th>姓名</th><th>原本</th><th>改成</th></tr></thead><tbody>${r.changes.map((c) => `<tr><td>${esc(c.name)}${c.temple ? `<small>${esc(c.temple)}</small>` : ''}</td><td>${esc(c.from || '（無）')}</td><td><strong>${esc(c.to || '（清掉）')}</strong>${c.by === 'temple' ? '<small>依佛堂</small>' : ''}</td></tr>`).join('')}</tbody></table></div>` : ''}`;
+        go.disabled = !r.changes.length;
+      } catch (err) {
+        Busy.hide();
+        if (guard(err)) return;
+        out.innerHTML = `<p class="form-error">${errorHtml(err)}</p>`;
+      }
+    };
+    el.querySelector('[data-check]').addEventListener('click', () => run(false));
+    go.addEventListener('click', () => { if (body) run(true); });
   }
 
   function editGroup(g, guard, reload) {
