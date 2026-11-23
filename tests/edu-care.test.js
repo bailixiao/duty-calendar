@@ -58,3 +58,23 @@ test('已關心：教育帳號可以記（寫進成員的成全紀錄）、可�
   assert.equal(call('adminEduCare', { key: 'x|cap|2026', name: 'x' }, tok).error.code, 'FORBIDDEN');
   assert.equal(call('adminEduCareList', {}, tok).data.canEdit, false);
 });
+
+test('升學了，學校要更新（2026/11/23）：7～10 月列出換階段、學校還沒改成新階段的；改好就拿掉', () => {
+  const ms = [
+    { name: '測試大班', birthYear: 2021, school: '測試幼兒園' }, { name: '測試小六', birthYear: 2015, school: '測試國小' },
+    { name: '測試已改好', birthYear: 2015, school: '測試國中' }, { name: '測試國三', birthYear: 2012 },
+    { name: '測試高三', birthYear: 2009, school: '測試高中' }, { name: '測試小三', birthYear: 2018, school: '測試國小' }
+  ];
+  // 2027 年 7 月：9 月要升上去
+  let g = build(ms, '2027-07-10').find((x) => x.id === 'school');
+  assert.deepEqual(g.items.map((x) => [x.name, x.reason]), [
+    ['測試大班', '9 月要升上國小，學校還寫「測試幼兒園」'], ['測試小六', '9 月要升上國中，學校還寫「測試國小」'],
+    ['測試國三', '9 月要升上高中，學校還沒填'], ['測試高三', '9 月要升上大學，學校還寫「測試高中」']
+  ]);
+  assert.ok(g.items.every((x) => x.noCare), '不用按已關心');
+  // 2027 年 10 月：剛升上
+  g = build(ms, '2027-10-01').find((x) => x.id === 'school');
+  assert.equal(g.items.find((x) => x.name === '測試小六').reason, '升上國中了，學校還寫「測試國小」');
+  assert.equal(build(ms, '2027-11-01').find((x) => x.id === 'school'), undefined, '11 月以後不列');
+  assert.equal(build(ms, '2027-05-01').find((x) => x.id === 'school'), undefined, '6 月以前不列');
+});

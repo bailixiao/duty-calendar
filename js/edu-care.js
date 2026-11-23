@@ -2,6 +2,7 @@
 //   🎓 升學年：國三（會考、升高中）、高三（學測、分科、升大學）整個學年都列，每學期記一次已關心；
 //      升國中（國小六年級 6～8 月）、大學畢業（大四 5～6 月）。不記大考的確切日期（每年不一樣）。
 //   🎂 生日：前 3 天到後 7 天（35 歲以下，有填月日的）
+//   🏫 升學了，學校要更新：7～10 月列出今年換階段（幼兒園→國小、國小→國中、國中→高中、高中→大學）、學校欄還沒改成新階段的人（改好就自動拿掉）
 //   🔄 升班銜接：6～8 月列出 9 月要換班的人（讀經班→青少年班⋯），9～10 月列出剛升上新班的人
 // 「✓ 已關心」記在 apps-script/EduCare.gs（EDU_CARE），一句紀錄也寫進成員的成全紀錄。
 // build() 是純函式（Node 測試用 module.exports），mount() 畫畫面（瀏覽器用 window.EduCare）。
@@ -29,6 +30,9 @@
   ];
   const BDAY_BEFORE = 3, BDAY_AFTER = 7, BDAY_MAX_AGE = 35;
   const MOVE_FROM = '06-01', MOVE_TO = '10-31';
+  const SCHOOL_FROM = '07-01', SCHOOL_TO = '10-31';
+  /** 學校欄寫的是不是這個階段的學校（改好就不用再提醒） */
+  const SCHOOL_WORDS = { 國小: /國小|小學/, 國中: /國中|國民中學/, 高中: /高中|高職|高級|高工|高商|高農|高家|中學|五專|專科/, 大學: /大學|學院|科大|專科|研究所/ };
 
   const md = (d) => String(d).slice(5, 10);
   const inWin = (m, from, to) => (from <= to ? m >= from && m <= to : m >= from || m <= to);
@@ -109,6 +113,25 @@
           items: moves.map((x) => item(x.p, `${x.p.m.name}|move|${before ? acad + 1 : acad}`, x.reason, '')) });
       }
     }
+    // 🏫 升學了，學校要更新（7～10 月）
+    if (inWin(m0, SCHOOL_FROM, SCHOOL_TO)) {
+      const before = m0 < '09-01';
+      const other = before ? `${y}-09-01` : `${y}-08-31`;
+      const ups = info.map((p) => {
+        if (!p.m.birthYear) return null;
+        const a = stageOf(p.m.birthYear, other);
+        const now = p.st;
+        const from = before ? now : a, to = before ? a : now;
+        if (!to || !SCHOOL_WORDS[to.stage] || (from && from.stage === to.stage)) return null;
+        const school = String(p.m.school || '').trim();
+        if (school && SCHOOL_WORDS[to.stage].test(school)) return null; // 已經改成新學校了
+        return { p, reason: (before ? `9 月要升上${to.stage}` : `升上${to.stage}了`) + `，學校${school ? `還寫「${school}」` : '還沒填'}` };
+      }).filter(Boolean).sort((a, b) => sortI(a.p, b.p));
+      if (ups.length) {
+        groups.push({ id: 'school', icon: '🏫', title: '升學了，學校要更新', topic: '問一下新學校在哪裡、適不適應；點名字就能改學校，改好就會從這裡拿掉。', noCare: true,
+          items: ups.map((x) => Object.assign(item(x.p, `${x.p.m.name}|school|${before ? acad + 1 : acad}`, x.reason, ''), { noCare: true })) });
+      }
+    }
     return groups;
   }
 
@@ -133,7 +156,7 @@
       const done = groups.reduce((s, g) => s + g.items.filter((x) => d.care[x.key]).length, 0);
       box.innerHTML = `
         <h3 class="admin-sub">💛 這個月的關心名單<span class="h2-sub">${n ? `${n} 位・已關心 ${done} 位` : '依生日、學齡自動列出'}</span></h3>
-        <p class="hint">系統依成員的生日（出生年）自動列出：🎓 升學年（國三、高三整年，每學期關心一次）、升國中、大學畢業、🎂 生日（35 歲以下，有填月日的）、🔄 升班銜接。關心過了按「✓ 已關心」，組員之間不會重複找同一個人；寫的一句話也會記進那位成員的成全紀錄。</p>
+        <p class="hint">系統依成員的生日（出生年）自動列出：🎓 升學年（國三、高三整年，每學期關心一次）、升國中、大學畢業、🎂 生日（35 歲以下，有填月日的）、🏫 升學後學校要更新、🔄 升班銜接。關心過了按「✓ 已關心」，組員之間不會重複找同一個人；寫的一句話也會記進那位成員的成全紀錄。</p>
         ${n ? groups.map((g, gi) => `
           <div class="ecare-group">
             <h4 class="ecare-head">${g.icon} ${esc(g.title)}<span>${g.items.length} 位</span></h4>
@@ -144,6 +167,7 @@
                 <p class="ecare-reason">${esc(x.reason)}</p>
                 ${x.topic ? `<p class="ecare-talk">可以聊：${esc(x.topic)}</p>` : ''}
                 ${c ? `<p class="ecare-done">✓ 已關心（${esc(c.by)} ${esc(String(c.at).slice(5, 10).replace('-', '/'))}）${c.note ? '：' + esc(c.note) : ''}${d.canEdit ? ` <button type="button" class="link-btn" data-care-undo="${gi}|${i}">取消</button>` : ''}</p>`
+                  : x.noCare ? `<p class="ecare-talk">${opts.personHtml ? '👆 點名字改學校，改好就會自動拿掉' : '學校改好就會自動拿掉'}</p>`
                   : d.canEdit ? `<button type="button" class="btn btn-small btn-primary" data-care="${gi}|${i}">✓ 已關心</button>` : ''}
               </li>`; }).join('')}</ul>
           </div>`).join('') : '<p class="panel-empty">這個月沒有要特別關心的人（升學、生日、升班都還沒到）。生日在「👥 人員 → 成員」補，填了就會自動列進來。</p>'}
