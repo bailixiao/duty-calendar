@@ -129,14 +129,15 @@
               const h = Math.round((t.total / maxTotal) * 100);
               const daoH = t.total ? Math.round((t.dao / t.total) * h) : 0;
               const cur = t.period.year === p.year && t.period.n === p.n;
-              return `<button type="button" class="trend-col${cur ? ' is-current' : ''}" data-jump="${t.period.year}-${t.period.n}" aria-label="${esc(C.label(t.period))}：${t.total} 人次">
+              return `<button type="button" class="trend-col${cur ? ' is-current' : ''}" data-jump="${t.period.year}-${t.period.n}"${t.total || cur ? '' : ' disabled'} aria-label="${esc(C.label(t.period))}：${t.total} 人次">
                 <span class="trend-val">${t.total || ''}</span>
                 <span class="trend-bar" style="height:${h}%"><span class="trend-dao" style="height:${h ? Math.round((daoH / h) * 100) : 0}%"></span></span>
-                <span class="trend-label">${esc(C.label(t.period, true))}</span>
+                <span class="trend-label">${esc(C.label(t.period, true)).replace('年', '年<br>')}</span>
                 <span class="trend-pct">${C.pct(t.ratio)}</span>
               </button>`;
             }).join('')}
           </div>
+          <p class="hint no-print">點長條可以看那一期的統計（畫面會回到最上面，按「回到本${C.UNIT_NAME[p.unit]}」回來）；沒有資料的不能點。</p>
         </section>
 
         <section class="stats-section">
@@ -201,6 +202,9 @@
       const [y, n] = b.dataset.jump.split('-').map(Number);
       state.period = { unit: state.unit, year: y, n };
       rerender();
+      // 點了長條會換到那一期：捲回最上面，看得到期間和「回到本季」（2026/11/23：手機點了以為畫面不見）
+      const nav = body.querySelector('.stats-nav');
+      if (nav) requestAnimationFrame(() => window.scrollTo(0, Math.max(0, nav.getBoundingClientRect().top + window.scrollY - 70)));
     }));
     body.querySelectorAll('input[name=rank]').forEach((r) => r.addEventListener('change', () => { state.rankKind = r.value; rerender(); }));
     const all = body.querySelector('[data-rank-all]');

@@ -1598,7 +1598,8 @@ select.input { appearance: auto; }
   overflow: hidden;
 }
 .trend-dao { position: absolute; left: 0; right: 0; bottom: 0; background: var(--accent); }
-.trend-label { font-size: .8rem; color: var(--ink-2); white-space: nowrap; }
+.trend-label { font-size: .78rem; color: var(--ink-2); line-height: 1.2; text-align: center; }
+.trend-col:disabled { cursor: default; opacity: .7; }
 .trend-pct { font-size: .75rem; color: var(--muted); }
 .trend-col.is-current .trend-label { color: var(--ink); font-weight: 700; }
 .trend-col.is-current .trend-bar { outline: 2px solid var(--ink); outline-offset: 1px; }
