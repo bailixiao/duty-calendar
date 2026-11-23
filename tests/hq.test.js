@@ -441,3 +441,24 @@ test('請別區支援：名額不限的分派也可以請；分壇同意後請�
   assert.equal(main.support.n, 2);
   assert.equal((await R.she.admin('adminHqInbox')).data.items[0].reply.supportToName, '教全區');
 });
+
+test('名額分必須、建議（2026/11/23）：建議的放到行事曆不限最多人數、說明寫建議；截止前提醒不算沒報滿', async () => {
+  const R = await setup();
+  const id = (await R.hq.admin('hqSave', { campaign: Object.assign({}, CAMPAIGN, { regions: ['she', 'main'], quotas: { she: 2, main: 3 }, quotaFirm: false, deadline: '2026-11-25' }) })).data.campaign.id;
+  let c = (await R.hq.admin('hqList')).data.campaigns[0];
+  assert.equal(c.quotaFirm, false);
+  const x = (await R.she.admin('adminHqInbox')).data.items[0];
+  assert.equal(x.c.quotaFirm, false);
+  await R.she.admin('adminHqPublish', { id });
+  const ev = (await R.she.call({ action: 'getEvents', from: '2026-12-01', to: '2026-12-31' }, 'GET')).data.duties[0];
+  assert.equal(ev.positions[0].max, null, '建議名額不限制最多人數');
+  const duty = (await R.she.call({ action: 'getDuty', id: ev.id }, 'GET')).data;
+  assert.match(duty.description, /本區建議名額：2 位/);
+  // 截止前提醒：教捨區放了（0／2 不算還差）→ 不提醒；教全區還沒放 → 提醒
+  await R.hq.app.cron('today', 'hq');
+  assert.equal((await R.she.admin('adminHqInbox')).data.items[0].remind, null);
+  assert.equal((await R.main.admin('adminHqInbox')).data.items.find((y) => y.id === id).remind.text, '還沒放到行事曆');
+  // 預設是必須
+  c = (await R.hq.admin('hqSave', { campaign: Object.assign({}, CAMPAIGN, { title: '測試必須' }) })).data.campaign;
+  assert.equal(c.quotaFirm, true);
+});

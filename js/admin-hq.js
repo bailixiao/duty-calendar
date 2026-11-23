@@ -17,7 +17,11 @@
   const readOnly = () => (Api.adminWho() || {}).role === '唯讀'; // 唯讀帳號：只看清單、總表、整組總覽、統計
   const catLabel = (c) => (CATS.find((x) => x[0] === c) || [c, c])[1];
   const when = (c) => [Fmt.shortDate(c.start) + (c.end && c.end !== c.start ? '～' + Fmt.shortDate(c.end) : ''), c.startTime ? c.startTime + (c.endTime ? '–' + c.endTime : '') : '', c.location].filter(Boolean).join('・');
-  const quotaText = (c, q) => (c.quotaMode === 'none' ? '不限' : q ? q + ' 位' : c.quotaMode === 'self' ? '各區自己報' : '不限');
+  const soft = (c) => c.quotaMode === 'assigned' && c.quotaFirm === false; // 建議名額（2026/11/23）
+  const quotaText = (c, q) => (c.quotaMode === 'none' ? '不限' : q ? (soft(c) ? '建議 ' + q + ' 位' : q + ' 位') : c.quotaMode === 'self' ? '各區自己報' : '不限');
+  /** 名額必須／建議的選擇（分配名額時才有） */
+  const firmPick = (firm) => `<div class="form-row"><span>這些名額是</span><div class="seg">${[['1', '必須（要派滿）'], ['0', '建議（參考，可以少派）']].map(([v, l]) => `<label class="seg-item"><input type="radio" name="quotaFirm" value="${v}"${(firm ? '1' : '0') === v ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div></div>
+      <p class="hint">「建議」：各區少派也可以，不算還差、不會被提醒沒報滿，行事曆也不限制最多人數。</p>`;
   /** 分派可以送的區（教全區＋12 區，不含分壇）：[[代號, 區名]] */
   const regionList = () => [['main', '教全區']].concat(Object.entries((window.Region && Region.REGIONS) || {}).filter(([c]) => c !== 'hq'));
   const regionNameOf = (code) => (regionList().find(([c]) => c === code) || [code, code])[1];
@@ -127,7 +131,7 @@
     const nameOf = (code) => (list0.targets.find((t) => t.code === code) || { name: code }).name;
     const rg = replyGroups(cs, nameOf);
     const asked = (c, r) => c.replies && c.replies[r.code] && c.replies[r.code].state === 'pending';
-    const quotaOf = (c, r, x) => { const q = (x && x.quota) || (c.quotaMode === 'assigned' && c.quotas ? c.quotas[r.code] : ''); return x && (x.status === 'declined' || x.status === 'not-open') ? 0 : Number(q) || 0; };
+    const quotaOf = (c, r, x) => { if (soft(c)) return 0; const q = (x && x.quota) || (c.quotaMode === 'assigned' && c.quotas ? c.quotas[r.code] : ''); return x && (x.status === 'declined' || x.status === 'not-open') ? 0 : Number(q) || 0; };
     const todoBy = {};
     d.regions.forEach((r) => { todoBy[r.code] = cs.filter((c) => { const x = cell(c, r); return x && (x.status === 'new' || x.status === 'seen') && c.end >= today; }).length; });
     let totalN = 0, totalQ = 0;
@@ -254,7 +258,7 @@
           a.regions.add(code);
           if (x.status === 'not-open' || x.status === 'none' || x.status === 'error') { g.off++; return; }
           g.got++;
-          const q = x.status === 'declined' ? 0 : Number(x.quota || (c.quotaMode === 'assigned' && c.quotas ? c.quotas[code] : '')) || 0;
+          const q = x.status === 'declined' || soft(c) ? 0 : Number(x.quota || (c.quotaMode === 'assigned' && c.quotas ? c.quotas[code] : '')) || 0;
           if (x.status === 'published') { g.pub++; a.pub++; }
           else if (x.status === 'declined') g.dec++;
           else if (x.status === 'new' || x.status === 'seen') { if (c.end < today) g.late++; else g.todo++; }
@@ -325,7 +329,7 @@
     const g = draftGroups(data.campaigns).find((x) => x.key === key);
     if (!g) { body.innerHTML = '<p class="panel-empty">找不到這一組草稿，可能已經送出或刪掉了。<a href="#/admin">回分派清單</a></p>'; return; }
     const f0 = g.items[0];
-    const c = { title: f0.title, category: f0.category, nature: f0.nature, location: f0.location, attire: f0.attire || '', description: f0.description, positions: f0.positions && f0.positions.length ? f0.positions : [{ name: '參加' }], quotaMode: f0.quotaMode || 'none', quotas: Object.assign({}, f0.quotas), deadlineDays: f0.deadline ? String(dayDiff(f0.deadline, f0.start)) : '', autoRemind: f0.autoRemind !== false };
+    const c = { title: f0.title, category: f0.category, nature: f0.nature, location: f0.location, attire: f0.attire || '', description: f0.description, positions: f0.positions && f0.positions.length ? f0.positions : [{ name: '參加' }], quotaMode: f0.quotaMode || 'none', quotaFirm: f0.quotaFirm !== false, quotas: Object.assign({}, f0.quotas), deadlineDays: f0.deadline ? String(dayDiff(f0.deadline, f0.start)) : '', autoRemind: f0.autoRemind !== false };
     const rows = g.items.map((x) => ({ id: x.id, pick: true, start: x.start, end: x.end, startTime: x.startTime, endTime: x.endTime, regions: x.regions.slice(), description: x.description, source: x.source }));
     const sameDesc = rows.every((r) => r.description === f0.description);
     const regionNames = (codes) => (codes.length === data.targets.length ? '全部 ' + codes.length + ' 區' : codes.length ? data.targets.filter((t) => codes.indexOf(t.code) !== -1).map((t) => t.name.replace(/區$/, '')).join('、') : '還沒選');
@@ -349,7 +353,7 @@
           <fieldset class="form-block">
             <legend>名額（每個日期都一樣）</legend>
             <div class="seg">${[['none', '不限'], ['assigned', '分壇分配'], ['self', '各區自己報']].map(([v, l]) => `<label class="seg-item"><input type="radio" name="quotaMode" value="${v}"${c.quotaMode === v ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div>
-            ${c.quotaMode === 'assigned' ? `<p class="hint">每區每次幾位（空白＝那一區不限）。</p>
+            ${c.quotaMode === 'assigned' ? `${firmPick(c.quotaFirm)}<p class="hint">每區每次幾位（空白＝那一區不限）。</p>
               <div class="hq-quotas">${allRegions.map((t) => `<label class="form-row" data-quota-row="${t.code}"><span>${esc(t.name)}</span><input class="input" name="q-${t.code}" inputmode="numeric" maxlength="4" value="${esc(c.quotas[t.code] || '')}"></label>`).join('')}</div>` : ''}
             ${c.quotaMode === 'self' ? '<p class="hint">各區組長放到行事曆時自己填要幾位。</p>' : ''}
           </fieldset>
@@ -391,6 +395,7 @@
       const redraw = () => { sync(); const y = scrollY; draw(); scrollTo(0, y); };
       f.querySelectorAll('input[name=category]').forEach((x) => x.addEventListener('change', () => { sync(); c.category = x.value; c.nature = ''; draw(); }));
       f.querySelectorAll('input[name=quotaMode]').forEach((x) => x.addEventListener('change', () => { sync(); c.quotaMode = x.value; draw(); }));
+      f.querySelectorAll('input[name=quotaFirm]').forEach((x) => x.addEventListener('change', () => { c.quotaFirm = x.value === '1'; }));
       f.querySelectorAll('[data-i]').forEach((el) => {
         const r = rows[Number(el.dataset.i)];
         el.querySelectorAll('[data-k]').forEach((inp) => inp.addEventListener('change', () => {
@@ -421,7 +426,7 @@
         const days = Number(c.deadlineDays);
         const t = (v) => { const x = Fmt.parseTime(v); return x === null ? v : x; };
         // 一次送出（hqSaveMany：每一區只叫一次），不用一筆一筆等
-        const items = todo.map((r) => ({ id: r.id, title: c.title, category: c.category, nature: c.nature, location: c.location, attire: c.attire, description: c.description.trim() || r.description, positions: c.positions, quotaMode: c.quotaMode, quotas: c.quotas, autoRemind: c.autoRemind,
+        const items = todo.map((r) => ({ id: r.id, title: c.title, category: c.category, nature: c.nature, location: c.location, attire: c.attire, description: c.description.trim() || r.description, positions: c.positions, quotaMode: c.quotaMode, quotaFirm: c.quotaFirm, quotas: c.quotas, autoRemind: c.autoRemind,
           start: r.start, end: r.end || r.start, startTime: t(r.startTime), endTime: t(r.endTime), regions: r.regions, deadline: days > 0 ? addDays(r.start, -days) : '' }));
         Busy.show(`${draft ? '存草稿' : '送出'}中⋯（${todo.length} 個日期）`);
         try {
@@ -459,7 +464,7 @@
     const tpl = tplId ? tpls.find((t) => t.id === tplId) : null;
     if (tplId && !tpl) { body.innerHTML = '<p class="panel-empty">找不到這個範本，可能已經刪掉了。<a href="#/admin">回分派清單</a></p>'; return; }
     const c = old || (tpl && fromTpl(tpl)) || { title: '', category: myCats()[0][0], nature: '', start: '', end: '', startTime: '', endTime: '', location: '', attire: '', description: '', positions: [{ name: '參加' }], deadline: '', quotaMode: 'none', quotas: {}, regions: data.targets.filter((t) => t.open).map((t) => t.code) };
-    const st = { category: c.category, quotaMode: c.quotaMode };
+    const st = { category: c.category, quotaMode: c.quotaMode, quotaFirm: c.quotaFirm !== false };
     let asDraft = false;
     const draw = () => {
       body.innerHTML = `
@@ -493,7 +498,7 @@
           <fieldset class="form-block">
             <legend>名額</legend>
             <div class="seg">${[['none', '不限'], ['assigned', '分壇分配'], ['self', '各區自己報']].map(([v, l]) => `<label class="seg-item"><input type="radio" name="quotaMode" value="${v}"${st.quotaMode === v ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div>
-            ${st.quotaMode === 'assigned' ? `<p class="hint">每區填幾位（空白＝那一區不限）。只有一個了愿項目時，名額就是那一項最多幾位。</p>
+            ${st.quotaMode === 'assigned' ? `${firmPick(st.quotaFirm)}<p class="hint">每區填幾位（空白＝那一區不限）。名額是「必須」而且只有一個了愿項目時，名額就是那一項最多幾位。</p>
               <div class="hq-quotas">${data.targets.filter((t) => c.regions.indexOf(t.code) !== -1 || !old).map((t) => `<label class="form-row" data-quota-row="${t.code}"><span>${esc(t.name)}</span><input class="input" name="q-${t.code}" inputmode="numeric" maxlength="4" value="${esc((c.quotas || {})[t.code] || '')}"></label>`).join('')}</div>` : ''}
             ${st.quotaMode === 'self' ? '<p class="hint">各區組長放到行事曆時自己填要幾位，總表看得到。</p>' : ''}
           </fieldset>
@@ -514,6 +519,7 @@
       };
       f.querySelectorAll('input[name=category]').forEach((r) => r.addEventListener('change', () => { sync(); st.category = r.value; c.nature = ''; draw(); }));
       f.querySelectorAll('input[name=quotaMode]').forEach((r) => r.addEventListener('change', () => { sync(); st.quotaMode = r.value; draw(); }));
+      f.querySelectorAll('input[name=quotaFirm]').forEach((r) => r.addEventListener('change', () => { st.quotaFirm = r.value === '1'; }));
       body.querySelector('[data-all-regions]').addEventListener('click', () => { data.targets.forEach((t) => { const x = f.querySelector(`input[name=regions][value=${t.code}]`); if (x) x.checked = t.open; }); });
       const dr = body.querySelector('[data-save-draft]');
       if (dr) dr.addEventListener('click', () => { asDraft = true; f.requestSubmit(); });
@@ -527,7 +533,7 @@
           if (!c.deadline && tpl.deadlineDays !== '') c.deadline = addDays(c.start, -tpl.deadlineDays);
         }
         const t = (v) => { const x = Fmt.parseTime(v); return x === null ? v : x; };
-        const campaign = Object.assign({}, c, { id: old ? old.id : undefined, category: st.category, quotaMode: st.quotaMode, startTime: t(c.startTime), endTime: t(c.endTime), end: c.end || c.start });
+        const campaign = Object.assign({}, c, { id: old ? old.id : undefined, category: st.category, quotaMode: st.quotaMode, quotaFirm: st.quotaFirm, startTime: t(c.startTime), endTime: t(c.endTime), end: c.end || c.start });
         const box = body.querySelector('[data-error]');
         box.hidden = true;
         Busy.show('送出中⋯');
@@ -555,7 +561,7 @@
     if (c.status === 'draft') { location.replace('#/admin/hq/group/' + encodeURIComponent(groupKey(c))); return; }
     // 還沒開通、還沒收到的區：名額照分壇分配的寫
     rows.forEach((r) => { if (!r.quota && c.quotaMode === 'assigned' && c.quotas && c.quotas[r.code]) r.quota = c.quotas[r.code]; });
-    const qOf = (r) => (r.quota && r.status !== 'not-open' && r.status !== 'declined' ? Number(r.quota) : 0);
+    const qOf = (r) => (r.quota && !soft(c) && r.status !== 'not-open' && r.status !== 'declined' ? Number(r.quota) : 0);
     const totalQ = rows.reduce((n, r) => n + qOf(r), 0);
     const totalN = rows.reduce((n, r) => n + (r.count || 0), 0);
     const rp = (code) => (c.replies || {})[code];
@@ -566,7 +572,7 @@
     body.innerHTML = `
       <p class="hq-back-row"><a class="back-link" href="#/admin">‹ 分派清單</a><a class="link-btn" href="#/admin/hq/overview/${encodeURIComponent(groupKey(c))}">📊 同名的整組總覽</a></p>
       <h2>${esc(c.title)}</h2>
-      <p class="muted">${esc(catLabel(c.category))}・${esc(when(c))}${c.deadline ? '・報名截止 ' + esc(Fmt.shortDate(c.deadline)) : ''}・名額：${esc({ none: '不限', assigned: '分壇分配', self: '各區自己報' }[c.quotaMode])}</p>
+      <p class="muted">${esc(catLabel(c.category))}・${esc(when(c))}${c.deadline ? '・報名截止 ' + esc(Fmt.shortDate(c.deadline)) : ''}・名額：${esc({ none: '不限', assigned: soft(c) ? '分壇分配（建議）' : '分壇分配（必須）', self: '各區自己報' }[c.quotaMode])}</p>
       <div class="admin-actions">
         ${readOnly() ? '' : `<a class="btn" href="#/admin/hq/edit/${encodeURIComponent(c.id)}">✏️ 修改</a>`}
         ${readOnly() || !future ? '' : '<button type="button" class="btn btn-primary" data-hqremind>🔔 通知沒處理、沒報滿的區</button>'}
@@ -1212,7 +1218,7 @@
   /** 範本 → 表單的欄位（日期之後填） */
   function fromTpl(t) {
     return { title: t.title, category: t.category, nature: t.nature, start: '', end: '', startTime: t.startTime || '', endTime: t.endTime || '', location: t.location || '', attire: t.attire || '', description: t.description || '',
-      positions: (t.positions || []).length ? t.positions : [{ name: '參加' }], deadline: '', quotaMode: t.quotaMode || 'none', quotas: Object.assign({}, t.quotas), regions: (t.regions || []).slice(), autoRemind: t.autoRemind !== false };
+      positions: (t.positions || []).length ? t.positions : [{ name: '參加' }], deadline: '', quotaMode: t.quotaMode || 'none', quotaFirm: t.quotaFirm !== false, quotas: Object.assign({}, t.quotas), regions: (t.regions || []).slice(), autoRemind: t.autoRemind !== false };
   }
 
   /** 總表、整組總覽的「📋 複製成新的分派」「⭐ 存成範本」 */

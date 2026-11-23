@@ -49,7 +49,8 @@ function hqQuotaText_(entry) {
 function hqDutyInput_(entry, oldPositions) {
   var c = entry.c;
   var desc = [c.description || ''];
-  if (entry.quota) desc.push('本區名額：' + entry.quota + ' 位');
+  var soft = c.quotaMode === 'assigned' && c.quotaFirm === false; // 建議名額（2026/11/23）：不限制最多人數
+  if (entry.quota) desc.push(soft ? '本區建議名額：' + entry.quota + ' 位（參考，可以少派也可以多派）' : '本區名額：' + entry.quota + ' 位');
   if (entry.note) desc.push('【本區補充】' + entry.note);
   var ps = (c.positions && c.positions.length ? c.positions : [{ name: '參加' }]);
   var single = ps.length === 1;
@@ -60,7 +61,7 @@ function hqDutyInput_(entry, oldPositions) {
     deadline: c.deadline || '', groupType: entry.groupType || '', group: entry.group || '',
     positions: ps.map(function (p) {
       var old = (oldPositions || []).filter(function (o) { return o['了愿項目名稱'] === p.name; })[0];
-      return { id: old ? old['了愿項目ID'] : undefined, name: p.name, slot: '', min: '', max: single && entry.quota ? entry.quota : (p.max || '') };
+      return { id: old ? old['了愿項目ID'] : undefined, name: p.name, slot: '', min: '', max: single && entry.quota && !soft ? entry.quota : (p.max || '') };
     })
   };
 }

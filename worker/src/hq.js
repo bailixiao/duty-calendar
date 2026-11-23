@@ -63,6 +63,7 @@ export function createHq({ gs, store, cross, openRegions }) {
       deadline: s(c.deadline, 10, '報名截止日', false),
       quotaMode: ['none', 'assigned', 'self'].indexOf(c.quotaMode) !== -1 ? c.quotaMode : 'none',
       autoRemind: c.autoRemind !== false, // 截止前 3 天自動提醒沒處理、沒報滿的區（2026/11/23）
+      quotaFirm: c.quotaFirm !== false, // 分壇分配的名額：true＝必須（要派滿）、false＝建議（可以少派；不算還差、不提醒，2026/11/23）
       positions: [],
       quotas: {},
       regions: []
@@ -103,7 +104,7 @@ export function createHq({ gs, store, cross, openRegions }) {
   const forRegion = (c, r) => ({
     id: c.id, title: c.title, category: c.category, nature: c.nature, start: c.start, end: c.end, startTime: c.startTime, endTime: c.endTime,
     location: c.location, attire: c.attire, description: c.description, deadline: c.deadline, positions: c.positions,
-    quotaMode: c.quotaMode, quota: c.quotaMode === 'assigned' ? (c.quotas[r] || '') : '', version: c.version
+    quotaMode: c.quotaMode, quotaFirm: c.quotaFirm !== false, quota: c.quotaMode === 'assigned' ? (c.quotas[r] || '') : '', version: c.version
   });
 
   /** 送出去（新增、修改都一樣）；不送的區收回。回傳每一區的結果 */
@@ -435,9 +436,10 @@ export function createHq({ gs, store, cross, openRegions }) {
   };
 
   /** 還差什麼（提醒用）：還沒放到行事曆、或名額還沒報滿；都好了回傳 '' */
-  function lackOf(x) {
+  function lackOf(x, c) {
     if (!x) return '';
     if (x.status === 'new' || x.status === 'seen') return '還沒放到行事曆';
+    if (c && c.quotaMode === 'assigned' && c.quotaFirm === false) return ''; // 建議名額：少派不算沒報滿
     const q = Number(x.quota) || 0;
     if (x.status === 'published' && q && (x.count || 0) < q) return '還差 ' + (q - (x.count || 0)) + ' 位';
     return '';
@@ -449,7 +451,7 @@ export function createHq({ gs, store, cross, openRegions }) {
     const d = await collect(cs, 'hqCountMany');
     const out = [];
     await Promise.all(d.regions.filter((g) => g.open).map(async (g) => {
-      const items = cs.map((c) => ({ c, text: lackOf(d.cells[c.id][g.code]) })).filter((x) => x.text && d.cells[x.c.id][g.code]);
+      const items = cs.map((c) => ({ c, text: lackOf(d.cells[c.id][g.code], c) })).filter((x) => x.text && d.cells[x.c.id][g.code]);
       if (!items.length) return;
       const lines = items.slice(0, 5).map((x) => md(x.c.start) + ' ' + x.c.title + '：' + x.text);
       const text = (auto ? '報名快截止了，' : '') + '這幾個分派還要麻煩看一下：\n' + lines.join('\n') + (items.length > 5 ? '\n⋯還有 ' + (items.length - 5) + ' 個' : '') + '\n請到後台「📥 分壇分派」處理 🙏';
@@ -463,7 +465,7 @@ export function createHq({ gs, store, cross, openRegions }) {
       const at = gs.nowString_();
       cs.forEach((c0) => {
         const c = all.find((x) => x.id === c0.id);
-        const rs = out.filter((o) => !o.error && lackOf(d.cells[c0.id][o.code])).map((o) => o.code);
+        const rs = out.filter((o) => !o.error && lackOf(d.cells[c0.id][o.code], c0)).map((o) => o.code);
         if (c && rs.length) c.reminded = { at, by: by || '自動', auto: !!auto, regions: rs };
       });
       save(all);
@@ -596,7 +598,7 @@ export function createHq({ gs, store, cross, openRegions }) {
       id: old ? old.id : 'T-' + crypto.randomUUID().replace(/-/g, '').slice(0, 10),
       name, title: c.title, category: c.category, nature: c.nature, startTime: c.startTime, endTime: c.endTime, days,
       location: c.location, attire: c.attire, description: c.description, positions: c.positions,
-      quotaMode: c.quotaMode, quotas: c.quotas, regions: c.regions, autoRemind: c.autoRemind, deadlineDays: dd === '' ? '' : Number(dd),
+      quotaMode: c.quotaMode, quotaFirm: c.quotaFirm, quotas: c.quotas, regions: c.regions, autoRemind: c.autoRemind, deadlineDays: dd === '' ? '' : Number(dd),
       createdAt: old ? old.createdAt : gs.nowString_(), updatedAt: gs.nowString_(), by: who.account || '總管理者'
     };
     if (all.some((y) => y.id !== t.id && y.name === t.name)) throw err('VALIDATION', '已經有叫「' + t.name + '」的範本，換個名稱或改原本那個');
