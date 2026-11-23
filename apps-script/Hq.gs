@@ -151,10 +151,14 @@ function adminHqInbox_() {
     return {
       id: e.c.id, c: e.c, status: e.status, quota: e.quota || '', note: e.note || '', groupType: e.groupType || '', group: e.group || '',
       dutyId: e.dutyId || '', count: count, updated: !!e.updated, syncError: e.syncError || '', declineReason: e.declineReason || '',
-      receivedAt: e.receivedAt, seenAt: e.seenAt || '', seenBy: e.seenBy || '', publishedAt: e.publishedAt || '', publishedBy: e.publishedBy || ''
+      receivedAt: e.receivedAt, seenAt: e.seenAt || '', seenBy: e.seenBy || '', publishedAt: e.publishedAt || '', publishedBy: e.publishedBy || '',
+      reply: e.reply || null, remind: e.remind || null
     };
   }).sort(function (a, b) { return order[a.status] - order[b.status] || String(a.c.start).localeCompare(String(b.c.start)); });
-  return { items: items, pending: items.filter(function (x) { return x.status === 'new' || x.status === 'seen' || x.updated; }).length, hqName: HQ_NAME };
+  var notices = hqNoticesFor_();
+  var unread = notices.filter(function (n) { return !n.readAt; }).length;
+  var answered = items.filter(function (x) { return x.reply && x.reply.state !== 'pending' && !x.reply.seen; }).length;
+  return { items: items, notices: notices, unread: unread, answered: answered, pending: items.filter(function (x) { return x.status === 'new' || x.status === 'seen' || x.updated; }).length + unread, hqName: HQ_NAME };
 }
 
 function hqEntryFor_(inbox, id) {
@@ -306,4 +310,173 @@ function hqImportPrompt_(hint, part) {
     '- 看不清楚的欄位填空字串，不要猜；最多輸出 150 筆。',
     hint ? '分壇補充說明：' + hint : ''
   ].filter(Boolean).join('\n');
+}
+
+// ---------- 上下溝通（2026/11/23）：各區回覆／申請調名額、截止前提醒、分壇公告 ----------
+
+/** 以某個管理者身分做事（Cloudflare 的 hq.js 先驗過登入再叫進來） */
+function hqAs_(who, fn) {
+  var keep = ADMIN_SESSION_;
+  ADMIN_SESSION_ = who;
+  try { return fn(); } finally { ADMIN_SESSION_ = keep; }
+}
+
+/** 通知這一區管理者的手機（開了「分壇通知」的；類別帳號只收自己那一類，cat 空白＝大家都收） */
+function hqNotifyAdmins_(cat, title, text, url) {
+  var targets = pushTargets_('分壇通知').filter(function (t) { var r = t['對象'] || SUPER_ACCOUNT; return !cat || r === SUPER_ACCOUNT || r === cat; });
+  pushMessageTo_(targets, title, text, url || '#/admin/hqinbox');
+  return targets.length;
+}
+
+/**
+ * 回覆分壇（可以順便申請調名額）：body = { ids, text, quotaAsk }。同一個活動好幾個日期可以一起回。
+ * 存在收件匣（e.reply），回傳 { inbox, replies: [{ id, reply }] } 讓 hq.js 轉給分壇。
+ */
+function adminHqReplyLocal_(body) {
+  var ids = Array.isArray(body.ids) ? body.ids.map(String) : (body.id ? [String(body.id)] : []);
+  if (!ids.length) throw new ApiError_('BAD_REQUEST', '沒有要回覆的分派');
+  if (ids.length > 200) throw new ApiError_('BAD_REQUEST', '一次最多 200 個日期');
+  var text = String(body.text || '').replace(/\r/g, '').trim().slice(0, 300);
+  var q = String(body.quotaAsk === undefined || body.quotaAsk === null ? '' : body.quotaAsk).trim();
+  if (q && (!/^\d{1,4}$/.test(q) || Number(q) < 1)) throw new ApiError_('VALIDATION', '想改的名額請填數字（至少 1 位；不參加請按「本區不參加」）');
+  if (!text && !q) throw new ApiError_('VALIDATION', '請寫要回覆分壇的話，或填想改的名額');
+  return withSignupLock_(function () {
+    var inbox = hqInbox_();
+    var out = [];
+    var now = nowString_();
+    ids.forEach(function (id) {
+      var e = hqEntryFor_(inbox, id);
+      if (e.status === 'withdrawn') return;
+      if (q && e.c.quotaMode !== 'assigned') throw new ApiError_('VALIDATION', '「' + e.c.title + '」的名額不是分壇分配的，不用申請；' + (e.c.quotaMode === 'self' ? '本區自己填名額就好' : '名額不限'));
+      e.reply = { text: text, quotaAsk: q ? Number(q) : '', quotaWas: e.quota || '', at: now, by: hqWho_(), state: 'pending', answer: '', answerAt: '', answerBy: '' };
+      out.push({ id: id, reply: e.reply });
+    });
+    if (!out.length) throw new ApiError_('VALIDATION', '這些分派分壇都收回了，不用回覆');
+    hqInboxSave_(inbox);
+    return { inbox: adminHqInbox_(), replies: out };
+  });
+}
+
+/** 分壇回覆了（同意改名額時，hq.js 先用 hqDeliver_ 把新的名額送來）：p = { ids, state: 'ok'|'no', answer, by } */
+function hqAnswer_(p) {
+  return withSignupLock_(function () {
+    var inbox = hqInbox_();
+    var done = [];
+    (p.ids || []).forEach(function (id) {
+      var e = inbox[id];
+      if (!e || !e.reply) return;
+      e.reply.state = p.state === 'no' ? 'no' : 'ok';
+      e.reply.answer = String(p.answer || '').slice(0, 300);
+      e.reply.answerAt = nowString_();
+      e.reply.answerBy = String(p.by || HQ_NAME).slice(0, 40);
+      e.reply.seen = false;
+      if (e.reply.state === 'ok' && e.reply.quotaAsk) e.updated = false; // 名額照本區申請的改好了，不用再標「分壇有更新」
+      done.push(e);
+    });
+    hqInboxSave_(inbox);
+    if (done.length) {
+      var e0 = done[0];
+      var head = e0.reply.quotaAsk ? (e0.reply.state === 'ok' ? '✅ 同意名額改成 ' + e0.reply.quotaAsk + ' 位' : '❌ 名額維持原本的') : '💬 回覆了';
+      hqNotifyAdmins_(e0.c.category, '💬 ' + HQ_NAME + '回覆', '「' + e0.c.title + '」' + (done.length > 1 ? done.length + ' 個日期' : '') + '：' + head + (e0.reply.answer ? '\n' + e0.reply.answer : ''));
+    }
+    return { done: done.length };
+  });
+}
+
+/** 組長看過分壇的回覆（收件匣的「新回覆」標記拿掉） */
+function adminHqReplySeen_(body) {
+  var ids = Array.isArray(body.ids) ? body.ids.map(String) : [];
+  return withSignupLock_(function () {
+    var inbox = hqInbox_();
+    ids.forEach(function (id) { var e = inbox[id]; if (e && e.reply && hqCanSee_(e)) e.reply.seen = true; });
+    hqInboxSave_(inbox);
+    return adminHqInbox_();
+  });
+}
+
+/**
+ * 分壇提醒（截止前自動、或分壇按「🔔 提醒」）：p = { items: [{ id, text }], body, auto }。
+ * 收件匣記下提醒（e.remind），通知那一類管理者的手機。
+ */
+function hqRemind_(p) {
+  return withSignupLock_(function () {
+    var inbox = hqInbox_();
+    var now = nowString_();
+    var cats = {};
+    var n = 0;
+    (p.items || []).forEach(function (it) {
+      var e = inbox[it.id];
+      if (!e || e.status === 'withdrawn' || e.status === 'declined') return;
+      e.remind = { at: now, text: String(it.text || '').slice(0, 100), auto: !!p.auto };
+      cats[e.c.category] = true;
+      n++;
+    });
+    hqInboxSave_(inbox);
+    var keys = Object.keys(cats);
+    var phones = n ? hqNotifyAdmins_(keys.length === 1 ? keys[0] : '', '🔔 ' + HQ_NAME + '提醒', String(p.body || '分壇的分派還有沒處理、沒報滿的，請到後台「📥 分壇分派」看看')) : 0;
+    return { items: n, phones: phones };
+  });
+}
+
+// ---- 分壇公告：指令碼屬性 HQ_NOTICES = { 公告ID: { n, receivedAt, readAt, readBy } } ----
+var HQ_NOTICES_PROP = 'HQ_NOTICES';
+function hqNoticeStore_() {
+  try { var o = JSON.parse(PropertiesService.getScriptProperties().getProperty(HQ_NOTICES_PROP) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; }
+}
+function hqNoticeSave_(o) { PropertiesService.getScriptProperties().setProperty(HQ_NOTICES_PROP, JSON.stringify(o)); }
+function hqCanSeeNotice_(n) {
+  var role = ADMIN_SESSION_ ? ADMIN_SESSION_.role : '';
+  if (role === SUPER_ACCOUNT) return true;
+  return CATEGORIES.indexOf(role) !== -1 && (!n.category || n.category === role);
+}
+/** 這個帳號看得到的公告（新的在前） */
+function hqNoticesFor_() {
+  var o = hqNoticeStore_();
+  return Object.keys(o).map(function (id) { return o[id]; }).filter(function (x) { return x && x.n && hqCanSeeNotice_(x.n); })
+    .map(function (x) { return { id: x.n.id, title: x.n.title, body: x.n.body, category: x.n.category || '', at: x.n.updatedAt || x.n.createdAt, by: x.n.by || '', readAt: x.readAt || '', readBy: x.readBy || '' }; })
+    .sort(function (a, b) { return String(b.at).localeCompare(String(a.at)); });
+}
+/** 分壇發（或改）公告：改過的要重新看 */
+function hqNoticeIn_(n) {
+  if (!n || !n.id) throw new ApiError_('BAD_REQUEST', '公告資料不完整');
+  return withSignupLock_(function () {
+    var o = hqNoticeStore_();
+    var old = o[n.id];
+    var changed = !old || old.n.version !== n.version;
+    o[n.id] = { n: n, receivedAt: old ? old.receivedAt : nowString_(), readAt: changed ? '' : old.readAt, readBy: changed ? '' : old.readBy };
+    hqNoticeSave_(o);
+    if (changed) hqNotifyAdmins_(n.category || '', '📢 ' + HQ_NAME + '公告' + (old ? '（有更新）' : ''), n.title);
+    return { ok: true };
+  });
+}
+function hqNoticeOut_(id) {
+  return withSignupLock_(function () {
+    var o = hqNoticeStore_();
+    delete o[id];
+    hqNoticeSave_(o);
+    return { ok: true };
+  });
+}
+/** 組長按「知道了」：這一區算已讀（回傳讓 hq.js 告訴分壇） */
+function adminHqNoticeReadLocal_(body) {
+  return withSignupLock_(function () {
+    var o = hqNoticeStore_();
+    var x = o[String(body.id || '')];
+    if (!x || !hqCanSeeNotice_(x.n)) throw new ApiError_('NOT_FOUND', '找不到這則公告，可能分壇已經刪掉了');
+    var first = !x.readAt;
+    if (first) { x.readAt = nowString_(); x.readBy = hqWho_(); hqNoticeSave_(o); }
+    return { inbox: adminHqInbox_(), read: first ? { id: x.n.id, version: x.n.version, at: x.readAt, by: x.readBy } : null };
+  });
+}
+
+/** 管理者：body = { endpoint, on }：這支手機要不要收「分壇通知」（分派公告、回覆、提醒）；on 省略＝只查狀態。對象記帳號角色 */
+function adminHqWatch_(body) {
+  if (!validEndpoint_(body.endpoint)) throw new ApiError_('BAD_REQUEST', '推播網址格式不對');
+  var role = ADMIN_SESSION_.role;
+  return withSignupLock_(function () {
+    var mine = readTable_(SHEETS.PUSH_TARGETS).filter(function (r) { return r['端點'] === body.endpoint && r['類型'] === '分壇通知'; });
+    if (body.on === true && !mine.some(function (r) { return r['對象'] === role; })) addPushTarget_(body.endpoint, '分壇通知', role);
+    if (body.on === false && mine.length) deleteRows_(SHEETS.PUSH_TARGETS, mine.map(function (r) { return r._row; }));
+    return { on: pushTargets_('分壇通知').some(function (r) { return r['端點'] === body.endpoint; }) };
+  });
 }

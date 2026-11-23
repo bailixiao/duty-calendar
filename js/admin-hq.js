@@ -18,6 +18,8 @@
   const catLabel = (c) => (CATS.find((x) => x[0] === c) || [c, c])[1];
   const when = (c) => [Fmt.shortDate(c.start) + (c.end && c.end !== c.start ? '～' + Fmt.shortDate(c.end) : ''), c.startTime ? c.startTime + (c.endTime ? '–' + c.endTime : '') : '', c.location].filter(Boolean).join('・');
   const quotaText = (c, q) => (c.quotaMode === 'none' ? '不限' : q ? q + ' 位' : c.quotaMode === 'self' ? '各區自己報' : '不限');
+  /** 「11/23 14:18」 */
+  const tm = (s) => String(s || '').slice(5, 16).replace('-', '/');
   const errHtml = (e) => `${esc(e.message || '發生錯誤')}${(e.details || []).map((x) => '<br>' + esc(x.message)).join('')}`;
   const loadXlsx = () => (window.XLSX ? Promise.resolve() : new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s.onload = ok; s.onerror = () => no(new Error('無法載入 Excel 工具，請檢查網路')); document.head.appendChild(s); }));
 
@@ -31,6 +33,7 @@
     if (/^hq\/group\//.test(sub || '')) return groupPage(body, guard, decodeURIComponent(sub.slice(9)));
     if (/^hq\/overview\//.test(sub || '')) return overview(body, guard, decodeURIComponent(sub.slice(12)));
     if (sub === 'hqstats') return stats(body, guard);
+    if (sub === 'hqnotice') return noticePage(body, guard);
     const m = (sub || '').match(/^hq\/(new|edit\/([^/]+)|([^/]+))$/);
     if (m && m[1] === 'new') return form(body, guard, null);
     if (m && m[2]) return form(body, guard, decodeURIComponent(m[2]));
@@ -43,10 +46,13 @@
     try { data = await Api.admin('hqList', {}); } catch (e) { if (guard(e, body)) return; body.innerHTML = `<p class="form-error">${errHtml(e)}</p>`; return; }
     const name = (code) => (data.targets.find((t) => t.code === code) || { name: code }).name;
     const openN = data.targets.filter((t) => t.open).length;
+    const rg = replyGroups(data.campaigns, name);
+    const waiting = (cs) => cs.reduce((n, c) => n + Object.values(c.replies || {}).filter((x) => x && x.state === 'pending').length, 0);
     body.innerHTML = `
       <div class="notice"><p>📣 <strong>分派</strong>：開一個活動送給各區。各區的<strong>總務・勤務／道務／教育組長</strong>會在後台先看到，看過按「放到本區行事曆」才會出現在那一區的行事曆，家人在自己區報名；這裡的總表看得到每一區的狀態、人數和名字。</p>
       <p class="muted">13 區已開通 ${openN} 區；還沒開通的區收不到。</p></div>
       ${readOnly() ? '<p class="role-note">👀 唯讀帳號：看得到各區的狀況、報名人數和統計，不能開或修改分派。</p>' : '<div class="admin-actions"><a class="btn btn-primary" href="#/admin/hq/new">＋ 開新的分派</a><a class="btn" href="#/admin/hq/import">📄 從檔案匯入行事曆</a></div>'}
+      ${repliesHtml(rg, true)}
       ${data.campaigns.some((c) => c.status === 'draft') ? `<p class="hint">📝 草稿：各區還看不到。同一個名稱的併成一組，點進去一起檢查一次，按「送出給各區」。</p>` : ''}
       ${data.campaigns.length ? `<div class="card-list">${draftGroups(data.campaigns).map((g) => `<a class="duty-card hq-card is-draft" href="#/admin/hq/group/${encodeURIComponent(g.key)}">
           <span class="card-main"><span class="card-title"><span class="hq-st st-seen">📝 草稿</span> ${esc(g.items[0].title)}${g.items.length > 1 ? `<small>（${g.items.length} 個日期）</small>` : ''}</span>
@@ -58,14 +64,17 @@
         return `<a class="duty-card hq-card" href="#/admin/hq/overview/${encodeURIComponent(g.key)}">
           <span class="card-main"><span class="card-title">${esc(g.items[0].title)}<small>（${g.items.length} 個日期）</small></span>
           <span class="card-meta">${esc(catLabel(g.items[0].category))}・${esc(datesText(g.items))}</span>
-          <span class="card-meta">送給 ${rs.length} 區・${next ? `還有 ${next} 個日期沒到` : '都過了'}・<strong>點開看整組總覽 ›</strong></span></span></a>`;
+          <span class="card-meta">送給 ${rs.length} 區・${next ? `還有 ${next} 個日期沒到` : '都過了'}${waiting(g.items) ? `・<b class="hq-todo-n">💬 ${waiting(g.items)} 則回覆</b>` : ''}・<strong>點開看整組總覽 ›</strong></span></span></a>`;
       }).join('')}${sentGroups(data.campaigns).filter((g) => g.items.length === 1).map((g) => g.items[0]).sort((a, b) => b.start.localeCompare(a.start)).map((c) => {
         const ok = c.regions.filter((r) => c.delivery && c.delivery[r] === 'ok').length;
         return `<a class="duty-card hq-card${c.status === 'draft' ? ' is-draft' : ''}" href="#/admin/hq/${encodeURIComponent(c.id)}">
           <span class="card-main"><span class="card-title">${c.status === 'draft' ? '<span class="hq-st st-seen">📝 草稿</span> ' : ''}${esc(c.title)}</span>
           <span class="card-meta">${esc(catLabel(c.category))}・${esc(when(c))}</span>
-          <span class="card-meta">${c.status === 'draft' ? `預計送給 ${c.regions.length} 區` : `送給 ${c.regions.length} 區（${esc(c.regions.map(name).join('、'))}）・送到 ${ok} 區`}</span></span></a>`;
-      }).join('')}</div>` : '<p class="panel-empty">還沒有分派。按「＋ 開新的分派」開始。</p>'}`;
+          <span class="card-meta">${c.status === 'draft' ? `預計送給 ${c.regions.length} 區` : `送給 ${c.regions.length} 區（${esc(c.regions.map(name).join('、'))}）・送到 ${ok} 區`}${waiting([c]) ? `・<b class="hq-todo-n">💬 ${waiting([c])} 則回覆</b>` : ''}</span></span></a>`;
+      }).join('')}</div>` : '<p class="panel-empty">還沒有分派。按「＋ 開新的分派」開始。</p>'}
+      ${readOnly() ? '' : '<div class="hq-watch" data-hq-watch></div>'}`;
+    bindAnswers(body, rg, () => list(body, guard));
+    drawWatch(body.querySelector('[data-hq-watch]'), guard, true);
   }
 
   /** 草稿依名稱＋類別分組（同名的一起檢查、一起送出），組內照日期排、組照最早日期排 */
@@ -103,6 +112,9 @@
     const c0 = cs[0];
     const today = new Date().toISOString().slice(0, 10);
     const cell = (c, r) => d.cells[c.id] && d.cells[c.id][r.code];
+    const nameOf = (code) => (list0.targets.find((t) => t.code === code) || { name: code }).name;
+    const rg = replyGroups(cs, nameOf);
+    const asked = (c, r) => c.replies && c.replies[r.code] && c.replies[r.code].state === 'pending';
     const quotaOf = (c, r, x) => { const q = (x && x.quota) || (c.quotaMode === 'assigned' && c.quotas ? c.quotas[r.code] : ''); return x && (x.status === 'declined' || x.status === 'not-open') ? 0 : Number(q) || 0; };
     const todoBy = {};
     d.regions.forEach((r) => { todoBy[r.code] = cs.filter((c) => { const x = cell(c, r); return x && (x.status === 'new' || x.status === 'seen') && c.end >= today; }).length; });
@@ -112,9 +124,10 @@
       const x = cell(c, r);
       if (!x) return '<td class="ov-none">·</td>';
       const q = quotaOf(c, r, x);
-      if (x.status === 'published') return `<td class="ov-ok${q && x.count < q ? ' ov-short' : ''}"><button type="button" class="link-btn" data-cell="${esc(c.id)}|${r.code}">${q ? `${x.count}／${q}` : `✓ ${x.count}`}</button></td>`;
+      const ask = asked(c, r) ? '<span class="ov-reply" title="這一區有回覆，等分壇回">💬</span>' : '';
+      if (x.status === 'published') return `<td class="ov-ok${q && x.count < q ? ' ov-short' : ''}"><button type="button" class="link-btn" data-cell="${esc(c.id)}|${r.code}">${q ? `${x.count}／${q}` : `✓ ${x.count}`}</button>${ask}</td>`;
       const [l, cls] = STATUS[x.status] || [x.status, ''];
-      return `<td><span class="hq-st ${cls}" title="${esc(x.declineReason || '')}">${esc(x.status === 'seen' ? '看過' : l)}</span></td>`;
+      return `<td><span class="hq-st ${cls}" title="${esc(x.declineReason || '')}">${esc(x.status === 'seen' ? '看過' : l)}</span>${ask}</td>`;
     };
     const pending = d.regions.filter((r) => todoBy[r.code]);
     body.innerHTML = `
@@ -123,11 +136,14 @@
       <p class="muted">${esc(catLabel(c0.category))}・${esc(c0.location || '')}${c0.startTime ? '・' + esc(c0.startTime) + (c0.endTime ? '–' + esc(c0.endTime) : '') : ''}</p>
       <div class="hq-total"><strong>${totalN}</strong> 位已報名${totalQ ? `／名額 ${totalQ} 位${totalN < totalQ ? `，還差 <strong>${totalQ - totalN}</strong> 位` : ''}` : ''}</div>
       ${pending.length ? `<div class="hq-alert"><div class="hq-alert-head"><span class="hq-alert-icon" aria-hidden="true">!</span><div><strong>${pending.length} 區還有日期沒處理</strong><small>${pending.map((r) => esc(r.name) + ' ' + todoBy[r.code] + ' 天').join('、')}</small></div></div></div>` : '<p class="notice notice-success">✅ 各區都處理好了。</p>'}
+      ${repliesHtml(rg, false)}
       <div class="admin-actions">
-        <button type="button" class="btn" data-remind>📋 提醒還沒處理的區</button>
+        ${readOnly() || !cs.some((c) => c.end >= today) ? '' : '<button type="button" class="btn btn-primary" data-hqremind>🔔 通知沒處理、沒報滿的區</button>'}
+        <button type="button" class="btn" data-remind>📋 複製提醒文字</button>
         <button type="button" class="btn" data-xlsx>⬇ 匯出 Excel</button>
       </div>
-      <p class="hint">每格：✓ 幾位＝已放到行事曆、幾位報名（有名額的寫「報名／名額」，不夠的紅字）；點數字看名字。點日期看那一天的總表、修改或刪除。</p>
+      ${remindedText(cs)}
+      <p class="hint">💬＝那一區有回覆或申請調名額，等分壇回。每格：✓ 幾位＝已放到行事曆、幾位報名（有名額的寫「報名／名額」，不夠的紅字）；點數字看名字。點日期看那一天的總表、修改或刪除。</p>
       <div class="hq-table-wrap ov-wrap"><table class="hq-table ov-table">
         <thead><tr><th class="ov-date">日期</th>${d.regions.map((r) => `<th>${esc(r.name.replace(/區$/, ''))}${todoBy[r.code] ? `<span class="tab-alert">! ${todoBy[r.code]}</span>` : ''}</th>`).join('')}<th>合計</th></tr></thead>
         <tbody>${cs.map((c) => { const n = d.regions.reduce((s, r) => s + ((cell(c, r) || {}).count || 0), 0); const q = d.regions.reduce((s, r) => s + quotaOf(c, r, cell(c, r)), 0); return `
@@ -144,6 +160,9 @@
         <div class="modal-actions"><button type="button" class="btn btn-block" data-close>關閉</button></div>`);
       pm.el.querySelector('[data-close]').addEventListener('click', () => pm.close());
     }));
+    bindAnswers(body, rg, () => overview(body, guard, key));
+    const hr = body.querySelector('[data-hqremind]');
+    if (hr) hr.addEventListener('click', () => remindNow(cs.filter((c) => c.end >= today), () => overview(body, guard, key)));
     body.querySelector('[data-remind]').addEventListener('click', () => {
       const text = `🙏【宏教分壇分派】${c0.title}（${cs.length} 個日期）\n\n${pending.length ? pending.map((r) => `${r.name}：還有 ${todoBy[r.code]} 天沒處理`).join('\n') + `\n\n請${catLabel(c0.category)}組長到後台「📥 分壇分派」，可以按「📅 一次放到本區行事曆」（或寫原因不參加）。` : '各區都處理好了，感恩 🙏'}`;
       const m = Modal.open(`<h2 class="modal-title">📋 提醒還沒處理的區</h2><p class="modal-note">${pending.length ? `${pending.length} 區還沒處理完。複製下面的文字傳給他們的組長：` : '各區都處理好了。'}</p>
@@ -292,7 +311,7 @@
     const g = draftGroups(data.campaigns).find((x) => x.key === key);
     if (!g) { body.innerHTML = '<p class="panel-empty">找不到這一組草稿，可能已經送出或刪掉了。<a href="#/admin">回分派清單</a></p>'; return; }
     const f0 = g.items[0];
-    const c = { title: f0.title, category: f0.category, nature: f0.nature, location: f0.location, attire: f0.attire || '', description: f0.description, positions: f0.positions && f0.positions.length ? f0.positions : [{ name: '參加' }], quotaMode: f0.quotaMode || 'none', quotas: Object.assign({}, f0.quotas), deadlineDays: '' };
+    const c = { title: f0.title, category: f0.category, nature: f0.nature, location: f0.location, attire: f0.attire || '', description: f0.description, positions: f0.positions && f0.positions.length ? f0.positions : [{ name: '參加' }], quotaMode: f0.quotaMode || 'none', quotas: Object.assign({}, f0.quotas), deadlineDays: '', autoRemind: f0.autoRemind !== false };
     const rows = g.items.map((x) => ({ id: x.id, pick: true, start: x.start, end: x.end, startTime: x.startTime, endTime: x.endTime, regions: x.regions.slice(), description: x.description, source: x.source }));
     const sameDesc = rows.every((r) => r.description === f0.description);
     const regionNames = (codes) => (codes.length === data.targets.length ? '全部 ' + codes.length + ' 區' : codes.length ? data.targets.filter((t) => codes.indexOf(t.code) !== -1).map((t) => t.name.replace(/區$/, '')).join('、') : '還沒選');
@@ -312,6 +331,7 @@
           <label class="form-row"><span>說明${sameDesc ? '' : '（每個日期 AI 讀到的不一樣，填了這裡就全部用這段；空白＝各自用原本的）'}</span><textarea class="input textarea" name="description" rows="4" maxlength="2000">${esc(sameDesc ? c.description : '')}</textarea></label>
           <label class="form-row"><span>了愿項目（好幾項用「、」分開；只有一項＝大家都報這個）</span><input class="input" name="positions" value="${esc(c.positions.map((p) => p.name).join('、'))}"></label>
           <label class="form-row"><span>報名截止：活動前幾天（可空白）</span><input class="input" name="deadlineDays" inputmode="numeric" maxlength="2" value="${esc(c.deadlineDays)}" placeholder="例：3"></label>
+          <label class="check hq-auto-remind"><input type="checkbox" name="autoRemind"${c.autoRemind ? ' checked' : ''}> 🔔 報名截止前 3 天，自動提醒還沒放、沒報滿的區（沒寫截止就看活動日期）</label>
           <fieldset class="form-block">
             <legend>名額（每個日期都一樣）</legend>
             <div class="seg">${[['none', '不限'], ['assigned', '分壇分配'], ['self', '各區自己報']].map(([v, l]) => `<label class="seg-item"><input type="radio" name="quotaMode" value="${v}"${c.quotaMode === v ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div>
@@ -350,6 +370,7 @@
       const f = body.querySelector('form');
       const sync = () => {
         ['title', 'nature', 'location', 'attire', 'description', 'deadlineDays'].forEach((k) => { c[k] = f.elements[k].value; });
+        c.autoRemind = f.elements.autoRemind.checked;
         c.positions = f.elements.positions.value.split(/[\n、,，]+/).map((x) => x.trim()).filter(Boolean).map((name) => ({ name }));
         f.querySelectorAll('[data-quota-row]').forEach((row) => { c.quotas[row.dataset.quotaRow] = row.querySelector('input').value.trim(); });
       };
@@ -386,7 +407,7 @@
         const days = Number(c.deadlineDays);
         const t = (v) => { const x = Fmt.parseTime(v); return x === null ? v : x; };
         // 一次送出（hqSaveMany：每一區只叫一次），不用一筆一筆等
-        const items = todo.map((r) => ({ id: r.id, title: c.title, category: c.category, nature: c.nature, location: c.location, attire: c.attire, description: c.description.trim() || r.description, positions: c.positions, quotaMode: c.quotaMode, quotas: c.quotas,
+        const items = todo.map((r) => ({ id: r.id, title: c.title, category: c.category, nature: c.nature, location: c.location, attire: c.attire, description: c.description.trim() || r.description, positions: c.positions, quotaMode: c.quotaMode, quotas: c.quotas, autoRemind: c.autoRemind,
           start: r.start, end: r.end || r.start, startTime: t(r.startTime), endTime: t(r.endTime), regions: r.regions, deadline: days > 0 ? addDays(r.start, -days) : '' }));
         Busy.show(`${draft ? '存草稿' : '送出'}中⋯（${todo.length} 個日期）`);
         try {
@@ -445,6 +466,7 @@
           <label class="form-row"><span>說明</span><textarea class="input textarea" name="description" rows="5" maxlength="2000">${esc(c.description)}</textarea></label>
           <label class="form-row"><span>了愿項目（好幾項用「、」或換行分開；只有一項＝大家都報這個）</span><input class="input" name="positions" value="${esc((c.positions || []).map((p) => p.name).join('、'))}" placeholder="例：參加；或：接待、維安、引導"></label>
           <label class="form-row"><span>報名截止日（可空白）</span><input class="input" type="date" name="deadline" value="${esc(c.deadline)}"></label>
+          <label class="check hq-auto-remind"><input type="checkbox" name="autoRemind"${c.autoRemind !== false ? ' checked' : ''}> 🔔 報名截止前 3 天，自動提醒還沒放、沒報滿的區（沒寫截止日就看活動日期）</label>
           <fieldset class="form-block">
             <legend>送給哪幾區</legend>
             <div class="hq-regions">${data.targets.map((t) => `<label class="check"><input type="checkbox" name="regions" value="${t.code}"${c.regions.indexOf(t.code) !== -1 ? ' checked' : ''}> ${esc(t.name)}${t.open ? '' : '<small class="muted">（還沒開通，收不到）</small>'}</label>`).join('')}</div>
@@ -464,6 +486,7 @@
       const f = body.querySelector('form');
       const sync = () => {
         ['title', 'nature', 'start', 'end', 'startTime', 'endTime', 'location', 'attire', 'description', 'deadline'].forEach((k) => { c[k] = f.elements[k].value; });
+        c.autoRemind = f.elements.autoRemind.checked;
         c.positions = f.elements.positions.value.split(/[\n、,，]+/).map((x) => x.trim()).filter(Boolean).map((name) => ({ name }));
         c.regions = [...f.querySelectorAll('input[name=regions]:checked')].map((x) => x.value);
         c.quotas = Object.assign({}, c.quotas);
@@ -511,17 +534,24 @@
     const qOf = (r) => (r.quota && r.status !== 'not-open' && r.status !== 'declined' ? Number(r.quota) : 0);
     const totalQ = rows.reduce((n, r) => n + qOf(r), 0);
     const totalN = rows.reduce((n, r) => n + (r.count || 0), 0);
-    const statusHtml = (r) => { const [l, cls] = STATUS[r.status] || [r.status, '']; return `<span class="hq-st ${cls}">${l}</span>${r.status === 'declined' && r.declineReason ? `<small>${esc(r.declineReason)}</small>` : ''}${r.syncError ? `<small class="form-error">更新失敗：${esc(r.syncError)}</small>` : ''}`; };
+    const rp = (code) => (c.replies || {})[code];
+    const replyMini = (code) => { const x = rp(code); if (!x || x.state === 'pending') return ''; return `<small class="hq-reply-mini">💬 ${x.quotaAsk ? '申請 ' + x.quotaAsk + ' 位' : esc(x.text.slice(0, 20))} → ${x.state === 'ok' ? (x.quotaAsk ? '已同意' : '已回覆') : '不同意'}</small>`; };
+    const statusHtml = (r) => { const [l, cls] = STATUS[r.status] || [r.status, '']; return `<span class="hq-st ${cls}">${l}</span>${rp(r.code) && rp(r.code).state === 'pending' ? '<span class="ov-reply" title="有回覆，等分壇回">💬</span>' : ''}${r.status === 'declined' && r.declineReason ? `<small>${esc(r.declineReason)}</small>` : ''}${replyMini(r.code)}${r.syncError ? `<small class="form-error">更新失敗：${esc(r.syncError)}</small>` : ''}`; };
+    const rg = replyGroups([c], (code) => (rows.find((x) => x.code === code) || { name: code }).name);
+    const future = c.end >= new Date().toISOString().slice(0, 10);
     body.innerHTML = `
       <p class="hq-back-row"><a class="back-link" href="#/admin">‹ 分派清單</a><a class="link-btn" href="#/admin/hq/overview/${encodeURIComponent(groupKey(c))}">📊 同名的整組總覽</a></p>
       <h2>${esc(c.title)}</h2>
       <p class="muted">${esc(catLabel(c.category))}・${esc(when(c))}${c.deadline ? '・報名截止 ' + esc(Fmt.shortDate(c.deadline)) : ''}・名額：${esc({ none: '不限', assigned: '分壇分配', self: '各區自己報' }[c.quotaMode])}</p>
       <div class="admin-actions">
         ${readOnly() ? '' : `<a class="btn" href="#/admin/hq/edit/${encodeURIComponent(c.id)}">✏️ 修改</a>`}
+        ${readOnly() || !future ? '' : '<button type="button" class="btn btn-primary" data-hqremind>🔔 通知沒處理、沒報滿的區</button>'}
+        <button type="button" class="btn" data-remind>📋 複製提醒文字</button>
         <button type="button" class="btn" data-xlsx>⬇ 匯出 Excel</button>
-        <button type="button" class="btn" data-remind>📋 提醒還沒處理的區</button>
         ${readOnly() ? '' : '<button type="button" class="btn btn-quiet-danger" data-del>🗑 刪除分派</button>'}
       </div>
+      ${remindedText([c])}
+      ${repliesHtml(rg, false)}
       <div class="hq-total"><strong>${totalN}</strong> 位已報名${totalQ ? `／名額 ${totalQ} 位${totalN < totalQ ? `，還差 <strong>${totalQ - totalN}</strong> 位` : ''}` : ''}</div>
       <div class="hq-table-wrap"><table class="hq-table">
         <thead><tr><th>區</th><th>狀態</th><th>名額</th><th>已報名</th><th>還差</th></tr></thead>
@@ -532,6 +562,9 @@
             <td>${r.status === 'published' && qOf(r) ? (qOf(r) > r.count ? `<strong>${qOf(r) - r.count}</strong>` : '✅') : '—'}</td>
           </tr>`).join('')}</tbody></table></div>
       <p class="hint">「還沒看」「看過了，還沒放」的區，家人還報不了名；按「📋 提醒還沒處理的區」複製一段文字傳給那一區的組長。名字不含電話；陪同不算人數。</p>`;
+    bindAnswers(body, rg, () => summary(body, guard, id));
+    const hr = body.querySelector('[data-hqremind]');
+    if (hr) hr.addEventListener('click', () => remindNow([c], () => summary(body, guard, id)));
     body.querySelectorAll('[data-people]').forEach((b) => b.addEventListener('click', () => {
       const r = rows[Number(b.dataset.people)];
       const pm = Modal.open(`<h2 class="modal-title">${esc(r.name)}：${r.count} 位</h2>
@@ -863,6 +896,189 @@
     }
   }
 
+
+  // ---------- 上下溝通（2026/11/23）：各區回覆、一鍵提醒 ----------
+
+  /** 各區還沒回的回覆：同一區、同一個活動、同一段話併成一組（整組日期一起回的，一次回覆） */
+  function replyGroups(cs, nameOf) {
+    const m = new Map();
+    cs.forEach((c) => Object.entries(c.replies || {}).forEach(([code, rp]) => {
+      if (!rp || rp.state !== 'pending') return;
+      const k = [code, groupKey(c), rp.text, rp.quotaAsk].join('|');
+      if (!m.has(k)) m.set(k, { code, name: nameOf(code), rp, cs: [] });
+      m.get(k).cs.push(c);
+    }));
+    const gs = [...m.values()];
+    gs.forEach((g) => g.cs.sort((a, b) => a.start.localeCompare(b.start)));
+    return gs.sort((a, b) => b.rp.at.localeCompare(a.rp.at));
+  }
+  const replyAsk = (rp) => (rp.quotaAsk ? `想把名額${rp.quotaWas ? `從 ${rp.quotaWas} 位` : ''}改成 <b>${rp.quotaAsk} 位</b>` : '');
+  function repliesHtml(groups, showTitle) {
+    if (!groups.length) return '';
+    return `<section class="hq-replies" aria-label="各區回覆">
+      <h3>💬 各區回覆：${groups.length} 則等分壇回</h3>
+      ${groups.map((g, i) => `<div class="hq-reply">
+        <div class="hq-reply-head"><strong>${esc(g.name)}</strong>${showTitle ? `<span>${esc(g.cs[0].title)}</span>` : ''}<small>${esc(datesText(g.cs))}・${esc(g.rp.by || '')} ${esc(tm(g.rp.at))}</small></div>
+        ${g.rp.quotaAsk ? `<p class="hq-reply-ask">📝 ${replyAsk(g.rp)}</p>` : ''}
+        ${g.rp.text ? `<p class="hq-reply-text">${esc(g.rp.text).replace(/\n/g, '<br>')}</p>` : ''}
+        ${readOnly() ? '' : `<button type="button" class="btn btn-primary" data-answer="${i}">回覆${esc(g.name)} ›</button>`}
+      </div>`).join('')}
+    </section>`;
+  }
+  /** 回覆按鈕：開回覆視窗，送出後 done() 重畫 */
+  function bindAnswers(root, groups, done) {
+    root.querySelectorAll('[data-answer]').forEach((b) => b.addEventListener('click', () => answerModal(groups[Number(b.dataset.answer)], done)));
+  }
+  function answerModal(g, done) {
+    const rp = g.rp;
+    const m = Modal.open(`<h2 class="modal-title">💬 回覆${esc(g.name)}</h2>
+      <p class="modal-note">${esc(g.cs[0].title)}・${esc(datesText(g.cs))}</p>
+      <div class="hq-reply hq-reply-in-modal">
+        ${rp.quotaAsk ? `<p class="hq-reply-ask">📝 ${replyAsk(rp)}</p>` : ''}
+        ${rp.text ? `<p class="hq-reply-text">${esc(rp.text).replace(/\n/g, '<br>')}</p>` : ''}
+      </div>
+      <label class="form-row"><span>回覆給${esc(g.name)}（${rp.quotaAsk ? '不同意的話請寫原因' : '可空白'}）</span><textarea class="input textarea" data-answer-text rows="3" maxlength="300"></textarea></label>
+      <div class="form-error" data-error hidden></div>
+      <div class="modal-actions">
+        ${rp.quotaAsk ? `<button type="button" class="btn btn-primary btn-block" data-ok>✅ 同意，名額改成 ${rp.quotaAsk} 位</button>
+          <button type="button" class="btn btn-block btn-quiet-danger" data-no>不同意，名額維持原本的</button>`
+        : '<button type="button" class="btn btn-primary btn-block" data-ok>💬 送出回覆</button>'}
+        <button type="button" class="btn btn-block" data-close>返回</button>
+      </div>`);
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    const box = m.el.querySelector('[data-error]');
+    const send = async (ok) => {
+      box.hidden = true;
+      Busy.show('回覆中⋯');
+      try {
+        await Api.admin('hqAnswer', { ids: g.cs.map((c) => c.id), region: g.code, ok, answer: m.el.querySelector('[data-answer-text]').value });
+        Busy.hide();
+        m.close();
+        done();
+      } catch (e) { Busy.hide(); box.innerHTML = errHtml(e); box.hidden = false; }
+    };
+    m.el.querySelector('[data-ok]').addEventListener('click', () => send(true));
+    const no = m.el.querySelector('[data-no]');
+    if (no) no.addEventListener('click', () => send(false));
+  }
+  /** 這支手機要不要收「分壇通知」（分壇：各區回覆；各區：分派、公告、回覆、提醒） */
+  async function drawWatch(el, guard, hq) {
+    if (!el) return;
+    const st = window.PushPage ? PushPage.canNotify() : 'unsupported';
+    if (st !== 'ok') { el.innerHTML = '<p class="hint">🔔 分壇通知：這支手機還不能收通知（iPhone 要先加到主畫面；或通知被封鎖）。</p>'; return; }
+    const what = hq ? '各區回覆分派時' : '分壇送來分派、公告、回覆或提醒時';
+    const paint = (on) => {
+      el.innerHTML = on
+        ? `<p class="venue-watch-on">🔔 ${what}，這支手機會收到通知 <button type="button" class="link-btn" data-off>關閉</button></p>`
+        : `<p class="hint">🔔 想在${what}用手機收到通知？</p><button type="button" class="btn" data-on>開啟分壇通知</button>`;
+      const a = el.querySelector('[data-on]');
+      const b = el.querySelector('[data-off]');
+      if (a) a.addEventListener('click', () => set(true));
+      if (b) b.addEventListener('click', () => set(false));
+    };
+    const set = async (value) => {
+      try {
+        const endpoint = await PushPage.ensureSub();
+        paint((await Api.admin('adminHqWatch', { endpoint, on: value })).on);
+      } catch (e) {
+        if (guard && guard(e)) return;
+        el.insertAdjacentHTML('beforeend', `<p class="form-error">${esc(e.message || '設定失敗')}</p>`);
+      }
+    };
+    const sub = await PushPage.currentSub();
+    if (!sub) { paint(false); return; }
+    try { paint((await Api.admin('adminHqWatch', { endpoint: sub.endpoint }, true)).on); } catch (e) { paint(false); }
+  }
+  /** 「🔔 上次提醒：11/23 07:00（自動）」 */
+  function remindedText(cs) {
+    const r = cs.map((c) => c.reminded).filter(Boolean).sort((a, b) => b.at.localeCompare(a.at))[0];
+    return r ? `<p class="muted hq-reminded">🔔 上次提醒：${esc(tm(r.at))}（${r.auto ? '截止前自動提醒' : esc(r.by)}）</p>` : '';
+  }
+  /** 🔔 通知沒處理、沒報滿的區（各區組長的後台和手機都會收到） */
+  async function remindNow(cs, done) {
+    const ok = await Confirm.open({ title: '要通知沒處理、沒報滿的區嗎？', rows: [['活動', cs[0].title], ['日期', datesText(cs)]],
+      note: '系統會問各區的狀況，只通知「還沒放到行事曆」或「名額還沒報滿」的區：那一區組長的後台會出現提醒，開了通知的手機也會收到。', confirmText: '🔔 通知', cancelText: '先不要' });
+    if (!ok) return;
+    Busy.show('通知各區中⋯');
+    let r;
+    try { r = await Api.admin('hqRemind', { ids: cs.map((c) => c.id) }); Busy.hide(); } catch (e) { Busy.hide(); alert(e.message || '通知失敗'); return; }
+    const m = Modal.open(`<h2 class="modal-title">🔔 ${r.regions.length ? `已通知 ${r.regions.length} 區` : '不用通知'}</h2>
+      ${r.regions.length ? `<ul class="hq-remind-list">${r.regions.map((x) => `<li><strong>${esc(x.name)}</strong>：${x.error ? `<span class="form-error">沒送到（${esc(x.error)}）</span>` : `${x.n} 個日期${x.phones ? `・${x.phones} 支手機收到通知` : '・後台看得到（沒有手機開通知）'}`}</li>`).join('')}</ul>
+        <p class="modal-note">各區組長在「📥 分壇分派」頁最下面開「分壇通知」，手機才收得到；沒開的打開後台也看得到提醒。</p>`
+      : '<p class="modal-note">各區都放到行事曆、名額也都報滿了 🙏</p>'}
+      <div class="modal-actions"><button type="button" class="btn btn-block" data-close>關閉</button></div>`);
+    m.el.querySelector('[data-close]').addEventListener('click', () => { m.close(); done(); });
+  }
+
+  // ---------- 📢 分壇公告（2026/11/23）：不是活動、只是通知的事，發給選的區；各區按「知道了」這裡看得到已讀 ----------
+
+  async function noticePage(body, guard) {
+    let d;
+    try { d = await Api.admin('hqNoticeList', {}); } catch (e) { if (guard(e, body)) return; body.innerHTML = `<p class="form-error">${errHtml(e)}</p>`; return; }
+    const role = d.role;
+    const canEdit = (cat) => !readOnly() && (role === '總管理者' || (!!cat && cat === role));
+    const nameOf = (code) => (d.targets.find((t) => t.code === code) || { name: code }).name;
+    const catText = (cat) => (cat ? catLabel(cat) + '組長' : '全部組長');
+    const reload = () => noticePage(body, guard);
+    body.innerHTML = `
+      <h2>📢 分壇公告</h2>
+      <p class="hint">不是活動、只是要讓各區知道的事（規定、通知、開會），發給選的區。各區組長在後台「📥 分壇分派」最上面看到，按「知道了」這裡就顯示已讀；改了內容各區要重新看。</p>
+      ${readOnly() ? '' : '<div class="admin-actions"><button type="button" class="btn btn-primary" data-new>＋ 發公告</button></div>'}
+      ${d.notices.length ? `<div class="hq-notices">${d.notices.map((n, i) => {
+        const dl = n.delivery || {};
+        const reads = n.reads || {};
+        const got = n.regions.filter((r) => dl[r] === 'ok' || reads[r]);
+        const read = got.filter((r) => reads[r]);
+        const unread = got.filter((r) => !reads[r]);
+        const off = n.regions.filter((r) => got.indexOf(r) === -1);
+        return `<article class="hq-notice">
+          <div class="hq-notice-head"><strong>${esc(n.title)}</strong><small>給${esc(catText(n.category))}・${esc(tm(n.updatedAt))}${n.updatedAt !== n.createdAt ? '（改過）' : ''}</small></div>
+          ${n.body ? `<p class="hq-notice-body">${esc(n.body).replace(/\n/g, '<br>')}</p>` : ''}
+          <p class="hq-notice-read"><b>已讀 ${read.length}／${got.length} 區</b>${unread.length ? `・還有 ${unread.length} 區沒看` : got.length ? '・都看過了 ✅' : ''}</p>
+          <div class="hq-chips">${read.map((r) => `<span class="hq-chip is-read" title="${esc((reads[r].by || '') + ' ' + tm(reads[r].at))}">✓ ${esc(nameOf(r))}</span>`).join('')}${unread.map((r) => `<span class="hq-chip is-unread">${esc(nameOf(r))}</span>`).join('')}${off.map((r) => `<span class="hq-chip is-off">${esc(nameOf(r))}（${dl[r] === 'not-open' ? '還沒開通' : '沒送到'}）</span>`).join('')}</div>
+          ${canEdit(n.category) ? `<div class="admin-actions"><button type="button" class="btn" data-edit="${i}">✏️ 修改</button><button type="button" class="btn btn-quiet-danger" data-del="${i}">🗑 刪除</button></div>` : ''}
+        </article>`; }).join('')}</div>` : '<p class="panel-empty">還沒有公告。</p>'}`;
+    const nb = body.querySelector('[data-new]');
+    if (nb) nb.addEventListener('click', () => noticeForm(d, null, reload));
+    body.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => noticeForm(d, d.notices[Number(b.dataset.edit)], reload)));
+    body.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', async () => {
+      const n = d.notices[Number(b.dataset.del)];
+      if (!(await Confirm.open({ title: '確定要刪除這則公告嗎？', rows: [['標題', n.title]], note: '各區的後台也會一起拿掉。', confirmText: '確定刪除', cancelText: '不要刪除', danger: true }))) return;
+      Busy.show('刪除中⋯');
+      try { await Api.admin('hqNoticeDelete', { id: n.id }); Busy.hide(); reload(); } catch (e) { Busy.hide(); if (!guard(e)) alert(e.message); }
+    }));
+  }
+  function noticeForm(d, n, done) {
+    const role = d.role;
+    const cats = role === '總管理者' ? [['', '全部']].concat(CATS) : [[role, catLabel(role)]];
+    const cur = n ? n.category : cats[0][0];
+    const regions = n ? n.regions : d.targets.filter((t) => t.open).map((t) => t.code);
+    const m = Modal.open(`<h2 class="modal-title">${n ? '✏️ 修改公告' : '📢 發公告'}</h2>
+      <form class="admin-form" novalidate>
+        <label class="form-row"><span>標題</span><input class="input" name="title" maxlength="40" value="${esc(n ? n.title : '')}" placeholder="例：12 月分壇會議改到週六" required></label>
+        <label class="form-row"><span>內容（可空白）</span><textarea class="input textarea" name="body" rows="6" maxlength="2000">${esc(n ? n.body : '')}</textarea></label>
+        ${cats.length > 1 ? `<div class="form-row"><span>給哪一組的組長看</span><div class="seg">${cats.map(([v, l]) => `<label class="seg-item"><input type="radio" name="category" value="${v}"${cur === v ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div></div>` : `<p class="muted">給${esc(cats[0][1])}組長看</p>`}
+        <fieldset class="form-block"><legend>發給哪幾區</legend>
+          <div class="hq-regions">${d.targets.map((t) => `<label class="check"><input type="checkbox" name="regions" value="${t.code}"${regions.indexOf(t.code) !== -1 ? ' checked' : ''}> ${esc(t.name)}${t.open ? '' : '<small class="muted">（還沒開通）</small>'}</label>`).join('')}</div>
+          <button type="button" class="link-btn" data-all>全選已開通的</button></fieldset>
+        ${n ? '<p class="hint">只改發給哪幾區，已讀的留著；改了標題或內容，各區要重新看。</p>' : '<p class="hint">開了「分壇通知」的組長手機會收到通知。</p>'}
+        <div class="form-error" data-error hidden></div>
+        <div class="modal-actions"><button type="submit" class="btn btn-primary btn-block">${n ? '存檔並重新送出' : '📢 發出公告'}</button><button type="button" class="btn btn-block" data-close>返回</button></div>
+      </form>`);
+    const f = m.el.querySelector('form');
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    m.el.querySelector('[data-all]').addEventListener('click', () => d.targets.forEach((t) => { const x = f.querySelector(`input[name=regions][value=${t.code}]`); if (x) x.checked = t.open; }));
+    f.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const box = f.querySelector('[data-error]');
+      box.hidden = true;
+      const cat = f.querySelector('input[name=category]:checked');
+      const notice = { id: n ? n.id : undefined, title: f.elements.title.value, body: f.elements.body.value, category: cat ? cat.value : cats[0][0], regions: [...f.querySelectorAll('input[name=regions]:checked')].map((x) => x.value) };
+      Busy.show(n ? '存檔中⋯' : '發出中⋯');
+      try { await Api.admin('hqNoticeSave', { notice }); Busy.hide(); m.close(); done(); } catch (e) { Busy.hide(); box.innerHTML = errHtml(e); box.hidden = false; }
+    });
+  }
+
   window.HqAdminPage = { show };
 
   // =====================================================================
@@ -871,6 +1087,9 @@
 
   let inboxMemo = null;
   const pendingOf = (x) => x.status === 'new' || x.status === 'seen' || x.updated;
+  const answeredOf = (x) => !!(x.reply && x.reply.state !== 'pending' && !x.reply.seen);
+  /** 首頁、分頁的件數：待處理的分派、沒看的公告、分壇的新回覆（一組算一則） */
+  const todoCount = (d) => d.items.filter(pendingOf).length + (d.notices || []).filter((n) => !n.readAt).length + inboxGroups(d.items.filter(answeredOf)).length;
 
   /** 後台首頁最上面：有待處理的才顯示 */
   /** 收件匣依名稱＋類別分組（同名的好幾個日期一組），組照最早日期排 */
@@ -889,17 +1108,19 @@
     const paint = (d) => {
       if (!box.isConnected || !d) return;
       const todo = d.items.filter(pendingOf);
-      if (!d.items.length) { box.innerHTML = ''; return; }
+      const unread = (d.notices || []).filter((n) => !n.readAt);
+      const ans = inboxGroups(d.items.filter(answeredOf));
+      if (!todo.length && !unread.length && !ans.length) { box.innerHTML = ''; return; }
       const gs = inboxGroups(todo);
-      box.innerHTML = todo.length ? `<div class="hq-alert" role="status">
+      const head = [todo.length ? `${todo.length} 件分派待處理` : '', unread.length ? `${unread.length} 則公告還沒看` : '', ans.length ? `${ans.length} 則分壇回覆` : ''].filter(Boolean).join('、');
+      box.innerHTML = `<div class="hq-alert" role="status">
           <div class="hq-alert-head"><span class="hq-alert-icon" aria-hidden="true">!</span>
-            <div><strong>${esc(d.hqName)}分派：${todo.length} 件待處理</strong><small>看過按「放到本區行事曆」家人才報得了名</small></div></div>
-          <ul class="hq-alert-list">${gs.slice(0, 4).map((g) => { const upd = g.some((x) => x.updated && x.status === 'published'); return `<li>
+            <div><strong>${esc(d.hqName)}：${head}</strong><small>${todo.length ? '看過按「放到本區行事曆」家人才報得了名' : '點下面的按鈕去看'}</small></div></div>
+          <ul class="hq-alert-list">${unread.slice(0, 2).map((n) => `<li><span class="hq-alert-title">📢 ${esc(n.title)}<small>公告</small></span></li>`).join('')}${ans.slice(0, 2).map((g) => `<li><span class="hq-alert-title">💬 ${esc(g[0].c.title)}<small>分壇回覆</small></span><span class="hq-alert-dates">${esc(answerText(g[0].reply))}</span></li>`).join('')}${gs.slice(0, 4).map((g) => { const upd = g.some((x) => x.updated && x.status === 'published'); return `<li>
             <span class="hq-alert-title">${upd ? '🔄 ' : ''}${esc(g[0].c.title)}<small>${esc(catLabel(g[0].c.category))}</small></span>
             <span class="hq-alert-dates">${g.length > 1 ? `<b>${g.length} 個日期</b>：` : ''}${esc(shortDates(g, 4))}${upd ? '（分壇有更新）' : ''}</span></li>`; }).join('')}
             ${gs.length > 4 ? `<li class="muted">還有 ${gs.length - 4} 個活動⋯</li>` : ''}</ul>
-          <a class="btn btn-primary hq-alert-btn" href="#/admin/hqinbox">📥 去處理分派 ›</a></div>`
-        : '';
+          <a class="btn btn-primary hq-alert-btn" href="#/admin/hqinbox">📥 去${todo.length ? '處理分派' : '看看'} ›</a></div>`;
     };
     paint(inboxMemo);
     try { inboxMemo = await Api.admin('adminHqInbox', {}, true); paint(inboxMemo); } catch (e) { /* 讀不到就不顯示 */ }
@@ -910,8 +1131,8 @@
     if (!el) return;
     const paint = (d) => {
       if (!el.isConnected || !d) return;
-      if (!d.items.length) { el.hidden = true; return; }
-      const n = d.items.filter(pendingOf).length;
+      if (!d.items.length && !(d.notices || []).length) { el.hidden = true; return; }
+      const n = todoCount(d);
       el.hidden = false;
       el.innerHTML = `📥 分壇分派${n ? `<span class="tab-alert" aria-label="${n} 件待處理">! ${n}</span>` : ''}`;
     };
@@ -927,7 +1148,8 @@
     const draw = () => {
       body.innerHTML = `
         <h2>📥 ${esc(d.hqName)}分派</h2>
-        <p class="hint">分壇送來的活動，看過按「📅 放到本區行事曆」才會出現在本區的行事曆，家人才能報名；不參加請按「本區不參加」寫原因（分壇看得到）。內容由分壇統一改。</p>
+        <p class="hint">分壇送來的活動，看過按「📅 放到本區行事曆」才會出現在本區的行事曆，家人才能報名；不參加請按「本區不參加」寫原因（分壇看得到）。內容由分壇統一改；名額不夠或有話要說，按「💬 回覆分壇」。</p>
+        ${noticesHtml()}
         ${d.items.length ? `<div class="hq-inbox-groups">${(groupsNow = inboxGroups(d.items)).map((g, gi) => { const todo = g.filter(pendingOf).length; const fresh = g.filter((x) => x.status === 'new' || x.status === 'seen').length; return `
           <section class="hq-inbox-group${todo ? ' has-todo' : ''}">
             <div class="hq-inbox-ghead">
@@ -940,12 +1162,87 @@
                 <span class="hq-inbox-st"><span class="hq-st ${cls}">${l}</span>${x.status === 'published' ? `<small>${x.count} 位報名</small>` : ''}${x.updated ? '<span class="hq-st st-new">分壇有更新</span>' : ''}</span>
                 <span class="hq-inbox-go" aria-hidden="true">›</span>
               </button>`; }).join('')}</div>
+            ${groupNotes(g)}
             ${fresh > 1 ? `<button type="button" class="btn btn-primary btn-block hq-group-pub" data-group-pub="${gi}">📅 這 ${fresh} 個日期一次放到本區行事曆</button>` : ''}
-          </section>`; }).join('')}</div>` : '<p class="panel-empty">目前沒有分壇分派。</p>'}`;
+            ${g.some((x) => x.status !== 'withdrawn') ? `<button type="button" class="btn btn-block hq-reply-btn" data-reply="${gi}">💬 回覆分壇${g.some((x) => x.c.quotaMode === 'assigned') ? '／申請調名額' : ''}</button>` : ''}
+          </section>`; }).join('')}</div>` : '<p class="panel-empty">目前沒有分壇分派。</p>'}
+        <div class="hq-watch" data-hq-watch></div>`;
+      body.querySelectorAll('[data-read]').forEach((b) => b.addEventListener('click', async () => {
+        try { const x = await act('adminHqNoticeRead', { id: b.dataset.read }, '處理中⋯'); if (x) draw(); } catch (e) { alert(e.message); }
+      }));
+      body.querySelectorAll('[data-reply]').forEach((b) => b.addEventListener('click', () => replyModal(groupsNow[Number(b.dataset.reply)])));
+      drawWatch(body.querySelector('[data-hq-watch]'), guard, false);
       body.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => open(d.items[Number(b.dataset.open)])));
       body.querySelectorAll('[data-group-pub]').forEach((b) => b.addEventListener('click', () => openGroup(groupsNow[Number(b.dataset.groupPub)])));
     };
     let groupsNow = [];
+    /** 分壇公告：沒看的在上面（按「知道了」），看過的收起來 */
+    function noticesHtml() {
+      const ns = d.notices || [];
+      if (!ns.length) return '';
+      const un = ns.filter((n) => !n.readAt);
+      const rd = ns.filter((n) => n.readAt);
+      const one = (n) => `<article class="hq-notice${n.readAt ? ' is-read' : ' is-unread'}">
+          <div class="hq-notice-head"><strong>📢 ${esc(n.title)}</strong><small>${n.category ? esc(catLabel(n.category)) + '・' : ''}${esc(tm(n.at))}</small></div>
+          ${n.body ? `<p class="hq-notice-body">${esc(n.body).replace(/\n/g, '<br>')}</p>` : ''}
+          ${n.readAt ? `<p class="muted">✓ 已讀（${esc(n.readBy)} ${esc(tm(n.readAt))}）</p>` : `<button type="button" class="btn btn-primary" data-read="${esc(n.id)}">✓ 知道了</button>`}
+        </article>`;
+      return `<section class="hq-notice-box" aria-label="分壇公告">
+        <h3>📢 分壇公告${un.length ? `<span class="tab-alert">! ${un.length}</span>` : ''}</h3>
+        ${un.map(one).join('')}
+        ${rd.length ? `<details class="hq-notice-old"${un.length ? '' : ' open'}><summary>看過的公告（${rd.length}）</summary>${rd.slice(0, 20).map(one).join('')}</details>` : ''}
+      </section>`;
+    }
+    /** 每一組下面：分壇的提醒、本區的回覆和分壇怎麼回 */
+    function groupNotes(g) {
+      const out = [];
+      const rm = g.filter((x) => x.remind && x.status !== 'declined' && x.status !== 'withdrawn').sort((a, b) => b.remind.at.localeCompare(a.remind.at));
+      if (rm.length && (g.some(pendingOf) || g.some((x) => /還差/.test((x.remind || {}).text || '')))) {
+        out.push(`<p class="hq-remind-line">🔔 分壇${rm[0].remind.auto ? '截止前' : ''}提醒（${esc(rm[0].remind.at.slice(5, 10).replace('-', '/'))}）：${esc(rm.slice(0, 3).map((x) => (g.length > 1 ? Fmt.shortDate(x.c.start).replace(/（.）/, '') + ' ' : '') + x.remind.text).join('、'))}${rm.length > 3 ? '⋯' : ''}</p>`);
+      }
+      const rp = g.filter((x) => x.reply).sort((a, b) => b.reply.at.localeCompare(a.reply.at))[0];
+      if (rp) {
+        const x = rp.reply;
+        out.push(`<div class="hq-reply-line is-${x.state}${answeredOf(rp) ? ' is-new' : ''}">
+          <p>💬 本區回覆（${esc(x.at.slice(5, 10).replace('-', '/'))}）：${x.quotaAsk ? `名額想改成 ${x.quotaAsk} 位${x.text ? '，' : ''}` : ''}${esc(x.text)}</p>
+          <p><b>${esc(answerText(x))}</b>${x.answer ? '：' + esc(x.answer) : ''}</p></div>`);
+      }
+      return out.join('');
+    }
+    /** 回覆分壇／申請調名額：同一組的日期可以一起回 */
+    function replyModal(g) {
+      const xs = g.filter((x) => x.status !== 'withdrawn');
+      if (!xs.length) return;
+      const c = xs[0].c;
+      const assigned = xs.some((x) => x.c.quotaMode === 'assigned');
+      const qs = [...new Set(xs.map((x) => x.quota || '不限'))];
+      const m = Modal.open(`<h2 class="modal-title">💬 回覆${esc(d.hqName)}</h2>
+        <p class="modal-note">${esc(c.title)}・${esc(catLabel(c.category))}</p>
+        <form class="admin-form" novalidate>
+          ${xs.length > 1 ? `<fieldset class="form-block"><legend>回覆哪幾個日期</legend><div class="hq-regions">${xs.map((x, i) => `<label class="check"><input type="checkbox" name="pick" value="${i}" checked> ${esc(Fmt.shortDate(x.c.start))}</label>`).join('')}</div></fieldset>` : ''}
+          ${assigned ? `<label class="form-row"><span>名額想改成幾位（現在 ${esc(qs.join('、'))}${/不限/.test(qs.join('')) ? '' : ' 位'}；不用改就空白）</span><input class="input" name="quotaAsk" inputmode="numeric" maxlength="4"></label>` : ''}
+          <label class="form-row"><span>要跟分壇說的話</span><textarea class="input textarea" name="text" rows="4" maxlength="300" placeholder="例：本區那天有法會，只能派 2 位"></textarea></label>
+          <p class="hint">分壇會在總表看到，回覆後這裡和手機通知都看得到。不參加請改按日期裡的「本區不參加」。</p>
+          <div class="form-error" data-error hidden></div>
+          <div class="modal-actions"><button type="submit" class="btn btn-primary btn-block">💬 送給分壇</button><button type="button" class="btn btn-block" data-close>返回</button></div>
+        </form>`);
+      m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+      const fm = m.el.querySelector('form');
+      fm.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const box = fm.querySelector('[data-error]');
+        box.hidden = true;
+        const picks = xs.length > 1 ? [...fm.querySelectorAll('input[name=pick]:checked')].map((y) => xs[Number(y.value)]) : xs;
+        if (!picks.length) { box.textContent = '請勾要回覆的日期'; box.hidden = false; return; }
+        try {
+          const res = await act('adminHqReply', { ids: picks.map((x) => x.id), text: fm.elements.text.value, quotaAsk: fm.elements.quotaAsk ? fm.elements.quotaAsk.value : '' }, '送給分壇中⋯');
+          if (!res) return;
+          m.close();
+          draw();
+          body.insertAdjacentHTML('afterbegin', `<div class="notice notice-success" role="status"><p>✅ 已送給分壇：${esc(c.title)}${picks.length > 1 ? ` ${picks.length} 個日期` : ''}。分壇回覆後這裡會顯示。</p></div>`);
+        } catch (e) { box.innerHTML = errHtml(e); box.hidden = false; }
+      });
+    }
     /** 同一個活動好幾個日期：補充說明、負責組、名額填一次，整組放到本區行事曆 */
     async function openGroup(g) {
       const xs = g.filter((x) => x.status === 'new' || x.status === 'seen');
@@ -1063,6 +1360,15 @@
       });
     }
     draw();
+    const seen = d.items.filter(answeredOf).map((x) => x.id);
+    if (seen.length) Api.admin('adminHqReplySeen', { ids: seen }, true).then((x) => { inboxMemo = x; }).catch(() => {});
+  }
+
+  /** 分壇怎麼回 */
+  function answerText(x) {
+    if (x.state === 'pending') return '⏳ 等分壇回覆';
+    if (x.state === 'no') return '❌ 分壇不同意' + (x.quotaAsk ? '，名額維持原本的' : '');
+    return x.quotaAsk ? `✅ 分壇同意，名額改成 ${x.quotaAsk} 位` : '✅ 分壇回覆了';
   }
 
   window.HqInbox = { mount, page, tab };

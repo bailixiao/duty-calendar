@@ -40,7 +40,7 @@ async function startMock() {
 const regionWorkers = {};
 // 宏教分壇分派：測試版的區對區呼叫（正式版是 Durable Object 互相呼叫）
 const mockCross = {
-  cross: async (region, method, payload) => { const w = await regionWorker(region); try { return w.app.hqRpc(region, method, payload); } finally { w.store.persist(); } },
+  cross: async (region, method, payload) => { const w = await regionWorker(region); try { return await w.app.hqRpc(region, method, payload); } finally { w.store.persist(); } },
   openRegions: async () => { await regionWorker('she'); await regionWorker('hq'); return worker.app.openRegions(); } // 測試版的教捨區、分壇第一次用到才建立：先建好
 };
 async function regionWorker(region) {

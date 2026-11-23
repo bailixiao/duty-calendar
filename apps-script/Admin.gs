@@ -362,6 +362,8 @@ function adminRun_(body) {
     case 'adminHqPublish': return adminHqPublish_(body);
     case 'adminHqPublishMany': return adminHqPublishMany_(body);
     case 'adminHqDecline': return adminHqDecline_(body);
+    case 'adminHqReplySeen': return adminHqReplySeen_(body);
+    case 'adminHqWatch': return adminHqWatch_(body);
     case 'adminAssignGroups': return adminAssignGroups_(body);
     case 'adminSplitSignup': return adminSplitSignup_(body);
     case 'adminMergeMembers': return adminMergeMembers_(body);

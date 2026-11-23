@@ -11,7 +11,7 @@ async function setup() {
   const regions = {};
   const opts = {
     now: () => now,
-    cross: async (r, method, payload) => { const x = regions[r]; try { return x.app.hqRpc(r, method, payload); } finally { x.store.persist(); } },
+    cross: async (r, method, payload) => { const x = regions[r]; try { return await x.app.hqRpc(r, method, payload); } finally { x.store.persist(); } },
     openRegions: async () => regions.main.app.openRegions()
   };
   const make = (code, props) => {
@@ -290,4 +290,92 @@ test('分壇的唯讀帳號：看得到清單、總表、整組總覽、統計�
   assert.equal((await ro('hqDelete', { id: c.id })).error.code, 'FORBIDDEN');
   assert.equal((await ro('hqSaveMany', { items: [c] })).error.code, 'FORBIDDEN');
   assert.equal((await ro('hqImportAi', { text: 'x' })).error.code, 'FORBIDDEN');
+});
+
+test('各區回覆分壇、申請調名額（adminHqReply → hqAnswer）：同意就改名額、送回那一區', async () => {
+  const R = await setup();
+  const id = (await R.hq.admin('hqSave', { campaign: CAMPAIGN })).data.campaign.id;
+  assert.equal((await R.she.admin('adminHqReply', { ids: [id] })).error.code, 'VALIDATION', '要寫話或填名額');
+  let r = await R.she.admin('adminHqReply', { ids: [id], text: '本區人手不夠', quotaAsk: 1 });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.equal(r.data.items[0].reply.state, 'pending');
+  let c = (await R.hq.admin('hqList')).data.campaigns[0];
+  assert.equal(c.replies.she.quotaAsk, 1);
+  assert.equal(c.replies.she.text, '本區人手不夠');
+  // 分壇改分派內容：回覆留著
+  await R.hq.admin('hqSave', { campaign: Object.assign({}, c, { location: '測試地點二' }) });
+  c = (await R.hq.admin('hqList')).data.campaigns[0];
+  assert.equal(c.replies.she.state, 'pending');
+  // 不同意要寫原因
+  assert.equal((await R.hq.admin('hqAnswer', { ids: [id], region: 'she', ok: false })).error.code, 'VALIDATION');
+  assert.equal((await R.she.admin('hqAnswer', { ids: [id], region: 'she' })).error.code, 'FORBIDDEN');
+  r = await R.hq.admin('hqAnswer', { ids: [id], region: 'she', answer: '好的，辛苦了' });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.equal(r.data.campaigns[0].quotas.she, 1);
+  const x = (await R.she.admin('adminHqInbox')).data.items[0];
+  assert.equal(x.quota, 1, '那一區的名額跟著改');
+  assert.equal(x.reply.state, 'ok');
+  assert.equal(x.reply.answer, '好的，辛苦了');
+  assert.equal((await R.she.admin('adminHqInbox')).data.answered, 1);
+  assert.equal((await R.she.admin('adminHqReplySeen', { ids: [id] })).data.answered, 0);
+  // 名額不是分壇分配的，不能申請
+  const id2 = (await R.hq.admin('hqSave', { campaign: Object.assign({}, CAMPAIGN, { title: '測試自報', quotaMode: 'self' }) })).data.campaign.id;
+  assert.equal((await R.she.admin('adminHqReply', { ids: [id2], quotaAsk: 3 })).error.code, 'VALIDATION');
+  assert.equal((await R.she.admin('adminHqReply', { ids: [id2], text: '收到' })).ok, true);
+});
+
+test('截止前 3 天自動提醒、分壇一鍵提醒：只提醒還沒放、沒報滿的區', async () => {
+  const R = await setup();
+  // 測試的今天是 2026-11-22：截止 11/25 → 剛好 3 天前
+  const id = (await R.hq.admin('hqSave', { campaign: Object.assign({}, CAMPAIGN, { deadline: '2026-11-25' }) })).data.campaign.id;
+  const off = (await R.hq.admin('hqSave', { campaign: Object.assign({}, CAMPAIGN, { title: '測試不提醒', deadline: '2026-11-25', autoRemind: false }) })).data.campaign.id;
+  await R.main.admin('adminHqPublish', { id });
+  await R.hq.app.cron('today', 'hq');
+  const she = (await R.she.admin('adminHqInbox')).data.items;
+  assert.equal(she.find((x) => x.id === id).remind.text, '還沒放到行事曆');
+  assert.equal(she.find((x) => x.id === off).remind, null, '關掉自動提醒的不提醒');
+  assert.equal((await R.main.admin('adminHqInbox')).data.items.find((x) => x.id === id).remind.text, '還差 3 位');
+  let c = (await R.hq.admin('hqList')).data.campaigns.find((x) => x.id === id);
+  assert.deepEqual(c.reminded.regions.sort(), ['main', 'she']);
+  assert.equal(c.reminded.auto, true);
+  // 一鍵提醒
+  const r = await R.hq.admin('hqRemind', { ids: [off] });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.deepEqual(r.data.regions.map((x) => x.code), ['main', 'she']);
+  assert.equal((await R.she.admin('adminHqInbox')).data.items.find((x) => x.id === off).remind.auto, false);
+});
+
+test('分壇公告：發給選的區 → 各區按「知道了」→ 分壇看到已讀；改內容要重新看；刪掉就收回', async () => {
+  const R = await setup();
+  let r = await R.hq.admin('hqNoticeSave', { notice: { title: '測試公告', body: '下週開會', regions: ['main', 'she', 'ding'] } });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  const n = r.data.notice;
+  assert.deepEqual(n.delivery, { main: 'ok', she: 'ok', ding: 'not-open' });
+  let inbox = (await R.she.admin('adminHqInbox')).data;
+  assert.equal(inbox.notices.length, 1);
+  assert.equal(inbox.unread, 1);
+  assert.equal(inbox.pending, 1, '沒讀的公告也算待處理');
+  r = await R.she.admin('adminHqNoticeRead', { id: n.id });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.equal(r.data.unread, 0);
+  let l = (await R.hq.admin('hqNoticeList')).data.notices[0];
+  assert.ok(l.reads.she && !l.reads.main);
+  // 只改區：已讀留著；改內容：重新看
+  await R.hq.admin('hqNoticeSave', { notice: Object.assign({}, l, { regions: ['main', 'she'] }) });
+  assert.ok((await R.hq.admin('hqNoticeList')).data.notices[0].reads.she);
+  await R.hq.admin('hqNoticeSave', { notice: Object.assign({}, l, { body: '改成下下週', regions: ['main', 'she'] }) });
+  assert.deepEqual((await R.hq.admin('hqNoticeList')).data.notices[0].reads, {});
+  assert.equal((await R.she.admin('adminHqInbox')).data.unread, 1);
+  // 類別帳號只能發自己那一類，看得到「全部」的
+  await R.hq.admin('adminSaveAccount', { account: { account: '測試教育', role: '教育', password: 'test-pass-4' } });
+  const tok = (await R.hq.call({ action: 'adminLogin', account: '測試教育', password: 'test-pass-4' })).data.token;
+  const edu = (action, body) => R.hq.call(Object.assign({ action, token: tok }, body || {}));
+  assert.equal((await edu('hqNoticeSave', { notice: { title: '測試', regions: ['she'] } })).error.code, 'FORBIDDEN');
+  assert.equal((await edu('hqNoticeSave', { notice: { title: '測試教育公告', category: '教育', regions: ['she'] } })).ok, true);
+  assert.equal((await edu('hqNoticeList')).data.notices.length, 2);
+  assert.equal((await edu('hqNoticeDelete', { id: n.id })).error.code, 'FORBIDDEN');
+  // 刪掉：各區收回
+  assert.equal((await R.hq.admin('hqNoticeDelete', { id: n.id })).ok, true);
+  inbox = (await R.she.admin('adminHqInbox')).data;
+  assert.deepEqual(inbox.notices.map((x) => x.title), ['測試教育公告']);
 });

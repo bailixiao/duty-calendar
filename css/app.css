@@ -2870,3 +2870,48 @@ button.veg-chip:hover { border-color: var(--ok); }
 .tb-count small { display: block; font-size: .8rem; }
 .tb-foot { text-align: center; margin: 16px 0; }
 .tb-foot .muted { margin: 0 0 8px; }
+
+/* ---------- 上下溝通（2026/11/23）：各區回覆、提醒、分壇公告 ---------- */
+.hq-replies { border: 2px solid #8fb3d9; background: #f1f6fc; border-radius: var(--radius); padding: 12px 14px; margin: 0 0 14px; }
+.hq-replies h3 { margin: 0 0 8px; font-size: 1.05rem; }
+.hq-reply { background: #fff; border: 1px solid #cfdcec; border-radius: 10px; padding: 10px 12px; margin: 0 0 8px; }
+.hq-reply:last-child { margin-bottom: 0; }
+.hq-reply-head { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.hq-reply-head strong { font-size: 1.05rem; }
+.hq-reply-head small { color: var(--ink-2); width: 100%; }
+.hq-reply-ask { margin: 6px 0 0; }
+.hq-reply-ask b { color: var(--accent); }
+.hq-reply-text { margin: 6px 0 0; white-space: normal; }
+.hq-reply .btn { margin-top: 8px; }
+.hq-reply-in-modal { margin: 0 0 12px; }
+.ov-reply { display: inline-block; margin-left: 4px; font-size: .9rem; }
+.hq-reply-mini { display: block; color: var(--ink-2); }
+.hq-reminded { margin: -4px 0 10px; font-size: .9rem; }
+.hq-remind-list { margin: 0 0 10px; padding-left: 1.2em; display: grid; gap: 4px; }
+.hq-auto-remind { display: flex; gap: 8px; align-items: flex-start; margin: 4px 0 14px; line-height: 1.5; }
+.hq-watch { margin: 18px 0 6px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.hq-remind-line { margin: 8px 0 0; padding: 8px 10px; border-radius: 10px; background: #fff8ec; border: 1px solid #f0d9b5; font-size: .95rem; }
+.hq-reply-line { margin: 8px 0 0; padding: 8px 10px; border-radius: 10px; background: #f1f6fc; border: 1px solid #cfdcec; font-size: .95rem; }
+.hq-reply-line p { margin: 0; }
+.hq-reply-line p + p { margin-top: 4px; }
+.hq-reply-line.is-ok { background: var(--ok-soft); border-color: #b9cdb4; }
+.hq-reply-line.is-no { background: var(--accent-soft); border-color: #e6c3b6; }
+.hq-reply-line.is-new { box-shadow: 0 0 0 2px #e0a040; }
+.hq-reply-btn { margin-top: 8px; }
+.hq-notice-box { margin: 0 0 16px; }
+.hq-notice-box h3 { margin: 0 0 8px; font-size: 1.05rem; display: flex; align-items: center; gap: 8px; }
+.hq-notices { display: grid; gap: 12px; margin: 12px 0; }
+.hq-notice { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin: 0 0 10px; }
+.hq-notice.is-unread { border: 2px solid #e0a040; background: #fff8ec; }
+.hq-notice-head strong { display: block; font-size: 1.05rem; }
+.hq-notice-head small { color: var(--ink-2); }
+.hq-notice-body { margin: 8px 0; line-height: 1.6; }
+.hq-notice .btn { margin-top: 4px; }
+.hq-notice .admin-actions { margin: 10px 0 0; }
+.hq-notice-read { margin: 6px 0; }
+.hq-notice-old summary { cursor: pointer; color: var(--ink-2); padding: 6px 0; min-height: 44px; display: flex; align-items: center; }
+.hq-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.hq-chip { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: .88rem; border: 1px solid var(--line); background: #fff; white-space: nowrap; }
+.hq-chip.is-read { background: var(--ok-soft); border-color: #b9cdb4; color: var(--ok); }
+.hq-chip.is-unread { background: #fff8ec; border-color: #f0d9b5; }
+.hq-chip.is-off { color: var(--muted); }

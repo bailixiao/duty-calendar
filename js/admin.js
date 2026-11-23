@@ -133,7 +133,7 @@
     if (isHq()) {
       if (sub === 'accounts' && Api.adminWho().role === '總管理者') return AccountsPage.show(shell('accounts'), guard);
       if (sub === 'help') return HelpAdminPage.show(shell('help'), guard);
-      return HqAdminPage.show(shell(sub === 'hqstats' ? 'hqstats' : ''), guard, sub);
+      return HqAdminPage.show(shell(sub === 'hqstats' || sub === 'hqnotice' ? sub : ''), guard, sub);
     }
     prefetch();
     VenueAdminPage.autoWatch(); // 總管理者、場管：手機允許過通知就自動開啟場地申請通知
@@ -182,7 +182,7 @@
   function tabList() {
     const who = Api.adminWho();
     // 分壇：分派、統計；總管理者另外有帳號（新增總務・勤務／道務／教育帳號，2026/11/22）
-    if (isHq()) return [['', '📣 分派', ['']], ['hqstats', '📊 統計', ['hqstats']]].concat(who.role === '總管理者' ? [['accounts', '👤 帳號', ['accounts']]] : []);
+    if (isHq()) return [['', '📣 分派', ['']], ['hqnotice', '📢 公告', ['hqnotice']], ['hqstats', '📊 統計', ['hqstats']]].concat(who.role === '總管理者' ? [['accounts', '👤 帳號', ['accounts']]] : []);
     const T = term();
     if (who.role === '場管') return [['venue', '場地借用', ['venue']], ['help', '📖 教學', ['help']]];
     const venueOn = !(window.SITE.features && window.SITE.features.venue === false); // 分區：沒有場地可借的區關掉

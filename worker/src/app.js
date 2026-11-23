@@ -347,15 +347,18 @@ export function createApp(store, opts) {
   });
   Object.keys(hq.special).forEach((k) => { special[k] = (body) => hq.special[k](body, curRegion); });
   /** 別的區（分壇）叫過來：region＝這個 Durable Object 是哪一區 */
-  function hqRpc(region, method, payload) {
+  async function hqRpc(region, method, payload) {
     curRegion = region || 'main';
     if (!isOpen(curRegion)) return { status: 'not-open' };
     applySite();
+    let out;
     try {
-      return hq.rpc(method, payload);
+      out = hq.rpc(method, payload);
     } catch (e) {
       throw new Error((e && e.message) || String(e));
     }
+    await flushPush(); // 公告、提醒、回覆：通知這一區管理者的手機（2026/11/23）
+    return out;
   }
 
 
@@ -421,7 +424,13 @@ export function createApp(store, opts) {
     curRegion = region || 'main';
     countRequest();
     flushUsage();
-    if (store.getProp('LIVE') !== '1') return { skipped: 'not-live' };
+    // 宏教分壇：每天早上 7 點，報名截止前 3 天自動提醒沒處理、沒報滿的區（推播由各區自己送，2026/11/23）
+    let hqRemind = null;
+    if (curRegion === 'hq' && when === 'today') {
+      applySite();
+      try { hqRemind = await hq.autoRemind(); } catch (e) { console.error('分壇提醒', e); }
+    }
+    if (store.getProp('LIVE') !== '1') return hqRemind ? { skipped: 'not-live', hqRemind } : { skipped: 'not-live' };
     applySite();
     if (when === 'plans') { // 每 5 分鐘：排定時間到了的後台推播
       const res = gs.runDuePushPlans_();

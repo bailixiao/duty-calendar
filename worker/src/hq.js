@@ -12,6 +12,8 @@ const TARGET_CODES = TARGETS.map(([c]) => c);
 const CATS = ['勤務', '道務', '教育'];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+const HQ_NAME_TEXT = '宏教分壇';
+// 上下溝通（2026/11/23）：各區回覆分壇／申請調名額（hqAnswer）、截止前 3 天自動提醒（autoRemind，分壇每天早上 7 點的排程）、分壇公告（HQ_NOTICES）。
 
 export function createHq({ gs, store, cross, openRegions }) {
   const err = (code, msg, details) => new gs.ApiError_(code, msg, details);
@@ -60,6 +62,7 @@ export function createHq({ gs, store, cross, openRegions }) {
       description: s(c.description, 2000, '說明', false),
       deadline: s(c.deadline, 10, '報名截止日', false),
       quotaMode: ['none', 'assigned', 'self'].indexOf(c.quotaMode) !== -1 ? c.quotaMode : 'none',
+      autoRemind: c.autoRemind !== false, // 截止前 3 天自動提醒沒處理、沒報滿的區（2026/11/23）
       positions: [],
       quotas: {},
       regions: []
@@ -88,6 +91,13 @@ export function createHq({ gs, store, cross, openRegions }) {
     }
     return out;
   }
+
+  /** 修改分派時，原本的來源、各區回覆、提醒紀錄留著 */
+  function keepExtra(c, old) {
+    if (!old) return;
+    ['source', 'replies', 'reminded'].forEach((k) => { if (old[k]) c[k] = old[k]; });
+  }
+  const regionName = (code) => (TARGETS.find(([x]) => x === code) || [code, code])[1];
 
   /** 給某一區的那一份（名額換成那一區的） */
   const forRegion = (c, r) => ({
@@ -133,7 +143,7 @@ export function createHq({ gs, store, cross, openRegions }) {
     c.updatedAt = gs.nowString_();
     c.by = who.account || '總管理者';
     c.status = draft ? 'draft' : 'sent';
-    if (old && old.source) c.source = old.source;
+    keepExtra(c, old);
     const removed = old && old.status !== 'draft' ? old.regions.filter((r) => c.regions.indexOf(r) === -1) : [];
     c.delivery = draft ? {} : await deliver(c, removed);
     const next = old ? all.map((x) => (x.id === c.id ? c : x)) : all.concat([c]);
@@ -160,7 +170,7 @@ export function createHq({ gs, store, cross, openRegions }) {
         const c = clean(it || {}, old, draft);
         guardCat(who, c);
         Object.assign(c, { version: (old ? old.version : 0) + 1, createdAt: old ? old.createdAt : gs.nowString_(), updatedAt: gs.nowString_(), by: who.account || '總管理者', status: draft ? 'draft' : 'sent', delivery: {} });
-        if (old && old.source) c.source = old.source;
+        keepExtra(c, old);
         return { c, old, removed: old && old.status !== 'draft' ? old.regions.filter((r) => c.regions.indexOf(r) === -1) : [] };
       } catch (e) { errors.push({ message: '第 ' + (i + 1) + ' 筆（' + String((it && it.start) || '') + '）：' + e.message }); return null; }
     });
@@ -315,6 +325,215 @@ export function createHq({ gs, store, cross, openRegions }) {
     return { items, model: res.model };
   };
 
+  // =====================================================================
+  // 上下溝通（2026/11/23）：各區回覆／申請調名額、截止前提醒、分壇公告
+  // =====================================================================
+
+  /** 各區那一邊先驗登入、存在自己的收件匣，再轉給分壇 */
+  function regionAdmin(body, curRegion) {
+    if (curRegion === HQ_CODE) throw err('FORBIDDEN', '這是各區用的功能');
+    return gs.requireAdmin_(body);
+  }
+  /** 各區：回覆分壇（可以申請調名額）。body = { ids, text, quotaAsk } */
+  special.adminHqReply = async (body, curRegion) => {
+    const who = regionAdmin(body, curRegion);
+    const res = gs.hqAs_(who, () => gs.adminHqReplyLocal_(body));
+    try { await cross(HQ_CODE, 'hqReplyIn', { region: curRegion, replies: res.replies }); } catch (e) { throw err('NETWORK', '分壇暫時收不到，請稍後再按一次'); }
+    return res.inbox;
+  };
+  /** 分壇那一邊：收到各區的回覆（記在分派上），通知分壇那一類的管理者 */
+  function replyIn(p) {
+    const all = list();
+    const region = String((p && p.region) || '');
+    let first = null;
+    ((p && p.replies) || []).forEach((x) => {
+      const c = all.find((y) => y.id === x.id);
+      if (!c || !x.reply) return;
+      c.replies = Object.assign({}, c.replies || {}, { [region]: x.reply });
+      if (!first) first = { c, reply: x.reply };
+    });
+    save(all);
+    if (first) {
+      const n = ((p && p.replies) || []).length;
+      const rp = first.reply;
+      gs.hqNotifyAdmins_(first.c.category, '💬 ' + regionName(region) + '回覆分派',
+        '「' + first.c.title + '」' + (n > 1 ? n + ' 個日期' : '') + '：' + (rp.quotaAsk ? '想把名額改成 ' + rp.quotaAsk + ' 位' + (rp.text ? '，' : '') : '') + (rp.text || ''), '#/admin');
+    }
+    return { ok: true };
+  }
+  /**
+   * 分壇回覆各區：body = { ids, region, ok（false＝不同意）, answer }。
+   * 同意調名額：名額改好、送給那一區（已放到行事曆的跟著改最多人數）。
+   */
+  special.hqAnswer = async (body, curRegion) => {
+    const who = requireHqAdmin(body, curRegion);
+    const region = String(body.region || '');
+    if (TARGET_CODES.indexOf(region) === -1) throw err('BAD_REQUEST', '不認得這一區');
+    const ids = Array.isArray(body.ids) ? body.ids.map(String) : [];
+    const all = list();
+    const cs = all.filter((c) => ids.indexOf(c.id) !== -1 && c.replies && c.replies[region]);
+    if (!cs.length) throw err('NOT_FOUND', '找不到這個回覆，可能已經處理過了');
+    cs.forEach((c) => guardCat(who, c));
+    const state = body.ok === false ? 'no' : 'ok';
+    const answer = String(body.answer || '').replace(/\r/g, '').trim().slice(0, 300);
+    if (state === 'no' && !answer) throw err('VALIDATION', '不同意的話，請寫一下原因（那一區看得到）');
+    const now = gs.nowString_();
+    const deliver = [];
+    cs.forEach((c) => {
+      const rp = c.replies[region];
+      if (state === 'ok' && rp.quotaAsk && c.quotaMode === 'assigned') {
+        c.quotas = Object.assign({}, c.quotas, { [region]: Number(rp.quotaAsk) });
+        c.version += 1;
+        c.updatedAt = now;
+        deliver.push(forRegion(c, region));
+      }
+      Object.assign(rp, { state, answer, answerAt: now, answerBy: who.account || '總管理者' });
+    });
+    const open = await openSet();
+    if (open.has(region)) {
+      try { await cross(region, 'hqAnswer', { deliver, ids: cs.map((c) => c.id), state, answer, by: HQ_NAME_TEXT }); } catch (e) { throw err('NETWORK', '那一區暫時連不上，請稍後再按一次'); }
+    }
+    save(all);
+    return { done: cs.length, campaigns: cs };
+  };
+
+  /** 還差什麼（提醒用）：還沒放到行事曆、或名額還沒報滿；都好了回傳 '' */
+  function lackOf(x) {
+    if (!x) return '';
+    if (x.status === 'new' || x.status === 'seen') return '還沒放到行事曆';
+    const q = Number(x.quota) || 0;
+    if (x.status === 'published' && q && (x.count || 0) < q) return '還差 ' + (q - (x.count || 0)) + ' 位';
+    return '';
+  }
+  const md = (d) => String(d || '').slice(5).replace('-', '/').replace(/^0/, '').replace('/0', '/');
+  /** 問各區的狀況，還沒處理、沒報滿的區各送一則提醒；回傳 { regions: [{ code, name, n }] } */
+  async function remindAll(cs, auto, by) {
+    if (!cs.length) return { regions: [] };
+    const d = await collect(cs, 'hqCountMany');
+    const out = [];
+    await Promise.all(d.regions.filter((g) => g.open).map(async (g) => {
+      const items = cs.map((c) => ({ c, text: lackOf(d.cells[c.id][g.code]) })).filter((x) => x.text && d.cells[x.c.id][g.code]);
+      if (!items.length) return;
+      const lines = items.slice(0, 5).map((x) => md(x.c.start) + ' ' + x.c.title + '：' + x.text);
+      const text = (auto ? '報名快截止了，' : '') + '這幾個分派還要麻煩看一下：\n' + lines.join('\n') + (items.length > 5 ? '\n⋯還有 ' + (items.length - 5) + ' 個' : '') + '\n請到後台「📥 分壇分派」處理 🙏';
+      try {
+        const res = await cross(g.code, 'hqRemind', { items: items.map((x) => ({ id: x.c.id, text: x.text })), body: text, auto });
+        out.push({ code: g.code, name: g.name, n: items.length, phones: (res && res.phones) || 0 });
+      } catch (e) { out.push({ code: g.code, name: g.name, n: items.length, error: (e && e.message) || String(e) }); }
+    }));
+    if (out.length) {
+      const all = list();
+      const at = gs.nowString_();
+      cs.forEach((c0) => {
+        const c = all.find((x) => x.id === c0.id);
+        const rs = out.filter((o) => !o.error && lackOf(d.cells[c0.id][o.code])).map((o) => o.code);
+        if (c && rs.length) c.reminded = { at, by: by || '自動', auto: !!auto, regions: rs };
+      });
+      save(all);
+    }
+    return { regions: TARGETS.map(([code]) => out.find((o) => o.code === code)).filter(Boolean) };
+  }
+  /** 分壇按「🔔 提醒沒處理、沒報滿的區」：body.ids＝分派代號（已經過的不提醒） */
+  special.hqRemind = async (body, curRegion) => {
+    const who = requireHqAdmin(body, curRegion);
+    const ids = Array.isArray(body.ids) ? body.ids.map(String) : [];
+    const today = gs.todayString_();
+    const cs = list().filter((c) => ids.indexOf(c.id) !== -1 && c.status !== 'draft' && c.end >= today);
+    cs.forEach((c) => guardCat(who, c));
+    return remindAll(cs, false, who.account || '總管理者');
+  };
+  /** 每天早上 7 點（分壇的排程）：報名截止（沒寫截止就用活動日期）前 3 天，自動提醒 */
+  const REMIND_DAYS = 3;
+  async function autoRemind() {
+    const today = gs.todayString_();
+    const day = (ymd) => Date.UTC(+ymd.slice(0, 4), +ymd.slice(5, 7) - 1, +ymd.slice(8, 10)) / 86400000;
+    const cs = list().filter((c) => c.status !== 'draft' && c.autoRemind !== false && day(c.deadline || c.start) - day(today) === REMIND_DAYS);
+    return remindAll(cs, true, '');
+  }
+
+  // ---- 📢 分壇公告：指令碼屬性 HQ_NOTICES（陣列）；每一區按「知道了」算已讀 ----
+  const notices = () => { try { const a = JSON.parse(store.getProp('HQ_NOTICES') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
+  const saveNotices = (a) => store.setProp('HQ_NOTICES', JSON.stringify(a));
+  /** 看得到：總管理者、唯讀全部；類別帳號看「全部」和自己那一類。發／改：總管理者全部；類別帳號只能發自己那一類 */
+  const seeNotice = (who, n) => who.role === '總管理者' || who.role === '唯讀' || !n.category || n.category === who.role;
+  const editNotice = (who, cat) => who.role === '總管理者' || (!!cat && cat === who.role);
+  const noticeFor = (n) => ({ id: n.id, title: n.title, body: n.body, category: n.category, version: n.version, createdAt: n.createdAt, updatedAt: n.updatedAt, by: HQ_NAME_TEXT });
+  special.hqNoticeList = async (body, curRegion) => {
+    const who = requireHqAdmin(body, curRegion, true);
+    const open = await openSet();
+    return { role: who.role, notices: notices().filter((n) => seeNotice(who, n)).sort((a, b) => b.createdAt.localeCompare(a.createdAt)), targets: TARGETS.map(([code, name]) => ({ code, name, open: open.has(code) })) };
+  };
+  /** 發公告或修改：body.notice = { id?, title, body, category（''＝全部）, regions } */
+  special.hqNoticeSave = async (body, curRegion) => {
+    const who = requireHqAdmin(body, curRegion);
+    const x = body.notice || {};
+    const all = notices();
+    const old = x.id ? all.find((n) => n.id === x.id) : null;
+    if (x.id && !old) throw err('NOT_FOUND', '找不到這則公告，可能已經刪掉了');
+    const t = (v, max, label, need) => {
+      const v2 = String(v == null ? '' : v).replace(/\r/g, '').trim();
+      if (need && !v2) throw err('VALIDATION', '請填「' + label + '」');
+      if (v2.length > max) throw err('VALIDATION', '「' + label + '」太長了（最多 ' + max + ' 個字）');
+      return v2;
+    };
+    const n = {
+      id: old ? old.id : 'N-' + gs.todayString_().replace(/-/g, '') + '-' + crypto.randomUUID().replace(/-/g, '').slice(0, 6),
+      title: t(x.title, 40, '標題', true),
+      body: t(x.body, 2000, '內容', false),
+      category: CATS.indexOf(x.category) !== -1 ? x.category : '',
+      regions: (Array.isArray(x.regions) ? x.regions : []).filter((r, i, a) => TARGET_CODES.indexOf(r) !== -1 && a.indexOf(r) === i)
+    };
+    if (!n.regions.length) throw err('VALIDATION', '請選要發給哪幾區');
+    if (old && !editNotice(who, old.category)) throw err('FORBIDDEN', '這則公告是「' + (old.category ? catName(old.category) : '全部') + '」的，這個帳號不能改');
+    if (!editNotice(who, n.category)) throw err('FORBIDDEN', '這個帳號只能發「' + catName(who.role) + '」的公告');
+    const same = old && old.title === n.title && old.body === n.body && old.category === n.category;
+    Object.assign(n, {
+      version: old ? old.version + (same ? 0 : 1) : 1,
+      createdAt: old ? old.createdAt : gs.nowString_(),
+      updatedAt: same ? old.updatedAt : gs.nowString_(),
+      by: who.account || '總管理者',
+      reads: same ? Object.assign({}, old.reads) : {},
+      delivery: {}
+    });
+    const open = await openSet();
+    await Promise.all(n.regions.map(async (r) => {
+      if (!open.has(r)) { n.delivery[r] = 'not-open'; return; }
+      try { await cross(r, 'hqNoticeIn', noticeFor(n)); n.delivery[r] = 'ok'; } catch (e) { n.delivery[r] = 'error：' + ((e && e.message) || e); }
+    }));
+    const removed = old ? old.regions.filter((r) => n.regions.indexOf(r) === -1 && open.has(r)) : [];
+    await Promise.all(removed.map((r) => cross(r, 'hqNoticeOut', n.id).catch(() => {})));
+    removed.forEach((r) => { delete n.reads[r]; });
+    const fresh = notices();
+    saveNotices(old ? fresh.map((y) => (y.id === n.id ? n : y)) : fresh.concat([n]));
+    return { notice: n };
+  };
+  special.hqNoticeDelete = async (body, curRegion) => {
+    const who = requireHqAdmin(body, curRegion);
+    const n = notices().find((y) => y.id === body.id);
+    if (!n) throw err('NOT_FOUND', '找不到這則公告');
+    if (!editNotice(who, n.category)) throw err('FORBIDDEN', '這個帳號不能刪這則公告');
+    const open = await openSet();
+    await Promise.all(n.regions.filter((r) => open.has(r)).map((r) => cross(r, 'hqNoticeOut', n.id).catch(() => {})));
+    saveNotices(notices().filter((y) => y.id !== n.id));
+    return { deleted: n.id };
+  };
+  /** 各區：公告按「知道了」 */
+  special.adminHqNoticeRead = async (body, curRegion) => {
+    const who = regionAdmin(body, curRegion);
+    const res = gs.hqAs_(who, () => gs.adminHqNoticeReadLocal_(body));
+    if (res.read) { try { await cross(HQ_CODE, 'hqNoticeRead', Object.assign({ region: curRegion }, res.read)); } catch (e) { /* 分壇暫時收不到：這一區自己還是記著已讀 */ } }
+    return res.inbox;
+  };
+  /** 分壇那一邊：某一區讀過了（版本對得上才算；公告改過要重新看） */
+  function noticeRead(p) {
+    const all = notices();
+    const n = all.find((y) => y.id === (p && p.id));
+    if (!n || n.version !== p.version || n.regions.indexOf(p.region) === -1) return { ok: false };
+    n.reads = Object.assign({}, n.reads, { [p.region]: { at: String(p.at || gs.nowString_()), by: String(p.by || '').slice(0, 40) } });
+    saveNotices(all);
+    return { ok: true };
+  }
+
   /** 各區這一邊：分壇叫過來（Durable Object 之間；不經過網路，不用登入） */
   function rpc(method, payload) {
     if (method === 'hqDeliver') return gs.hqDeliver_(payload);
@@ -326,6 +545,13 @@ export function createHq({ gs, store, cross, openRegions }) {
     // 統計用：不要名字，只要狀態、名額、人數
     if (method === 'hqCountMany') return (Array.isArray(payload) ? payload : []).map((id) => { const x = gs.hqReport_(id); delete x.people; return x; });
     // 教全區把 AI 金鑰借給分壇（只有 Durable Object 之間叫得到）
+    // 上下溝通（2026/11/23）
+    if (method === 'hqAnswer') { (Array.isArray(payload.deliver) ? payload.deliver : []).forEach((c) => gs.hqDeliver_(c)); return gs.hqAnswer_(payload); }
+    if (method === 'hqRemind') return gs.hqRemind_(payload);
+    if (method === 'hqNoticeIn') return gs.hqNoticeIn_(payload);
+    if (method === 'hqNoticeOut') return gs.hqNoticeOut_(payload);
+    if (method === 'hqReplyIn') return replyIn(payload);
+    if (method === 'hqNoticeRead') return noticeRead(payload);
     if (method === 'hqAiKey') {
       const p = gs.propsForAsync_();
       return { key: p.getProperty('GEMINI_API_KEY') || '', model: p.getProperty('GEMINI_MODEL') || '' };
@@ -333,5 +559,5 @@ export function createHq({ gs, store, cross, openRegions }) {
     throw new Error('不認得的分派動作：' + method);
   }
 
-  return { special, rpc };
+  return { special, rpc, autoRemind };
 }

@@ -41,8 +41,8 @@ export class DutyStore extends DurableObject {
   }
 
   /** 宏教分壇分派：分壇叫過來（送分派、收回、問報名狀況） */
-  hqRpc(region, method, payload) {
-    try { return this.app.hqRpc(region, method, payload); } finally { this.store.persist(); }
+  async hqRpc(region, method, payload) {
+    try { return await this.app.hqRpc(region, method, payload); } finally { this.store.persist(); }
   }
 
   /** 教全區（main）記著哪些區已經開通（排程只跑這些區） */
