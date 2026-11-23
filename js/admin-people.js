@@ -1089,7 +1089,16 @@
 
   /** 道二代頁點一位：只改父母、年齡、學校、興趣（adminSetFamily） */
   function editFamily(r, guard, reload) {
-    const m = r.m;
+    editPerson(r.m, { guard, onSaved: () => { notice(AdminPage.notice('success', '已存檔', r.m.name)); afterWrite(reload); } });
+  }
+
+  /**
+   * 點一位成員：改父母、生日、學校、興趣其他、備註、別名（adminSetFamily；道二代頁、教育統計都用，2026/11/23）。
+   * opts = { guard, onSaved(members) }；需要成員名單（memberList）算第幾代，沒讀過就先讀。
+   */
+  async function editPerson(m, opts) {
+    opts = opts || {};
+    if (!memberList.length) { try { memberList = (await Api.admin('adminMembers', {}, true)).members || []; } catch (e) { /* 讀不到就不算第幾代 */ } }
     const { m: modal } = formModal(`
       <h2 class="modal-title">👨‍👩‍👧 ${esc(m.name)}</h2>
       <p class="modal-note">${esc([m.temple, m.identity].filter(Boolean).join('・'))}</p>
@@ -1097,19 +1106,21 @@
       ${birthField(m)}
       <p class="family-auto" data-family-auto></p>
       <label class="form-row"><span>學校（選填）</span><input class="input" name="school" maxlength="50" value="${esc(m.school || '')}" placeholder="例：某某國小"></label>
-      <label class="form-row"><span>興趣、其他（選填）</span><input class="input" name="interest" maxlength="200" value="${esc(m.interest || '')}" placeholder="例：畫畫、打鼓、喜歡幫忙"></label>`,
+      <label class="form-row"><span>興趣、其他（選填）</span><input class="input" name="interest" maxlength="200" value="${esc(m.interest || '')}" placeholder="例：畫畫、打鼓、喜歡幫忙"></label>
+      <label class="form-row"><span>備註（選填）</span><input class="input" name="note" maxlength="200" value="${esc(m.note || '')}"></label>
+      <label class="form-row"><span>別名（選填，小名、以前的名字，用「、」分開）</span><input class="input" name="aliases" maxlength="100" value="${esc((m.aliases || []).join('、'))}" placeholder="例：小明"></label>`,
     async (f) => {
-      await Api.admin('adminSetFamily', { row: m.row, original: m.name, parents: f.elements.parents.value, birth: birthChanged(f, m), school: f.elements.school.value, interest: f.elements.interest.value });
-      notice(AdminPage.notice('success', '已存檔', m.name));
-      afterWrite(reload);
-    }, guard, '');
+      const res = await Api.admin('adminSetFamily', { row: m.row, original: m.name, parents: f.elements.parents.value, birth: birthChanged(f, m), school: f.elements.school.value, interest: f.elements.interest.value, note: f.elements.note.value, aliases: f.elements.aliases.value });
+      if (res && res.members) memberList = res.members;
+      if (opts.onSaved) opts.onSaved(res && res.members);
+    }, opts.guard, '');
     const f = modal.el.querySelector('form');
     MemberSuggest.attach(f.elements.parents, { multi: true });
     const paint = () => { modal.el.querySelector('[data-family-auto]').innerHTML = familyAutoText(m, ageFromBirth(f.elements.birth.value), f.elements.parents.value, null); paintBirth(f); };
-    ['age', 'parents'].forEach((n) => f.elements[n].addEventListener('input', paint));
+    ['birth', 'parents'].forEach((n) => f.elements[n].addEventListener('input', paint));
     f.elements.parents.addEventListener('change', paint);
     paint();
   }
 
-  window.PeoplePage = { members, groups, youth };
+  window.PeoplePage = { members, groups, youth, editPerson };
 })();

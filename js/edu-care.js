@@ -140,7 +140,7 @@
             <p class="ecare-topic">💡 ${esc(g.topic)}</p>
             <ul class="ecare-list">${g.items.map((x, i) => { const c = d.care[x.key]; return `
               <li class="ecare-item${c ? ' is-done' : ''}">
-                <div class="ecare-who"><strong>${esc(x.name)}</strong>${x.temple ? `<small>${esc(x.temple)}</small>` : ''}${x.label ? `<span class="tag">${esc(x.label)}</span>` : ''}</div>
+                <div class="ecare-who"><strong>${opts.personHtml ? opts.personHtml(x.name, x.temple) : esc(x.name)}</strong>${x.temple ? `<small>${esc(x.temple)}</small>` : ''}${x.label ? `<span class="tag">${esc(x.label)}</span>` : ''}</div>
                 <p class="ecare-reason">${esc(x.reason)}</p>
                 ${x.topic ? `<p class="ecare-talk">可以聊：${esc(x.topic)}</p>` : ''}
                 ${c ? `<p class="ecare-done">✓ 已關心（${esc(c.by)} ${esc(String(c.at).slice(5, 10).replace('-', '/'))}）${c.note ? '：' + esc(c.note) : ''}${d.canEdit ? ` <button type="button" class="link-btn" data-care-undo="${gi}|${i}">取消</button>` : ''}</p>`

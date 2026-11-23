@@ -230,7 +230,8 @@ function renameParentRefs_(rows, oldName, newName) {
 
 /**
  * 只改父母、學校、興趣、年齡（2026/11/22）：「👨‍👩‍👧 道二代」頁用；總管理者、道務、教育帳號。
- * body = { row, original, parents?, school?, interest?, age? }
+ * body = { row, original, parents?, school?, interest?, age?, birth?, note?（備註）, aliases?（別名，「、」分開） }
+ * 2026/11/23：教育統計點名字也用這個，多了備註、別名。
  */
 function adminSetFamily_(body) {
   if (body.age !== undefined && body.age !== '' && birthYearOf_(body.age) === null) throw new ApiError_('VALIDATION', '年齡請填 0～120 的數字');
@@ -242,6 +243,13 @@ function adminSetFamily_(body) {
     var ch = familyValues_(body, name);
     if (body.age !== undefined) ch['出生年'] = body.age === '' ? '' : birthYearOf_(body.age);
     if (body.birth !== undefined) { var bi = birthInput_(body.birth); ch['出生年'] = bi.year; ch['生日'] = bi.md; }
+    if (body.note !== undefined) ch['備註'] = cleanText_(body.note).slice(0, 200);
+    if (body.aliases !== undefined) {
+      var aliases = (Array.isArray(body.aliases) ? body.aliases : splitAliases_(body.aliases)).map(normalizeName_).filter(function (a, i, arr) { return a && a !== name && arr.indexOf(a) === i; });
+      var clash = aliasClash_(rows, row, aliases);
+      if (clash) throw new ApiError_('VALIDATION', clash);
+      ch['別名'] = aliases.join('、');
+    }
     if (ch['父母']) {
       var names = {};
       rows.forEach(function (m) { names[normalizeName_(m['姓名'])] = true; splitAliases_(m['別名']).forEach(function (a) { names[a] = true; }); });
@@ -250,7 +258,7 @@ function adminSetFamily_(body) {
     }
     if (!Object.keys(ch).length) return { members: adminMembers_().members };
     updateRow_(SHEETS.MEMBERS, row, ch);
-    writeDutyLog_('成員', '家庭資料｜' + name + (ch['父母'] !== undefined ? ' 父母：' + (ch['父母'] || '（空白）') : '') + (ch['學校'] !== undefined ? ' 學校：' + (ch['學校'] || '（空白）') : '') + (ch['興趣'] !== undefined ? ' 更新興趣' : '') + (ch['出生年'] !== undefined ? ' 生日：' + (ch['出生年'] ? ch['出生年'] + (ch['生日'] ? '/' + ch['生日'].replace('-', '/') : '') : '（清掉）') : ''));
+    writeDutyLog_('成員', '家庭資料｜' + name + (ch['父母'] !== undefined ? ' 父母：' + (ch['父母'] || '（空白）') : '') + (ch['學校'] !== undefined ? ' 學校：' + (ch['學校'] || '（空白）') : '') + (ch['興趣'] !== undefined ? ' 更新興趣' : '') + (ch['備註'] !== undefined ? ' 更新備註' : '') + (ch['別名'] !== undefined ? ' 別名：' + (ch['別名'] || '（空白）') : '') + (ch['出生年'] !== undefined ? ' 生日：' + (ch['出生年'] ? ch['出生年'] + (ch['生日'] ? '/' + ch['生日'].replace('-', '/') : '') : '（清掉）') : ''));
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.MEMBERS);
     return { members: adminMembers_().members };

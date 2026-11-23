@@ -114,3 +114,16 @@ test('填生日自動算年齡（2026/11/23）：西元、民國、只有年；�
   call('adminSaveMember', { row: me().row, original: '測試填生日', member: { name: '測試填生日', identity: '道親', birth: '' } });
   assert.deepEqual([me().birthYear, me().birthday], ['', '']);
 });
+
+test('家庭資料（教育統計點名字，2026/11/23）：也能改備註、別名；別名不能是別人的名字', () => {
+  const env = createEnv(Date.UTC(2026, 10, 23, 2, 0, 0));
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const call = (action, body) => env.post(Object.assign({ action, token }, body));
+  call('adminSaveMember', { member: { name: '測試小孩丙', identity: '道親' } });
+  call('adminSaveMember', { member: { name: '測試別人', identity: '道親' } });
+  const me = () => call('adminMembers').data.members.find((m) => m.name === '測試小孩丙');
+  let r = call('adminSetFamily', { row: me().row, original: '測試小孩丙', note: '喜歡畫畫的小朋友', aliases: '小丙、丙丙', school: '測試國小' });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.deepEqual([me().note, me().aliases, me().school], ['喜歡畫畫的小朋友', ['小丙', '丙丙'], '測試國小']);
+  assert.equal(call('adminSetFamily', { row: me().row, original: '測試小孩丙', aliases: '測試別人' }).error.code, 'VALIDATION');
+});

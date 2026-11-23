@@ -311,7 +311,7 @@
           ${cur.students.length ? `<div class="edu-table-wrap"><table class="edu-table edu-grid">
             <thead><tr><th class="edu-sticky">姓名</th>${cur.sessions.map((s) => `<th>${md(s.date)}<small>（${esc(Fmt.weekday(s.date))}）</small></th>`).join('')}<th>出席</th></tr></thead>
             <tbody>${(state.eduGridAll ? cur.students : cur.students.slice(0, GRID_FIRST)).map((n) => `
-              <tr><th scope="row" class="edu-sticky">${esc(n)}</th>${cur.sessions.map((s) => {
+              <tr><th scope="row" class="edu-sticky">${personHtml(n, '')}</th>${cur.sessions.map((s) => {
                 const v = cur.grid[n][s.key] || '';
                 return `<td class="${v === '✓' ? 'is-here' : v === '✗' ? 'is-away' : ''}">${v}</td>`;
               }).join('')}<td class="edu-sum">${cur.perStudent[n]}/${cur.sessions.length}</td></tr>`).join('')}</tbody>
@@ -329,7 +329,7 @@
         <section class="stats-section">
           <h3 class="admin-sub">${L.person}出席排行：${esc(cur.name)}<span class="h2-sub">出席次數多的在前${courses.length > 1 ? `・點上面的${L.item}換一個` : ''}</span></h3>
           ${rank.length ? `<ol class="rank-list edu-rank">${(state.eduRankAll ? rank : rank.slice(0, 10)).map((x) => `
-            <li><span class="rank-name">${esc(x.name)}${x.absent ? ` <span class="tag tag-warn">未到 ${x.absent}</span>` : ''}</span>
+            <li><span class="rank-name">${personHtml(x.name, '')}${x.absent ? ` <span class="tag tag-warn">未到 ${x.absent}</span>` : ''}</span>
               <span class="rank-count">${x.count}／${cur.sessions.length} ${L.unit}</span></li>`).join('')}</ol>
           ${rank.length > 10 ? `<button type="button" class="btn btn-small no-print" data-erank-all>${state.eduRankAll ? '只看前 10 名' : `看全部 ${rank.length} 位`}</button>` : ''}` : `<p class="muted">還沒有${L.person}報名</p>`}
         </section>`;
@@ -368,6 +368,8 @@
       </div>`;
 
     bindNav(body, data, () => render(body, guard, data, false));
+    body.__rerender = () => render(body, guard, data, false);
+    bindPersonClicks(body, guard);
     body.querySelectorAll('[data-course]').forEach((b) => b.addEventListener('click', () => {
       state.eduCourse[cat] = courses[Number(b.dataset.course)].name;
       render(body, guard, data, false);
@@ -402,12 +404,39 @@
     if (ac) mountAgeClasses(ac, allCourses, data.today, guard);
     // 教育組的關心名單（2026/11/23，js/edu-care.js）
     const ec = body.querySelector('[data-edu-care]');
-    if (ec) eduMembers().then((members) => EduCare.mount(ec, { members, guard })).catch((e) => { if (!guard(e)) ec.innerHTML = '<p class="form-error">' + esc(e.message || '讀不到成員名單') + '</p>'; });
+    if (ec) eduMembers().then((members) => EduCare.mount(ec, { members, guard, personHtml })).catch((e) => { if (!guard(e)) ec.innerHTML = '<p class="form-error">' + esc(e.message || '讀不到成員名單') + '</p>'; });
     // 各佛堂道務目標（年度跟著上面選的期間）
     const veg = body.querySelector('[data-veg]');
     if (veg) MemberStats.mount(veg, body.querySelector('[data-ages]'), { canEdit: ['總管理者', '道務'].indexOf(Api.adminWho().role) !== -1, guard, activity: C.activity(data.events || [], data.today) });
     const goals = body.querySelector('[data-goals]');
     if (goals) GoalsPage.mount(goals, p.year, { canEdit: ['總管理者', '道務'].indexOf(Api.adminWho().role) !== -1, guard });
+  }
+
+  // ---------- 教育統計的名字點開編輯（2026/11/23）：父母、生日、學校、興趣其他、備註、別名 ----------
+
+  /** 這個帳號能不能改成員的家庭資料（總管理者、道務、教育） */
+  const canEditPerson = () => ['總管理者', '道務', '教育'].indexOf((Api.adminWho() || {}).role) !== -1;
+  /** 名字：能改的帳號變成可以點的按鈕（data-member） */
+  function personHtml(name, temple, cls) {
+    if (!canEditPerson()) return `<span class="${cls || ''}">${esc(name)}</span>`;
+    return `<button type="button" class="link-btn person-link ${cls || ''}" data-member="${esc(name)}" data-temple="${esc(temple || '')}" title="點一下編輯父母、學校、興趣、備註、別名">${esc(name)}</button>`;
+  }
+  /** body 上點名字（只綁一次）：找成員名單上的那一位，打開編輯視窗；存好後重畫 */
+  function bindPersonClicks(body, guard) {
+    if (body.__personClick) return;
+    body.__personClick = true;
+    body.addEventListener('click', async (ev) => {
+      const b = ev.target.closest('[data-member]');
+      if (!b || !body.contains(b)) return;
+      ev.preventDefault();
+      let members;
+      try { members = await eduMembers(); } catch (e) { if (!guard(e)) alert(e.message || '讀不到成員名單'); return; }
+      const name = b.dataset.member, temple = b.dataset.temple;
+      const hits = members.filter((m) => m.name === name || (m.aliases || []).indexOf(name) !== -1);
+      const m = (temple && hits.find((x) => x.temple === temple)) || hits[0];
+      if (!m) { alert(`成員名單上沒有「${name}」（可能是新朋友、或名字寫法不一樣）。請到「👥 人員 → 成員」新增或加別名。`); return; }
+      PeoplePage.editPerson(m, { guard, onSaved: () => { ageMembersMemo = null; AdminPage.clearMemo(); if (body.__rerender) body.__rerender(); } });
+    });
   }
 
   // ---------- 各年齡層適合的班（2026/11/23）：依成員生日（出生年）分到讀經班、青少年班、高大班、青年班 ----------
@@ -431,7 +460,7 @@
     const r = EduStats.ageClasses(members, courses, today, Family.schoolStage);
     const filled = members.filter((m) => m.active !== false && !m.pending && m.birthYear).length;
     const open = state.ageOpen || (state.ageOpen = {});
-    const people = (list, showCame) => `<ul class="age-people">${list.map((p) => `<li${showCame && !p.attended ? ' class="is-not-yet"' : ''}><span class="age-name">${esc(p.name)}${p.temple ? `<small>${esc(p.temple)}</small>` : ''}</span><span class="age-label">${esc(p.label)}</span>${showCame ? `<span class="age-came">${p.attended ? '✓ 有來' : '還沒來'}</span>` : ''}</li>`).join('')}</ul>`;
+    const people = (list, showCame) => `<ul class="age-people">${list.map((p) => `<li${showCame && !p.attended ? ' class="is-not-yet"' : ''}><span class="age-name">${personHtml(p.name, p.temple)}${p.temple ? `<small>${esc(p.temple)}</small>` : ''}</span><span class="age-label">${esc(p.label)}</span>${showCame ? `<span class="age-came">${p.attended ? '✓ 有來' : '還沒來'}</span>` : ''}</li>`).join('')}</ul>`;
     const others = [['preschool', '學齡前（3 歲以下）', r.preschool], ['older', '36 歲以上', r.older], ['unknown', '還沒填生日', r.unknown]];
     box.innerHTML = `
       <h3 class="admin-sub">各年齡層適合的班<span class="h2-sub">依成員生日（出生年）算・${filled} 位有填生日</span></h3>
@@ -442,7 +471,7 @@
           <div class="age-nums"><span><b>${k.people.length}</b> 位適合</span><span>這段期間有來上課 <b>${k.attended}</b> 位</span></div>
           <p class="age-sub">${k.people.length ? `適合的人裡有來過 ${came} 位、還沒來 ${k.people.length - came} 位` : '名單上沒有這個年齡的人'}${k.outside.length ? `；另外 ${k.outside.length} 位有來但不在這個年齡` : ''}</p>
           ${k.people.length || k.outside.length ? `<button type="button" class="btn btn-small no-print" data-age-open="${i}" aria-expanded="${!!open[i]}">${open[i] ? '收起名單 ▴' : '看是哪些人 ▾'}</button>` : ''}
-          ${open[i] ? `${people(k.people, true)}${k.outside.length ? `<p class="age-outside">有來上課、不在這個年齡：${k.outside.map(esc).join('、')}</p>` : ''}
+          ${open[i] ? `${people(k.people, true)}${k.outside.length ? `<p class="age-outside">有來上課、不在這個年齡：${k.outside.map((n) => personHtml(n, '')).join('、')}</p>` : ''}
             <button type="button" class="btn btn-small no-print" data-age-copy="${i}">複製名單</button>` : ''}
         </div>`;
       }).join('')}</div>
