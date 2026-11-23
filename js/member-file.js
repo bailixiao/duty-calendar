@@ -80,6 +80,18 @@
     return null;
   }
 
+  /** 生日的月日 →「MM-dd」（2026/11/23，選填）：Date、Excel 序號、1965/3/2、54.03.02、1965-03-02；只有年就回 '' */
+  function parseMonthDay(v) {
+    const two = (n) => String(n).padStart(2, '0');
+    if (v instanceof Date && !isNaN(v)) return two(v.getMonth() + 1) + '-' + two(v.getDate());
+    if (typeof v === 'number' && v > 3000 && v < 60000) { const d = new Date(Math.round((v - 25569) * 86400000)); return two(d.getUTCMonth() + 1) + '-' + two(d.getUTCDate()); }
+    const s = clean(v).replace(/^民國\s*/, '').replace(/\s/g, '');
+    const m = s.match(/^\d{2,4}\s*[年./\-]\s*(\d{1,2})\s*[月./\-]\s*(\d{1,2})日?$/);
+    if (!m) return '';
+    const mo = Number(m[1]), d = Number(m[2]);
+    return mo >= 1 && mo <= 12 && d >= 1 && d <= 31 ? two(mo) + '-' + two(d) : '';
+  }
+
   /** 找表頭那一列：前 15 列裡，有「姓名」又最多欄位對得上的 */
   function findHeader(rows) {
     let best = null;
@@ -157,6 +169,8 @@
       if (age !== null) it.age = age;
       const by = map.birth !== undefined ? parseBirth(get('birth'), thisYear) : null;
       if (by) it.birthYear = by;
+      const md = map.birth !== undefined ? parseMonthDay(get('birth')) : '';
+      if (md) it.birthday = md;
       const id = parseIdentity(get('identity'));
       if (id) it.identity = id;
       if (map.vegetarian !== undefined && parseVegetarian(get('vegetarian'))) it.vegetarian = true;
@@ -291,7 +305,7 @@
     return String(text || '').split(/\r?\n/).filter((l) => clean(l)).map((l) => (l.indexOf('\t') !== -1 ? l.split('\t') : l.split(/\s{2,}|　+|,|，/)).map(clean));
   }
 
-  const api = { loadPdfJs: pdfJs, loadSheetJs: sheetJs, FIELDS, FIELD_KEYS, parseIdentity, parseVegetarian, parseAge, parseBirth, parseOverseas, detect, toItems, docxXmlToTables, pdfItemsToRows, alignByHeader, readFile, textToRows };
+  const api = { loadPdfJs: pdfJs, loadSheetJs: sheetJs, FIELDS, FIELD_KEYS, parseIdentity, parseVegetarian, parseAge, parseBirth, parseMonthDay, parseOverseas, detect, toItems, docxXmlToTables, pdfItemsToRows, alignByHeader, readFile, textToRows };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.MemberFile = api;
 })(typeof window !== 'undefined' ? window : globalThis);

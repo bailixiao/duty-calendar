@@ -34,7 +34,7 @@ test('出生年：西元、民國、日期、Excel 序號都換成西元年', ()
   assert.strictEqual(MF.parseBirth('', 2026), null);
   assert.strictEqual(MF.parseBirth('2099', 2026), null);
   const rows = [['姓名', '出生年月日'], ['測試甲', '54/3/2']];
-  assert.deepStrictEqual(MF.toItems(rows, MF.detect(rows), { thisYear: 2026 }), [{ name: '測試甲', birthYear: 1965 }]);
+  assert.deepStrictEqual(MF.toItems(rows, MF.detect(rows), { thisYear: 2026 }), [{ name: '測試甲', birthYear: 1965, birthday: '03-02' }], '生日有月日也帶上');
 });
 
 test('沒有表頭：看內容猜姓名、身分、年齡', () => {
@@ -89,4 +89,13 @@ test('父母（父親、母親分兩欄也可以）、學校、興趣；「父�
 test('「家長電話」不會被當成父母', () => {
   const rows = [['姓名', '家長電話', '家長'], ['測試小孩', '0900-000000', '測試爸爸']];
   assert.deepStrictEqual(MF.toItems(rows, MF.detect(rows)), [{ name: '測試小孩', parents: ['測試爸爸'] }]);
+});
+
+test('生日的月日（選填，2026/11/23）：日期、Excel 序號、西元、民國都取月日；只有年就沒有', () => {
+  assert.strictEqual(MF.parseMonthDay(new Date(1965, 2, 7)), '03-07');
+  assert.strictEqual(MF.parseMonthDay('1965/3/7'), '03-07');
+  assert.strictEqual(MF.parseMonthDay('54.03.07'), '03-07');
+  assert.strictEqual(MF.parseMonthDay('民國54年3月7日'), '03-07');
+  assert.strictEqual(MF.parseMonthDay('1965'), '');
+  assert.strictEqual(MF.parseMonthDay('1965/13/7'), '');
 });

@@ -64,7 +64,7 @@
   function importMembers(guard, reload) {
     const md = Modal.open(`
       <h2 class="modal-title">📋 匯入成員資料</h2>
-      <p class="modal-note">選 <strong>Excel、Word、PDF</strong> 檔，或把表格貼在下面，會自動找出<strong>姓名、佛堂、年齡（出生年）、身分、清口、國外、父母、學校、興趣</strong>，依名字幫成員補上。只更新有給的欄位，不會清掉原本的資料。</p>
+      <p class="modal-note">選 <strong>Excel、Word、PDF</strong> 檔，或把表格貼在下面，會自動找出<strong>姓名、佛堂、年齡（出生年、生日）、身分、清口、國外、父母、學校、興趣</strong>，依名字幫成員補上。只更新有給的欄位，不會清掉原本的資料。</p>
       <label class="btn btn-block">📂 選檔案（Excel、Word、PDF，可以好幾個）<input type="file" accept=".xlsx,.xls,.xlsm,.csv,.ods,.docx,.doc,.pdf" multiple hidden data-file></label>
       <details class="import-paste"><summary>或貼上表格／文字</summary>
         <textarea class="input day-text" rows="6" data-text placeholder="從 Excel 複製整張表貼上（第一列是標題：姓名、佛堂、年齡⋯），或貼上 Claude 整理的文字"></textarea>
@@ -87,7 +87,7 @@
     const srcBox = el.querySelector('[data-sources]');
     const known = () => new Set(memberList.flatMap((m) => [m.name].concat(m.aliases || [])));
     const FIELD_LABEL = { name: '姓名', temple: '佛堂', age: '年齡', birth: '出生年', identity: '身分', vegetarian: '清口', overseas: '國外', parents: '父母', parents2: '父母（另一欄）', school: '學校', interest: '興趣' };
-    const show = (it) => [it.temple, it.age ? it.age + ' 歲' : (it.birthYear ? it.birthYear + ' 年生' : ''), it.identity, it.vegetarian ? '清口' : '', it.overseas, it.parents ? '父母：' + it.parents.join('、') : '', it.school, it.interest].filter(Boolean).join('・');
+    const show = (it) => [it.temple, it.age ? it.age + ' 歲' : (it.birthYear ? it.birthYear + ' 年生' : ''), it.birthday ? '生日 ' + Number(it.birthday.slice(0, 2)) + '/' + Number(it.birthday.slice(3)) : '', it.identity, it.vegetarian ? '清口' : '', it.overseas, it.parents ? '父母：' + it.parents.join('、') : '', it.school, it.interest].filter(Boolean).join('・');
 
     function paint() {
       items = [];
@@ -326,7 +326,7 @@
           <li><button type="button" class="person-card${m.active ? '' : ' is-inactive'}" data-row="${m.row}">
             <span class="person-card-name">${esc(m.name)}${m.aliases && m.aliases.length ? `<small class="person-alias">（${esc(m.aliases.join('、'))}）</small>` : ''}${m.temple ? `<span class="tag tag-temple">${esc(m.temple)}</span>` : ''}${m.overseas ? `<span class="tag tag-temple">🌏 ${esc(m.overseas)}</span>` : ''}
               ${m.identity ? `<span class="tag">${esc(m.identity)}</span>` : '<span class="tag tag-warn">未填身分</span>'}
-              ${m.active ? '' : '<span class="tag">已停用</span>'}${m.pending ? '<span class="tag tag-warn">待確認</span>' : ''}${m.identity === '道親' && m.vegetarian ? '<span class="tag">🥬 清口</span>' : ''}${m.age !== '' && m.age !== undefined ? `<span class="tag">${m.age} 歲</span>` : ''}${famTags(m)}${memberState.missing ? missingOf(m).filter(([k]) => k !== 'identity').map(([, label]) => `<span class="tag tag-warn">${label.replace('沒填', '未填')}</span>`).join('') : ''}</span>
+              ${m.active ? '' : '<span class="tag">已停用</span>'}${m.pending ? '<span class="tag tag-warn">待確認</span>' : ''}${m.identity === '道親' && m.vegetarian ? '<span class="tag">🥬 清口</span>' : ''}${m.age !== '' && m.age !== undefined ? `<span class="tag">${m.age} 歲</span>` : ''}${m.birthday ? `<span class="tag">🎂 ${Number(m.birthday.slice(0, 2))}/${Number(m.birthday.slice(3))}</span>` : ''}${famTags(m)}${memberState.missing ? missingOf(m).filter(([k]) => k !== 'identity').map(([, label]) => `<span class="tag tag-warn">${label.replace('沒填', '未填')}</span>`).join('') : ''}</span>
             <span class="person-card-meta">${esc(GROUP_TYPES.filter((t) => m.groups[t]).map((t) => `${t.replace('組', '')}：${m.groups[t]}`).join('・') || '未分組')}${m.note ? '・' + esc(m.note) : ''}</span>
           </button></li>`;
     function draw() {
@@ -464,7 +464,10 @@
             <option value="">（無）</option>
             ${groups.filter((g) => g.type === t).map((g) => `<option${g.name === v.groups[t] ? ' selected' : ''}>${esc(g.name)}</option>`).join('')}
           </select></label>`).join('')}
-      <label class="form-row"><span>年齡（選填，今年幾歲；之後每年自動加一歲）</span><input class="input" name="age" inputmode="numeric" maxlength="3" value="${esc(v.age === undefined ? '' : v.age)}" placeholder="例：45"></label>
+      <div class="form-grid-2">
+        <label class="form-row"><span>年齡（選填，今年幾歲；之後每年自動加一歲）</span><input class="input" name="age" inputmode="numeric" maxlength="3" value="${esc(v.age === undefined ? '' : v.age)}" placeholder="例：45"></label>
+        <label class="form-row"><span>生日（選填，月/日）</span><input class="input" name="birthday" inputmode="numeric" maxlength="5" value="${esc(v.birthday ? Number(v.birthday.slice(0, 2)) + '/' + Number(v.birthday.slice(3)) : '')}" placeholder="例：3/7"></label>
+      </div>
       <label class="check" data-veg-row${(v.identity || '') === '道親' ? '' : ' hidden'}><input type="checkbox" name="vegetarian"${v.vegetarian ? ' checked' : ''}> 🥬 已清口</label>
       <fieldset class="form-block family-block">
         <legend>👨‍👩‍👧 家人（道二代、道三代）</legend>
@@ -481,7 +484,7 @@
       await Api.admin('adminSaveMember', {
         row: m ? m.row : undefined, original: m ? m.name : undefined,
         member: { name: f.elements.name.value, identity: f.querySelector('input[name=identity]:checked').value, groups: g, note: f.elements.note.value, active: f.elements.active.checked,
-          age: f.elements.age.value.trim(), temple: f.elements.temple.value, parents: f.elements.parents.value, school: f.elements.school.value, interest: f.elements.interest.value, aliases: f.elements.aliases.value, overseas: f.querySelector('input[name=overseas]:checked') ? f.querySelector('input[name=overseas]:checked').value : undefined, vegetarian: f.querySelector('input[name=identity]:checked').value === '道親' && f.elements.vegetarian.checked }
+          age: f.elements.age.value.trim(), birthday: f.elements.birthday.value.trim(), temple: f.elements.temple.value, parents: f.elements.parents.value, school: f.elements.school.value, interest: f.elements.interest.value, aliases: f.elements.aliases.value, overseas: f.querySelector('input[name=overseas]:checked') ? f.querySelector('input[name=overseas]:checked').value : undefined, vegetarian: f.querySelector('input[name=identity]:checked').value === '道親' && f.elements.vegetarian.checked }
       });
       notice(AdminPage.notice('success', m ? '已存檔' : '已新增成員', f.elements.name.value.trim()));
       afterWrite(reload);

@@ -78,3 +78,20 @@ test('道二代、道三代只算 45 歲以下（沒填年齡的照算）；超�
   assert.equal(at('測試阿姨').label, '道二代', '45 歲還算');
   assert.equal(at('測試表弟').label, '道三代', '沒填年齡照算');
 });
+
+test('生日（月日，選填，2026/11/23）：存檔、檢查、匯入；只有年的不會清掉', () => {
+  const env = createEnv(Date.UTC(2026, 10, 23, 2, 0, 0));
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const call = (action, body) => env.post(Object.assign({ action, token }, body));
+  let r = call('adminSaveMember', { member: { name: '測試生日', identity: '道親', age: '30', birthday: '3/7' } });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  const me = () => call('adminMembers').data.members.find((m) => m.name === '測試生日');
+  assert.equal(me().birthday, '03-07');
+  assert.equal(call('adminSaveMember', { row: me().row, original: '測試生日', member: { name: '測試生日', identity: '道親', birthday: '2/30' } }).error.code, 'VALIDATION');
+  call('adminImportMembers', { items: [{ name: '測試生日', birthYear: 1990 }] });
+  assert.equal(me().birthday, '03-07', '匯入只有年，月日留著');
+  call('adminImportMembers', { items: [{ name: '測試生日', birthYear: 1990, birthday: '12-25' }] });
+  assert.equal(me().birthday, '12-25');
+  r = call('adminSaveMember', { row: me().row, original: '測試生日', member: { name: '測試生日', identity: '道親', birthday: '' } });
+  assert.equal(me().birthday, '', '清掉');
+});

@@ -22,7 +22,7 @@ test('成員：新增、修改、停用；重複姓名與不存在的組被擋�
   let list = call('adminMembers').data;
   assert.equal(list.members.length, 1);
   assert.deepEqual(list.members[0], {
-    row: 2, name: '測試甲', identity: '道親', note: '', active: true, pending: false, vegetarian: false, birthYear: '', age: '', temple: '', aliases: [], overseas: '', careNote: '', parents: [], school: '', interest: '',
+    row: 2, name: '測試甲', identity: '道親', note: '', active: true, pending: false, vegetarian: false, birthYear: '', age: '', temple: '', aliases: [], overseas: '', careNote: '', parents: [], school: '', interest: '', birthday: '',
     groups: { '勤務了愿組': '', '打掃組': '第1組', '拜香輪值組': '' }
   });
   assert.ok(list.groups.length > 0);

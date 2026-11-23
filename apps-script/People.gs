@@ -40,6 +40,7 @@ function adminSaveMember_(body) {
   if (!name) errors.push('請填姓名');
   if (identity && OPTIONS.identity.indexOf(identity) === -1) errors.push('身分只能是道親、壇辦、未求道或點傳師');
   if (input.age !== undefined && input.age !== '' && birthYearOf_(input.age) === null) errors.push('年齡請填 0～120 的數字');
+  if (input.birthday !== undefined && birthdayOf_(input.birthday) === null) errors.push('生日請填月和日，例：3/7');
   if (input.overseas && SITE.overseas.indexOf(input.overseas) === -1) errors.push('國外只能是' + SITE.overseas.join('、') + '或空白');
   var keys = groupKeys_();
   var groups = {};
@@ -61,6 +62,7 @@ function adminSaveMember_(body) {
     var values = { '姓名': name, '身分': identity, '備註': cleanText_(input.note), '啟用中': input.active === false ? '否' : '是', '待確認': '' }; // 存檔＝確認過
     if (input.vegetarian !== undefined) values['清口'] = input.vegetarian ? '是' : '';
     if (input.age !== undefined) values['出生年'] = birthYearOf_(input.age);
+    if (input.birthday !== undefined) values['生日'] = birthdayOf_(input.birthday);
     if (input.temple !== undefined) values['佛堂'] = temple;
     if (input.overseas !== undefined) values['國外'] = input.overseas || '';
     if (input.aliases !== undefined) {
@@ -353,7 +355,7 @@ function memberToJson_(m) {
   var by = Number(m['出生年']) || 0;
   return { row: m._row, name: m['姓名'], identity: m['身分'], groups: groups, note: m['備註'], active: m['啟用中'] !== '否', pending: m['待確認'] === '是',
     vegetarian: m['清口'] === '是', birthYear: by || '', age: by ? Number(todayString_().slice(0, 4)) - by : '', temple: m['佛堂'] || '', aliases: splitAliases_(m['別名']), overseas: m['國外'] || '', careNote: m['成全紀錄'] || '',
-    parents: splitAliases_(m['父母']), school: m['學校'] || '', interest: m['興趣'] || '' };
+    parents: splitAliases_(m['父母']), school: m['學校'] || '', interest: m['興趣'] || '', birthday: m['生日'] || '' };
 }
 
 /** 以列號找資料並核對原本的值（姓名或組名），不符代表資料已被移動或修改 */
@@ -623,6 +625,20 @@ function adminMergePendingMember_(body) {
 
 // ---------- 清口、年齡 ----------
 
+/**
+ * 生日（月日，選填，2026/11/23）→「MM-dd」：接受 3/7、03-07、3月7日、1965/3/7、54/3/7、1965-03-07；空白回 ''，不合理回 null
+ */
+function birthdayOf_(v) {
+  var t = String(v === undefined || v === null ? '' : v).replace(/\s/g, '').replace(/[月]/g, '/').replace(/[日號号]/g, '');
+  if (!t) return '';
+  var m = t.match(/^(?:\d{2,4}[./\-年])?(\d{1,2})[./\-](\d{1,2})$/);
+  if (!m) return null;
+  var mo = Number(m[1]), d = Number(m[2]);
+  var max = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][mo - 1];
+  if (!max || d < 1 || d > max) return null;
+  return (mo < 10 ? '0' : '') + mo + '-' + (d < 10 ? '0' : '') + d;
+}
+
 /** 年齡 → 出生年（西元）；空白回 ''，不合理回 null */
 function birthYearOf_(age) {
   var t = String(age === undefined || age === null ? '' : age).replace(/[\s歲]/g, '');
@@ -703,7 +719,7 @@ function adminMergeMembers_(body) {
     var aliases = splitAliases_(kk['別名']).concat([dropName], splitAliases_(dd['別名']))
       .filter(function (a, i, arr) { return a && a !== keepName && arr.indexOf(a) === i; });
     var ch = { '別名': aliases.join('、') };
-    ['身分', '勤務了愿組', '打掃組', '拜香輪值組', '出生年', '佛堂', '清口', '父母', '學校', '興趣'].forEach(function (h) { if (!kk[h] && dd[h]) ch[h] = dd[h]; });
+    ['身分', '勤務了愿組', '打掃組', '拜香輪值組', '出生年', '生日', '佛堂', '清口', '父母', '學校', '興趣'].forEach(function (h) { if (!kk[h] && dd[h]) ch[h] = dd[h]; });
     if (keepName !== dropName) renameParentRefs_(fresh, dropName, keepName);
     if (dd['備註'] && String(kk['備註'] || '').indexOf(dd['備註']) === -1) ch['備註'] = [kk['備註'], dd['備註']].filter(Boolean).join('；');
     if (dd['待確認'] !== '是' && kk['待確認'] === '是') ch['待確認'] = '';
@@ -743,6 +759,7 @@ function adminImportMembers_(body) {
       var by = Number(it.birthYear) || 0;
       if (!by && it.age !== undefined && it.age !== '') { var b = birthYearOf_(it.age); if (b) by = Number(b); }
       if (by && by > 1900 && by <= year) ch['出生年'] = String(by);
+      if (it.birthday) { var bd = birthdayOf_(it.birthday); if (bd) ch['生日'] = bd; }
       if (it.identity && OPTIONS.identity.indexOf(it.identity) !== -1) ch['身分'] = it.identity;
       if (it.vegetarian === true) ch['清口'] = '是';
       if (it.overseas && SITE.overseas.indexOf(it.overseas) !== -1) ch['國外'] = it.overseas;
