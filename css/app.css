@@ -1731,7 +1731,10 @@ select.input { appearance: auto; }
 .pos-chip:focus-within { outline: 3px solid var(--accent); outline-offset: 1px; }
 .pos-same { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 40px; }
 /* 小按鈕（2026/10/12 起原本的底線文字連結都改成這個，手機好按） */
-.link-btn { white-space: nowrap; }
+/* 按鈕的字：表格裡不折行；其他地方太長就折行，不要撐破畫面（2026/11/23） */
+td .link-btn, th .link-btn, .hq-back-row .link-btn { white-space: nowrap; }
+.link-btn { max-width: 100%; text-align: center; }
+fieldset { min-width: 0; }
 .link-btn, .help-inline, .my-next-switch, .gp-foot a, .app-footer a { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 36px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); color: var(--accent); font: inherit; font-size: .92rem; font-weight: 600; line-height: 1.3; text-decoration: none; cursor: pointer; vertical-align: middle; }
 .link-btn:hover, .help-inline:hover, .my-next-switch:hover, .gp-foot a:hover, .app-footer a:hover { border-color: var(--accent); background: var(--accent-soft); }
 .link-btn:focus-visible, .help-inline:focus-visible, .my-next-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
