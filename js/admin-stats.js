@@ -353,6 +353,7 @@
           <p class="hint">依上面選的期間（月／季／年）計算；師資在新增或編輯課程時的「師資」欄填寫。</p>
         </section>`;
         })() : ''}
+        ${cat === '教育' ? '<section class="stats-section" data-age-classes><h3 class="admin-sub">各年齡層適合的班</h3><p class="panel-empty">讀取成員名單中⋯</p></section>' : ''}
         <section class="stats-section"${cat === '教育' ? ' hidden' : ''}>
           <h3 class="admin-sub">${L.staffTitle}</h3>
           ${teacherList.length ? `<ul class="edu-teacher-list">${teacherList.map((t) => `
@@ -396,11 +397,59 @@
     if (cp) cp.addEventListener('click', () => copyReport(EduStats.gridText(cur)));
     body.querySelector('[data-xlsx]').addEventListener('click', () => exportXlsx(body, () => StatsExport.edu(courses, teacherList, L, cat, p)));
     bindCare(body, (data.events || []).filter((e) => (e.category || '勤務') === cat), data.today, () => render(body, guard, data, false));
+    // 各年齡層適合的班（2026/11/23）
+    const ac = body.querySelector('[data-age-classes]');
+    if (ac) mountAgeClasses(ac, allCourses, data.today, guard);
     // 各佛堂道務目標（年度跟著上面選的期間）
     const veg = body.querySelector('[data-veg]');
     if (veg) MemberStats.mount(veg, body.querySelector('[data-ages]'), { canEdit: ['總管理者', '道務'].indexOf(Api.adminWho().role) !== -1, guard, activity: C.activity(data.events || [], data.today) });
     const goals = body.querySelector('[data-goals]');
     if (goals) GoalsPage.mount(goals, p.year, { canEdit: ['總管理者', '道務'].indexOf(Api.adminWho().role) !== -1, guard });
+  }
+
+  // ---------- 各年齡層適合的班（2026/11/23）：依成員生日（出生年）分到讀經班、青少年班、高大班、青年班 ----------
+
+  /** 成員名單 1 分鐘內不重讀（切換期間、展開名單不用等） */
+  let ageMembersMemo = null;
+  async function mountAgeClasses(box, courses, today, guard) {
+    let members;
+    try {
+      if (!ageMembersMemo || Date.now() - ageMembersMemo.at > 60000) ageMembersMemo = { at: Date.now(), list: (await Api.admin('adminMembers', {}, true)).members || [] };
+      members = ageMembersMemo.list;
+    } catch (e) {
+      if (guard && guard(e)) return;
+      box.innerHTML = `<h3 class="admin-sub">各年齡層適合的班</h3><p class="form-error">${esc(e.message || '讀不到成員名單')}</p>`;
+      return;
+    }
+    if (!box.isConnected) return;
+    const r = EduStats.ageClasses(members, courses, today, Family.schoolStage);
+    const filled = members.filter((m) => m.active !== false && !m.pending && m.birthYear).length;
+    const open = state.ageOpen || (state.ageOpen = {});
+    const people = (list, showCame) => `<ul class="age-people">${list.map((p) => `<li${showCame && !p.attended ? ' class="is-not-yet"' : ''}><span class="age-name">${esc(p.name)}${p.temple ? `<small>${esc(p.temple)}</small>` : ''}</span><span class="age-label">${esc(p.label)}</span>${showCame ? `<span class="age-came">${p.attended ? '✓ 有來' : '還沒來'}</span>` : ''}</li>`).join('')}</ul>`;
+    const others = [['preschool', '學齡前（3 歲以下）', r.preschool], ['older', '36 歲以上', r.older], ['unknown', '還沒填生日', r.unknown]];
+    box.innerHTML = `
+      <h3 class="admin-sub">各年齡層適合的班<span class="h2-sub">依成員生日（出生年）算・${filled} 位有填生日</span></h3>
+      <div class="age-classes">${r.classes.map((k, i) => {
+        const came = k.people.filter((p) => p.attended).length;
+        return `<div class="edu-class-card age-card">
+          <div class="edu-class-head"><strong>${esc(k.name)}</strong><span class="muted">${esc(k.range)}</span></div>
+          <div class="age-nums"><span><b>${k.people.length}</b> 位適合</span><span>這段期間有來上課 <b>${k.attended}</b> 位</span></div>
+          <p class="age-sub">${k.people.length ? `適合的人裡有來過 ${came} 位、還沒來 ${k.people.length - came} 位` : '名單上沒有這個年齡的人'}${k.outside.length ? `；另外 ${k.outside.length} 位有來但不在這個年齡` : ''}</p>
+          ${k.people.length || k.outside.length ? `<button type="button" class="btn btn-small no-print" data-age-open="${i}" aria-expanded="${!!open[i]}">${open[i] ? '收起名單 ▴' : '看是哪些人 ▾'}</button>` : ''}
+          ${open[i] ? `${people(k.people, true)}${k.outside.length ? `<p class="age-outside">有來上課、不在這個年齡：${k.outside.map(esc).join('、')}</p>` : ''}
+            <button type="button" class="btn btn-small no-print" data-age-copy="${i}">複製名單</button>` : ''}
+        </div>`;
+      }).join('')}</div>
+      <p class="age-others">${others.map(([key, label, list]) => `<button type="button" class="link-btn" data-age-other="${key}">${label} ${list.length} 位</button>`).join('・')}</p>
+      ${others.filter(([key]) => open[key]).map(([key, label, list]) => `<div class="edu-class-card"><div class="edu-class-head"><strong>${label}</strong><span class="muted">${list.length} 位</span></div>${list.length ? people(list, false) : '<p class="muted">沒有</p>'}</div>`).join('')}
+      <p class="hint">讀經班＝幼兒園～國小 2 年級、青少年班＝國小 3 年級～國中、高大班＝高中、大學、青年班＝大學畢業～35 歲（學年 9 月開始；只算啟用中的成員）。「有來上課」看上面選的期間、課程名稱含班名的課。生日在「👥 人員 → 成員」補。</p>`;
+    const redraw = () => mountAgeClasses(box, courses, today, guard);
+    box.querySelectorAll('[data-age-open]').forEach((b) => b.addEventListener('click', () => { const i = b.dataset.ageOpen; open[i] = !open[i]; redraw(); }));
+    box.querySelectorAll('[data-age-other]').forEach((b) => b.addEventListener('click', () => { const k = b.dataset.ageOther; open[k] = !open[k]; redraw(); }));
+    box.querySelectorAll('[data-age-copy]').forEach((b) => b.addEventListener('click', () => {
+      const k = r.classes[Number(b.dataset.ageCopy)];
+      copyReport(`【${k.name}】適合的人（${k.range}）共 ${k.people.length} 位\n` + k.people.map((p) => `${p.name}${p.temple ? '（' + p.temple + '）' : ''} ${p.label}${p.attended ? ' ✓有來' : ''}`).join('\n'));
+    }));
   }
 
   // ---------- 關懷名單：以前常來、最近很久沒來的人 ----------

@@ -132,7 +132,58 @@
     return [`【${c.name}】出缺勤表（✓出席 ✗未到）`, head, ...rows, foot].join('\n');
   }
 
-  const api = { summarize, gridText, splitTeachers, ranking, teachersOf };
+  /**
+   * 各年齡層適合的班（2026/11/23）：依成員的出生年（學齡用 Family.schoolStage）分到讀經班、青少年班、高大班、青年班。
+   * 讀經班＝幼兒園～國小 2 年級；青少年班＝國小 3 年級～國中；高大班＝高中、大學；青年班＝大學畢業～35 歲。
+   */
+  const AGE_CLASSES = [
+    { name: '讀經班', range: '幼兒園～國小 2 年級', test: (st) => !!st && (st.stage === '幼兒園' || (st.stage === '國小' && st.grade <= 2)) },
+    { name: '青少年班', range: '國小 3 年級～國中', test: (st) => !!st && ((st.stage === '國小' && st.grade >= 3) || st.stage === '國中') },
+    { name: '高大班', range: '高中、大學', test: (st) => !!st && (st.stage === '高中' || st.stage === '大學') },
+    { name: '青年班', range: '大學畢業～35 歲', test: (st, age) => !st && age !== '' && age >= 18 && age <= 35 }
+  ];
+  /**
+   * members：成員名單（adminMembers；只算啟用中、不是待確認的）；courses：summarize 的課程（這段期間有來上課的人）；
+   * stageOf(birthYear, today)：學齡。回傳
+   *   classes: [{ name, range, people: [{ name, temple, label, attended }], attended: 這段期間來上這一班的人數, outside: [來上課但不在這個年齡的名字] }]
+   *   preschool / older / unknown: [{ name, temple, label }]（學齡前、36 歲以上、還沒填生日）
+   */
+  function ageClasses(members, courses, today, stageOf) {
+    const y = Number(String(today).slice(0, 4));
+    const list = (members || []).filter((m) => m.active !== false && !m.pending && m.name);
+    const byName = new Map();
+    list.forEach((m) => { byName.set(m.name, m); (m.aliases || []).forEach((a) => { if (!byName.has(a)) byName.set(a, m); }); });
+    const info = (m) => {
+      const st = m.birthYear ? stageOf(m.birthYear, today) : null;
+      const age = m.birthYear ? y - Number(m.birthYear) : '';
+      return { m, st, age, label: st ? st.label : age !== '' ? age + ' 歲' : '' };
+    };
+    const all = list.map(info);
+    const sortP = (a, b) => (a.age === '' ? 999 : a.age) - (b.age === '' ? 999 : b.age) || strokeCompare(a.m.name, b.m.name);
+    const out = { classes: [], preschool: [], older: [], unknown: [] };
+    const placed = new Set();
+    AGE_CLASSES.forEach((k) => {
+      const came = new Set();
+      (courses || []).filter((c) => c.name.indexOf(k.name) !== -1).forEach((c) => c.students.forEach((n) => { const m = byName.get(n); came.add(m ? m.name : n); }));
+      const fit = all.filter((p) => k.test(p.st, p.age)).sort(sortP);
+      fit.forEach((p) => placed.add(p.m));
+      out.classes.push({
+        name: k.name, range: k.range,
+        people: fit.map((p) => ({ name: p.m.name, temple: p.m.temple || '', label: p.label, attended: came.has(p.m.name) })),
+        attended: came.size,
+        outside: [...came].filter((n) => !fit.some((p) => p.m.name === n))
+      });
+    });
+    all.filter((p) => !placed.has(p.m)).sort(sortP).forEach((p) => {
+      const row = { name: p.m.name, temple: p.m.temple || '', label: p.label };
+      if (p.age === '') out.unknown.push(row);
+      else if (p.st && p.st.stage === '學齡前') out.preschool.push(row);
+      else out.older.push(row);
+    });
+    return out;
+  }
+
+  const api = { summarize, gridText, splitTeachers, ranking, teachersOf, ageClasses, AGE_CLASSES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.EduStats = api;
 })();

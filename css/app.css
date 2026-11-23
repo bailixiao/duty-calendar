@@ -2943,3 +2943,18 @@ button.veg-chip:hover { border-color: var(--ok); }
 .newcomer-name { font-weight: 700; font-size: 1.1rem; margin: 0 0 6px; }
 .newcomer-row .form-row { margin-bottom: 8px; }
 .newcomer-row .birth-hint { margin: -2px 0 0; }
+/* 各年齡層適合的班（2026/11/23） */
+.age-classes { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.age-nums { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 1rem; }
+.age-nums b { font-size: 1.5rem; color: var(--accent); }
+.age-sub { margin: 4px 0 8px; font-size: .9rem; color: var(--ink-2); }
+.age-people { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 2px; }
+.age-people li { display: flex; align-items: baseline; gap: 8px; padding: 5px 0; border-bottom: 1px dashed var(--line); }
+.age-people li.is-not-yet { color: var(--ink-2); }
+.age-name { flex: 1; font-weight: 600; }
+.age-name small { margin-left: 6px; font-weight: 400; color: var(--muted); }
+.age-label { font-size: .9rem; color: var(--ink-2); white-space: nowrap; }
+.age-came { font-size: .85rem; white-space: nowrap; min-width: 3.5em; text-align: right; }
+.age-people li:not(.is-not-yet) .age-came { color: var(--ok); font-weight: 600; }
+.age-outside { font-size: .9rem; color: var(--ink-2); margin: 4px 0 8px; }
+.age-others { margin: 12px 0 6px; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
