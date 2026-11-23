@@ -134,11 +134,11 @@
 
   /**
    * 各年齡層適合的班（2026/11/23）：依成員的出生年（學齡用 Family.schoolStage）分到讀經班、青少年班、高大班、青年班。
-   * 讀經班＝幼兒園～國小 2 年級；青少年班＝國小 3 年級～國中；高大班＝高中、大學；青年班＝大學畢業～35 歲。
+   * 讀經班＝幼兒園～國小 4 年級；青少年班＝國小 5 年級～國中；高大班＝高中、大學；青年班＝大學畢業～35 歲。
    */
   const AGE_CLASSES = [
-    { name: '讀經班', range: '幼兒園～國小 2 年級', test: (st) => !!st && (st.stage === '幼兒園' || (st.stage === '國小' && st.grade <= 2)) },
-    { name: '青少年班', range: '國小 3 年級～國中', test: (st) => !!st && ((st.stage === '國小' && st.grade >= 3) || st.stage === '國中') },
+    { name: '讀經班', range: '幼兒園～國小 4 年級', test: (st) => !!st && (st.stage === '幼兒園' || (st.stage === '國小' && st.grade <= 4)) },
+    { name: '青少年班', range: '國小 5 年級～國中', test: (st) => !!st && ((st.stage === '國小' && st.grade >= 5) || st.stage === '國中') },
     { name: '高大班', range: '高中、大學', test: (st) => !!st && (st.stage === '高中' || st.stage === '大學') },
     { name: '青年班', range: '大學畢業～35 歲', test: (st, age) => !st && age !== '' && age >= 18 && age <= 35 }
   ];

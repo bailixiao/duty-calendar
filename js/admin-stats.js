@@ -442,7 +442,7 @@
       }).join('')}</div>
       <p class="age-others">${others.map(([key, label, list]) => `<button type="button" class="link-btn" data-age-other="${key}">${label} ${list.length} 位</button>`).join('・')}</p>
       ${others.filter(([key]) => open[key]).map(([key, label, list]) => `<div class="edu-class-card"><div class="edu-class-head"><strong>${label}</strong><span class="muted">${list.length} 位</span></div>${list.length ? people(list, false) : '<p class="muted">沒有</p>'}</div>`).join('')}
-      <p class="hint">讀經班＝幼兒園～國小 2 年級、青少年班＝國小 3 年級～國中、高大班＝高中、大學、青年班＝大學畢業～35 歲（學年 9 月開始；只算啟用中的成員）。「有來上課」看上面選的期間、課程名稱含班名的課。生日在「👥 人員 → 成員」補。</p>`;
+      <p class="hint">讀經班＝幼兒園～國小 4 年級、青少年班＝國小 5 年級～國中、高大班＝高中、大學、青年班＝大學畢業～35 歲（學年 9 月開始；只算啟用中的成員）。「有來上課」看上面選的期間、課程名稱含班名的課。生日在「👥 人員 → 成員」補。</p>`;
     const redraw = () => mountAgeClasses(box, courses, today, guard);
     box.querySelectorAll('[data-age-open]').forEach((b) => b.addEventListener('click', () => { const i = b.dataset.ageOpen; open[i] = !open[i]; redraw(); }));
     box.querySelectorAll('[data-age-other]').forEach((b) => b.addEventListener('click', () => { const k = b.dataset.ageOther; open[k] = !open[k]; redraw(); }));

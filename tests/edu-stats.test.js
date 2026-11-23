@@ -81,24 +81,24 @@ test('道務：課程與法會都算；負責人員分講師、帶班、助理�
   assert.equal(E.summarize(sessions, [], () => true, '教育').courses[0].name, '讀經班'); // 教育不受影響
 });
 
-test('各年齡層適合的班（2026/11/23）：讀經班到國小 2 年級、青少年班國小 3 年級～國中、高大班、青年班到 35 歲；有沒有來上課', () => {
+test('各年齡層適合的班（2026/11/23）：讀經班到國小 4 年級、青少年班國小 5 年級～國中、高大班、青年班到 35 歲；有沒有來上課', () => {
   const Family = require('../js/family.js');
   const members = [
-    { name: '測試幼兒', birthYear: 2021 }, { name: '測試小二', birthYear: 2019 }, { name: '測試小三', birthYear: 2018 },
+    { name: '測試幼兒', birthYear: 2021 }, { name: '測試小二', birthYear: 2019 }, { name: '測試小四', birthYear: 2017 }, { name: '測試小五', birthYear: 2016 },
     { name: '測試國三', birthYear: 2012 }, { name: '測試高一', birthYear: 2011 }, { name: '測試大四', birthYear: 2005 },
     { name: '測試青年', birthYear: 1995 }, { name: '測試長輩', birthYear: 1960 }, { name: '測試寶寶', birthYear: 2025 },
     { name: '測試沒生日' }, { name: '測試停用', birthYear: 2018, active: false }, { name: '測試待確認', birthYear: 2018, pending: true }
   ];
-  const courses = [{ name: '讀經班（上午）', students: ['測試小二', '測試小三'] }, { name: '青年班', students: ['測試青年'] }];
+  const courses = [{ name: '讀經班（上午）', students: ['測試小二', '測試小五'] }, { name: '青年班', students: ['測試青年'] }];
   const r = E.ageClasses(members, courses, '2026-11-23', Family.schoolStage);
   const names = (k) => r.classes.find((c) => c.name === k).people.map((p) => p.name);
-  assert.deepEqual(names('讀經班'), ['測試幼兒', '測試小二'], '年紀小的在前');
-  assert.deepEqual(names('青少年班'), ['測試小三', '測試國三']);
+  assert.deepEqual(names('讀經班'), ['測試幼兒', '測試小二', '測試小四'], '年紀小的在前');
+  assert.deepEqual(names('青少年班'), ['測試小五', '測試國三']);
   assert.deepEqual(names('高大班'), ['測試高一', '測試大四']);
   assert.deepEqual(names('青年班'), ['測試青年']);
   const du = r.classes.find((c) => c.name === '讀經班');
   assert.equal(du.attended, 2);
-  assert.deepEqual(du.outside, ['測試小三'], '小三來讀經班，但年齡是青少年班');
+  assert.deepEqual(du.outside, ['測試小五'], '小五來讀經班，但年齡是青少年班');
   assert.equal(du.people.find((p) => p.name === '測試小二').attended, true);
   assert.deepEqual([r.preschool.map((p) => p.name), r.older.map((p) => p.name), r.unknown.map((p) => p.name)], [['測試寶寶'], ['測試長輩'], ['測試沒生日']]);
 });
