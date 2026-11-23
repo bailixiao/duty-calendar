@@ -123,21 +123,27 @@
         ${missing.length ? `<div class="notice notice-error no-print"><p><strong>${missing.length} 位沒有填身分</strong>（道親佔比可能不準）：${missing.map(esc).join('、')}</p><p>請到勤務名單或試算表「報名」分頁補上身分。</p></div>` : ''}
 
         <section class="stats-section" data-trend>
-          <h3 class="admin-sub">最近 ${trend.length} ${p.unit === 'month' ? '個月' : p.unit === 'quarter' ? '季' : '年'}<span class="h2-sub">深色＝道親、淺色＝壇辦</span></h3>
+          <h3 class="admin-sub">最近 ${trend.length} ${p.unit === 'month' ? '個月' : p.unit === 'quarter' ? '季' : '年'}的出勤人次</h3>
+          <div class="trend-legend">
+            <span><i class="trend-sw is-dao"></i>道親</span>
+            <span><i class="trend-sw is-tan"></i>壇辦</span>
+            <span><b class="trend-sample">41%</b> 道親佔比</span>
+          </div>
+          <p class="trend-explain">長條上面的數字＝那一${C.UNIT_NAME[p.unit]}的<b>出勤人次</b>（每人每場算 1 次）；長條裡的 %＝出勤的人裡<b>道親佔幾成</b>。點長條看那一${C.UNIT_NAME[p.unit]}的說明。</p>
           ${atLatest ? '' : `<p class="trend-now no-print">現在看：<b>${esc(C.label(p))}</b> <button type="button" class="btn btn-small" data-latest-here>回到本${C.UNIT_NAME[p.unit]}</button></p>`}
           <div class="trend">
-            ${trend.map((t) => {
+            ${trend.map((t, i) => {
               const h = Math.round((t.total / maxTotal) * 100);
               const daoH = t.total ? Math.round((t.dao / t.total) * h) : 0;
               const cur = t.period.year === p.year && t.period.n === p.n;
-              return `<button type="button" class="trend-col${cur ? ' is-current' : ''}" data-jump="${t.period.year}-${t.period.n}"${t.total || cur ? '' : ' disabled'} aria-label="${esc(C.label(t.period))}：${t.total} 人次">
+              return `<button type="button" class="trend-col${cur ? ' is-current is-picked' : ''}" data-pick="${i}"${t.total || cur ? '' : ' disabled'} aria-label="${esc(C.label(t.period))}：出勤 ${t.total} 人次，道親 ${t.dao}、壇辦 ${t.tan}">
                 <span class="trend-val">${t.total || ''}</span>
                 <span class="trend-bar" style="height:${h}%"><span class="trend-dao" style="height:${h ? Math.round((daoH / h) * 100) : 0}%"></span>${t.total ? `<span class="trend-in${daoH * 1.7 >= 24 ? '' : ' is-above'}" style="bottom:${h ? Math.round((daoH / h) * 100) : 0}%">${C.pct(t.ratio)}</span>` : ''}</span>
-                <span class="trend-label">${esc(C.label(t.period, true)).replace('年', '年<br>')}</span>
+                <span class="trend-label">${esc(C.label(t.period, true)).replace('年', '年<br>')}${cur ? '<em>看的這期</em>' : ''}</span>
               </button>`;
             }).join('')}
           </div>
-          <p class="hint no-print">長條上的 % 是道親佔比。點長條可以看那一期的統計（上面的數字跟著換），按「回到本${C.UNIT_NAME[p.unit]}」回來；沒有資料的不能點。</p>
+          <div class="trend-detail" data-trend-detail aria-live="polite"></div>
         </section>
 
         <section class="stats-section">
@@ -198,11 +204,32 @@
 
     const rerender = () => { const y = window.scrollY; render(body, guard, data, false); window.scrollTo(0, y); }; // 重畫後停在原地
     bindNav(body, data, rerender);
-    body.querySelectorAll('[data-jump]').forEach((b) => b.addEventListener('click', () => {
-      const [y, n] = b.dataset.jump.split('-').map(Number);
-      state.period = { unit: state.unit, year: y, n };
-      keepPlace(body, '[data-trend]', rerender); // 畫面停在長條圖這裡，不要跳（2026/11/23）
+    // 長條圖（2026/11/23 重新設計）：點長條先顯示那一期的說明卡；按卡片上的「看這一期的完整統計」才換期間（畫面停在原地）
+    const trendDetail = (i) => {
+      const t = trend[i];
+      const box = body.querySelector('[data-trend-detail]');
+      if (!box || !t) return;
+      const cur = t.period.year === p.year && t.period.n === p.n;
+      box.innerHTML = t.total ? `
+        <p class="trend-d-title">${esc(C.label(t.period))}${cur ? '<small>（目前看的這一期）</small>' : ''}</p>
+        <p class="trend-d-main">出勤 <b>${t.total}</b> 人次</p>
+        <div class="trend-d-bar"><span class="is-dao" style="width:${Math.round((t.dao / t.total) * 100)}%"></span><span class="is-tan" style="width:${Math.round((t.tan / t.total) * 100)}%"></span></div>
+        <p class="trend-d-split"><span><i class="trend-sw is-dao"></i>道親 <b>${t.dao}</b> 人次（${C.pct(t.ratio)}）</span><span><i class="trend-sw is-tan"></i>壇辦 <b>${t.tan}</b> 人次</span>${t.unknown ? `<span>沒填身分 ${t.unknown}</span>` : ''}</p>
+        <p class="trend-d-more">${t.events} 場・${t.people} 位不同的人（同一人只算 1 位）</p>
+        ${cur ? '' : `<button type="button" class="btn btn-small btn-primary no-print" data-jump="${t.period.year}-${t.period.n}">看這一${C.UNIT_NAME[p.unit]}的完整統計 ›</button>`}`
+        : `<p class="trend-d-title">${esc(C.label(t.period))}</p><p class="muted">這一${C.UNIT_NAME[p.unit]}沒有資料。</p>`;
+      const j = box.querySelector('[data-jump]');
+      if (j) j.addEventListener('click', () => {
+        const [y, n] = j.dataset.jump.split('-').map(Number);
+        state.period = { unit: state.unit, year: y, n };
+        keepPlace(body, '[data-trend]', rerender); // 畫面停在長條圖這裡，不要跳
+      });
+    };
+    body.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => {
+      body.querySelectorAll('[data-pick]').forEach((x) => x.classList.toggle('is-picked', x === b));
+      trendDetail(Number(b.dataset.pick));
     }));
+    trendDetail(trend.findIndex((t) => t.period.year === p.year && t.period.n === p.n));
     const lh = body.querySelector('[data-latest-here]');
     if (lh) lh.addEventListener('click', () => { state.period = C.periodOf(state.unit, data.today); keepPlace(body, '[data-trend]', rerender); });
     body.querySelectorAll('input[name=rank]').forEach((r) => r.addEventListener('change', () => { state.rankKind = r.value; rerender(); }));

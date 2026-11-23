@@ -2998,3 +2998,27 @@ button.veg-chip:hover { border-color: var(--ok); }
 /* 長條上的道親佔比（2026/11/23）：寫在深色那段的最上面；深色太矮就寫在它上方 */
 .trend-in { position: absolute; left: 0; right: 0; transform: translateY(100%); padding-top: 2px; text-align: center; font-size: .82rem; font-weight: 800; color: #fff; line-height: 1.1; pointer-events: none; }
 .trend-in.is-above { transform: none; padding: 0 0 2px; color: var(--accent); }
+/* 長條圖重新設計（2026/11/23）：圖例、說明、點了看說明卡 */
+.trend-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin: 0 0 4px; font-size: .95rem; }
+.trend-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.trend-sw { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: -2px; flex: none; }
+.trend-sw.is-dao { background: var(--accent); }
+.trend-sw.is-tan { background: #d9c3a5; }
+.trend-sample { display: inline-block; padding: 0 5px; border-radius: 4px; background: var(--accent); color: #fff; font-size: .82rem; font-weight: 800; }
+.trend-explain { margin: 0 0 10px; font-size: .88rem; color: var(--ink-2); line-height: 1.6; }
+.trend-label em { display: block; font-style: normal; font-size: .7rem; color: var(--accent); font-weight: 700; }
+.trend-col.is-picked .trend-bar { box-shadow: 0 0 0 3px #e0a040; }
+.trend-col.is-picked .trend-label { color: var(--ink); font-weight: 700; }
+.trend-detail { margin: 12px 0 4px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.trend-detail:empty { display: none; }
+.trend-detail p { margin: 0; }
+.trend-d-title { margin-bottom: 4px !important; font-weight: 700; font-size: 1.05rem; }
+.trend-d-title small { font-weight: 400; color: var(--muted); margin-left: 4px; }
+.trend-d-main { margin-bottom: 6px !important; font-size: 1.05rem; }
+.trend-d-main b { font-size: 1.6rem; color: var(--accent); }
+.trend-d-bar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--line); margin: 0 0 6px; }
+.trend-d-bar .is-dao { background: var(--accent); }
+.trend-d-bar .is-tan { background: #d9c3a5; }
+.trend-d-split { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-bottom: 4px !important; }
+.trend-d-split span { display: inline-flex; align-items: center; gap: 6px; }
+.trend-d-more { margin-bottom: 8px !important; color: var(--ink-2); font-size: .9rem; }
