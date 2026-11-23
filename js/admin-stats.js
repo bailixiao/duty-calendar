@@ -123,7 +123,7 @@
         ${missing.length ? `<div class="notice notice-error no-print"><p><strong>${missing.length} 位沒有填身分</strong>（道親佔比可能不準）：${missing.map(esc).join('、')}</p><p>請到勤務名單或試算表「報名」分頁補上身分。</p></div>` : ''}
 
         <section class="stats-section" data-trend>
-          <h3 class="admin-sub">最近 ${trend.length} ${p.unit === 'month' ? '個月' : p.unit === 'quarter' ? '季' : '年'}<span class="h2-sub">深色＝道親、淺色＝壇辦</span></h3>
+          <h3 class="admin-sub">最近 ${trend.length} ${p.unit === 'month' ? '個月' : p.unit === 'quarter' ? '季' : '年'}<span class="h2-sub">深色＝道親、淺色＝壇辦；長條上的 % ＝道親佔比</span></h3>
           ${atLatest ? '' : `<p class="trend-now no-print">現在看：<b>${esc(C.label(p))}</b> <button type="button" class="btn btn-small" data-latest-here>回到本${C.UNIT_NAME[p.unit]}</button></p>`}
           <div class="trend">
             ${trend.map((t) => {
@@ -132,9 +132,8 @@
               const cur = t.period.year === p.year && t.period.n === p.n;
               return `<button type="button" class="trend-col${cur ? ' is-current' : ''}" data-jump="${t.period.year}-${t.period.n}"${t.total || cur ? '' : ' disabled'} aria-label="${esc(C.label(t.period))}：${t.total} 人次">
                 <span class="trend-val">${t.total || ''}</span>
-                <span class="trend-bar" style="height:${h}%"><span class="trend-dao" style="height:${h ? Math.round((daoH / h) * 100) : 0}%"></span></span>
+                <span class="trend-bar" style="height:${h}%"><span class="trend-dao" style="height:${h ? Math.round((daoH / h) * 100) : 0}%"></span>${t.total ? `<span class="trend-in${daoH * 1.7 >= 24 ? '' : ' is-above'}" style="bottom:${h ? Math.round((daoH / h) * 100) : 0}%">${C.pct(t.ratio)}</span>` : ''}</span>
                 <span class="trend-label">${esc(C.label(t.period, true)).replace('年', '年<br>')}</span>
-                <span class="trend-pct">${C.pct(t.ratio)}</span>
               </button>`;
             }).join('')}
           </div>

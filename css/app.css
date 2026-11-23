@@ -2995,3 +2995,6 @@ button.veg-chip:hover { border-color: var(--ok); }
 .album-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 8px; }
 .album-nav { display: flex; justify-content: space-between; gap: 8px; margin: 8px 0; }
 .trend-now { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: -4px 0 8px; padding: 6px 10px; border-radius: 10px; background: var(--accent-soft); }
+/* 長條上的道親佔比（2026/11/23）：寫在深色那段的最上面；深色太矮就寫在它上方 */
+.trend-in { position: absolute; left: 0; right: 0; transform: translateY(100%); padding-top: 2px; text-align: center; font-size: .82rem; font-weight: 800; color: #fff; line-height: 1.1; pointer-events: none; }
+.trend-in.is-above { transform: none; padding: 0 0 2px; color: var(--accent); }
