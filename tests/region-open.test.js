@@ -8,7 +8,7 @@ require('../tools/build-worker.js'); // 用最新的 apps-script/*.gs 產生 Wor
 async function makeRegion(region, props) {
   const { createApp } = await import('../worker/src/app.js');
   const { createMemoryStore } = await import('../worker/src/store.js');
-  const store = createMemoryStore();
+  const store = createMemoryStore(); store.setProp('NEWCOMER_INFO', '0'); // 新朋友要填佛堂、生日：舊測試先關掉
   const app = createApp(store);
   Object.entries(props || {}).forEach(([k, v]) => store.setProp(k, v));
   const call = async (method, payload) => {

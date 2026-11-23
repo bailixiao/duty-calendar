@@ -72,8 +72,9 @@ function adminAddAttendee_(body) {
   return withSignupLock_(function () {
     var signups = duty ? readTable_(SHEETS.SIGNUPS).filter(function (s) { return s['勤務ID'] === duty['勤務ID']; }) : [];
     // 成員名單上已登記身分的人，以名單為準（和一般報名相同）
-    var entry = withMemberIdentity_([{ name: body.name, identity: body.identity, accompany: !!body.accompany, temple: body.temple }])[0];
+    var entry = withMemberIdentity_([{ name: body.name, identity: body.identity, accompany: !!body.accompany, temple: body.temple, noTemple: !!body.noTemple, birth: body.birth }])[0];
     checkAmbiguous_([entry]);
+    checkNewcomers_([entry]);
     var problems = validateSignup_({
       duty: duty, positions: positions, signups: signups, positionId: body.positionId,
       dates: [body.date], entries: [entry], today: '0000-00-00' // 補登不受日期限制
@@ -93,7 +94,7 @@ function adminAddAttendee_(body) {
     if (duty['登記張數'] === '是') row['張數'] = String(ticketCount_(body.tickets));
     if (duty['版面'] === '職司表' && body.note) row['註記'] = cleanText_(body.note).slice(0, 100);
     appendRows_(SHEETS.SIGNUPS, [row]);
-    addPendingMembers_([row], duty['名稱']);
+    addPendingMembers_([row], duty['名稱'], birthsOf_([entry]));
     appendRows_(SHEETS.LOGS, [{
       '時間': now, '動作': '修正', '報名ID': row['報名ID'],
       '內容摘要': signupSummary_(row, duty, position) + (body.date > todayString_() ? '｜管理者幫人報名' : '｜補登') + (warnings.length ? '（警告：' + warnings.join('；') + '）' : ''),

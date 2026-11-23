@@ -1261,7 +1261,8 @@
         const x = people[i];
         Busy.show(`${word}中⋯${people.length > 1 ? `（${i + 1}／${people.length}）` : ''}`);
         try {
-          const res = await Api.admin('adminAddAttendee', { dutyId: d.id, positionId: p.id, date, name: x.name, temple: x.temple || '', identity: x.identity, accompany: x.accompany, note: f.elements.note ? f.elements.note.value.trim() : '', tickets: f.elements.tickets ? f.elements.tickets.value.trim() : undefined });
+          // 新朋友：問佛堂、生日再送（2026/11/23）
+          const res = await Newcomer.run([x], () => Api.admin('adminAddAttendee', { dutyId: d.id, positionId: p.id, date, name: x.name, temple: x.temple || '', noTemple: !!x.noTemple, birth: x.birth || undefined, identity: x.identity, accompany: x.accompany, note: f.elements.note ? f.elements.note.value.trim() : '', tickets: f.elements.tickets ? f.elements.tickets.value.trim() : undefined }));
           x.done = true;
           done.push(x.name);
           (res.warnings || []).forEach((w) => warns.push(x.name + '：' + w));

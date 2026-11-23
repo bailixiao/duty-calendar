@@ -564,8 +564,8 @@ function adminDeleteMember_(body) {
 
 // ---------- 新名字自動加入（待確認） ----------
 
-/** 報名、補登、匯入後呼叫（已在鎖定內）：名單上沒有的名字加一列「待確認」 */
-function addPendingMembers_(signupRows, dutyName) {
+/** 報名、補登、匯入後呼叫（已在鎖定內）：名單上沒有的名字加一列「待確認」；births＝{ 名字: 報名時填的生日 }（2026/11/23） */
+function addPendingMembers_(signupRows, dutyName, births) {
   if (!signupRows || !signupRows.length) return 0;
   var has = {};
   readTable_(SHEETS.MEMBERS).forEach(function (m) { if (m['姓名']) { has[normalizeName_(m['姓名'])] = true; has[normalizeName_(m['姓名']) + '|' + (m['佛堂'] || '')] = true; } });
@@ -580,6 +580,8 @@ function addPendingMembers_(signupRows, dutyName) {
     has[name] = true;
     var p0 = { '姓名': name, '身分': OPTIONS.identity.indexOf(r['身分']) !== -1 ? r['身分'] : '', '佛堂': temple, '備註': '自動加入：' + r['日期'] + ' ' + (dutyName || ''), '啟用中': '是', '待確認': '是' };
     p0[TEMPLE_GROUP_TYPE] = templeGroupFor_(tgMap, temple, '');
+    var bi = births && births[name] ? birthInput_(births[name]) : null;
+    if (bi && bi.year) { p0['出生年'] = bi.year; p0['生日'] = bi.md; }
     add.push(p0);
   });
   if (!add.length) return 0;

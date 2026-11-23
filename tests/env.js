@@ -77,7 +77,7 @@ function createEnv(fixedNow) {
     },
     Session: { getScriptTimeZone: () => 'Asia/Taipei' },
     PropertiesService: (() => {
-      const props = { ADMIN_PASSWORD: 'test-pass', ADMIN_CONTACT: '測試管理者', GEMINI_API_KEY: 'test-key' };
+      const props = { ADMIN_PASSWORD: 'test-pass', ADMIN_CONTACT: '測試管理者', GEMINI_API_KEY: 'test-key', NEWCOMER_INFO: '0' }; // 新朋友要填佛堂、生日：舊測試先關掉，新的測試自己打開
       return { getScriptProperties: () => ({ getProperty: (k) => props[k] || null, setProperty: (k, v) => { props[k] = v; }, deleteProperty: (k) => { delete props[k]; } }) };
     })(),
     CacheService: (() => {

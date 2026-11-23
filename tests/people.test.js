@@ -333,3 +333,33 @@ test('合併佛堂：成員和報名紀錄的佛堂一起改', () => {
   const SG = env.fn('SHEETS').SIGNUPS;
   assert.equal(env.fn('readTable_')(SG).find((x) => x['報名ID'] === s.data.created[0].id)['佛堂'], '測試佛堂B');
 });
+
+test('新朋友報名（2026/11/23）：名單上沒有的名字要選佛堂（可以選沒有）、填生日（可以只填年），存進待確認的成員；名單上有的不用', () => {
+  const { createEnv } = require('./env');
+  const env = createEnv(Date.UTC(2026, 9, 1, 2, 0, 0));
+  env.fn('PropertiesService').getScriptProperties().deleteProperty('NEWCOMER_INFO');
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const call = (action, body) => env.post(Object.assign({ action, token }, body));
+  call('adminSaveMember', { member: { name: '王小明', identity: '壇辦' } });
+  const ev = env.get({ action: 'getEvents', from: '2026-10-13', to: '2026-10-13' }).data.duties.find((d) => d.name === '彌勒山志工輪值');
+  const base = { action: 'signup', dutyId: ev.id, positionId: ev.positions[0].id, dates: ['2026-10-13'] };
+  let r = env.post(Object.assign({}, base, { entries: [{ name: '王小明' }, { name: '測試新朋友' }] }));
+  assert.equal(r.error.code, 'NEWCOMER');
+  assert.deepEqual(r.error.details.filter((x) => x.name).map((x) => x.name), ['測試新朋友'], '名單上有的不用填');
+  assert.ok(Array.isArray(r.error.details[r.error.details.length - 1].temples));
+  assert.equal(env.post(Object.assign({}, base, { entries: [{ name: '測試新朋友', noTemple: true, birth: '看不懂' }] })).error.code, 'NEWCOMER');
+  r = env.post(Object.assign({}, base, { entries: [{ name: '王小明' }, { name: '測試新朋友', noTemple: true, birth: '民國80' }] }));
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  const p = call('adminMembers').data.members.find((m) => m.name === '測試新朋友');
+  assert.deepEqual([p.pending, p.birthYear, p.birthday, p.temple], [true, 1991, '', '']);
+  // 待確認的再報名不用再填
+  const ev2 = env.get({ action: 'getEvents', from: '2026-10-20', to: '2026-10-20' }).data.duties.find((d) => d.name === '彌勒山志工輪值');
+  if (ev2) assert.equal(env.post(Object.assign({}, base, { dutyId: ev2.id, positionId: ev2.positions[0].id, dates: ['2026-10-20'], entries: [{ name: '測試新朋友' }] })).ok, true);
+  // 管理者補登也一樣
+  r = call('adminAddAttendee', { dutyId: ev.id, positionId: ev.positions[0].id, date: '2026-10-13', name: '測試補登新人', identity: '道親' });
+  assert.equal(r.error.code, 'NEWCOMER');
+  r = call('adminAddAttendee', { dutyId: ev.id, positionId: ev.positions[0].id, date: '2026-10-13', name: '測試補登新人', identity: '道親', temple: '宏宗', birth: '1970/5/6' });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  const q = call('adminMembers').data.members.find((m) => m.name === '測試補登新人');
+  assert.deepEqual([q.birthYear, q.birthday, q.temple], [1970, '05-06', '宏宗']);
+});

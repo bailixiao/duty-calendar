@@ -30,6 +30,7 @@ function signup_(body) {
   // 成員名單上已登記身分的人，一律以名單為準（報名者不能改，統計才一致）
   entries = withMemberIdentity_(entries).map(function (e, i) { return Object.assign({}, e, { _dates: entryDates[i] }); });
   checkAmbiguous_(entries);
+  checkNewcomers_(entries);
 
   var duty = readTableCached_(SHEETS.DUTIES).filter(function (d) { return d['勤務ID'] === body.dutyId; })[0];
   var positions = duty ? readTableCached_(SHEETS.POSITIONS).filter(function (p) { return p['勤務ID'] === duty['勤務ID']; }) : [];
@@ -187,7 +188,7 @@ function signup_(body) {
 
     appendRows_(SHEETS.SIGNUPS, signupRows);
     appendRows_(SHEETS.LOGS, logRows);
-    addPendingMembers_(signupRows, duty['名稱']);
+    addPendingMembers_(signupRows, duty['名稱'], birthsOf_(entries));
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.SIGNUPS);
 
@@ -247,6 +248,37 @@ function withMemberIdentity_(entries) {
     if (!temple && list.length > 1) out.ambiguous = list.map(function (x) { return x['佛堂'] || '未填佛堂'; });
     return out;
   });
+}
+
+/**
+ * 新朋友（名字不在成員名單上，含待確認、別名，2026/11/23）：一定要選佛堂（沒有就選「沒有」＝noTemple）、填生日（可以只填出生年）。
+ * 少了就回 NEWCOMER，details＝[{ name, message }]，最後一筆 { temples }（佛堂清單，前端跳視窗問）。
+ */
+function checkNewcomers_(entries) {
+  if (PropertiesService.getScriptProperties().getProperty('NEWCOMER_INFO') === '0') return; // 指令碼屬性 NEWCOMER_INFO=0 可以關掉（測試用）
+  var known = {};
+  readTableCached_(SHEETS.MEMBERS).forEach(function (m) {
+    if (!m['姓名']) return;
+    known[normalizeName_(m['姓名'])] = true;
+    splitAliases_(m['別名']).forEach(function (a) { known[a] = true; });
+  });
+  var bad = entries.filter(function (e) {
+    var n = normalizeName_(e && e.name);
+    if (!n || known[n]) return false;
+    var b = birthInput_(e.birth);
+    return !(e.temple || e.noTemple) || !b || !b.year;
+  });
+  if (!bad.length) return;
+  throw new ApiError_('NEWCOMER', '新朋友請選佛堂、填生日（可以只填出生年）', bad.map(function (e) {
+    var b = birthInput_(e.birth);
+    return { name: normalizeName_(e.name), message: '「' + normalizeName_(e.name) + '」' + [!(e.temple || e.noTemple) ? '還沒選佛堂（沒有就選「沒有」）' : '', !b || !b.year ? (e.birth ? '生日看不懂（例：1965/3/7、民國54/3/7，或只填 1965）' : '還沒填生日（可以只填出生年）') : ''].filter(Boolean).join('、') };
+  }).concat([{ temples: templeList_() }]));
+}
+/** 報名的人 → 生日（給新名字自動加入成員用） */
+function birthsOf_(entries) {
+  var out = {};
+  entries.forEach(function (e) { if (e && e.birth) out[normalizeName_(e.name)] = e.birth; });
+  return out;
 }
 
 /** 有同名又沒選佛堂的：擋下並說明 */

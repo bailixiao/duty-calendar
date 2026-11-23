@@ -19,6 +19,7 @@ async function setup() {
     const app = createApp(store, opts);
     Object.entries(props || {}).forEach(([k, v]) => store.setProp(k, v));
     store.setProp('ADMIN_PASSWORD', 'test-pass');
+    store.setProp('NEWCOMER_INFO', '0');
     const call = async (payload, method) => {
       const headers = { 'X-Region': code };
       const req = method === 'GET'

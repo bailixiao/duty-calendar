@@ -19,7 +19,7 @@ async function load() {
 /** 一區一份（像正式的 Durable Object）；region 是 X-Region */
 async function makeRegion(region, props) {
   const { createApp, createMemoryStore } = await load();
-  const store = createMemoryStore();
+  const store = createMemoryStore(); store.setProp('NEWCOMER_INFO', '0'); // 新朋友要填佛堂、生日：舊測試先關掉
   const app = createApp(store);
   Object.entries(props || {}).forEach(([k, v]) => store.setProp(k, v));
   const call = async (method, payload) => {
@@ -101,7 +101,7 @@ test('各區資料分開：教捨區新增的勤務、報名，教全區看不�
   const googleEnv = createEnv(Date.UTC(2026, 9, 1, 2));
   const sheets = Object.fromEntries(Object.entries(googleEnv.sheets).map(([n, s]) => [n, s.data]));
   const main = await makeRegion('main');
-  const imp = await main.call('POST', { action: 'import', sheets, props: { ADMIN_PASSWORD: 'test-pass' } });
+  const imp = await main.call('POST', { action: 'import', sheets, props: { ADMIN_PASSWORD: 'test-pass', NEWCOMER_INFO: '0' } });
   assert.equal(imp.ok, true, JSON.stringify(imp.error));
   const she = await openShe();
 

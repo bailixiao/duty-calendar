@@ -523,7 +523,7 @@
     // ---------- 送出 ----------
 
     async function submit(ev) {
-      ev.preventDefault();
+      if (ev) ev.preventDefault();
       if (state.submitting) return;
       if (normalize(input.value)) { // 打了名字但還沒按「加入」：提醒他按，不自動加入
         showError(`「${esc(normalize(input.value))}」還沒加入名單，請先按旁邊的「加入」`);
@@ -567,7 +567,7 @@
         positionId: chosen[0].id,
         positionIds: chosen.map((p) => p.id),
         dates: [...new Set(state.entries.flatMap((e) => [...(e.datesCustom ? e.dates : state.dates)]))].sort(),
-        entries: state.entries.map((e) => ({ dates: [...(e.datesCustom ? e.dates : state.dates)].sort(), name: e.name, temple: e.temple || '', identity: e.identity, accompany: e.accompany, leader: !!duty.leaderTitle && !e.accompany && e.name === state.leader, note: duty.layout === '職司表' ? String(e.note || '').trim() : '', tickets: duty.tickets ? e.tickets : undefined, positionIds: duty.positions.filter((p) => e.positionIds.has(p.id)).map((p) => p.id) }))
+        entries: state.entries.map((e) => ({ dates: [...(e.datesCustom ? e.dates : state.dates)].sort(), name: e.name, temple: e.temple || '', identity: e.identity, noTemple: !!e.noTemple, birth: e.birth || undefined, accompany: e.accompany, leader: !!duty.leaderTitle && !e.accompany && e.name === state.leader, note: duty.layout === '職司表' ? String(e.note || '').trim() : '', tickets: duty.tickets ? e.tickets : undefined, positionIds: duty.positions.filter((p) => e.positionIds.has(p.id)).map((p) => p.id) }))
       };
       // 每個人報的項目不一樣時，成功訊息逐人列出
       const same = payload.entries.every((e) => e.positionIds.join() === payload.entries[0].positionIds.join());
@@ -598,6 +598,13 @@
           fail(verified === false
             ? '<strong>報名沒有成功</strong>（伺服器沒有收到），請再按一次「確認報名」。'
             : '網路不穩，無法確定是否報名成功。請按「回行事曆」後重新點進來，查看名單上有沒有名字，再決定是否重報。');
+          return;
+        }
+        // 新朋友：問佛堂、生日，填好自動再送一次（2026/11/23）
+        if (window.Newcomer && Newcomer.is(err)) {
+          fail('');
+          hideError();
+          if (await Newcomer.ask(err, state.entries)) { renderNames(); submit(); } else showError('新朋友要選佛堂、填生日（可以只填出生年）才能報名，填好再按「確認報名」。');
           return;
         }
         if (err.code === 'VALIDATION' && err.details.length) {

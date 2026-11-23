@@ -15,7 +15,7 @@ const OCT_1 = Date.UTC(2026, 9, 1, 2, 0, 0); // 台北 10:00
 async function setup(now = OCT_1) {
   const googleEnv = createEnv(now);
   const sheets = Object.fromEntries(Object.entries(googleEnv.sheets).map(([n, s]) => [n, s.data]));
-  const store = createMemoryStore();
+  const store = createMemoryStore(); store.setProp('NEWCOMER_INFO', '0'); // 新朋友要填佛堂、生日：舊測試先關掉
   const app = createApp(store, { now: () => now });
   const call = async (method, payload) => {
     const req = method === 'GET'
@@ -26,7 +26,7 @@ async function setup(now = OCT_1) {
     assert.equal(res.headers.get('Access-Control-Allow-Origin'), '*');
     return res.json();
   };
-  const imp = await call('POST', { action: 'import', sheets, props: { ADMIN_PASSWORD: 'test-pass', ADMIN_CONTACT: '測試管理者' } });
+  const imp = await call('POST', { action: 'import', sheets, props: { ADMIN_PASSWORD: 'test-pass', ADMIN_CONTACT: '測試管理者', NEWCOMER_INFO: '0' } });
   assert.equal(imp.ok, true, JSON.stringify(imp.error));
   return { store, app, call, googleEnv };
 }

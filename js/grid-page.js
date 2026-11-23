@@ -176,10 +176,11 @@
         }
         if (!id) { go.disabled = false; msg.textContent = '請選身分（道親、壇辦或未求道）'; return; }
         let warnings = [];
+        const who = { name, temple }; // 新朋友：問佛堂、生日再送（2026/11/23）
         if (asAdmin) {
-          warnings = (await Api.admin('adminAddAttendee', { dutyId: d.id, positionId: posId, date, name, temple, identity: id })).warnings || [];
+          warnings = (await Newcomer.run([who], () => Api.admin('adminAddAttendee', { dutyId: d.id, positionId: posId, date, name, temple: who.temple, noTemple: !!who.noTemple, birth: who.birth || undefined, identity: id }))).warnings || [];
         } else {
-          await Api.retryBusy(() => Api.signup({ dutyId: d.id, positionId: posId, positionIds: [posId], dates: [date], entries: [{ name, identity: id, dates: [date], positionIds: [posId] }] }), () => { msg.textContent = '使用的人較多，排隊中⋯'; });
+          await Newcomer.run([who], () => Api.retryBusy(() => Api.signup({ dutyId: d.id, positionId: posId, positionIds: [posId], dates: [date], entries: [{ name, temple: who.temple || '', noTemple: !!who.noTemple, birth: who.birth || undefined, identity: id, dates: [date], positionIds: [posId] }] }), () => { msg.textContent = '使用的人較多，排隊中⋯'; }));
           try { localStorage.setItem('duty-calendar:mine-name', name); } catch (e) { /* 無痕模式 */ }
         }
         closeNote();
