@@ -899,7 +899,7 @@
           <fieldset class="form-block">
             <legend>和同一天的項目合併顯示（可空白）</legend>
             <label class="form-row"><span>要和哪一個項目合在一起</span><select class="input" name="merge" data-merge-pick>${mergeOptions()}</select></label>
-            <p class="hint">「同一天有的」是這個日期行事曆上已經有的項目。例如初一十五班選「拜香輪值」：同一天有拜香輪值時，行事曆只出現一張卡片（兩個寫在一起，不寫先後），點進去也看得到另一個的時間、地點。兩個都要報名時（例：闡道班勤務選「闡道班」），卡片分上下兩行，各點各的。那天沒有的話照常單獨顯示。</p>
+            <p class="hint">「同一天有的」是這個日期行事曆上已經有的項目。例如初一十五班選「拜香輪值」、闡道班勤務選「闡道班」：同一天有的時候，行事曆合成一張卡片、分上下兩行（不寫先後），各點各的，各自顯示輪值組或報名人數。那天沒有的話照常單獨顯示。</p>
           </fieldset>
 
           <fieldset class="form-block">
