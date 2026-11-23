@@ -366,7 +366,6 @@ function adminRun_(body) {
     case 'adminHqWatch': return adminHqWatch_(body);
     case 'adminEduCareList': return adminEduCareList_();
     case 'adminEduCare': return adminEduCare_(body);
-    case 'adminEduCareConfig': return adminEduCareConfig_(body);
     case 'adminAssignGroups': return adminAssignGroups_(body);
     case 'adminSplitSignup': return adminSplitSignup_(body);
     case 'adminMergeMembers': return adminMergeMembers_(body);

@@ -9,16 +9,18 @@ const { createEnv } = require('./env');
 const build = (members, today, config) => EduCare.build(members, today, config, Family.schoolStage, EduStats.AGE_CLASSES);
 const group = (gs, id) => (gs.find((g) => g.id === id) || { items: [] }).items.map((x) => x.name);
 
-test('大考：國三在會考前、高三在學測前列出；日期可以調、可以關掉', () => {
-  const ms = [{ name: '測試國三', birthYear: 2012 }, { name: '測試高三', birthYear: 2009 }, { name: '測試國二', birthYear: 2013 }, { name: '測試停用', birthYear: 2012, active: false }];
-  // 2027 年 4 月：2012 年生的是國三（學年 2026）
-  let gs = build(ms, '2027-04-20');
-  assert.deepEqual(group(gs, 'cap'), ['測試國三']);
-  assert.equal(gs.find((g) => g.id === 'cap').items[0].key, '測試國三|cap|2026');
-  gs = build(ms, '2027-01-05');
-  assert.deepEqual(group(gs, 'gsat'), ['測試高三'], '學測前（跨年的期間）');
-  assert.deepEqual(group(build(ms, '2027-04-20', { cap: { off: true } }), 'cap'), []);
-  assert.deepEqual(group(build(ms, '2027-03-01', { cap: { from: '03-01', to: '03-31' } }), 'cap'), ['測試國三']);
+test('升學年：國三、高三整個學年都列，每學期記一次；升國中只在 6～8 月', () => {
+  const ms = [{ name: '測試國三', birthYear: 2012 }, { name: '測試高三', birthYear: 2009 }, { name: '測試國二', birthYear: 2013 }, { name: '測試小六', birthYear: 2015 }, { name: '測試停用', birthYear: 2012, active: false }];
+  // 2026 年 11 月（學年 2026 上學期）：2012 年生的國三、2009 年生的高三
+  let gs = build(ms, '2026-11-23');
+  assert.deepEqual(group(gs, 'g9'), ['測試國三']);
+  assert.deepEqual(group(gs, 'g12'), ['測試高三']);
+  assert.equal(gs.find((g) => g.id === 'g9').items[0].key, '測試國三|g9|2026-1');
+  assert.match(gs.find((g) => g.id === 'g9').items[0].reason, /上學期/);
+  gs = build(ms, '2027-05-01');
+  assert.equal(gs.find((g) => g.id === 'g9').items[0].key, '測試國三|g9|2026-2', '下學期再關心一次');
+  assert.deepEqual(group(gs, 'g6'), [], '升國中 6 月才列');
+  assert.deepEqual(group(build(ms, '2027-07-01'), 'g6'), ['測試小六']);
 });
 
 test('生日：前 3 天到後 7 天、35 歲以下；升班銜接：6～8 月列 9 月要換班的、9～10 月列剛升上的', () => {
@@ -39,7 +41,7 @@ test('生日：前 3 天到後 7 天、35 歲以下；升班銜接：6～8 月�
   assert.equal(build(ms, '2027-12-10').find((g) => g.id === 'move'), undefined, '11 月以後不列');
 });
 
-test('已關心：教育帳號可以記（寫進成員的成全紀錄）、可以取消；勤務帳號不行；日期設定', () => {
+test('已關心：教育帳號可以記（寫進成員的成全紀錄）、可以取消；勤務帳號不行', () => {
   const env = createEnv(Date.UTC(2026, 10, 23, 2, 0, 0));
   const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
   const call = (action, body, tok) => env.post(Object.assign({ action, token: tok || token }, body));
@@ -55,7 +57,4 @@ test('已關心：教育帳號可以記（寫進成員的成全紀錄）、可�
   const tok = env.post({ action: 'adminLogin', account: '測試勤務', password: 'test-pass-5' }).data.token;
   assert.equal(call('adminEduCare', { key: 'x|cap|2026', name: 'x' }, tok).error.code, 'FORBIDDEN');
   assert.equal(call('adminEduCareList', {}, tok).data.canEdit, false);
-  assert.equal(call('adminEduCareConfig', { config: { cap: { from: '4/10' } } }).error.code, 'VALIDATION');
-  r = call('adminEduCareConfig', { config: { cap: { from: '04-01', to: '05-15' }, g6: { off: true } } });
-  assert.deepEqual(r.data.config, { cap: { from: '04-01', to: '05-15', off: false }, g6: { from: '', to: '', off: true } });
 });

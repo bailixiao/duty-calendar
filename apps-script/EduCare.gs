@@ -1,12 +1,10 @@
 /**
  * 教育組的關心名單（2026/11/23）：名單本身由前端依成員的生日、學齡算（js/edu-care.js：大考升學、生日、升班銜接），
- * 這裡只存「誰已經關心過了」和大考日期的設定。
+ * 這裡只存「誰已經關心過了」（大考日期不記，2026/11/23 改：國三、高三整年都列）。
  *   指令碼屬性 EDU_CARE        ＝ { 關心代號（名字|原因|學年）: { at, by, note } }（只留一年）
- *   指令碼屬性 EDU_CARE_CONFIG ＝ { 原因代號: { from: 'MM-DD', to: 'MM-DD', off: true } }（只存改過的）
  * 按「已關心」時，一句紀錄也加到那位成員的「成全紀錄」最前面（最多 300 字，舊的從後面剪掉）。
  */
 var EDU_CARE_PROP = 'EDU_CARE';
-var EDU_CARE_CONFIG_PROP = 'EDU_CARE_CONFIG';
 var EDU_CARE_ROLES = ['總管理者', '教育', '道務']; // 總管理者＝SUPER_ACCOUNT（檔案載入順序不一定，這裡直接寫）
 
 function eduCareRead_(prop) {
@@ -16,9 +14,9 @@ function eduCareCanEdit_() {
   if (!ADMIN_SESSION_ || EDU_CARE_ROLES.indexOf(ADMIN_SESSION_.role) === -1) throw new ApiError_('FORBIDDEN', '關心名單只有總管理者、教育、道務帳號能記錄');
 }
 
-/** 關心紀錄和大考日期設定 */
+/** 關心紀錄 */
 function adminEduCareList_() {
-  return { care: eduCareRead_(EDU_CARE_PROP), config: eduCareRead_(EDU_CARE_CONFIG_PROP), today: todayString_(),
+  return { care: eduCareRead_(EDU_CARE_PROP), today: todayString_(),
     canEdit: !!ADMIN_SESSION_ && EDU_CARE_ROLES.indexOf(ADMIN_SESSION_.role) !== -1 };
 }
 
@@ -53,25 +51,6 @@ function adminEduCare_(body) {
       }
     }
     writeDutyLog_('成員', '教育組關心名單｜' + name + '｜' + String(body.label || '') + (body.undo ? '｜取消已關心' : '｜已關心' + (note ? '：' + note : '')));
-    return adminEduCareList_();
-  });
-}
-
-/** 調整大考、升學的日期：body.config = { 原因代號: { from: 'MM-DD', to: 'MM-DD', off } }（總管理者、教育） */
-function adminEduCareConfig_(body) {
-  eduCareCanEdit_();
-  var c = body.config && typeof body.config === 'object' ? body.config : {};
-  var out = {};
-  var md = /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
-  Object.keys(c).slice(0, 30).forEach(function (id) {
-    var x = c[id] || {};
-    if (!/^[a-z0-9-]{1,20}$/.test(id)) return;
-    if ((x.from && !md.test(x.from)) || (x.to && !md.test(x.to))) throw new ApiError_('VALIDATION', '日期請用「月/日」，例：4/10');
-    out[id] = { from: x.from || '', to: x.to || '', off: !!x.off };
-  });
-  return withSignupLock_(function () {
-    PropertiesService.getScriptProperties().setProperty(EDU_CARE_CONFIG_PROP, JSON.stringify(out));
-    writeDutyLog_('成員', '教育組關心名單｜調整大考、升學的日期');
     return adminEduCareList_();
   });
 }

@@ -2972,9 +2972,3 @@ button.veg-chip:hover { border-color: var(--ok); }
 .ecare-reason { margin: 4px 0 2px; font-weight: 600; }
 .ecare-talk { margin: 2px 0 8px; font-size: .9rem; color: var(--ink-2); }
 .ecare-done { margin: 4px 0 0; color: var(--ok); font-size: .92rem; }
-.ecare-config { margin: 12px 0; }
-.ecare-config summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--ink-2); }
-.ecare-config-rows { display: grid; gap: 6px; margin: 6px 0 10px; }
-.ecare-config-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
-.ecare-config-dates { display: inline-flex; align-items: center; gap: 6px; }
-.ecare-config-dates .input { width: 5.5em; text-align: center; }

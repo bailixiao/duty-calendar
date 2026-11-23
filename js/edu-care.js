@@ -1,5 +1,6 @@
 // 教育組的關心名單（2026/11/23）：依成員的生日、學齡，自動列出「這個月該關心誰」，每位附上原因和可以聊的話題。
-//   🎓 大考、升學：國中會考、大學學測、分科測驗（考前、放榜後）、升國中、大學畢業（日期可以在畫面上調整，存在 EDU_CARE_CONFIG）
+//   🎓 升學年：國三（會考、升高中）、高三（學測、分科、升大學）整個學年都列，每學期記一次已關心；
+//      升國中（國小六年級 6～8 月）、大學畢業（大四 5～6 月）。不記大考的確切日期（每年不一樣）。
 //   🎂 生日：前 3 天到後 7 天（35 歲以下，有填月日的）
 //   🔄 升班銜接：6～8 月列出 9 月要換班的人（讀經班→青少年班⋯），9～10 月列出剛升上新班的人
 // 「✓ 已關心」記在 apps-script/EduCare.gs（EDU_CARE），一句紀錄也寫進成員的成全紀錄。
@@ -16,14 +17,13 @@
     青年: '工作適應、家庭、身體；邀請當學弟妹的小老師'
   };
   const is = (stage, grade) => (st) => !!st && st.stage === stage && (grade === undefined || st.grade === grade);
-  /** 大考、升學（日期是大概的，每年看教育部公告，可以在畫面上改） */
+  /**
+   * 升學年（2026/11/23 改：不記大考日期）：國三、高三整個學年（9 月～隔年 8 月）都列，每學期（9～1 月、2～8 月）可以記一次已關心；
+   * 升國中、大學畢業只在那幾個月。
+   */
   const EVENTS = [
-    { id: 'cap', icon: '🎓', title: '國中會考・考前', who: is('國中', 3), from: '04-10', to: '05-20', topic: '考前打氣、不給壓力：「祝你考試順利，有需要幫忙跟我說」，可以送平安符或小卡。' },
-    { id: 'cap-after', icon: '🎓', title: '國中會考・放榜後', who: is('國中', 3), from: '06-05', to: '06-30', topic: '問結果和志願；考不好的更要陪伴，多聽少說。' },
-    { id: 'gsat', icon: '🎓', title: '大學學測・考前', who: is('高中', 3), from: '12-01', to: '01-20', topic: '考前打氣、提醒睡飽；可以送平安符或小卡。' },
-    { id: 'gsat-after', icon: '🎓', title: '大學學測・放榜後', who: is('高中', 3), from: '02-20', to: '03-20', topic: '問成績和想走的方向；要準備分科測驗的多鼓勵。' },
-    { id: 'ast', icon: '🎓', title: '分科測驗・考前', who: is('高中', 3), from: '06-01', to: '07-12', topic: '最後衝刺，關心身體和心情；考完邀請來青年活動放鬆。' },
-    { id: 'ast-after', icon: '🎓', title: '分科測驗・放榜後', who: is('高中', 3), from: '08-01', to: '08-25', topic: '問分發結果；要離家讀書的關心住宿、交通，介紹那邊的道場。' },
+    { id: 'g9', icon: '🎓', title: '國三：今年考會考、升高中', who: is('國中', 3), from: '09-01', to: '08-31', term: true, topic: '會考大約在 5 月：平常多鼓勵、考前打氣不給壓力（可以送平安符或小卡），放榜後問志願；壓力大的多聽少說。' },
+    { id: 'g12', icon: '🎓', title: '高三：今年考學測、升大學', who: is('高中', 3), from: '09-01', to: '08-31', term: true, topic: '學測大約在 1 月、分科測驗大約在 7 月：關心讀書和睡眠，考前打氣，放榜後問想走的方向；要離家讀書的關心住宿、介紹那邊的道場。' },
     { id: 'g6', icon: '🏫', title: '升國中', who: is('國小', 6), from: '06-01', to: '08-31', topic: '新環境、交新朋友；邀請繼續來青少年班。' },
     { id: 'u4', icon: '🎓', title: '大學畢業', who: is('大學', 4), from: '05-01', to: '06-30', topic: '找工作、當兵；邀請來青年班，也可以當學弟妹的小老師。' }
   ];
@@ -47,7 +47,7 @@
   const topicOf = (st, age) => (st ? TOPICS[st.stage] || '' : age !== '' && age <= 35 ? TOPICS['青年'] : '');
 
   /**
-   * members：成員名單（只算啟用中、不是待確認）；config：{ 原因代號: { from, to, off } }；stageOf＝Family.schoolStage；classes＝EduStats.AGE_CLASSES。
+   * members：成員名單（只算啟用中、不是待確認）；config：保留（不用了）；stageOf＝Family.schoolStage；classes＝EduStats.AGE_CLASSES。
    * 回傳 [{ id, icon, title, topic, items: [{ key, name, temple, label, reason, topic }] }]（沒有人的不回）
    */
   function build(members, today, config, stageOf, classes) {
@@ -66,12 +66,12 @@
     const groups = [];
 
     // 🎓 大考、升學
+    const term = m0 >= '02-01' && m0 < '09-01' ? 2 : 1; // 上學期 9～1 月、下學期 2～8 月
     EVENTS.forEach((e) => {
-      const c = config[e.id] || {};
-      if (c.off) return;
-      const from = c.from || e.from, to = c.to || e.to;
-      if (!inWin(m0, from, to)) return;
-      const items = info.filter((p) => e.who(p.st)).sort(sortI).map((p) => item(p, `${p.m.name}|${e.id}|${acad}`, `${e.title}（${short(from)}～${short(to)}）`, ''));
+      if (!inWin(m0, e.from, e.to)) return;
+      const key = (p) => `${p.m.name}|${e.id}|${acad}${e.term ? '-' + term : ''}`;
+      const why = e.term ? `${e.title}（${term === 1 ? '上' : '下'}學期）` : `${e.title}（${short(e.from)}～${short(e.to)}）`;
+      const items = info.filter((p) => e.who(p.st)).sort(sortI).map((p) => item(p, key(p), why, ''));
       if (items.length) groups.push({ id: e.id, icon: e.icon, title: e.title, topic: e.topic, items });
     });
 
@@ -117,7 +117,6 @@
   // =====================================================================
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const toMD = (v) => { const m = String(v || '').trim().match(/^(\d{1,2})[/.\-月](\d{1,2})日?$/); if (!m) return null; const a = Number(m[1]), b = Number(m[2]); return a >= 1 && a <= 12 && b >= 1 && b <= 31 ? String(a).padStart(2, '0') + '-' + String(b).padStart(2, '0') : null; };
 
   /** box：放畫面的地方；opts = { members（已讀好的成員名單）, guard } */
   async function mount(box, opts) {
@@ -129,12 +128,12 @@
     }
     const draw = () => {
       if (!box.isConnected) return;
-      const groups = build(opts.members, d.today, d.config, Family.schoolStage, EduStats.AGE_CLASSES);
+      const groups = build(opts.members, d.today, null, Family.schoolStage, EduStats.AGE_CLASSES);
       const n = groups.reduce((s, g) => s + g.items.length, 0);
       const done = groups.reduce((s, g) => s + g.items.filter((x) => d.care[x.key]).length, 0);
       box.innerHTML = `
         <h3 class="admin-sub">💛 這個月的關心名單<span class="h2-sub">${n ? `${n} 位・已關心 ${done} 位` : '依生日、學齡自動列出'}</span></h3>
-        <p class="hint">系統依成員的生日（出生年）自動列出：🎓 大考、升學、🎂 生日（35 歲以下，有填月日的）、🔄 升班銜接。關心過了按「✓ 已關心」，組員之間不會重複找同一個人；寫的一句話也會記進那位成員的成全紀錄。</p>
+        <p class="hint">系統依成員的生日（出生年）自動列出：🎓 升學年（國三、高三整年，每學期關心一次）、升國中、大學畢業、🎂 生日（35 歲以下，有填月日的）、🔄 升班銜接。關心過了按「✓ 已關心」，組員之間不會重複找同一個人；寫的一句話也會記進那位成員的成全紀錄。</p>
         ${n ? groups.map((g, gi) => `
           <div class="ecare-group">
             <h4 class="ecare-head">${g.icon} ${esc(g.title)}<span>${g.items.length} 位</span></h4>
@@ -147,17 +146,8 @@
                 ${c ? `<p class="ecare-done">✓ 已關心（${esc(c.by)} ${esc(String(c.at).slice(5, 10).replace('-', '/'))}）${c.note ? '：' + esc(c.note) : ''}${d.canEdit ? ` <button type="button" class="link-btn" data-care-undo="${gi}|${i}">取消</button>` : ''}</p>`
                   : d.canEdit ? `<button type="button" class="btn btn-small btn-primary" data-care="${gi}|${i}">✓ 已關心</button>` : ''}
               </li>`; }).join('')}</ul>
-          </div>`).join('') : '<p class="panel-empty">這個月沒有要特別關心的人（大考、生日、升班都還沒到）。生日在「👥 人員 → 成員」補，填了就會自動列進來。</p>'}
-        <div class="admin-actions no-print">${n ? '<button type="button" class="btn" data-care-copy>📋 複製名單（貼到 LINE 分工）</button>' : ''}</div>
-        ${d.canEdit ? `<details class="ecare-config no-print"><summary>⚙️ 調整大考、升學的日期</summary>
-          <p class="hint">每年考試日期不一樣，照教育部公告調整「什麼時候開始列、列到什麼時候」（月/日）。不想列的取消勾。</p>
-          <div class="ecare-config-rows">${EVENTS.map((e) => { const c = d.config[e.id] || {}; return `
-            <div class="ecare-config-row" data-ev="${e.id}">
-              <label class="check"><input type="checkbox" data-on${c.off ? '' : ' checked'}> ${e.icon} ${esc(e.title)}</label>
-              <span class="ecare-config-dates"><input class="input" data-from value="${esc(short(c.from || e.from))}" aria-label="${esc(e.title)} 開始">～<input class="input" data-to value="${esc(short(c.to || e.to))}" aria-label="${esc(e.title)} 結束"></span>
-            </div>`; }).join('')}</div>
-          <div class="form-error" data-care-error hidden></div>
-          <button type="button" class="btn" data-care-save>存檔</button></details>` : ''}`;
+          </div>`).join('') : '<p class="panel-empty">這個月沒有要特別關心的人（升學、生日、升班都還沒到）。生日在「👥 人員 → 成員」補，填了就會自動列進來。</p>'}
+        <div class="admin-actions no-print">${n ? '<button type="button" class="btn" data-care-copy>📋 複製名單（貼到 LINE 分工）</button>' : ''}</div>`;
       const pick = (v) => { const [gi, i] = v.split('|').map(Number); return groups[gi].items[i] && Object.assign({ group: groups[gi] }, groups[gi].items[i]); };
       box.querySelectorAll('[data-care]').forEach((b) => b.addEventListener('click', () => {
         const x = pick(b.dataset.care);
@@ -180,22 +170,6 @@
       if (cp) cp.addEventListener('click', async () => {
         const text = `💛【教育組關心名單】${d.today.slice(5).replace('-', '/')}\n` + groups.map((g) => `\n${g.icon} ${g.title}（${g.items.length} 位）\n` + g.items.map((x) => `・${x.name}${x.temple ? '（' + x.temple + '）' : ''} ${x.label}｜${x.reason}${d.care[x.key] ? '｜✓已關心' : ''}`).join('\n')).join('\n');
         cp.textContent = (await Share.copyText(text)) ? '已複製 ✓' : '複製失敗，請再按一次';
-      });
-      const sv = box.querySelector('[data-care-save]');
-      if (sv) sv.addEventListener('click', async () => {
-        const er = box.querySelector('[data-care-error]');
-        er.hidden = true;
-        const config = {};
-        let bad = '';
-        box.querySelectorAll('[data-ev]').forEach((row) => {
-          const e = EVENTS.find((x) => x.id === row.dataset.ev);
-          const from = toMD(row.querySelector('[data-from]').value), to = toMD(row.querySelector('[data-to]').value);
-          if (!from || !to) { bad = `「${e.title}」的日期請用 月/日，例：4/10`; return; }
-          const off = !row.querySelector('[data-on]').checked;
-          if (off || from !== e.from || to !== e.to) config[e.id] = { from, to, off };
-        });
-        if (bad) { er.textContent = bad; er.hidden = false; return; }
-        try { d = await Api.admin('adminEduCareConfig', { config }); draw(); } catch (e) { if (!(opts.guard && opts.guard(e))) { er.textContent = e.message; er.hidden = false; } }
       });
     };
     draw();
