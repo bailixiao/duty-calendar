@@ -2994,3 +2994,4 @@ button.veg-chip:hover { border-color: var(--ok); }
 .album-links small { font-weight: 400; color: var(--ink-2); font-size: .85rem; }
 .album-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 8px; }
 .album-nav { display: flex; justify-content: space-between; gap: 8px; margin: 8px 0; }
+.trend-now { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: -4px 0 8px; padding: 6px 10px; border-radius: 10px; background: var(--accent-soft); }

@@ -122,8 +122,9 @@
         ${s.shortEvents || s.accompany || s.absent ? `<p class="stats-note">${[s.shortEvents ? `缺人的場次 ${s.shortEvents} 場` : '', s.accompany ? `陪同 ${s.accompany} 人次（不算人數）` : '', s.absent ? `報名但未到 ${s.absent} 人次` : ''].filter(Boolean).join('・')}</p>` : ''}
         ${missing.length ? `<div class="notice notice-error no-print"><p><strong>${missing.length} 位沒有填身分</strong>（道親佔比可能不準）：${missing.map(esc).join('、')}</p><p>請到勤務名單或試算表「報名」分頁補上身分。</p></div>` : ''}
 
-        <section class="stats-section">
+        <section class="stats-section" data-trend>
           <h3 class="admin-sub">最近 ${trend.length} ${p.unit === 'month' ? '個月' : p.unit === 'quarter' ? '季' : '年'}<span class="h2-sub">深色＝道親、淺色＝壇辦</span></h3>
+          ${atLatest ? '' : `<p class="trend-now no-print">現在看：<b>${esc(C.label(p))}</b> <button type="button" class="btn btn-small" data-latest-here>回到本${C.UNIT_NAME[p.unit]}</button></p>`}
           <div class="trend">
             ${trend.map((t) => {
               const h = Math.round((t.total / maxTotal) * 100);
@@ -137,7 +138,7 @@
               </button>`;
             }).join('')}
           </div>
-          <p class="hint no-print">點長條可以看那一期的統計（畫面會回到最上面，按「回到本${C.UNIT_NAME[p.unit]}」回來）；沒有資料的不能點。</p>
+          <p class="hint no-print">點長條可以看那一期的統計（上面的數字跟著換），按「回到本${C.UNIT_NAME[p.unit]}」回來；沒有資料的不能點。</p>
         </section>
 
         <section class="stats-section">
@@ -196,16 +197,15 @@
         <p class="hint no-print" data-sheet-note>${data.sheetUpdatedAt ? `試算表統計最後更新：${esc(data.sheetUpdatedAt)}` : '試算表「統計」分頁還沒產生過'}。只算出席、非陪同的人；人次＝每場每人算一次；只算今天以前。</p>
       </div>`;
 
-    const rerender = () => render(body, guard, data, false);
+    const rerender = () => { const y = window.scrollY; render(body, guard, data, false); window.scrollTo(0, y); }; // 重畫後停在原地
     bindNav(body, data, rerender);
     body.querySelectorAll('[data-jump]').forEach((b) => b.addEventListener('click', () => {
       const [y, n] = b.dataset.jump.split('-').map(Number);
       state.period = { unit: state.unit, year: y, n };
-      rerender();
-      // 點了長條會換到那一期：捲回最上面，看得到期間和「回到本季」（2026/11/23：手機點了以為畫面不見）
-      const nav = body.querySelector('.stats-nav');
-      if (nav) requestAnimationFrame(() => window.scrollTo(0, Math.max(0, nav.getBoundingClientRect().top + window.scrollY - 70)));
+      keepPlace(body, '[data-trend]', rerender); // 畫面停在長條圖這裡，不要跳（2026/11/23）
     }));
+    const lh = body.querySelector('[data-latest-here]');
+    if (lh) lh.addEventListener('click', () => { state.period = C.periodOf(state.unit, data.today); keepPlace(body, '[data-trend]', rerender); });
     body.querySelectorAll('input[name=rank]').forEach((r) => r.addEventListener('change', () => { state.rankKind = r.value; rerender(); }));
     const all = body.querySelector('[data-rank-all]');
     if (all) all.addEventListener('click', () => { state.rankAll = !state.rankAll; rerender(); });
@@ -533,6 +533,15 @@
   }
 
   /** 類別、月季年、上一期下一期的按鈕（一般統計與教育統計共用） */
+  /** 重畫但畫面停在原地：sel 那一塊重畫前後在螢幕上同一個位置（不會跳到最上面） */
+  function keepPlace(body, sel, fn) {
+    const a = body.querySelector(sel);
+    const before = a ? a.getBoundingClientRect().top : null;
+    fn();
+    const b = body.querySelector(sel);
+    if (b && before !== null) window.scrollBy(0, b.getBoundingClientRect().top - before);
+  }
+
   function bindNav(body, data, rerender) {
     body.querySelectorAll('input[name=scat]').forEach((r) => r.addEventListener('change', () => { state.category = r.value; rerender(); }));
     body.querySelectorAll('input[name=unit]').forEach((r) => r.addEventListener('change', () => {
