@@ -70,7 +70,9 @@
     const nowP = C.periodOf(p.unit, data.today);
     const atLatest = p.year === nowP.year && p.n === nowP.n;
 
-    const trend = C.trend(ev, p, TREND_COUNT[p.unit]);
+    // 長條圖固定以本期結尾（點舊的期間時，長條不會移動，只有框框換位置）；看的期間太舊才改用它結尾（2026/11/23）
+    const trendNow = C.trend(ev, nowP, TREND_COUNT[p.unit]);
+    const trend = trendNow.some((t) => t.period.year === p.year && t.period.n === p.n) ? trendNow : C.trend(ev, p, TREND_COUNT[p.unit]);
     const maxTotal = Math.max(1, ...trend.map((t) => t.total));
     const cats = C.byCategory(ev, p);
     const maxCat = Math.max(1, ...cats.map((c) => c.total));
@@ -129,7 +131,7 @@
             <span><i class="trend-sw is-tan"></i>壇辦</span>
             <span><b class="trend-sample">41%</b> 道親佔比</span>
           </div>
-          <p class="trend-explain">長條上面的數字＝那一${C.UNIT_NAME[p.unit]}的<b>出勤人次</b>（每人每場算 1 次）；長條裡的 %＝出勤的人裡<b>道親佔幾成</b>。點長條看那一${C.UNIT_NAME[p.unit]}的說明。</p>
+          <p class="trend-explain">長條上面的數字＝那一${C.UNIT_NAME[p.unit]}的<b>出勤人次</b>（每人每場算 1 次）；長條裡的 %＝出勤的人裡<b>道親佔幾成</b>。點長條，下面的內容全部換成那一${C.UNIT_NAME[p.unit]}的。</p>
           ${atLatest ? '' : `<p class="trend-now no-print">現在看：<b>${esc(C.label(p))}</b> <button type="button" class="btn btn-small" data-latest-here>回到本${C.UNIT_NAME[p.unit]}</button></p>`}
           <div class="trend">
             ${trend.map((t, i) => {
@@ -139,7 +141,7 @@
               return `<button type="button" class="trend-col${cur ? ' is-current is-picked' : ''}" data-pick="${i}"${t.total || cur ? '' : ' disabled'} aria-label="${esc(C.label(t.period))}：出勤 ${t.total} 人次，道親 ${t.dao}、壇辦 ${t.tan}">
                 <span class="trend-val">${t.total || ''}</span>
                 <span class="trend-bar" style="height:${h}%"><span class="trend-dao" style="height:${h ? Math.round((daoH / h) * 100) : 0}%"></span>${t.total ? `<span class="trend-in${daoH * 1.7 >= 24 ? '' : ' is-above'}" style="bottom:${h ? Math.round((daoH / h) * 100) : 0}%">${C.pct(t.ratio)}</span>` : ''}</span>
-                <span class="trend-label">${esc(C.label(t.period, true)).replace('年', '年<br>')}${cur ? '<em>看的這期</em>' : ''}</span>
+                <span class="trend-label">${esc(C.label(t.period, true)).replace('年', '年<br>')}</span>
               </button>`;
             }).join('')}
           </div>
@@ -225,9 +227,12 @@
         keepPlace(body, '[data-trend]', rerender); // 畫面停在長條圖這裡，不要跳
       });
     };
+    // 點長條：下面全部內容（說明卡、比較、排行⋯）換成那一期，畫面停在原地（2026/11/23）
     body.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', () => {
-      body.querySelectorAll('[data-pick]').forEach((x) => x.classList.toggle('is-picked', x === b));
-      trendDetail(Number(b.dataset.pick));
+      const t = trend[Number(b.dataset.pick)];
+      if (!t || (t.period.year === p.year && t.period.n === p.n)) return;
+      state.period = { unit: state.unit, year: t.period.year, n: t.period.n };
+      keepPlace(body, '[data-trend]', rerender);
     }));
     trendDetail(trend.findIndex((t) => t.period.year === p.year && t.period.n === p.n));
     const lh = body.querySelector('[data-latest-here]');

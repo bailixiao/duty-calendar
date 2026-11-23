@@ -3022,3 +3022,8 @@ button.veg-chip:hover { border-color: var(--ok); }
 .trend-d-split { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-bottom: 4px !important; }
 .trend-d-split span { display: inline-flex; align-items: center; gap: 6px; }
 .trend-d-more { margin-bottom: 8px !important; color: var(--ink-2); font-size: .9rem; }
+/* 目前看的那一期：長條加框、年份標籤變色加底線；標籤和長條之間留空，框不會壓到字（2026/11/23） */
+.trend-label { margin-top: 6px; }
+.trend-col.is-current .trend-label { color: var(--accent); font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
+.trend-col.is-current .trend-bar { outline: 3px solid var(--accent); outline-offset: 2px; box-shadow: none; }
+.trend-col:not(:disabled):not(.is-current):hover .trend-bar { filter: brightness(1.08); }
