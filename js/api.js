@@ -235,6 +235,10 @@
     reportGet: (p) => post(Object.assign({ action: 'reportGet' }, p)),
     reportSave: (p) => post(Object.assign({ action: 'reportSave' }, p)),
     reportUpload: (p) => post(Object.assign({ action: 'reportUpload' }, p)),
+    // 📸 活動相簿（2026/11/23）
+    album: (dutyId) => get('album', { dutyId }),
+    albumUpload: (p) => post(Object.assign({ action: 'albumUpload' }, p)),
+    albumLink: (p) => post(Object.assign({ action: 'albumLink' }, p)),
     loginAccounts: () => get('loginAccounts', {}),
     // DM 檔案（照片、PDF）的網址
     fileUrl: (id) => { const u = apiUrl(); return u + (u.indexOf('?') === -1 ? '?' : '&') + 'action=file&id=' + encodeURIComponent(id); },

@@ -826,6 +826,7 @@
           <p class="hint">${past ? '出席修正：預設報名＝出席。沒來的人按「改未到」，沒報名但有來的人按「補登」。統計表只算出席、非陪同的人。' : '管理者可以取消、改期任何日期（含當天與過去）的報名；按「＋ 幫人報名」可以直接幫人加上（不受報名截止日限制）。'}</p>
         </section>`}
       ${reportsHtml(d, date)}
+      <section class="detail-section album-section" data-album hidden></section>
       <div class="admin-links">
         <a class="btn btn-primary admin-link-btn" href="#/admin/duties/edit/${encodeURIComponent(d.id)}">✏️ 編輯${d.category && d.category !== '勤務' ? '活動' : '勤務'}</a>
         <a class="btn admin-link-btn" href="#/duty/${encodeURIComponent(d.id)}?date=${date}">👀 看家人們看到的頁面</a>
@@ -840,6 +841,8 @@
       dutyPage.flash = '';
       renderDuty();
     }));
+    // 📸 活動照片（2026/11/23）：後台（不是唯讀）可以刪
+    if (window.Album) Album.mount(body.querySelector('[data-album]'), d, { admin: ['唯讀', '場管'].indexOf(Api.adminWho().role) === -1, guard, date });
     const rc = body.querySelector('[data-rollcall]');
     if (rc) rc.addEventListener('click', () => rollcallLink(d, date));
     const rl = body.querySelector('[data-report-link]');

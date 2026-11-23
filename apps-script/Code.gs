@@ -28,6 +28,7 @@ function doGet(e) {
       case 'pushSummary': return pushSummary_(p);
       case 'getVenue': return getVenue_(p);
       case 'getFaq': return getFaq_(p);
+      case 'album': return getAlbum_(p);
       case 'feed': return cachedRead_('feed', p, function () { return publicFeed_(p); });
       case 'thanks': return cachedRead_('thanks', p, function () { return thanksBoard_(); });
       case 'getRepairs': return getRepairs_(p);
@@ -76,6 +77,7 @@ function doPost(e) {
       case 'rollcallSet': return rollcallSet_(body);
       case 'reportGet': return reportGet_(body);
       case 'reportSave': return reportSave_(body);
+      case 'albumLink': return albumAddLink_(body);
       case 'pushSubscribe': return pushSubscribe_(body);
       case 'pushUnsubscribe': return pushUnsubscribe_(body);
       case 'pushTest': return pushTest_(body);

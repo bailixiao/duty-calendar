@@ -26,6 +26,7 @@ export function createMemoryStore() {
     cacheClear: () => cache.clear(),
     putFile: (id, mime, name, bytes) => files.set(id, { mime, name, bytes }),
     getFile: (id) => files.get(id) || null,
+    deleteFile: (id) => files.delete(id),
     persist: () => s.dirty.clear()
   });
 }
@@ -70,6 +71,7 @@ export function createSqlStore(storage) {
       parts.forEach((p) => { out.set(p, o); o += p.length; });
       return { mime: rows[0].mime, name: rows[0].name, bytes: out };
     },
+    deleteFile(id) { sql.exec('DELETE FROM files WHERE id = ?', id); },
     /** 請求結束時：改過的分頁整個寫回（同一個交易，要嘛全寫要嘛全不寫） */
     persist() {
       if (!s.dirty.size) return;

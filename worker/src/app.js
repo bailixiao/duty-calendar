@@ -123,6 +123,41 @@ export function createApp(store, opts) {
     return { id };
   };
 
+  // ---------- 📸 活動相簿（2026/11/23，apps-script/Album.gs）：任何人都可以上傳，大圖＋縮圖兩個檔案 ----------
+  const ALBUM_LIMIT = 80; // 同一個網路 10 分鐘最多上傳幾張（一次選很多張也夠）
+  special.albumUpload = (body) => {
+    gs.albumCheck_(body);
+    if (body._client) {
+      const k = 'al:' + body._client + ':' + Math.floor(Date.now() / 600000);
+      const n = Number(store.cacheGet(k) || 0) + 1;
+      store.cachePut(k, String(n), 660);
+      if (n > ALBUM_LIMIT) throw new gs.ApiError_('BUSY', '照片傳太多了，請 10 分鐘後再試，感恩您 🙏');
+    }
+    const take = (b64, max, label) => {
+      const bytes = Uint8Array.from(Buffer.from(String(b64 || ''), 'base64'));
+      if (!bytes.length) throw new gs.ApiError_('BAD_REQUEST', label + '是空的');
+      if (bytes.length > max) throw new gs.ApiError_('BAD_REQUEST', label + '太大了，請再試一次');
+      return bytes;
+    };
+    if (String(body.mime || 'image/jpeg') !== 'image/jpeg') throw new gs.ApiError_('BAD_REQUEST', '只能上傳照片');
+    const big = take(body.data, 2 * 1024 * 1024, '照片');
+    const small = take(body.thumb, 300 * 1024, '縮圖');
+    const id = 'F-' + crypto.randomUUID().replace(/-/g, '').slice(0, 20);
+    const tid = 'F-' + crypto.randomUUID().replace(/-/g, '').slice(0, 20);
+    store.putFile(id, 'image/jpeg', 'album', big);
+    store.putFile(tid, 'image/jpeg', 'album-thumb', small);
+    try {
+      return gs.albumAddPhoto_({ dutyId: body.dutyId, date: body.date, by: body.by, file: id, thumb: tid });
+    } catch (e) { store.deleteFile(id); store.deleteFile(tid); throw e; } // 相簿滿了：檔案也不要留
+  };
+  /** 管理者刪照片、連結：刪那一列，照片檔案也刪掉 */
+  special.adminAlbumDelete = (body) => {
+    const who = gs.requireAdmin_(body);
+    const res = gs.hqAs_(who, () => gs.adminAlbumDelete_(body));
+    res.files.forEach((f) => store.deleteFile(f));
+    return res.album;
+  };
+
   // ---------- 分區 ②：開通連結、區設定 ----------
   let curRegion = 'main'; // 這次請求是哪一區（handle 開頭設定）
   const SETUP_DAYS = 7;
@@ -385,7 +420,7 @@ export function createApp(store, opts) {
     let body = null;
     try { body = JSON.parse(text || '{}'); } catch (e) { /* 交給 doPost 回錯誤 */ }
     const action = body && body.action;
-    if ((action === 'repairUpload' || action === 'reportUpload') && body) { // 帶上網路位址的雜湊（防止亂報名計數）
+    if ((action === 'repairUpload' || action === 'reportUpload' || action === 'albumUpload') && body) { // 帶上網路位址的雜湊（防止亂報名計數）
       const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || '';
       if (ip) body._client = createHash('sha256').update('dc|' + ip).digest('hex').slice(0, 16);
     }

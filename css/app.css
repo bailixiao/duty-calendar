@@ -2975,3 +2975,18 @@ button.veg-chip:hover { border-color: var(--ok); }
 /* 教育統計的名字：點開編輯成員（2026/11/23） */
 .link-btn.person-link { border: 0; background: none; padding: 2px 0; min-height: 0; border-radius: 4px; color: inherit; font-size: inherit; font-weight: inherit; text-decoration: underline dotted var(--accent); text-underline-offset: 3px; white-space: normal; justify-content: flex-start; }
 .link-btn.person-link:hover { background: var(--accent-soft); color: var(--accent); }
+/* 📸 活動相簿（2026/11/23） */
+.album-days { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.album-day { min-height: 40px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); font: inherit; cursor: pointer; }
+.album-day small { margin-left: 4px; color: var(--accent); font-weight: 700; }
+.album-day.is-on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.album-day.is-on small { color: #fff; }
+.album-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; margin: 8px 0 12px; }
+.album-thumb { padding: 0; border: 0; border-radius: 8px; overflow: hidden; aspect-ratio: 1; background: var(--line); cursor: pointer; }
+.album-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.album-links { list-style: none; padding: 0; margin: 0 0 10px; display: grid; gap: 6px; }
+.album-links li { display: flex; gap: 6px; align-items: stretch; }
+.album-links .btn-block { flex: 1; flex-direction: column; }
+.album-links small { font-weight: 400; color: var(--ink-2); font-size: .85rem; }
+.album-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 8px; }
+.album-nav { display: flex; justify-content: space-between; gap: 8px; margin: 8px 0; }

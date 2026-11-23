@@ -158,6 +158,7 @@
     if (top) top.innerHTML = stagesSection(d);
     el.innerHTML = `
       ${reportSection(d)}
+      <section class="detail-section album-section" data-album hidden></section>
       ${d.layout === '職司表' && !top ? stagesSection(d) : ''}
       ${d.mergeHost && d.mergeHost.mode === '公告型' ? mergeHostSection(d) : ''}
       ${d.mode === '公告型' && (d.group || d.groupInfo) ? groupSection(d) : ''}
@@ -188,6 +189,7 @@
     el.querySelectorAll('[data-img]').forEach((b) => b.addEventListener('click', () => openImage(images[Number(b.dataset.img)])));
     el.querySelectorAll('[data-dm-img]').forEach((b) => b.addEventListener('click', () => openImage(dmImages[Number(b.dataset.dmImg)])));
     bindGroupNotes(el);
+    if (window.Album) Album.mount(el.querySelector('[data-album]'), d, {}); // 📸 活動照片（2026/11/23）
   }
 
   // ---------- 活動回報（活動當天起 30 天內自動出現；見 js/activity-report.js、apps-script/ActivityReport.gs） ----------
