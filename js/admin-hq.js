@@ -964,7 +964,7 @@
         ${rp.text ? `<p class="hq-reply-text">${esc(rp.text).replace(/\n/g, '<br>')}</p>` : ''}
       </div>
       ${rp.supportN ? `<label class="form-row"><span>由哪一區支援這 ${rp.supportN} 位</span><select class="input" data-support-to><option value="">請選</option>${regionList().filter(([c]) => c !== g.code).map(([c, n]) => `<option value="${c}"${c === rp.supportTo ? ' selected' : ''}>${esc(n)}${c === rp.supportTo ? '（' + esc(g.name) + '希望的）' : ''}</option>`).join('')}</select></label>
-        <p class="hint">同意後：${esc(g.name)}的名額減 ${rp.supportN} 位，選的那一區加 ${rp.supportN} 位（還沒收到這個分派的，會一起送過去，組長手機會收到通知）。</p>` : ''}
+        <p class="hint">同意後：${g.cs[0].quotaMode === 'assigned' ? `${esc(g.name)}的名額減 ${rp.supportN} 位，選的那一區加 ${rp.supportN} 位` : `請選的那一區多派 ${rp.supportN} 位（名額不限，名額不用動）`}；還沒收到這個分派的會一起送過去，組長手機會收到通知。</p>` : ''}
       <label class="form-row"><span>回覆給${esc(g.name)}（${rp.quotaAsk || rp.supportN ? '不同意的話請寫原因' : '可空白'}）</span><textarea class="input textarea" data-answer-text rows="3" maxlength="300"></textarea></label>
       <div class="form-error" data-error hidden></div>
       <div class="modal-actions">
@@ -1308,7 +1308,7 @@
               </button>`; }).join('')}</div>
             ${groupNotes(g)}
             ${fresh > 1 ? `<button type="button" class="btn btn-primary btn-block hq-group-pub" data-group-pub="${gi}">📅 這 ${fresh} 個日期一次放到本區行事曆</button>` : ''}
-            ${g.some((x) => x.status !== 'withdrawn') ? `<button type="button" class="btn btn-block hq-reply-btn" data-reply="${gi}">💬 回覆分壇${g.some((x) => x.c.quotaMode === 'assigned') ? '／調名額／請別區支援' : ''}</button>` : ''}
+            ${g.some((x) => x.status !== 'withdrawn') ? `<button type="button" class="btn btn-block hq-reply-btn" data-reply="${gi}">💬 回覆分壇${g.some((x) => x.c.quotaMode === 'assigned') ? '／調名額' : ''}／請別區支援</button>` : ''}
           </section>`; }).join('')}</div>` : '<p class="panel-empty">目前沒有分壇分派。</p>'}
         <div class="hq-watch" data-hq-watch></div>`;
       body.querySelectorAll('[data-read]').forEach((b) => b.addEventListener('click', async () => {
@@ -1345,7 +1345,7 @@
         out.push(`<p class="hq-remind-line">🔔 分壇${rm[0].remind.auto ? '截止前' : ''}提醒（${esc(rm[0].remind.at.slice(5, 10).replace('-', '/'))}）：${esc(rm.slice(0, 3).map((x) => (g.length > 1 ? Fmt.shortDate(x.c.start).replace(/（.）/, '') + ' ' : '') + x.remind.text).join('、'))}${rm.length > 3 ? '⋯' : ''}</p>`);
       }
       const sp = g.filter((x) => x.support).sort((a, b) => b.support.at.localeCompare(a.support.at))[0];
-      if (sp) out.push(`<p class="hq-remind-line hq-support-line">🤝 分壇請本區支援（${esc(sp.support.at.slice(5, 10).replace('-', '/'))}）：${esc(sp.support.fromName)}人手不夠，本區多派 ${sp.support.n} 位，名額已經加上去了${g.filter((x) => x.support).length > 1 ? `（${g.filter((x) => x.support).length} 個日期）` : ''}</p>`);
+      if (sp) out.push(`<p class="hq-remind-line hq-support-line">🤝 分壇請本區支援（${esc(sp.support.at.slice(5, 10).replace('-', '/'))}）：${esc(sp.support.fromName)}人手不夠，本區多派 ${sp.support.n} 位${sp.c.quotaMode === 'assigned' ? '，名額已經加上去了' : '，麻煩多邀請幾位'}${g.filter((x) => x.support).length > 1 ? `（${g.filter((x) => x.support).length} 個日期）` : ''}</p>`);
       const rp = g.filter((x) => x.reply).sort((a, b) => b.reply.at.localeCompare(a.reply.at))[0];
       if (rp) {
         const x = rp.reply;
@@ -1367,10 +1367,10 @@
         <form class="admin-form" novalidate>
           ${xs.length > 1 ? `<fieldset class="form-block"><legend>回覆哪幾個日期</legend><div class="hq-regions">${xs.map((x, i) => `<label class="check"><input type="checkbox" name="pick" value="${i}" checked> ${esc(Fmt.shortDate(x.c.start))}</label>`).join('')}</div></fieldset>` : ''}
           ${assigned ? `<label class="form-row"><span>名額想改成幾位（現在 ${esc(qs.join('、'))}${/不限/.test(qs.join('')) ? '' : ' 位'}；不用改就空白）</span><input class="input" name="quotaAsk" inputmode="numeric" maxlength="4"></label>` : ''}
-          ${assigned ? `<fieldset class="form-block hq-support-ask"><legend>🤝 或者：本區人不夠，請別區支援</legend>
+          ${true ? `<fieldset class="form-block hq-support-ask"><legend>🤝 或者：本區人不夠，請別區支援</legend>
             <div class="form-grid-2"><label class="form-row"><span>請別區支援幾位</span><input class="input" name="supportN" inputmode="numeric" maxlength="4" placeholder="例：2"></label>
             <label class="form-row"><span>希望哪一區（可不選）</span><select class="input" name="supportTo"><option value="">由分壇決定</option>${regionList().filter(([c]) => c !== ((window.Region && Region.code) || 'main')).map(([c, n]) => `<option value="${c}">${esc(n)}</option>`).join('')}</select></label></div>
-            <p class="hint">分壇同意後，本區名額減少，改由別區多派人。完全不能去請按日期裡的「本區不參加」。</p></fieldset>` : ''}
+            <p class="hint">${assigned ? '分壇同意後，本區名額減少，改由別區多派人。' : '分壇同意後，會請那一區多派人來幫忙。'}完全不能去請按日期裡的「本區不參加」。</p></fieldset>` : ''}
           <label class="form-row"><span>要跟分壇說的話</span><textarea class="input textarea" name="text" rows="4" maxlength="300" placeholder="例：本區那天有法會，只能派 2 位"></textarea></label>
           <p class="hint">分壇會在總表看到，回覆後這裡和手機通知都看得到。不參加請改按日期裡的「本區不參加」。</p>
           <div class="form-error" data-error hidden></div>

@@ -427,3 +427,17 @@ test('請別區支援（2026/11/23）：教捨區人不夠，請別區支援 1 �
   assert.equal(main.quota, 1, '教全區收到分派、名額 1 位');
   assert.equal(main.support.fromName, '教捨區');
 });
+
+test('請別區支援：名額不限的分派也可以請；分壇同意後請那一區多派（沒收到的送過去），名額不用動', async () => {
+  const R = await setup();
+  const id = (await R.hq.admin('hqSave', { campaign: Object.assign({}, CAMPAIGN, { regions: ['she'], quotaMode: 'none', quotas: {} }) })).data.campaign.id;
+  assert.equal((await R.she.admin('adminHqReply', { ids: [id], quotaAsk: 2 })).error.code, 'VALIDATION', '不限的不能改名額');
+  let r = await R.she.admin('adminHqReply', { ids: [id], supportN: 2 });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  r = await R.hq.admin('hqAnswer', { ids: [id], region: 'she', supportTo: 'main' });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.deepEqual([r.data.campaigns[0].quotas, r.data.campaigns[0].regions], [{}, ['she', 'main']]);
+  const main = (await R.main.admin('adminHqInbox')).data.items.find((x) => x.id === id);
+  assert.equal(main.support.n, 2);
+  assert.equal((await R.she.admin('adminHqInbox')).data.items[0].reply.supportToName, '教全區');
+});

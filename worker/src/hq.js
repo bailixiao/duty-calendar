@@ -388,22 +388,27 @@ export function createHq({ gs, store, cross, openRegions }) {
       cs.forEach((c) => {
         const rp = c.replies[region];
         if (!rp.supportN) return;
+        if (c.quotaMode !== 'assigned' || !(c.quotas || {})[region]) return; // 不限、各區自己報：不用移名額
         const have = Number((c.quotas || {})[region]) || 0;
         if (!(have > rp.supportN)) throw err('VALIDATION', '「' + c.title + '」' + c.start + ' ' + regionName(region) + '的名額只有 ' + (have || '不限') + '，不能再移出 ' + rp.supportN + ' 位');
       });
     }
     cs.forEach((c) => {
       const rp = c.replies[region];
-      if (state === 'ok' && rp.supportN && c.quotaMode === 'assigned') {
-        const q = Object.assign({}, c.quotas);
-        q[region] = Number(q[region]) - rp.supportN;
+      if (state === 'ok' && rp.supportN) {
         const had = c.regions.indexOf(supportTo) !== -1;
         if (!had) c.regions = c.regions.concat([supportTo]);
-        if (!had || q[supportTo] !== undefined) q[supportTo] = (Number(q[supportTo]) || 0) + rp.supportN; // 那一區原本不限：照樣不限
-        c.quotas = q;
+        if (c.quotaMode === 'assigned' && (c.quotas || {})[region]) {
+          // 分壇分配的名額：這一區減 N、支援的區加 N（那一區原本不限就照樣不限）
+          const q = Object.assign({}, c.quotas);
+          q[region] = Number(q[region]) - rp.supportN;
+          if (!had || q[supportTo] !== undefined) q[supportTo] = (Number(q[supportTo]) || 0) + rp.supportN;
+          c.quotas = q;
+          deliver.push(forRegion(c, region));
+        }
+        // 名額不限、各區自己報：名額不動，只請那一區多派 N 位（沒收到這個分派的送過去）
         c.version += 1;
         c.updatedAt = now;
-        deliver.push(forRegion(c, region));
         toDeliver.push(forRegion(c, supportTo));
         supportN = rp.supportN;
         rp.supportDone = { to: supportTo, n: rp.supportN };

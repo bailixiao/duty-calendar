@@ -352,8 +352,9 @@ function adminHqReplyLocal_(body) {
     ids.forEach(function (id) {
       var e = hqEntryFor_(inbox, id);
       if (e.status === 'withdrawn') return;
-      if ((q || sn) && e.c.quotaMode !== 'assigned') throw new ApiError_('VALIDATION', '「' + e.c.title + '」的名額不是分壇分配的，不用申請；' + (e.c.quotaMode === 'self' ? '本區自己填名額就好' : '名額不限'));
-      if (sn && !(Number(e.quota) > Number(sn))) throw new ApiError_('VALIDATION', '「' + e.c.title + '」' + e.c.start + ' 本區名額 ' + (e.quota || '不限') + (e.quota ? ' 位' : '') + '，請別區支援的要比名額少；完全不能去請按「本區不參加」');
+      if (q && e.c.quotaMode !== 'assigned') throw new ApiError_('VALIDATION', '「' + e.c.title + '」的名額不是分壇分配的，不用申請；' + (e.c.quotaMode === 'self' ? '本區自己填名額就好' : '名額不限'));
+      // 名額是分壇分配的才比較（不限、各區自己報的：照樣可以請別區支援，2026/11/23）
+      if (sn && e.c.quotaMode === 'assigned' && e.quota && !(Number(e.quota) > Number(sn))) throw new ApiError_('VALIDATION', '「' + e.c.title + '」' + e.c.start + ' 本區名額 ' + (e.quota || '不限') + (e.quota ? ' 位' : '') + '，請別區支援的要比名額少；完全不能去請按「本區不參加」');
       e.reply = { text: text, quotaAsk: q ? Number(q) : '', supportN: sn ? Number(sn) : '', supportTo: sto, quotaWas: e.quota || '', at: now, by: hqWho_(), state: 'pending', answer: '', answerAt: '', answerBy: '' };
       out.push({ id: id, reply: e.reply });
     });
@@ -404,7 +405,7 @@ function hqSupportIn_(p) {
       (p.deliver || []).forEach(function (c) { var e = inbox[c.id]; if (e) e.support = { n: p.n, fromName: String(p.fromName || '').slice(0, 20), at: nowString_() }; });
       hqInboxSave_(inbox);
     });
-    hqNotifyAdmins_(c0.category, '🤝 ' + HQ_NAME + '請本區支援', '「' + c0.title + '」' + ((p.deliver || []).length > 1 ? (p.deliver || []).length + ' 個日期' : c0.start) + '：' + (p.fromName || '別區') + '人手不夠，請本區多支援 ' + p.n + ' 位，名額已經加上去了 🙏');
+    hqNotifyAdmins_(c0.category, '🤝 ' + HQ_NAME + '請本區支援', '「' + c0.title + '」' + ((p.deliver || []).length > 1 ? (p.deliver || []).length + ' 個日期' : c0.start) + '：' + (p.fromName || '別區') + '人手不夠，請本區多支援 ' + p.n + ' 位' + (c0.quotaMode === 'assigned' ? '，名額已經加上去了 🙏' : '，麻煩多邀請幾位 🙏'));
   }
   return { ok: true };
 }
