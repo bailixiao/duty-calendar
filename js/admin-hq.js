@@ -22,6 +22,30 @@
   /** 名額必須／建議的選擇（分配名額時才有） */
   const firmPick = (firm) => `<div class="form-row"><span>這些名額是</span><div class="seg">${[['1', '必須（要派滿）'], ['0', '建議（參考，可以少派）']].map(([v, l]) => `<label class="seg-item"><input type="radio" name="quotaFirm" value="${v}"${(firm ? '1' : '0') === v ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div></div>
       <p class="hint">「建議」：各區少派也可以，不算還差、不會被提醒沒報滿，行事曆也不限制最多人數。</p>`;
+  /**
+   * 撞期提醒（2026/11/23）：送出前問各區那幾天有沒有勾「讓宏教分壇看得到」的大活動；有的話跳視窗，按「照樣送出」才送。
+   * items＝要送的分派（start、end、regions）；查不到（網路）就照送。回傳 true＝繼續送
+   */
+  async function clashOk(items) {
+    const want = {};
+    items.forEach((it) => Fmt.datesBetween(it.start, it.end || it.start).forEach((d) => { (want[d] = want[d] || new Set()); (it.regions || []).forEach((r) => want[d].add(r)); }));
+    const dates = Object.keys(want);
+    const regions = [...new Set([].concat(...items.map((it) => it.regions || [])))];
+    if (!dates.length || !regions.length) return true;
+    let res;
+    Busy.show('看看各區那幾天有沒有活動⋯');
+    try { res = await Api.admin('hqClash', { dates, regions }); } catch (e) { Busy.hide(); return true; }
+    Busy.hide();
+    const list = (res.clashes || []).filter((x) => want[x.date] && want[x.date].has(x.region));
+    if (!list.length) return true;
+    return Confirm.open({
+      title: `⚠️ 有 ${new Set(list.map((x) => x.region)).size} 區那天有自己的大活動`,
+      rows: list.slice(0, 12).map((x) => [`${x.regionName} ${Fmt.shortDate(x.date)}`, x.name + (x.time ? '・' + x.time : '') + (x.location ? '・' + x.location : '')]).concat(list.length > 12 ? [['⋯', `還有 ${list.length - 12} 筆`]] : []),
+      note: '這些是各區勾了「讓宏教分壇看得到」的活動。可以回去改日期，或照樣送出（那一區可以回覆分壇、請別區支援或寫原因不參加）。',
+      confirmText: '照樣送出', cancelText: '回去改日期'
+    });
+  }
+
   /** 分派可以送的區（教全區＋12 區，不含分壇）：[[代號, 區名]] */
   const regionList = () => [['main', '教全區']].concat(Object.entries((window.Region && Region.REGIONS) || {}).filter(([c]) => c !== 'hq'));
   const regionNameOf = (code) => (regionList().find(([c]) => c === code) || [code, code])[1];
@@ -428,6 +452,7 @@
         // 一次送出（hqSaveMany：每一區只叫一次），不用一筆一筆等
         const items = todo.map((r) => ({ id: r.id, title: c.title, category: c.category, nature: c.nature, location: c.location, attire: c.attire, description: c.description.trim() || r.description, positions: c.positions, quotaMode: c.quotaMode, quotaFirm: c.quotaFirm, quotas: c.quotas, autoRemind: c.autoRemind,
           start: r.start, end: r.end || r.start, startTime: t(r.startTime), endTime: t(r.endTime), regions: r.regions, deadline: days > 0 ? addDays(r.start, -days) : '' }));
+        if (!draft && !(await clashOk(items))) return; // 撞期提醒（2026/11/23）
         Busy.show(`${draft ? '存草稿' : '送出'}中⋯（${todo.length} 個日期）`);
         try {
           const res = await Api.admin('hqSaveMany', { items, draft });
@@ -536,6 +561,7 @@
         const campaign = Object.assign({}, c, { id: old ? old.id : undefined, category: st.category, quotaMode: st.quotaMode, quotaFirm: st.quotaFirm, startTime: t(c.startTime), endTime: t(c.endTime), end: c.end || c.start });
         const box = body.querySelector('[data-error]');
         box.hidden = true;
+        if (!draft && !(await clashOk([campaign]))) return; // 撞期提醒（2026/11/23）
         Busy.show('送出中⋯');
         try {
           const r = await Api.admin('hqSave', { campaign, draft });

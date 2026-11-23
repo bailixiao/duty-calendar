@@ -573,6 +573,29 @@ export function createHq({ gs, store, cross, openRegions }) {
     return { ok: true };
   }
 
+  /**
+   * 撞期提醒（2026/11/23）：body = { dates: ['yyyy-MM-dd'], regions: [區] }。問每一區那幾天有沒有勾「讓分壇看得到」的大活動。
+   * 回傳 { clashes: [{ region, regionName, date, name, time, location }] }（照日期、區排）
+   */
+  special.hqClash = async (body, curRegion) => {
+    requireHqAdmin(body, curRegion, true);
+    const dates = (Array.isArray(body.dates) ? body.dates : []).filter((d) => DATE.test(String(d))).slice(0, 400);
+    const regions = (Array.isArray(body.regions) ? body.regions : []).filter((r, i, a) => TARGET_CODES.indexOf(r) !== -1 && a.indexOf(r) === i);
+    if (!dates.length || !regions.length) return { clashes: [] };
+    const from = dates.slice().sort()[0], to = dates.slice().sort().pop();
+    const open = await openSet();
+    const out = [];
+    await Promise.all(regions.filter((r) => open.has(r)).map(async (r) => {
+      let list = [];
+      try { list = await cross(r, 'hqClash', { from, to }); } catch (e) { return; }
+      (list || []).forEach((x) => dates.filter((d) => d >= x.start && d <= x.end).forEach((d) => {
+        out.push({ region: r, regionName: regionName(r), date: d, name: x.name, time: x.startTime ? x.startTime + (x.endTime ? '–' + x.endTime : '') : '', location: x.location, category: x.category });
+      }));
+    }));
+    out.sort((a, b) => a.date.localeCompare(b.date) || TARGET_CODES.indexOf(a.region) - TARGET_CODES.indexOf(b.region));
+    return { clashes: out.slice(0, 100) };
+  };
+
   // ---- ⭐ 固定活動範本（2026/11/23）：指令碼屬性 HQ_TEMPLATES（陣列）；不含日期，開分派時帶入 ----
   const templates = () => { try { const a = JSON.parse(store.getProp('HQ_TEMPLATES') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
   special.hqTemplateList = async (body, curRegion) => {
@@ -630,6 +653,7 @@ export function createHq({ gs, store, cross, openRegions }) {
     // 上下溝通（2026/11/23）
     if (method === 'hqAnswer') { (Array.isArray(payload.deliver) ? payload.deliver : []).forEach((c) => gs.hqDeliver_(c)); return gs.hqAnswer_(payload); }
     if (method === 'hqRemind') return gs.hqRemind_(payload);
+    if (method === 'hqClash') return gs.hqClash_(payload);
     if (method === 'hqSupportIn') return gs.hqSupportIn_(payload);
     if (method === 'hqNoticeIn') return gs.hqNoticeIn_(payload);
     if (method === 'hqNoticeOut') return gs.hqNoticeOut_(payload);

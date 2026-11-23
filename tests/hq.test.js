@@ -462,3 +462,17 @@ test('名額分必須、建議（2026/11/23）：建議的放到行事曆不限�
   c = (await R.hq.admin('hqSave', { campaign: Object.assign({}, CAMPAIGN, { title: '測試必須' }) })).data.campaign;
   assert.equal(c.quotaFirm, true);
 });
+
+test('撞期提醒（2026/11/23）：各區勾「讓分壇看得到」的活動，分壇排分派時查得到；沒勾的、分壇分派的不算', async () => {
+  const R = await setup();
+  const mk = (name, hqShow, start, end) => ({ name, category: '道務', nature: '法會', mode: '公告型', start, end: end || start, startTime: '09:00', location: '測試佛堂', hqShow, positions: [] });
+  let r = await R.she.admin('adminCreateDuties', { duties: [mk('測試本區法會', true, '2026-12-19', '2026-12-20'), mk('測試一般活動', false, '2026-12-20')] });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  await R.hq.admin('hqSave', { campaign: CAMPAIGN }); // 分壇分派放上去的不算
+  const id = (await R.she.admin('adminHqInbox')).data.items[0].id;
+  await R.she.admin('adminHqPublish', { id });
+  r = await R.hq.admin('hqClash', { dates: ['2026-12-20', '2026-12-21'], regions: ['she', 'main', 'ding'] });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.deepEqual(r.data.clashes.map((x) => [x.regionName, x.date, x.name, x.time]), [['教捨區', '2026-12-20', '測試本區法會', '09:00']]);
+  assert.equal((await R.she.admin('hqClash', { dates: ['2026-12-20'], regions: ['she'] })).error.code, 'FORBIDDEN');
+});

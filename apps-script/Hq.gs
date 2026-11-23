@@ -497,6 +497,21 @@ function adminHqNoticeReadLocal_(body) {
   });
 }
 
+/**
+ * 撞期提醒（2026/11/23）：分壇排分派時來問，這一區 from～to 有哪些勾了「讓宏教分壇看得到」的活動（分壇分派放上來的不算）。
+ * 回傳 [{ start, end, name, startTime, endTime, location, category }]（不含人名）
+ */
+function hqClash_(p) {
+  var from = String((p && p.from) || ''), to = String((p && p.to) || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) return [];
+  return readTableCached_(SHEETS.DUTIES).filter(function (d) {
+    var end = d['結束日'] || d['開始日'];
+    return d['勤務ID'] && d['分壇看得到'] === '是' && !isHqDuty_(d) && d['開始日'] <= to && end >= from;
+  }).map(function (d) {
+    return { start: d['開始日'], end: d['結束日'] || d['開始日'], name: d['名稱'], startTime: d['開始時間'] || '', endTime: d['結束時間'] || '', location: d['地點'] || '', category: dutyCategory_(d) };
+  });
+}
+
 /** 管理者：body = { endpoint, on }：這支手機要不要收「分壇通知」（分派公告、回覆、提醒）；on 省略＝只查狀態。對象記帳號角色 */
 function adminHqWatch_(body) {
   if (!validEndpoint_(body.endpoint)) throw new ApiError_('BAD_REQUEST', '推播網址格式不對');

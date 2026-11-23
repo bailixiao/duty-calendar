@@ -921,6 +921,12 @@
             <p class="hint">按鈕點了就到這個${T()}的報名頁；${T()}最後一天過了會自動不顯示。</p>
           </fieldset>
 
+          ${window.Region && Region.code === 'hq' ? '' : `<fieldset class="form-block">
+            <legend>📣 讓宏教分壇看得到</legend>
+            <label class="check"><input type="checkbox" name="hqShow"${s.hqShow === true || s.hqShow === '是' ? ' checked' : ''}> 這是本區的大活動，讓分壇排分派時看得到（日期撞到會提醒分壇）</label>
+            <p class="hint">例如本區法會、大典、園遊會。只給分壇看名稱、日期、時間、地點，不含名單。</p>
+          </fieldset>`}
+
           ${lunar || st.dateType === 'multi' ? '<div data-preview></div>' : ''}
           <div class="form-error" data-error hidden></div>
           <div class="form-actions">
@@ -1126,6 +1132,7 @@
       if (radio('groupMode')) st.lunar.groupMode = radio('groupMode');
       if (f.elements.multi) s.multi = f.elements.multi.checked;
       if (f.elements.pinned) s.pinned = f.elements.pinned.checked;
+      if (f.elements.hqShow) s.hqShow = f.elements.hqShow.checked;
       if (f.elements.templePick) s.templePick = f.elements.templePick.checked;
       if (f.elements.tickets) s.tickets = f.elements.tickets.checked;
       if (f.elements.price) s.price = f.elements.price.value.trim();
@@ -1356,6 +1363,7 @@
         stages: s.mode === '公告型' || quotaOnly() || s.layout !== '職司表' ? '' : (s.stages || ''),
         multi: s.mode === '公告型' || quotaOnly() ? false : !!(s.multi === true || s.multi === '是'),
         pinned: !!(s.pinned === true || s.pinned === '是'),
+        hqShow: !!(s.hqShow === true || s.hqShow === '是'),
         tickets: s.mode !== '公告型' && quotaOnly() && !!(s.tickets === true || s.tickets === '是'),
         price: s.mode !== '公告型' && quotaOnly() && (s.tickets === true || s.tickets === '是') ? String(s.price || '') : '',
         batches: s.mode !== '公告型' && st.dateType !== 'multi' ? s.batches.filter(Boolean) : [],
