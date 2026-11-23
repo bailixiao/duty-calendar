@@ -353,7 +353,7 @@
           <p class="hint">依上面選的期間（月／季／年）計算；師資在新增或編輯課程時的「師資」欄填寫。</p>
         </section>`;
         })() : ''}
-        ${cat === '教育' ? '<section class="stats-section" data-age-classes><h3 class="admin-sub">各年齡層適合的班</h3><p class="panel-empty">讀取成員名單中⋯</p></section>' : ''}
+        ${cat === '教育' ? '<section class="stats-section" data-age-classes><h3 class="admin-sub">各年齡層適合的班</h3><p class="panel-empty">讀取成員名單中⋯</p></section><section class="stats-section" data-edu-care><h3 class="admin-sub">💛 這個月的關心名單</h3><p class="panel-empty">讀取中⋯</p></section>' : ''}
         <section class="stats-section"${cat === '教育' ? ' hidden' : ''}>
           <h3 class="admin-sub">${L.staffTitle}</h3>
           ${teacherList.length ? `<ul class="edu-teacher-list">${teacherList.map((t) => `
@@ -400,6 +400,9 @@
     // 各年齡層適合的班（2026/11/23）
     const ac = body.querySelector('[data-age-classes]');
     if (ac) mountAgeClasses(ac, allCourses, data.today, guard);
+    // 教育組的關心名單（2026/11/23，js/edu-care.js）
+    const ec = body.querySelector('[data-edu-care]');
+    if (ec) eduMembers().then((members) => EduCare.mount(ec, { members, guard })).catch((e) => { if (!guard(e)) ec.innerHTML = '<p class="form-error">' + esc(e.message || '讀不到成員名單') + '</p>'; });
     // 各佛堂道務目標（年度跟著上面選的期間）
     const veg = body.querySelector('[data-veg]');
     if (veg) MemberStats.mount(veg, body.querySelector('[data-ages]'), { canEdit: ['總管理者', '道務'].indexOf(Api.adminWho().role) !== -1, guard, activity: C.activity(data.events || [], data.today) });
@@ -411,11 +414,14 @@
 
   /** 成員名單 1 分鐘內不重讀（切換期間、展開名單不用等） */
   let ageMembersMemo = null;
+  async function eduMembers() {
+    if (!ageMembersMemo || Date.now() - ageMembersMemo.at > 60000) ageMembersMemo = { at: Date.now(), list: (await Api.admin('adminMembers', {}, true)).members || [] };
+    return ageMembersMemo.list;
+  }
   async function mountAgeClasses(box, courses, today, guard) {
     let members;
     try {
-      if (!ageMembersMemo || Date.now() - ageMembersMemo.at > 60000) ageMembersMemo = { at: Date.now(), list: (await Api.admin('adminMembers', {}, true)).members || [] };
-      members = ageMembersMemo.list;
+      members = await eduMembers();
     } catch (e) {
       if (guard && guard(e)) return;
       box.innerHTML = `<h3 class="admin-sub">各年齡層適合的班</h3><p class="form-error">${esc(e.message || '讀不到成員名單')}</p>`;

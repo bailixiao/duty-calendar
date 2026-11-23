@@ -2958,3 +2958,23 @@ button.veg-chip:hover { border-color: var(--ok); }
 .age-people li:not(.is-not-yet) .age-came { color: var(--ok); font-weight: 600; }
 .age-outside { font-size: .9rem; color: var(--ink-2); margin: 4px 0 8px; }
 .age-others { margin: 12px 0 6px; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
+/* 教育組的關心名單（2026/11/23） */
+.ecare-group { margin: 12px 0 16px; }
+.ecare-head { display: flex; align-items: baseline; gap: 8px; margin: 0 0 4px; font-size: 1.05rem; }
+.ecare-head span { font-weight: 400; font-size: .9rem; color: var(--ink-2); }
+.ecare-topic { margin: 0 0 8px; padding: 8px 10px; border-radius: 10px; background: #fff8ec; border: 1px solid #f0d9b5; font-size: .95rem; }
+.ecare-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.ecare-item { border: 1px solid var(--line); border-radius: 12px; background: var(--card); padding: 10px 12px; }
+.ecare-item.is-done { background: var(--ok-soft); border-color: #b9cdb4; }
+.ecare-who { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.ecare-who strong { font-size: 1.05rem; }
+.ecare-who small { color: var(--muted); }
+.ecare-reason { margin: 4px 0 2px; font-weight: 600; }
+.ecare-talk { margin: 2px 0 8px; font-size: .9rem; color: var(--ink-2); }
+.ecare-done { margin: 4px 0 0; color: var(--ok); font-size: .92rem; }
+.ecare-config { margin: 12px 0; }
+.ecare-config summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--ink-2); }
+.ecare-config-rows { display: grid; gap: 6px; margin: 6px 0 10px; }
+.ecare-config-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
+.ecare-config-dates { display: inline-flex; align-items: center; gap: 6px; }
+.ecare-config-dates .input { width: 5.5em; text-align: center; }
