@@ -3027,3 +3027,17 @@ button.veg-chip:hover { border-color: var(--ok); }
 .trend-col.is-current .trend-label { color: var(--accent); font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
 .trend-col.is-current .trend-bar { outline: 3px solid var(--accent); outline-offset: 2px; box-shadow: none; }
 .trend-col:not(:disabled):not(.is-current):hover .trend-bar { filter: brightness(1.08); }
+/* 🔍 變化的原因（2026/11/23） */
+.why-vs { margin: 0 0 10px; }
+.why-list { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 8px; }
+.why-list li { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); line-height: 1.6; }
+.why-h { margin: 14px 0 6px; font-size: 1rem; }
+.why-h small { font-weight: 400; color: var(--muted); margin-left: 4px; }
+.why-table th small, .why-table td small { display: block; font-weight: 400; color: var(--muted); font-size: .78rem; }
+.why-table td.is-up { color: var(--ok); }
+.why-table td.is-down { color: var(--accent); }
+.why-tag { color: var(--ok) !important; }
+.why-tag.is-gone { color: var(--accent) !important; }
+.why-people { margin: 6px 0; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+.why-people summary { cursor: pointer; min-height: 40px; display: flex; align-items: center; line-height: 1.5; }
+.why-people p { margin: 6px 0 4px; line-height: 1.8; }

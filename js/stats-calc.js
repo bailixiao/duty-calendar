@@ -276,7 +276,79 @@
     return { now: summarize(events, p), prevP, prev: cut(prevP), lyP, ly: cut(lyP), partial };
   }
 
-  const api = { activity, ageStats, careList, compare, startOf, addDays, UNIT_NAME, periodOf, shift, lastYear, contains, label, prevName, lastYearName, summarize, trend, ranking, byCategory, missingIdentity, delta, pct, textReport, eventsIn };
+
+  /**
+   * 🔍 變化的原因（2026/11/23）：這一期和比較的期間（vs＝'prev' 上一期、'ly' 去年同期）差在哪裡。
+   * 本期還沒過完時，比較的期間只算到相同天數（和 compare 一樣）。回傳
+   *   { q, a, b（兩期的 summarize）, ratio: { from, to, dDao, dTan, why }, count: { why, avgA, avgB },
+   *     items: [{ name, a: {dao,tan,total,events}, b: {...}, d }]（依活動名稱，差最多的在前）,
+   *     lostDao: [名字]（上一期有來的道親、這一期沒來）, newDao: [名字]（這一期才來的道親） }
+   *   比較的期間沒有資料回傳 null。
+   */
+  function explain(events, p, today, vs) {
+    const q = vs === 'ly' ? (p.unit === 'year' ? null : lastYear(p)) : shift(p, -1);
+    if (!q) return null;
+    const partial = contains(p, today);
+    const untilB = partial ? addDays(startOf(q), daysBetween(startOf(p), today)) : null;
+    const A = eventsIn(events, p).filter((e) => !partial || e.date <= today);
+    const B = eventsIn(events, q).filter((e) => !untilB || e.date <= untilB);
+    if (!B.length) return null;
+    const sum = (list) => list.reduce((r, e) => { r.dao += e.dao.length; r.tan += e.tan.length; r.total += e.dao.length + e.tan.length + e.unknown.length; r.events += 1; return r; }, { dao: 0, tan: 0, total: 0, events: 0 });
+    const a = sum(A), b = sum(B);
+    const ra = a.total ? a.dao / a.total : null, rb = b.total ? b.dao / b.total : null;
+    const dDao = a.dao - b.dao, dTan = a.tan - b.tan;
+    // 道親佔比為什麼變：道親變少，還是壇辦變多
+    let why = '';
+    if (ra !== null && rb !== null) {
+      const diff = Math.round((ra - rb) * 100);
+      const dd = (n) => (n > 0 ? '多 ' + n : n < 0 ? '少 ' + -n : '一樣');
+      if (Math.abs(diff) < 3) why = '道親佔比差不多（' + pct(rb) + ' → ' + pct(ra) + '）。';
+      else if (diff < 0) {
+        why = '道親佔比從 ' + pct(rb) + ' 降到 ' + pct(ra) + '：'
+          + (dDao >= 0 && dTan > 0 ? '道親沒有變少（' + dd(dDao) + ' 人次），主要是壇辦多了 ' + dTan + ' 人次。'
+            : dDao < 0 && dTan > 0 ? '道親少了 ' + -dDao + ' 人次，壇辦又多了 ' + dTan + ' 人次。'
+              : '道親少了 ' + -dDao + ' 人次，比壇辦少得多（壇辦' + dd(dTan) + ' 人次）。');
+      } else {
+        why = '道親佔比從 ' + pct(rb) + ' 升到 ' + pct(ra) + '：'
+          + (dDao > 0 && dTan <= 0 ? '道親多了 ' + dDao + ' 人次' + (dTan < 0 ? '，壇辦少了 ' + -dTan + ' 人次' : '') + '。'
+            : dDao > 0 ? '道親多了 ' + dDao + ' 人次，比壇辦多得多（壇辦' + dd(dTan) + ' 人次）。'
+              : '道親沒有變多（' + dd(dDao) + ' 人次），是壇辦少了 ' + -dTan + ' 人次。');
+      }
+    }
+    // 人次為什麼變：場次變多／少，還是每場的人變多／少
+    const avgA = a.events ? a.total / a.events : 0, avgB = b.events ? b.total / b.events : 0;
+    const r1 = (n) => Math.round(n * 10) / 10;
+    let countWhy = '';
+    const dT = a.total - b.total;
+    if (dT === 0) countWhy = '出勤人次一樣（' + a.total + ' 人次）。';
+    else {
+      const byEvents = (a.events - b.events) * avgB; // 場次變了帶來的人次
+      const byAvg = (avgA - avgB) * a.events; // 每場人數變了帶來的人次
+      countWhy = '出勤人次' + (dT > 0 ? '多了 ' + dT : '少了 ' + -dT) + '（' + b.total + ' → ' + a.total + '）：'
+        + '場次 ' + b.events + ' → ' + a.events + '、平均每場 ' + r1(avgB) + ' → ' + r1(avgA) + ' 人。'
+        + (Math.abs(byEvents) >= Math.abs(byAvg) ? '主要是場次' + (a.events > b.events ? '變多' : '變少') + '。' : '主要是每場來的人' + (avgA > avgB ? '變多' : '變少') + '。');
+    }
+    // 依活動名稱：差最多的活動
+    const byName = new Map();
+    const put = (list, key) => list.forEach((e) => {
+      const n = e.series || e.name;
+      if (!byName.has(n)) byName.set(n, { name: n, a: { dao: 0, tan: 0, total: 0, events: 0 }, b: { dao: 0, tan: 0, total: 0, events: 0 } });
+      const x = byName.get(n)[key];
+      x.dao += e.dao.length; x.tan += e.tan.length; x.total += e.dao.length + e.tan.length + e.unknown.length; x.events += 1;
+    });
+    put(A, 'a'); put(B, 'b');
+    const items = [...byName.values()].map((x) => Object.assign(x, { d: x.a.total - x.b.total, dDao: x.a.dao - x.b.dao, dTan: x.a.tan - x.b.tan }))
+      .filter((x) => x.d || x.dDao).sort((x, y) => Math.abs(y.d) - Math.abs(x.d) || Math.abs(y.dDao) - Math.abs(x.dDao));
+    // 人：上一期有來的道親這一期沒來、這一期才來的道親
+    const names = (list, k) => new Set([].concat(...list.map((e) => e[k])));
+    const daoA = names(A, 'dao'), daoB = names(B, 'dao');
+    const anyB = new Set([].concat(...B.map((e) => e.dao.concat(e.tan, e.unknown))));
+    const lostDao = [...daoB].filter((n) => !daoA.has(n)).sort(strokeCompare);
+    const newDao = [...daoA].filter((n) => !daoB.has(n) && !anyB.has(n)).sort(strokeCompare);
+    return { q, partial, a, b, ratio: { from: rb, to: ra, dDao, dTan, why }, count: { why: countWhy, avgA, avgB }, items, lostDao, newDao };
+  }
+
+  const api = { explain, activity, ageStats, careList, compare, startOf, addDays, UNIT_NAME, periodOf, shift, lastYear, contains, label, prevName, lastYearName, summarize, trend, ranking, byCategory, missingIdentity, delta, pct, textReport, eventsIn };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.StatsCalc = api;
 })();

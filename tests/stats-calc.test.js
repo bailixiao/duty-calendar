@@ -134,3 +134,26 @@ test('近一年出席次數：分類別算，一年前的不算', () => {
   assert.deepEqual(Object.values(a.items).map((x) => x.category + x.name + x.count), ['勤務測試聚會1', '道務測試聚會1', '教育測試聚會1'], '同名不同類別分開算');
   assert.equal(m.get('測試乙').count, 1);
 });
+
+test('變化的原因（2026/11/23）：佔比下降是壇辦變多、人次變多是場次變多、差最多的活動、沒來的道親', () => {
+  const C = require('../js/stats-calc.js');
+  const e = (date, name, dao, tan) => ({ date, dutyId: name + date, name, series: name, tan, dao, unknown: [], accompany: [] });
+  const evs = [
+    // 7 月：打掃 2 場，道親多
+    e('2026-07-05', '測試打掃', ['測試甲', '測試乙'], ['測試丙']),
+    e('2026-07-20', '測試打掃', ['測試甲', '測試丁'], []),
+    // 8 月：打掃 2 場一樣的道親（少了測試丁），多一場大典壇辦很多
+    e('2026-08-05', '測試打掃', ['測試甲', '測試乙'], ['測試丙']),
+    e('2026-08-20', '測試打掃', ['測試甲', '測試乙'], []),
+    e('2026-08-25', '測試大典', ['測試戊'], ['測試壇一', '測試壇二', '測試壇三', '測試壇四', '測試壇五'])
+  ];
+  const r = C.explain(evs, { unit: 'month', year: 2026, n: 8 }, '2026-11-23', 'prev');
+  assert.deepEqual([r.b.total, r.a.total, r.b.events, r.a.events], [5, 11, 2, 3]);
+  assert.match(r.ratio.why, /^道親佔比從 .+ 降到 .+：道親沒有變少（多 1 人次），主要是壇辦多了 5 人次/);
+  assert.match(r.count.why, /出勤人次多了 6（5 → 11）：場次 2 → 3、平均每場 2.5 → 3.7 人。主要是每場來的人變多/);
+  assert.equal(r.items[0].name, '測試大典');
+  assert.deepEqual([r.items[0].b.total, r.items[0].a.total], [0, 6]);
+  assert.deepEqual(r.lostDao, ['測試丁']);
+  assert.deepEqual(r.newDao, ['測試戊']);
+  assert.equal(C.explain(evs, { unit: 'month', year: 2026, n: 7 }, '2026-11-23', 'prev'), null, '上一期沒資料');
+});

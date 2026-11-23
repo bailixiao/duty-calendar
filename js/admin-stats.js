@@ -159,6 +159,8 @@
           </table>
         </section>
 
+        ${whyHtml(ev, p, data.today, lyP)}
+
         ${cats.length ? `
         <section class="stats-section">
           <h3 class="admin-sub">依勤務分類</h3>
@@ -235,6 +237,8 @@
       keepPlace(body, '[data-trend]', rerender);
     }));
     trendDetail(trend.findIndex((t) => t.period.year === p.year && t.period.n === p.n));
+    body.querySelectorAll('input[name=whyvs]').forEach((x) => x.addEventListener('change', () => { state.whyVs = x.value; rerender(); }));
+    body.querySelectorAll('[data-why-more]').forEach((x) => x.addEventListener('click', () => { state.whyAll = !state.whyAll; rerender(); }));
     const lh = body.querySelector('[data-latest-here]');
     if (lh) lh.addEventListener('click', () => { state.period = C.periodOf(state.unit, data.today); keepPlace(body, '[data-trend]', rerender); });
     body.querySelectorAll('input[name=rank]').forEach((r) => r.addEventListener('change', () => { state.rankKind = r.value; rerender(); }));
@@ -564,6 +568,44 @@
   }
 
   /** 類別、月季年、上一期下一期的按鈕（一般統計與教育統計共用） */
+  // ---------- 🔍 變化的原因（2026/11/23）：和上一期、去年同期比，差在哪裡 ----------
+
+  function whyHtml(ev, p, today, lyP) {
+    const vs = state.whyVs === 'ly' && lyP ? 'ly' : 'prev';
+    const r = C.explain(ev, p, today, vs);
+    const pickVs = `<div class="seg why-vs no-print">${[['prev', '比' + C.prevName(p.unit)], lyP ? ['ly', '比' + C.lastYearName(p.unit)] : null].filter(Boolean).map(([v, l]) => `<label class="seg-item"><input type="radio" name="whyvs" value="${v}"${v === vs ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div>`;
+    if (!r) return `<section class="stats-section why"><h3 class="admin-sub">🔍 變化的原因</h3>${pickVs}<p class="muted">${vs === 'ly' ? C.lastYearName(p.unit) : C.prevName(p.unit)}沒有資料，沒辦法比。</p></section>`;
+    const qName = esc(C.label(r.q, 'plain'));
+    const n = (x) => (x > 0 ? '+' + x : x < 0 ? '−' + -x : '0');
+    const cls = (x) => (x > 0 ? 'is-up' : x < 0 ? 'is-down' : '');
+    const items = state.whyAll ? r.items : r.items.slice(0, 6);
+    const names = (list) => list.slice(0, 30).map(esc).join('、') + (list.length > 30 ? `⋯等 ${list.length} 位` : '');
+    return `
+        <section class="stats-section why">
+          <h3 class="admin-sub">🔍 變化的原因<span class="h2-sub">和${qName}比</span></h3>
+          ${pickVs}
+          ${r.partial ? `<p class="hint">這一${C.UNIT_NAME[p.unit]}還沒過完，${qName}只算到相同天數，比較才公平。</p>` : ''}
+          <ul class="why-list">
+            <li><b>👥 道親佔比</b><span>${esc(r.ratio.why || '—')}</span></li>
+            <li><b>📊 出勤人次</b><span>${esc(r.count.why)}</span></li>
+          </ul>
+          ${r.items.length ? `
+          <h4 class="why-h">差最多的活動<small>（人次：${qName} → 這一${C.UNIT_NAME[p.unit]}）</small></h4>
+          <div class="hq-table-wrap"><table class="stats-table why-table">
+            <thead><tr><th>活動</th><th>${esc(C.label(r.q, true))}</th><th>這一${C.UNIT_NAME[p.unit]}</th><th>差</th><th>道親</th><th>壇辦</th></tr></thead>
+            <tbody>${items.map((x) => `<tr><th>${esc(x.name)}${!x.b.events ? `<small class="why-tag">這一${C.UNIT_NAME[p.unit]}才有</small>` : !x.a.events ? `<small class="why-tag is-gone">這一${C.UNIT_NAME[p.unit]}沒有</small>` : ''}</th>
+              <td>${x.b.total}<small>（${x.b.events} 場）</small></td><td>${x.a.total}<small>（${x.a.events} 場）</small></td>
+              <td class="${cls(x.d)}"><b>${n(x.d)}</b></td><td class="${cls(x.dDao)}">${n(x.dDao)}</td><td class="${cls(x.dTan)}">${n(x.dTan)}</td></tr>`).join('')}</tbody>
+          </table></div>
+          ${r.items.length > 6 ? `<button type="button" class="btn btn-small no-print" data-why-more>${state.whyAll ? '只看前 6 個' : `看全部 ${r.items.length} 個活動`}</button>` : ''}` : ''}
+          <h4 class="why-h">道親的變化</h4>
+          <details class="why-people"${r.lostDao.length ? '' : ' hidden'}><summary>${qName}有來、這一${C.UNIT_NAME[p.unit]}沒來的道親：<b>${r.lostDao.length} 位</b>（點開看是誰，可以去關心）</summary><p>${names(r.lostDao)}</p></details>
+          <details class="why-people"${r.newDao.length ? '' : ' hidden'}><summary>這一${C.UNIT_NAME[p.unit]}新來的道親（${qName}都沒來過）：<b>${r.newDao.length} 位</b></summary><p>${names(r.newDao)}</p></details>
+          ${!r.lostDao.length && !r.newDao.length ? '<p class="muted">來的道親和以前一樣。</p>' : ''}
+          <p class="hint">「差」＝這一${C.UNIT_NAME[p.unit]}減${qName}的人次（＋多、−少）。道親佔比下降，不一定是道親沒來，也可能是那段期間壇辦特別多（例如大活動）。</p>
+        </section>`;
+  }
+
   /** 重畫但畫面停在原地：sel 那一塊重畫前後在螢幕上同一個位置（不會跳到最上面） */
   function keepPlace(body, sel, fn) {
     const a = body.querySelector(sel);
