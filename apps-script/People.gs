@@ -41,6 +41,7 @@ function adminSaveMember_(body) {
   if (identity && OPTIONS.identity.indexOf(identity) === -1) errors.push('身分只能是道親、壇辦、未求道或點傳師');
   if (input.age !== undefined && input.age !== '' && birthYearOf_(input.age) === null) errors.push('年齡請填 0～120 的數字');
   if (input.birthday !== undefined && birthdayOf_(input.birthday) === null) errors.push('生日請填月和日，例：3/7');
+  if (input.birth !== undefined && birthInput_(input.birth) === null) errors.push('生日請填 1965/3/7、民國 54/3/7，或只填出生年 1965');
   if (input.overseas && SITE.overseas.indexOf(input.overseas) === -1) errors.push('國外只能是' + SITE.overseas.join('、') + '或空白');
   var keys = groupKeys_();
   var groups = {};
@@ -63,6 +64,7 @@ function adminSaveMember_(body) {
     if (input.vegetarian !== undefined) values['清口'] = input.vegetarian ? '是' : '';
     if (input.age !== undefined) values['出生年'] = birthYearOf_(input.age);
     if (input.birthday !== undefined) values['生日'] = birthdayOf_(input.birthday);
+    if (input.birth !== undefined) { var bi = birthInput_(input.birth); values['出生年'] = bi.year; values['生日'] = bi.md; }
     if (input.temple !== undefined) values['佛堂'] = temple;
     if (input.overseas !== undefined) values['國外'] = input.overseas || '';
     if (input.aliases !== undefined) {
@@ -232,12 +234,14 @@ function renameParentRefs_(rows, oldName, newName) {
  */
 function adminSetFamily_(body) {
   if (body.age !== undefined && body.age !== '' && birthYearOf_(body.age) === null) throw new ApiError_('VALIDATION', '年齡請填 0～120 的數字');
+  if (body.birth !== undefined && birthInput_(body.birth) === null) throw new ApiError_('VALIDATION', '生日請填 1965/3/7、民國 54/3/7，或只填出生年 1965');
   return withSignupLock_(function () {
     var rows = readTable_(SHEETS.MEMBERS);
     var row = findRowChecked_(rows, body.row, '姓名', body.original, '成員');
     var name = normalizeName_(row['姓名']);
     var ch = familyValues_(body, name);
     if (body.age !== undefined) ch['出生年'] = body.age === '' ? '' : birthYearOf_(body.age);
+    if (body.birth !== undefined) { var bi = birthInput_(body.birth); ch['出生年'] = bi.year; ch['生日'] = bi.md; }
     if (ch['父母']) {
       var names = {};
       rows.forEach(function (m) { names[normalizeName_(m['姓名'])] = true; splitAliases_(m['別名']).forEach(function (a) { names[a] = true; }); });
@@ -246,7 +250,7 @@ function adminSetFamily_(body) {
     }
     if (!Object.keys(ch).length) return { members: adminMembers_().members };
     updateRow_(SHEETS.MEMBERS, row, ch);
-    writeDutyLog_('成員', '家庭資料｜' + name + (ch['父母'] !== undefined ? ' 父母：' + (ch['父母'] || '（空白）') : '') + (ch['學校'] !== undefined ? ' 學校：' + (ch['學校'] || '（空白）') : '') + (ch['興趣'] !== undefined ? ' 更新興趣' : '') + (ch['出生年'] !== undefined ? ' 年齡：' + (body.age === '' ? '（清掉）' : body.age + ' 歲') : ''));
+    writeDutyLog_('成員', '家庭資料｜' + name + (ch['父母'] !== undefined ? ' 父母：' + (ch['父母'] || '（空白）') : '') + (ch['學校'] !== undefined ? ' 學校：' + (ch['學校'] || '（空白）') : '') + (ch['興趣'] !== undefined ? ' 更新興趣' : '') + (ch['出生年'] !== undefined ? ' 生日：' + (ch['出生年'] ? ch['出生年'] + (ch['生日'] ? '/' + ch['生日'].replace('-', '/') : '') : '（清掉）') : ''));
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.MEMBERS);
     return { members: adminMembers_().members };
@@ -637,6 +641,23 @@ function birthdayOf_(v) {
   var max = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][mo - 1];
   if (!max || d < 1 || d > max) return null;
   return (mo < 10 ? '0' : '') + mo + '-' + (d < 10 ? '0' : '') + d;
+}
+
+/**
+ * 後台填的生日（2026/11/23：填生日自動算年齡）→ { year: 西元出生年, md: 'MM-dd' 或 '' }；空白回 { year: '', md: '' }，看不懂回 null。
+ * 接受 1965/3/7、1965-03-07、1965年3月7日、民國54年3月7日、54/3/7、054.03.07，或只有年：1965、54（兩三位數＝民國）。
+ */
+function birthInput_(v) {
+  var t = String(v === undefined || v === null ? '' : v).replace(/\s/g, '').replace(/^民國/, '').replace(/[年月]/g, '/').replace(/[日號号]$/, '').replace(/\/$/, '');
+  if (!t) return { year: '', md: '' };
+  var m = t.match(/^(\d{2,4})(?:[./\-](\d{1,2})[./\-](\d{1,2}))?$/);
+  if (!m) return null;
+  var y = Number(m[1]);
+  if (m[1].length < 4) y += 1911;
+  if (y <= 1900 || y > Number(todayString_().slice(0, 4))) return null;
+  var md = '';
+  if (m[2]) { md = birthdayOf_(m[2] + '/' + m[3]); if (!md) return null; }
+  return { year: String(y), md: md };
 }
 
 /** 年齡 → 出生年（西元）；空白回 ''，不合理回 null */

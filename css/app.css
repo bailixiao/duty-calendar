@@ -2935,3 +2935,5 @@ button.veg-chip:hover { border-color: var(--ok); }
 .hq-radio-list small { display: block; }
 .hq-copy-dates { display: grid; gap: 6px; max-height: 260px; overflow: auto; }
 .hq-copy-dates small { margin-left: 6px; }
+.birth-hint { margin: -6px 0 12px; font-size: .9rem; color: var(--ok); min-height: 1em; }
+.birth-hint:empty { display: none; }

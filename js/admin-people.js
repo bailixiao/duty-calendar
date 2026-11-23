@@ -464,10 +464,7 @@
             <option value="">（無）</option>
             ${groups.filter((g) => g.type === t).map((g) => `<option${g.name === v.groups[t] ? ' selected' : ''}>${esc(g.name)}</option>`).join('')}
           </select></label>`).join('')}
-      <div class="form-grid-2">
-        <label class="form-row"><span>年齡（選填，今年幾歲；之後每年自動加一歲）</span><input class="input" name="age" inputmode="numeric" maxlength="3" value="${esc(v.age === undefined ? '' : v.age)}" placeholder="例：45"></label>
-        <label class="form-row"><span>生日（選填，月/日）</span><input class="input" name="birthday" inputmode="numeric" maxlength="5" value="${esc(v.birthday ? Number(v.birthday.slice(0, 2)) + '/' + Number(v.birthday.slice(3)) : '')}" placeholder="例：3/7"></label>
-      </div>
+      ${birthField(v)}
       <label class="check" data-veg-row${(v.identity || '') === '道親' ? '' : ' hidden'}><input type="checkbox" name="vegetarian"${v.vegetarian ? ' checked' : ''}> 🥬 已清口</label>
       <fieldset class="form-block family-block">
         <legend>👨‍👩‍👧 家人（道二代、道三代）</legend>
@@ -484,7 +481,7 @@
       await Api.admin('adminSaveMember', {
         row: m ? m.row : undefined, original: m ? m.name : undefined,
         member: { name: f.elements.name.value, identity: f.querySelector('input[name=identity]:checked').value, groups: g, note: f.elements.note.value, active: f.elements.active.checked,
-          age: f.elements.age.value.trim(), birthday: f.elements.birthday.value.trim(), temple: f.elements.temple.value, parents: f.elements.parents.value, school: f.elements.school.value, interest: f.elements.interest.value, aliases: f.elements.aliases.value, overseas: f.querySelector('input[name=overseas]:checked') ? f.querySelector('input[name=overseas]:checked').value : undefined, vegetarian: f.querySelector('input[name=identity]:checked').value === '道親' && f.elements.vegetarian.checked }
+          birth: birthChanged(f, v), temple: f.elements.temple.value, parents: f.elements.parents.value, school: f.elements.school.value, interest: f.elements.interest.value, aliases: f.elements.aliases.value, overseas: f.querySelector('input[name=overseas]:checked') ? f.querySelector('input[name=overseas]:checked').value : undefined, vegetarian: f.querySelector('input[name=identity]:checked').value === '道親' && f.elements.vegetarian.checked }
       });
       notice(AdminPage.notice('success', m ? '已存檔' : '已新增成員', f.elements.name.value.trim()));
       afterWrite(reload);
@@ -495,9 +492,9 @@
     // 家人：父母連動成員名單；學齡、第幾代、子女自動算
     const ef = modal.el.querySelector('form');
     MemberSuggest.attach(ef.elements.parents, { multi: true });
-    const autoFamily = () => familyAutoText(m, ef.elements.age.value.trim(), ef.elements.parents.value, ef.querySelector('input[name=identity]:checked'));
-    const paintAuto = () => { modal.el.querySelector('[data-family-auto]').innerHTML = autoFamily(); };
-    ['age', 'parents'].forEach((n) => ef.elements[n].addEventListener('input', paintAuto));
+    const autoFamily = () => familyAutoText(m, ageFromBirth(ef.elements.birth.value), ef.elements.parents.value, ef.querySelector('input[name=identity]:checked'));
+    const paintAuto = () => { modal.el.querySelector('[data-family-auto]').innerHTML = autoFamily(); paintBirth(ef); };
+    ['birth', 'parents'].forEach((n) => ef.elements[n].addEventListener('input', paintAuto));
     ef.elements.parents.addEventListener('change', paintAuto);
     paintAuto();
     // 選了佛堂、勤務了愿組還空著：照同佛堂的人帶入（2026/11/22，後端存檔時也會帶）
@@ -945,6 +942,39 @@
   }
 
   /** 編輯成員的「家人」區：依現在填的年齡、父母，算學齡、第幾代，列出子女 */
+  // ---------- 生日（2026/11/23）：填生日（或只填出生年）自動算年齡 ----------
+  const thisYear = () => new Date().getFullYear();
+  /** 「1965/3/7」「民國54/3/7」「1965年3月7日」「54」「1965」→ { year, md } ；空白 { year: '' }；看不懂 null（和 People.gs birthInput_ 一樣） */
+  function parseBirthText(v) {
+    const t = String(v || '').replace(/\s/g, '').replace(/^民國/, '').replace(/[年月]/g, '/').replace(/[日號号]$/, '').replace(/\/$/, '');
+    if (!t) return { year: '', md: '' };
+    const m = t.match(/^(\d{2,4})(?:[./\-](\d{1,2})[./\-](\d{1,2}))?$/);
+    if (!m) return null;
+    let y = Number(m[1]);
+    if (m[1].length < 4) y += 1911;
+    if (y <= 1900 || y > thisYear()) return null;
+    if (!m[2]) return { year: y, md: '' };
+    const mo = Number(m[2]), d = Number(m[3]);
+    if (mo < 1 || mo > 12 || d < 1 || d > [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][mo - 1]) return null;
+    return { year: y, md: String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0') };
+  }
+  const birthText = (m) => (m && m.birthYear ? m.birthYear + (m.birthday ? '/' + Number(m.birthday.slice(0, 2)) + '/' + Number(m.birthday.slice(3)) : '') : '');
+  const ageFromBirth = (v) => { const b = parseBirthText(v); return b && b.year ? String(thisYear() - b.year) : ''; };
+  function birthField(m) {
+    return `<label class="form-row"><span>生日（選填；只知道出生年就填年，年齡會自動算）</span><input class="input" name="birth" maxlength="16" value="${esc(birthText(m))}" placeholder="例：1965/3/7、民國54/3/7，或只填 1965"></label>
+      <p class="birth-hint" data-birth-hint>${m && !m.birthYear && m.birthday ? `原本只有生日 ${Number(m.birthday.slice(0, 2))}/${Number(m.birthday.slice(3))}，補上年份會更準` : ''}</p>`;
+  }
+  /** 生日欄下面即時寫「1965 年生・今年 61 歲・生日 3/7」或看不懂的提示 */
+  function paintBirth(f) {
+    const el = f.querySelector('[data-birth-hint]');
+    if (!el || !f.elements.birth.value.trim()) return;
+    const b = parseBirthText(f.elements.birth.value);
+    el.className = 'birth-hint' + (b ? '' : ' form-error');
+    el.textContent = b ? `→ ${b.year} 年生・今年 ${thisYear() - b.year} 歲${b.md ? `・生日 ${Number(b.md.slice(0, 2))}/${Number(b.md.slice(3))}` : ''}` : '看不懂，請填 1965/3/7、民國54/3/7，或只填出生年 1965';
+  }
+  /** 有改才送（沒改不送，原本只有月日的不會被清掉） */
+  const birthChanged = (f, m) => (f.elements.birth.value.trim() === birthText(m) ? undefined : f.elements.birth.value.trim());
+
   function familyAutoText(m, ageText, parentsText, idInput) {
     const today = new Date().toISOString().slice(0, 10);
     const by = /^\d{1,3}$/.test(ageText) ? Number(today.slice(0, 4)) - Number(ageText) : (m && m.birthYear) || '';
@@ -958,7 +988,7 @@
     if (st) bits.push(`📚 ${esc(st.label)}`);
     if (f && f.label) bits.push(`🌱 ${esc(f.label)}`);
     if (f && f.children.length) bits.push(`子女：${esc(f.children.map((c) => c.name).join('、'))}`);
-    return (bits.length ? bits.join('・') + '<small>（自動算的：學齡看年齡，第幾代看父母有沒有求道）</small>' : '<small>學齡、道二代會依年齡和父母自動算。</small>')
+    return (bits.length ? bits.join('・') + '<small>（自動算的：學齡看生日，第幾代看父母有沒有求道）</small>' : '<small>學齡、道二代會依生日和父母自動算。</small>')
       + (unknown.length ? `<small class="form-error">不在成員名單上：${esc(unknown.join('、'))}（請先新增成員，才算得出第幾代）</small>` : '');
   }
 
@@ -1064,18 +1094,18 @@
       <h2 class="modal-title">👨‍👩‍👧 ${esc(m.name)}</h2>
       <p class="modal-note">${esc([m.temple, m.identity].filter(Boolean).join('・'))}</p>
       <label class="form-row"><span>父母（成員名單上的爸爸、媽媽，用「、」分開）</span><input class="input" name="parents" value="${esc((m.parents || []).join('、'))}" placeholder="打一兩個字會出現名單"></label>
-      <label class="form-row"><span>年齡（今年幾歲；之後每年自動加一歲）</span><input class="input" name="age" inputmode="numeric" maxlength="3" value="${esc(m.age === undefined ? '' : m.age)}"></label>
+      ${birthField(m)}
       <p class="family-auto" data-family-auto></p>
       <label class="form-row"><span>學校（選填）</span><input class="input" name="school" maxlength="50" value="${esc(m.school || '')}" placeholder="例：某某國小"></label>
       <label class="form-row"><span>興趣、其他（選填）</span><input class="input" name="interest" maxlength="200" value="${esc(m.interest || '')}" placeholder="例：畫畫、打鼓、喜歡幫忙"></label>`,
     async (f) => {
-      await Api.admin('adminSetFamily', { row: m.row, original: m.name, parents: f.elements.parents.value, age: f.elements.age.value.trim(), school: f.elements.school.value, interest: f.elements.interest.value });
+      await Api.admin('adminSetFamily', { row: m.row, original: m.name, parents: f.elements.parents.value, birth: birthChanged(f, m), school: f.elements.school.value, interest: f.elements.interest.value });
       notice(AdminPage.notice('success', '已存檔', m.name));
       afterWrite(reload);
     }, guard, '');
     const f = modal.el.querySelector('form');
     MemberSuggest.attach(f.elements.parents, { multi: true });
-    const paint = () => { modal.el.querySelector('[data-family-auto]').innerHTML = familyAutoText(m, f.elements.age.value.trim(), f.elements.parents.value, null); };
+    const paint = () => { modal.el.querySelector('[data-family-auto]').innerHTML = familyAutoText(m, ageFromBirth(f.elements.birth.value), f.elements.parents.value, null); paintBirth(f); };
     ['age', 'parents'].forEach((n) => f.elements[n].addEventListener('input', paint));
     f.elements.parents.addEventListener('change', paint);
     paint();

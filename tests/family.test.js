@@ -95,3 +95,22 @@ test('生日（月日，選填，2026/11/23）：存檔、檢查、匯入；只�
   r = call('adminSaveMember', { row: me().row, original: '測試生日', member: { name: '測試生日', identity: '道親', birthday: '' } });
   assert.equal(me().birthday, '', '清掉');
 });
+
+test('填生日自動算年齡（2026/11/23）：西元、民國、只有年；看不懂的擋；道二代頁也一樣', () => {
+  const env = createEnv(Date.UTC(2026, 10, 23, 2, 0, 0));
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const call = (action, body) => env.post(Object.assign({ action, token }, body));
+  let r = call('adminSaveMember', { member: { name: '測試填生日', identity: '道親', birth: '民國54年3月7日' } });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  const me = () => call('adminMembers').data.members.find((m) => m.name === '測試填生日');
+  assert.deepEqual([me().birthYear, me().age, me().birthday], [1965, 61, '03-07']);
+  call('adminSaveMember', { row: me().row, original: '測試填生日', member: { name: '測試填生日', identity: '道親', birth: '1990' } });
+  assert.deepEqual([me().birthYear, me().birthday], [1990, ''], '只填年：月日清掉');
+  assert.equal(call('adminSaveMember', { row: me().row, original: '測試填生日', member: { name: '測試填生日', identity: '道親', birth: '1990/2/30' } }).error.code, 'VALIDATION');
+  assert.equal(call('adminSaveMember', { row: me().row, original: '測試填生日', member: { name: '測試填生日', identity: '道親', birth: '2099' } }).error.code, 'VALIDATION');
+  r = call('adminSetFamily', { row: me().row, original: '測試填生日', birth: '2019/9/1' });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.deepEqual([me().birthYear, me().birthday], [2019, '09-01']);
+  call('adminSaveMember', { row: me().row, original: '測試填生日', member: { name: '測試填生日', identity: '道親', birth: '' } });
+  assert.deepEqual([me().birthYear, me().birthday], ['', '']);
+});
