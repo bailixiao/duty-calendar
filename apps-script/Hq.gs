@@ -152,7 +152,7 @@ function adminHqInbox_() {
       id: e.c.id, c: e.c, status: e.status, quota: e.quota || '', note: e.note || '', groupType: e.groupType || '', group: e.group || '',
       dutyId: e.dutyId || '', count: count, updated: !!e.updated, syncError: e.syncError || '', declineReason: e.declineReason || '',
       receivedAt: e.receivedAt, seenAt: e.seenAt || '', seenBy: e.seenBy || '', publishedAt: e.publishedAt || '', publishedBy: e.publishedBy || '',
-      reply: e.reply || null, remind: e.remind || null
+      reply: e.reply || null, remind: e.remind || null, support: e.support || null
     };
   }).sort(function (a, b) { return order[a.status] - order[b.status] || String(a.c.start).localeCompare(String(b.c.start)); });
   var notices = hqNoticesFor_();
@@ -339,7 +339,12 @@ function adminHqReplyLocal_(body) {
   var text = String(body.text || '').replace(/\r/g, '').trim().slice(0, 300);
   var q = String(body.quotaAsk === undefined || body.quotaAsk === null ? '' : body.quotaAsk).trim();
   if (q && (!/^\d{1,4}$/.test(q) || Number(q) < 1)) throw new ApiError_('VALIDATION', '想改的名額請填數字（至少 1 位；不參加請按「本區不參加」）');
-  if (!text && !q) throw new ApiError_('VALIDATION', '請寫要回覆分壇的話，或填想改的名額');
+  // 請別區支援（2026/11/23）：本區人不夠，名額的一部分請分壇改給別區（supportTo＝希望哪一區，可空白讓分壇決定）
+  var sn = String(body.supportN === undefined || body.supportN === null ? '' : body.supportN).trim();
+  if (sn && (!/^\d{1,4}$/.test(sn) || Number(sn) < 1)) throw new ApiError_('VALIDATION', '請別區支援幾位，請填數字（至少 1 位）');
+  if (sn && q) throw new ApiError_('VALIDATION', '「改名額」和「請別區支援」選一個就好');
+  var sto = String(body.supportTo || '').replace(/[^a-z]/g, '').slice(0, 10);
+  if (!text && !q && !sn) throw new ApiError_('VALIDATION', '請寫要回覆分壇的話，或填想改的名額、請別區支援幾位');
   return withSignupLock_(function () {
     var inbox = hqInbox_();
     var out = [];
@@ -347,8 +352,9 @@ function adminHqReplyLocal_(body) {
     ids.forEach(function (id) {
       var e = hqEntryFor_(inbox, id);
       if (e.status === 'withdrawn') return;
-      if (q && e.c.quotaMode !== 'assigned') throw new ApiError_('VALIDATION', '「' + e.c.title + '」的名額不是分壇分配的，不用申請；' + (e.c.quotaMode === 'self' ? '本區自己填名額就好' : '名額不限'));
-      e.reply = { text: text, quotaAsk: q ? Number(q) : '', quotaWas: e.quota || '', at: now, by: hqWho_(), state: 'pending', answer: '', answerAt: '', answerBy: '' };
+      if ((q || sn) && e.c.quotaMode !== 'assigned') throw new ApiError_('VALIDATION', '「' + e.c.title + '」的名額不是分壇分配的，不用申請；' + (e.c.quotaMode === 'self' ? '本區自己填名額就好' : '名額不限'));
+      if (sn && !(Number(e.quota) > Number(sn))) throw new ApiError_('VALIDATION', '「' + e.c.title + '」' + e.c.start + ' 本區名額 ' + (e.quota || '不限') + (e.quota ? ' 位' : '') + '，請別區支援的要比名額少；完全不能去請按「本區不參加」');
+      e.reply = { text: text, quotaAsk: q ? Number(q) : '', supportN: sn ? Number(sn) : '', supportTo: sto, quotaWas: e.quota || '', at: now, by: hqWho_(), state: 'pending', answer: '', answerAt: '', answerBy: '' };
       out.push({ id: id, reply: e.reply });
     });
     if (!out.length) throw new ApiError_('VALIDATION', '這些分派分壇都收回了，不用回覆');
@@ -370,17 +376,37 @@ function hqAnswer_(p) {
       e.reply.answerAt = nowString_();
       e.reply.answerBy = String(p.by || HQ_NAME).slice(0, 40);
       e.reply.seen = false;
-      if (e.reply.state === 'ok' && e.reply.quotaAsk) e.updated = false; // 名額照本區申請的改好了，不用再標「分壇有更新」
+      if (e.reply.state === 'ok' && e.reply.supportN) e.reply.supportToName = String(p.supportToName || '');
+      if (e.reply.state === 'ok' && (e.reply.quotaAsk || e.reply.supportN)) e.updated = false; // 名額照本區申請的改好了，不用再標「分壇有更新」
       done.push(e);
     });
     hqInboxSave_(inbox);
     if (done.length) {
       var e0 = done[0];
-      var head = e0.reply.quotaAsk ? (e0.reply.state === 'ok' ? '✅ 同意名額改成 ' + e0.reply.quotaAsk + ' 位' : '❌ 名額維持原本的') : '💬 回覆了';
+      var head = e0.reply.supportN ? (e0.reply.state === 'ok' ? '✅ 同意，' + e0.reply.supportN + ' 位改由' + (e0.reply.supportToName || '別區') + '支援' : '❌ 請別區支援沒有通過，名額維持原本的')
+        : e0.reply.quotaAsk ? (e0.reply.state === 'ok' ? '✅ 同意名額改成 ' + e0.reply.quotaAsk + ' 位' : '❌ 名額維持原本的') : '💬 回覆了';
       hqNotifyAdmins_(e0.c.category, '💬 ' + HQ_NAME + '回覆', '「' + e0.c.title + '」' + (done.length > 1 ? done.length + ' 個日期' : '') + '：' + head + (e0.reply.answer ? '\n' + e0.reply.answer : ''));
     }
     return { done: done.length };
   });
+}
+
+/**
+ * 分壇請本區支援別區的名額（2026/11/23）：p = { deliver: [分派（名額已加上）], title, n, fromName }。
+ * 收件匣照一般分派收（已放到行事曆的跟著改最多人數），通知那一類組長的手機。
+ */
+function hqSupportIn_(p) {
+  (p.deliver || []).forEach(function (c) { hqDeliver_(c); });
+  var c0 = (p.deliver || [])[0];
+  if (c0) {
+    withSignupLock_(function () {
+      var inbox = hqInbox_();
+      (p.deliver || []).forEach(function (c) { var e = inbox[c.id]; if (e) e.support = { n: p.n, fromName: String(p.fromName || '').slice(0, 20), at: nowString_() }; });
+      hqInboxSave_(inbox);
+    });
+    hqNotifyAdmins_(c0.category, '🤝 ' + HQ_NAME + '請本區支援', '「' + c0.title + '」' + ((p.deliver || []).length > 1 ? (p.deliver || []).length + ' 個日期' : c0.start) + '：' + (p.fromName || '別區') + '人手不夠，請本區多支援 ' + p.n + ' 位，名額已經加上去了 🙏');
+  }
+  return { ok: true };
 }
 
 /** 組長看過分壇的回覆（收件匣的「新回覆」標記拿掉） */

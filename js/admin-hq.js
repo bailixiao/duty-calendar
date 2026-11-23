@@ -18,6 +18,9 @@
   const catLabel = (c) => (CATS.find((x) => x[0] === c) || [c, c])[1];
   const when = (c) => [Fmt.shortDate(c.start) + (c.end && c.end !== c.start ? '～' + Fmt.shortDate(c.end) : ''), c.startTime ? c.startTime + (c.endTime ? '–' + c.endTime : '') : '', c.location].filter(Boolean).join('・');
   const quotaText = (c, q) => (c.quotaMode === 'none' ? '不限' : q ? q + ' 位' : c.quotaMode === 'self' ? '各區自己報' : '不限');
+  /** 分派可以送的區（教全區＋12 區，不含分壇）：[[代號, 區名]] */
+  const regionList = () => [['main', '教全區']].concat(Object.entries((window.Region && Region.REGIONS) || {}).filter(([c]) => c !== 'hq'));
+  const regionNameOf = (code) => (regionList().find(([c]) => c === code) || [code, code])[1];
   /** 「11/23 14:18」 */
   const tm = (s) => String(s || '').slice(5, 16).replace('-', '/');
   const errHtml = (e) => `${esc(e.message || '發生錯誤')}${(e.details || []).map((x) => '<br>' + esc(x.message)).join('')}`;
@@ -556,7 +559,7 @@
     const totalQ = rows.reduce((n, r) => n + qOf(r), 0);
     const totalN = rows.reduce((n, r) => n + (r.count || 0), 0);
     const rp = (code) => (c.replies || {})[code];
-    const replyMini = (code) => { const x = rp(code); if (!x || x.state === 'pending') return ''; return `<small class="hq-reply-mini">💬 ${x.quotaAsk ? '申請 ' + x.quotaAsk + ' 位' : esc(x.text.slice(0, 20))} → ${x.state === 'ok' ? (x.quotaAsk ? '已同意' : '已回覆') : '不同意'}</small>`; };
+    const replyMini = (code) => { const x = rp(code); if (!x || x.state === 'pending') return ''; return `<small class="hq-reply-mini">💬 ${x.supportN ? '請別區支援 ' + x.supportN + ' 位' : x.quotaAsk ? '申請 ' + x.quotaAsk + ' 位' : esc(x.text.slice(0, 20))} → ${x.state === 'ok' ? (x.supportDone ? '已同意，' + esc(regionNameOf(x.supportDone.to)) + '支援' : x.quotaAsk ? '已同意' : '已回覆') : '不同意'}</small>`; };
     const statusHtml = (r) => { const [l, cls] = STATUS[r.status] || [r.status, '']; return `<span class="hq-st ${cls}">${l}</span>${rp(r.code) && rp(r.code).state === 'pending' ? '<span class="ov-reply" title="有回覆，等分壇回">💬</span>' : ''}${r.status === 'declined' && r.declineReason ? `<small>${esc(r.declineReason)}</small>` : ''}${replyMini(r.code)}${r.syncError ? `<small class="form-error">更新失敗：${esc(r.syncError)}</small>` : ''}`; };
     const rg = replyGroups([c], (code) => (rows.find((x) => x.code === code) || { name: code }).name);
     const future = c.end >= new Date().toISOString().slice(0, 10);
@@ -934,14 +937,15 @@
     gs.forEach((g) => g.cs.sort((a, b) => a.start.localeCompare(b.start)));
     return gs.sort((a, b) => b.rp.at.localeCompare(a.rp.at));
   }
-  const replyAsk = (rp) => (rp.quotaAsk ? `想把名額${rp.quotaWas ? `從 ${rp.quotaWas} 位` : ''}改成 <b>${rp.quotaAsk} 位</b>` : '');
+  const replyAsk = (rp) => (rp.supportN ? `🤝 人手不夠，想請別區支援 <b>${rp.supportN} 位</b>${rp.quotaWas ? `（本區名額 ${rp.quotaWas} 位）` : ''}${rp.supportTo ? `，希望由<b>${esc(regionNameOf(rp.supportTo))}</b>支援` : '，由分壇決定哪一區'}`
+    : rp.quotaAsk ? `想把名額${rp.quotaWas ? `從 ${rp.quotaWas} 位` : ''}改成 <b>${rp.quotaAsk} 位</b>` : '');
   function repliesHtml(groups, showTitle) {
     if (!groups.length) return '';
     return `<section class="hq-replies" aria-label="各區回覆">
       <h3>💬 各區回覆：${groups.length} 則等分壇回</h3>
       ${groups.map((g, i) => `<div class="hq-reply">
         <div class="hq-reply-head"><strong>${esc(g.name)}</strong>${showTitle ? `<span>${esc(g.cs[0].title)}</span>` : ''}<small>${esc(datesText(g.cs))}・${esc(g.rp.by || '')} ${esc(tm(g.rp.at))}</small></div>
-        ${g.rp.quotaAsk ? `<p class="hq-reply-ask">📝 ${replyAsk(g.rp)}</p>` : ''}
+        ${g.rp.quotaAsk || g.rp.supportN ? `<p class="hq-reply-ask">📝 ${replyAsk(g.rp)}</p>` : ''}
         ${g.rp.text ? `<p class="hq-reply-text">${esc(g.rp.text).replace(/\n/g, '<br>')}</p>` : ''}
         ${readOnly() ? '' : `<button type="button" class="btn btn-primary" data-answer="${i}">回覆${esc(g.name)} ›</button>`}
       </div>`).join('')}
@@ -956,13 +960,17 @@
     const m = Modal.open(`<h2 class="modal-title">💬 回覆${esc(g.name)}</h2>
       <p class="modal-note">${esc(g.cs[0].title)}・${esc(datesText(g.cs))}</p>
       <div class="hq-reply hq-reply-in-modal">
-        ${rp.quotaAsk ? `<p class="hq-reply-ask">📝 ${replyAsk(rp)}</p>` : ''}
+        ${rp.quotaAsk || rp.supportN ? `<p class="hq-reply-ask">📝 ${replyAsk(rp)}</p>` : ''}
         ${rp.text ? `<p class="hq-reply-text">${esc(rp.text).replace(/\n/g, '<br>')}</p>` : ''}
       </div>
-      <label class="form-row"><span>回覆給${esc(g.name)}（${rp.quotaAsk ? '不同意的話請寫原因' : '可空白'}）</span><textarea class="input textarea" data-answer-text rows="3" maxlength="300"></textarea></label>
+      ${rp.supportN ? `<label class="form-row"><span>由哪一區支援這 ${rp.supportN} 位</span><select class="input" data-support-to><option value="">請選</option>${regionList().filter(([c]) => c !== g.code).map(([c, n]) => `<option value="${c}"${c === rp.supportTo ? ' selected' : ''}>${esc(n)}${c === rp.supportTo ? '（' + esc(g.name) + '希望的）' : ''}</option>`).join('')}</select></label>
+        <p class="hint">同意後：${esc(g.name)}的名額減 ${rp.supportN} 位，選的那一區加 ${rp.supportN} 位（還沒收到這個分派的，會一起送過去，組長手機會收到通知）。</p>` : ''}
+      <label class="form-row"><span>回覆給${esc(g.name)}（${rp.quotaAsk || rp.supportN ? '不同意的話請寫原因' : '可空白'}）</span><textarea class="input textarea" data-answer-text rows="3" maxlength="300"></textarea></label>
       <div class="form-error" data-error hidden></div>
       <div class="modal-actions">
-        ${rp.quotaAsk ? `<button type="button" class="btn btn-primary btn-block" data-ok>✅ 同意，名額改成 ${rp.quotaAsk} 位</button>
+        ${rp.supportN ? `<button type="button" class="btn btn-primary btn-block" data-ok>✅ 同意，${rp.supportN} 位改由選的區支援</button>
+          <button type="button" class="btn btn-block btn-quiet-danger" data-no>不同意，名額維持原本的</button>`
+        : rp.quotaAsk ? `<button type="button" class="btn btn-primary btn-block" data-ok>✅ 同意，名額改成 ${rp.quotaAsk} 位</button>
           <button type="button" class="btn btn-block btn-quiet-danger" data-no>不同意，名額維持原本的</button>`
         : '<button type="button" class="btn btn-primary btn-block" data-ok>💬 送出回覆</button>'}
         <button type="button" class="btn btn-block" data-close>返回</button>
@@ -973,7 +981,9 @@
       box.hidden = true;
       Busy.show('回覆中⋯');
       try {
-        await Api.admin('hqAnswer', { ids: g.cs.map((c) => c.id), region: g.code, ok, answer: m.el.querySelector('[data-answer-text]').value });
+        const st = m.el.querySelector('[data-support-to]');
+        if (ok && st && !st.value) throw new Error('請選由哪一區支援');
+        await Api.admin('hqAnswer', { ids: g.cs.map((c) => c.id), region: g.code, ok, answer: m.el.querySelector('[data-answer-text]').value, supportTo: st ? st.value : undefined });
         Busy.hide();
         m.close();
         done();
@@ -1298,7 +1308,7 @@
               </button>`; }).join('')}</div>
             ${groupNotes(g)}
             ${fresh > 1 ? `<button type="button" class="btn btn-primary btn-block hq-group-pub" data-group-pub="${gi}">📅 這 ${fresh} 個日期一次放到本區行事曆</button>` : ''}
-            ${g.some((x) => x.status !== 'withdrawn') ? `<button type="button" class="btn btn-block hq-reply-btn" data-reply="${gi}">💬 回覆分壇${g.some((x) => x.c.quotaMode === 'assigned') ? '／申請調名額' : ''}</button>` : ''}
+            ${g.some((x) => x.status !== 'withdrawn') ? `<button type="button" class="btn btn-block hq-reply-btn" data-reply="${gi}">💬 回覆分壇${g.some((x) => x.c.quotaMode === 'assigned') ? '／調名額／請別區支援' : ''}</button>` : ''}
           </section>`; }).join('')}</div>` : '<p class="panel-empty">目前沒有分壇分派。</p>'}
         <div class="hq-watch" data-hq-watch></div>`;
       body.querySelectorAll('[data-read]').forEach((b) => b.addEventListener('click', async () => {
@@ -1334,11 +1344,13 @@
       if (rm.length && (g.some(pendingOf) || g.some((x) => /還差/.test((x.remind || {}).text || '')))) {
         out.push(`<p class="hq-remind-line">🔔 分壇${rm[0].remind.auto ? '截止前' : ''}提醒（${esc(rm[0].remind.at.slice(5, 10).replace('-', '/'))}）：${esc(rm.slice(0, 3).map((x) => (g.length > 1 ? Fmt.shortDate(x.c.start).replace(/（.）/, '') + ' ' : '') + x.remind.text).join('、'))}${rm.length > 3 ? '⋯' : ''}</p>`);
       }
+      const sp = g.filter((x) => x.support).sort((a, b) => b.support.at.localeCompare(a.support.at))[0];
+      if (sp) out.push(`<p class="hq-remind-line hq-support-line">🤝 分壇請本區支援（${esc(sp.support.at.slice(5, 10).replace('-', '/'))}）：${esc(sp.support.fromName)}人手不夠，本區多派 ${sp.support.n} 位，名額已經加上去了${g.filter((x) => x.support).length > 1 ? `（${g.filter((x) => x.support).length} 個日期）` : ''}</p>`);
       const rp = g.filter((x) => x.reply).sort((a, b) => b.reply.at.localeCompare(a.reply.at))[0];
       if (rp) {
         const x = rp.reply;
         out.push(`<div class="hq-reply-line is-${x.state}${answeredOf(rp) ? ' is-new' : ''}">
-          <p>💬 本區回覆（${esc(x.at.slice(5, 10).replace('-', '/'))}）：${x.quotaAsk ? `名額想改成 ${x.quotaAsk} 位${x.text ? '，' : ''}` : ''}${esc(x.text)}</p>
+          <p>💬 本區回覆（${esc(x.at.slice(5, 10).replace('-', '/'))}）：${x.supportN ? `請別區支援 ${x.supportN} 位${x.supportTo ? '（希望' + esc(regionNameOf(x.supportTo)) + '）' : ''}${x.text ? '，' : ''}` : ''}${x.quotaAsk ? `名額想改成 ${x.quotaAsk} 位${x.text ? '，' : ''}` : ''}${esc(x.text)}</p>
           <p><b>${esc(answerText(x))}</b>${x.answer ? '：' + esc(x.answer) : ''}</p></div>`);
       }
       return out.join('');
@@ -1355,6 +1367,10 @@
         <form class="admin-form" novalidate>
           ${xs.length > 1 ? `<fieldset class="form-block"><legend>回覆哪幾個日期</legend><div class="hq-regions">${xs.map((x, i) => `<label class="check"><input type="checkbox" name="pick" value="${i}" checked> ${esc(Fmt.shortDate(x.c.start))}</label>`).join('')}</div></fieldset>` : ''}
           ${assigned ? `<label class="form-row"><span>名額想改成幾位（現在 ${esc(qs.join('、'))}${/不限/.test(qs.join('')) ? '' : ' 位'}；不用改就空白）</span><input class="input" name="quotaAsk" inputmode="numeric" maxlength="4"></label>` : ''}
+          ${assigned ? `<fieldset class="form-block hq-support-ask"><legend>🤝 或者：本區人不夠，請別區支援</legend>
+            <div class="form-grid-2"><label class="form-row"><span>請別區支援幾位</span><input class="input" name="supportN" inputmode="numeric" maxlength="4" placeholder="例：2"></label>
+            <label class="form-row"><span>希望哪一區（可不選）</span><select class="input" name="supportTo"><option value="">由分壇決定</option>${regionList().filter(([c]) => c !== ((window.Region && Region.code) || 'main')).map(([c, n]) => `<option value="${c}">${esc(n)}</option>`).join('')}</select></label></div>
+            <p class="hint">分壇同意後，本區名額減少，改由別區多派人。完全不能去請按日期裡的「本區不參加」。</p></fieldset>` : ''}
           <label class="form-row"><span>要跟分壇說的話</span><textarea class="input textarea" name="text" rows="4" maxlength="300" placeholder="例：本區那天有法會，只能派 2 位"></textarea></label>
           <p class="hint">分壇會在總表看到，回覆後這裡和手機通知都看得到。不參加請改按日期裡的「本區不參加」。</p>
           <div class="form-error" data-error hidden></div>
@@ -1369,7 +1385,7 @@
         const picks = xs.length > 1 ? [...fm.querySelectorAll('input[name=pick]:checked')].map((y) => xs[Number(y.value)]) : xs;
         if (!picks.length) { box.textContent = '請勾要回覆的日期'; box.hidden = false; return; }
         try {
-          const res = await act('adminHqReply', { ids: picks.map((x) => x.id), text: fm.elements.text.value, quotaAsk: fm.elements.quotaAsk ? fm.elements.quotaAsk.value : '' }, '送給分壇中⋯');
+          const res = await act('adminHqReply', { ids: picks.map((x) => x.id), text: fm.elements.text.value, quotaAsk: fm.elements.quotaAsk ? fm.elements.quotaAsk.value : '', supportN: fm.elements.supportN ? fm.elements.supportN.value : '', supportTo: fm.elements.supportTo ? fm.elements.supportTo.value : '' }, '送給分壇中⋯');
           if (!res) return;
           m.close();
           draw();
@@ -1501,7 +1517,8 @@
   /** 分壇怎麼回 */
   function answerText(x) {
     if (x.state === 'pending') return '⏳ 等分壇回覆';
-    if (x.state === 'no') return '❌ 分壇不同意' + (x.quotaAsk ? '，名額維持原本的' : '');
+    if (x.state === 'no') return '❌ 分壇不同意' + (x.quotaAsk || x.supportN ? '，名額維持原本的' : '');
+    if (x.supportN) return `✅ 分壇同意，${x.supportN} 位改由${x.supportToName || '別區'}支援`;
     return x.quotaAsk ? `✅ 分壇同意，名額改成 ${x.quotaAsk} 位` : '✅ 分壇回覆了';
   }
 

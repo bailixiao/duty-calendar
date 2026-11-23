@@ -403,3 +403,27 @@ test('固定活動範本：存（不含日期）、列出、改、刪；類別�
   assert.equal((await R.hq.admin('hqTemplateDelete', { id: t.id })).ok, true);
   assert.equal((await R.hq.admin('hqTemplateList')).data.templates.length, 0);
 });
+
+test('請別區支援（2026/11/23）：教捨區人不夠，請別區支援 1 位 → 分壇選教全區同意 → 教捨區名額減 1、教全區加 1', async () => {
+  const R = await setup();
+  const id = (await R.hq.admin('hqSave', { campaign: Object.assign({}, CAMPAIGN, { regions: ['she'], quotas: { she: 3 } }) })).data.campaign.id;
+  assert.equal((await R.she.admin('adminHqReply', { ids: [id], supportN: 3 })).error.code, 'VALIDATION', '不能整個名額都移走');
+  assert.equal((await R.she.admin('adminHqReply', { ids: [id], supportN: 1, quotaAsk: 2 })).error.code, 'VALIDATION', '兩個選一個');
+  let r = await R.she.admin('adminHqReply', { ids: [id], supportN: 1, supportTo: 'main', text: '本區那天有法會' });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  let c = (await R.hq.admin('hqList')).data.campaigns[0];
+  assert.deepEqual([c.replies.she.supportN, c.replies.she.supportTo], [1, 'main']);
+  assert.equal((await R.hq.admin('hqAnswer', { ids: [id], region: 'she', supportTo: 'she' })).error.code, 'VALIDATION', '不能支援自己');
+  r = await R.hq.admin('hqAnswer', { ids: [id], region: 'she', supportTo: 'main', answer: '好，請教全區幫忙' });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  c = r.data.campaigns[0];
+  assert.deepEqual(c.quotas, { she: 2, main: 1 });
+  assert.ok(c.regions.indexOf('main') !== -1, '教全區加進送出的區');
+  const she = (await R.she.admin('adminHqInbox')).data.items[0];
+  assert.equal(she.quota, 2);
+  assert.equal(she.reply.state, 'ok');
+  assert.equal(she.reply.supportToName, '教全區');
+  const main = (await R.main.admin('adminHqInbox')).data.items.find((x) => x.id === id);
+  assert.equal(main.quota, 1, '教全區收到分派、名額 1 位');
+  assert.equal(main.support.fromName, '教捨區');
+});

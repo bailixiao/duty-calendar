@@ -357,7 +357,7 @@ export function createHq({ gs, store, cross, openRegions }) {
       const n = ((p && p.replies) || []).length;
       const rp = first.reply;
       gs.hqNotifyAdmins_(first.c.category, '💬 ' + regionName(region) + '回覆分派',
-        '「' + first.c.title + '」' + (n > 1 ? n + ' 個日期' : '') + '：' + (rp.quotaAsk ? '想把名額改成 ' + rp.quotaAsk + ' 位' + (rp.text ? '，' : '') : '') + (rp.text || ''), '#/admin');
+        '「' + first.c.title + '」' + (n > 1 ? n + ' 個日期' : '') + '：' + (rp.supportN ? '想請別區支援 ' + rp.supportN + ' 位' + (rp.supportTo ? '（希望' + regionName(rp.supportTo) + '）' : '') + (rp.text ? '，' : '') : '') + (rp.quotaAsk ? '想把名額改成 ' + rp.quotaAsk + ' 位' + (rp.text ? '，' : '') : '') + (rp.text || ''), '#/admin');
     }
     return { ok: true };
   }
@@ -379,9 +379,35 @@ export function createHq({ gs, store, cross, openRegions }) {
     if (state === 'no' && !answer) throw err('VALIDATION', '不同意的話，請寫一下原因（那一區看得到）');
     const now = gs.nowString_();
     const deliver = [];
+    // 請別區支援（2026/11/23）：同意＝這一區的名額減 N，改由 supportTo 那一區加 N（那一區沒在名單上就加進去、送過去）
+    const supportTo = String(body.supportTo || '');
+    const toDeliver = [];
+    let supportN = 0;
+    if (state === 'ok' && cs.some((c) => c.replies[region].supportN)) {
+      if (TARGET_CODES.indexOf(supportTo) === -1 || supportTo === region) throw err('VALIDATION', '請選由哪一區支援（不能是同一區）');
+      cs.forEach((c) => {
+        const rp = c.replies[region];
+        if (!rp.supportN) return;
+        const have = Number((c.quotas || {})[region]) || 0;
+        if (!(have > rp.supportN)) throw err('VALIDATION', '「' + c.title + '」' + c.start + ' ' + regionName(region) + '的名額只有 ' + (have || '不限') + '，不能再移出 ' + rp.supportN + ' 位');
+      });
+    }
     cs.forEach((c) => {
       const rp = c.replies[region];
-      if (state === 'ok' && rp.quotaAsk && c.quotaMode === 'assigned') {
+      if (state === 'ok' && rp.supportN && c.quotaMode === 'assigned') {
+        const q = Object.assign({}, c.quotas);
+        q[region] = Number(q[region]) - rp.supportN;
+        const had = c.regions.indexOf(supportTo) !== -1;
+        if (!had) c.regions = c.regions.concat([supportTo]);
+        if (!had || q[supportTo] !== undefined) q[supportTo] = (Number(q[supportTo]) || 0) + rp.supportN; // 那一區原本不限：照樣不限
+        c.quotas = q;
+        c.version += 1;
+        c.updatedAt = now;
+        deliver.push(forRegion(c, region));
+        toDeliver.push(forRegion(c, supportTo));
+        supportN = rp.supportN;
+        rp.supportDone = { to: supportTo, n: rp.supportN };
+      } else if (state === 'ok' && rp.quotaAsk && c.quotaMode === 'assigned') {
         c.quotas = Object.assign({}, c.quotas, { [region]: Number(rp.quotaAsk) });
         c.version += 1;
         c.updatedAt = now;
@@ -391,7 +417,13 @@ export function createHq({ gs, store, cross, openRegions }) {
     });
     const open = await openSet();
     if (open.has(region)) {
-      try { await cross(region, 'hqAnswer', { deliver, ids: cs.map((c) => c.id), state, answer, by: HQ_NAME_TEXT }); } catch (e) { throw err('NETWORK', '那一區暫時連不上，請稍後再按一次'); }
+      try { await cross(region, 'hqAnswer', { deliver, ids: cs.map((c) => c.id), state, answer, by: HQ_NAME_TEXT, supportToName: supportN ? regionName(supportTo) : '' }); } catch (e) { throw err('NETWORK', '那一區暫時連不上，請稍後再按一次'); }
+    }
+    if (toDeliver.length) {
+      if (open.has(supportTo)) {
+        try { await cross(supportTo, 'hqSupportIn', { deliver: toDeliver, title: cs[0].title, n: supportN, fromName: regionName(region) }); } catch (e) { /* 支援的區暫時連不上：分派上已經記好，之後修改分派會重送 */ }
+      }
+      cs.forEach((c) => { if (toDeliver.some((x) => x.id === c.id)) c.delivery = Object.assign({}, c.delivery, { [supportTo]: open.has(supportTo) ? 'ok' : 'not-open' }); });
     }
     save(all);
     return { done: cs.length, campaigns: cs };
@@ -591,6 +623,7 @@ export function createHq({ gs, store, cross, openRegions }) {
     // 上下溝通（2026/11/23）
     if (method === 'hqAnswer') { (Array.isArray(payload.deliver) ? payload.deliver : []).forEach((c) => gs.hqDeliver_(c)); return gs.hqAnswer_(payload); }
     if (method === 'hqRemind') return gs.hqRemind_(payload);
+    if (method === 'hqSupportIn') return gs.hqSupportIn_(payload);
     if (method === 'hqNoticeIn') return gs.hqNoticeIn_(payload);
     if (method === 'hqNoticeOut') return gs.hqNoticeOut_(payload);
     if (method === 'hqReplyIn') return replyIn(payload);
