@@ -643,7 +643,7 @@
 
   /**
    * 合併的卡片：同一天的兩個項目寫在一起。2026/11/23 起一律分上下兩行（和闡道班一樣）：
-   * 例：上面「十月十五拜香輪值」（公告型，徽章寫輪值組）、下面「初一十五班」（報名人數），各點各的。
+   * 例：上面「初一十五班」（報名人數）、下面「十月十五拜香輪值」（公告型，徽章寫輪值組），各點各的；班在上面，和闡道班一樣。
    */
   function mergedCardHtml(item, date, compact) {
     return splitCardHtml(item, date, compact);
@@ -661,10 +661,13 @@
           <span class="badge badge-${st.kind}">${Fmt.esc(st.label)}</span>
         </a>`;
     };
+    // 班在上面、另一筆在下面（和闡道班一樣）：另一筆是公告型（拜香輪值）時，初一十五班放上面、拜香輪值放下面（2026/11/23）
+    const notice = item.duty.mode === '公告型';
+    const host = row(item.duty, item.hostState || item.state, notice);
+    const follows = item.follow.map((f, i) => row(f.duty, f.state, !(notice && i === 0)));
     return `
       <div class="duty-card kind-${item.state.kind} is-merged is-split${compact ? ' is-compact' : ''}">
-        ${row(item.duty, item.hostState || item.state, false)}
-        ${item.follow.map((f) => row(f.duty, f.state, true)).join('')}
+        ${notice ? follows.join('') + host : host + follows.join('')}
       </div>`;
   }
 
