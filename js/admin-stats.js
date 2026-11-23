@@ -123,7 +123,7 @@
         ${missing.length ? `<div class="notice notice-error no-print"><p><strong>${missing.length} 位沒有填身分</strong>（道親佔比可能不準）：${missing.map(esc).join('、')}</p><p>請到勤務名單或試算表「報名」分頁補上身分。</p></div>` : ''}
 
         <section class="stats-section" data-trend>
-          <h3 class="admin-sub">最近 ${trend.length} ${p.unit === 'month' ? '個月' : p.unit === 'quarter' ? '季' : '年'}<span class="h2-sub">深色＝道親、淺色＝壇辦；長條上的 % ＝道親佔比</span></h3>
+          <h3 class="admin-sub">最近 ${trend.length} ${p.unit === 'month' ? '個月' : p.unit === 'quarter' ? '季' : '年'}<span class="h2-sub">深色＝道親、淺色＝壇辦</span></h3>
           ${atLatest ? '' : `<p class="trend-now no-print">現在看：<b>${esc(C.label(p))}</b> <button type="button" class="btn btn-small" data-latest-here>回到本${C.UNIT_NAME[p.unit]}</button></p>`}
           <div class="trend">
             ${trend.map((t) => {
@@ -137,7 +137,7 @@
               </button>`;
             }).join('')}
           </div>
-          <p class="hint no-print">點長條可以看那一期的統計（上面的數字跟著換），按「回到本${C.UNIT_NAME[p.unit]}」回來；沒有資料的不能點。</p>
+          <p class="hint no-print">長條上的 % 是道親佔比。點長條可以看那一期的統計（上面的數字跟著換），按「回到本${C.UNIT_NAME[p.unit]}」回來；沒有資料的不能點。</p>
         </section>
 
         <section class="stats-section">
