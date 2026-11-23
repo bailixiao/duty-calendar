@@ -28,7 +28,8 @@
   // =====================================================================
 
   async function show(body, guard, sub) {
-    if (readOnly() && /^hq\/(new|edit\/|import|group\/)/.test(sub || '')) { location.replace('#/admin'); return; }
+    if (readOnly() && /^hq\/(new|edit\/|import|group\/|tpl\/)/.test(sub || '')) { location.replace('#/admin'); return; }
+    if (/^hq\/tpl\//.test(sub || '')) return form(body, guard, null, decodeURIComponent(sub.slice(7)));
     if (sub === 'hq/import') return importPage(body, guard);
     if (/^hq\/group\//.test(sub || '')) return groupPage(body, guard, decodeURIComponent(sub.slice(9)));
     if (/^hq\/overview\//.test(sub || '')) return overview(body, guard, decodeURIComponent(sub.slice(12)));
@@ -42,8 +43,8 @@
   }
 
   async function list(body, guard) {
-    let data;
-    try { data = await Api.admin('hqList', {}); } catch (e) { if (guard(e, body)) return; body.innerHTML = `<p class="form-error">${errHtml(e)}</p>`; return; }
+    let data, tpls = [];
+    try { [data, tpls] = await Promise.all([Api.admin('hqList', {}), readOnly() ? [] : Api.admin('hqTemplateList', {}, true).then((x) => x.templates || []).catch(() => [])]); } catch (e) { if (guard(e, body)) return; body.innerHTML = `<p class="form-error">${errHtml(e)}</p>`; return; }
     const name = (code) => (data.targets.find((t) => t.code === code) || { name: code }).name;
     const openN = data.targets.filter((t) => t.open).length;
     const rg = replyGroups(data.campaigns, name);
@@ -52,6 +53,8 @@
       <div class="notice"><p>📣 <strong>分派</strong>：開一個活動送給各區。各區的<strong>總務・勤務／道務／教育組長</strong>會在後台先看到，看過按「放到本區行事曆」才會出現在那一區的行事曆，家人在自己區報名；這裡的總表看得到每一區的狀態、人數和名字。</p>
       <p class="muted">13 區已開通 ${openN} 區；還沒開通的區收不到。</p></div>
       ${readOnly() ? '<p class="role-note">👀 唯讀帳號：看得到各區的狀況、報名人數和統計，不能開或修改分派。</p>' : '<div class="admin-actions"><a class="btn btn-primary" href="#/admin/hq/new">＋ 開新的分派</a><a class="btn" href="#/admin/hq/import">📄 從檔案匯入行事曆</a></div>'}
+      ${tpls.length ? `<details class="hq-tpls"><summary>⭐ 固定活動範本（${tpls.length}）<small>點一個就帶入內容，填日期就能送出</small></summary>
+        <div class="hq-tpl-list">${tpls.map((t, i) => `<div class="hq-tpl"><a class="hq-tpl-go" href="#/admin/hq/tpl/${encodeURIComponent(t.id)}"><strong>${esc(t.name)}</strong><small>${esc([catLabel(t.category), t.startTime ? t.startTime + (t.endTime ? '–' + t.endTime : '') : '', t.location].filter(Boolean).join('・'))}・送給 ${t.regions.length} 區</small><span class="hq-tpl-use">用這個開 ›</span></a><button type="button" class="btn btn-quiet-danger hq-tpl-del" data-tpl-del="${i}" aria-label="刪除範本 ${esc(t.name)}">🗑</button></div>`).join('')}</div></details>` : ''}
       ${repliesHtml(rg, true)}
       ${data.campaigns.some((c) => c.status === 'draft') ? `<p class="hint">📝 草稿：各區還看不到。同一個名稱的併成一組，點進去一起檢查一次，按「送出給各區」。</p>` : ''}
       ${data.campaigns.length ? `<div class="card-list">${draftGroups(data.campaigns).map((g) => `<a class="duty-card hq-card is-draft" href="#/admin/hq/group/${encodeURIComponent(g.key)}">
@@ -74,6 +77,12 @@
       }).join('')}</div>` : '<p class="panel-empty">還沒有分派。按「＋ 開新的分派」開始。</p>'}
       ${readOnly() ? '' : '<div class="hq-watch" data-hq-watch></div>'}`;
     bindAnswers(body, rg, () => list(body, guard));
+    body.querySelectorAll('[data-tpl-del]').forEach((b) => b.addEventListener('click', async () => {
+      const t = tpls[Number(b.dataset.tplDel)];
+      if (!(await Confirm.open({ title: '確定要刪除這個範本嗎？', rows: [['範本', t.name]], note: '只刪範本，已經開的分派不受影響。', confirmText: '確定刪除', cancelText: '不要刪除', danger: true }))) return;
+      Busy.show('刪除中⋯');
+      try { await Api.admin('hqTemplateDelete', { id: t.id }); Busy.hide(); list(body, guard); } catch (e) { Busy.hide(); if (!guard(e)) alert(e.message); }
+    }));
     drawWatch(body.querySelector('[data-hq-watch]'), guard, true);
   }
 
@@ -141,6 +150,7 @@
         ${readOnly() || !cs.some((c) => c.end >= today) ? '' : '<button type="button" class="btn btn-primary" data-hqremind>🔔 通知沒處理、沒報滿的區</button>'}
         <button type="button" class="btn" data-remind>📋 複製提醒文字</button>
         <button type="button" class="btn" data-xlsx>⬇ 匯出 Excel</button>
+        ${readOnly() ? '' : '<button type="button" class="btn" data-copy>📋 複製成新的分派</button><button type="button" class="btn" data-save-tpl>⭐ 存成範本</button>'}
       </div>
       ${remindedText(cs)}
       <p class="hint">💬＝那一區有回覆或申請調名額，等分壇回。每格：✓ 幾位＝已放到行事曆、幾位報名（有名額的寫「報名／名額」，不夠的紅字）；點數字看名字。點日期看那一天的總表、修改或刪除。</p>
@@ -161,6 +171,7 @@
       pm.el.querySelector('[data-close]').addEventListener('click', () => pm.close());
     }));
     bindAnswers(body, rg, () => overview(body, guard, key));
+    bindCopy(body, cs);
     const hr = body.querySelector('[data-hqremind]');
     if (hr) hr.addEventListener('click', () => remindNow(cs.filter((c) => c.end >= today), () => overview(body, guard, key)));
     body.querySelector('[data-remind]').addEventListener('click', () => {
@@ -311,7 +322,7 @@
     const g = draftGroups(data.campaigns).find((x) => x.key === key);
     if (!g) { body.innerHTML = '<p class="panel-empty">找不到這一組草稿，可能已經送出或刪掉了。<a href="#/admin">回分派清單</a></p>'; return; }
     const f0 = g.items[0];
-    const c = { title: f0.title, category: f0.category, nature: f0.nature, location: f0.location, attire: f0.attire || '', description: f0.description, positions: f0.positions && f0.positions.length ? f0.positions : [{ name: '參加' }], quotaMode: f0.quotaMode || 'none', quotas: Object.assign({}, f0.quotas), deadlineDays: '', autoRemind: f0.autoRemind !== false };
+    const c = { title: f0.title, category: f0.category, nature: f0.nature, location: f0.location, attire: f0.attire || '', description: f0.description, positions: f0.positions && f0.positions.length ? f0.positions : [{ name: '參加' }], quotaMode: f0.quotaMode || 'none', quotas: Object.assign({}, f0.quotas), deadlineDays: f0.deadline ? String(dayDiff(f0.deadline, f0.start)) : '', autoRemind: f0.autoRemind !== false };
     const rows = g.items.map((x) => ({ id: x.id, pick: true, start: x.start, end: x.end, startTime: x.startTime, endTime: x.endTime, regions: x.regions.slice(), description: x.description, source: x.source }));
     const sameDesc = rows.every((r) => r.description === f0.description);
     const regionNames = (codes) => (codes.length === data.targets.length ? '全部 ' + codes.length + ' 區' : codes.length ? data.targets.filter((t) => codes.indexOf(t.code) !== -1).map((t) => t.name.replace(/區$/, '')).join('、') : '還沒選');
@@ -437,12 +448,14 @@
     draw();
   }
 
-  async function form(body, guard, id) {
-    let data;
-    try { data = await Api.admin('hqList', {}); } catch (e) { if (guard(e, body)) return; body.innerHTML = `<p class="form-error">${errHtml(e)}</p>`; return; }
+  async function form(body, guard, id, tplId) {
+    let data, tpls = [];
+    try { [data, tpls] = await Promise.all([Api.admin('hqList', {}), id ? [] : Api.admin('hqTemplateList', {}, true).then((x) => x.templates || []).catch(() => [])]); } catch (e) { if (guard(e, body)) return; body.innerHTML = `<p class="form-error">${errHtml(e)}</p>`; return; }
     const old = id ? data.campaigns.find((c) => c.id === id) : null;
     if (id && !old) { body.innerHTML = '<p class="panel-empty">找不到這個分派，可能已經刪掉了。<a href="#/admin">回分派清單</a></p>'; return; }
-    const c = old || { title: '', category: myCats()[0][0], nature: '', start: '', end: '', startTime: '', endTime: '', location: '', attire: '', description: '', positions: [{ name: '參加' }], deadline: '', quotaMode: 'none', quotas: {}, regions: data.targets.filter((t) => t.open).map((t) => t.code) };
+    const tpl = tplId ? tpls.find((t) => t.id === tplId) : null;
+    if (tplId && !tpl) { body.innerHTML = '<p class="panel-empty">找不到這個範本，可能已經刪掉了。<a href="#/admin">回分派清單</a></p>'; return; }
+    const c = old || (tpl && fromTpl(tpl)) || { title: '', category: myCats()[0][0], nature: '', start: '', end: '', startTime: '', endTime: '', location: '', attire: '', description: '', positions: [{ name: '參加' }], deadline: '', quotaMode: 'none', quotas: {}, regions: data.targets.filter((t) => t.open).map((t) => t.code) };
     const st = { category: c.category, quotaMode: c.quotaMode };
     let asDraft = false;
     const draw = () => {
@@ -451,6 +464,8 @@
         <h2>${old ? '✏️ 修改分派' : '＋ 開新的分派'}</h2>
         ${old && old.status !== 'draft' ? '<p class="notice">存檔後會重新送給各區：已經放到行事曆的區，內容會跟著改；組長後台會看到「分壇有更新」。</p>' : ''}
         ${old && old.status === 'draft' ? '<p class="notice">📝 這是草稿，各區還看不到。補好說明、了愿項目、名額，確認日期時間沒錯，再按「送出給各區」。</p>' : ''}
+        ${!old && tpls.length ? `<div class="hq-tpl-pick"><label class="form-row"><span>⭐ 從範本開</span><select class="input" data-tpl-pick><option value="">（不用範本，自己填）</option>${tpls.map((t) => `<option value="${esc(t.id)}"${tpl && tpl.id === t.id ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}</select></label>
+          ${tpl ? `<p class="hint">已帶入範本「${esc(tpl.name)}」，<strong>填日期</strong>就能送出${tpl.days ? `（${tpl.days + 1} 天的活動，結束日沒填會自動算）` : ''}${tpl.deadlineDays !== '' ? `；報名截止＝活動前 ${tpl.deadlineDays} 天（截止日沒填會自動算）` : ''}。</p>` : ''}</div>` : ''}
         <form class="admin-form hq-form" novalidate>
           <label class="form-row"><span>名稱</span><input class="input" name="title" maxlength="40" value="${esc(c.title)}" placeholder="例：總壇運動會觀禮" required></label>
           <div class="form-row"><span>類別（送給各區哪一組的組長）</span><div class="seg">${myCats().map(([v, l]) => `<label class="seg-item"><input type="radio" name="category" value="${v}"${st.category === v ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div></div>
@@ -483,6 +498,8 @@
           <div class="form-actions"><button type="submit" class="btn btn-primary btn-block">${old && old.status !== 'draft' ? '存檔並重新送出' : '送出給各區'}</button>
             ${!old || old.status === 'draft' ? '<button type="button" class="btn btn-block" data-save-draft>📝 先存成草稿（不送出）</button>' : ''}</div>
         </form>`;
+      const tp = body.querySelector('[data-tpl-pick]');
+      if (tp) tp.addEventListener('change', () => { location.hash = tp.value ? '#/admin/hq/tpl/' + encodeURIComponent(tp.value) : '#/admin/hq/new'; });
       const f = body.querySelector('form');
       const sync = () => {
         ['title', 'nature', 'start', 'end', 'startTime', 'endTime', 'location', 'attire', 'description', 'deadline'].forEach((k) => { c[k] = f.elements[k].value; });
@@ -502,6 +519,10 @@
         const draft = asDraft;
         asDraft = false;
         sync();
+        if (tpl && c.start) { // 範本：結束日、報名截止日沒填就照範本算
+          if (!c.end && tpl.days) c.end = addDays(c.start, tpl.days);
+          if (!c.deadline && tpl.deadlineDays !== '') c.deadline = addDays(c.start, -tpl.deadlineDays);
+        }
         const t = (v) => { const x = Fmt.parseTime(v); return x === null ? v : x; };
         const campaign = Object.assign({}, c, { id: old ? old.id : undefined, category: st.category, quotaMode: st.quotaMode, startTime: t(c.startTime), endTime: t(c.endTime), end: c.end || c.start });
         const box = body.querySelector('[data-error]');
@@ -548,7 +569,7 @@
         ${readOnly() || !future ? '' : '<button type="button" class="btn btn-primary" data-hqremind>🔔 通知沒處理、沒報滿的區</button>'}
         <button type="button" class="btn" data-remind>📋 複製提醒文字</button>
         <button type="button" class="btn" data-xlsx>⬇ 匯出 Excel</button>
-        ${readOnly() ? '' : '<button type="button" class="btn btn-quiet-danger" data-del>🗑 刪除分派</button>'}
+        ${readOnly() ? '' : '<button type="button" class="btn" data-copy>📋 複製成新的分派</button><button type="button" class="btn" data-save-tpl>⭐ 存成範本</button><button type="button" class="btn btn-quiet-danger" data-del>🗑 刪除分派</button>'}
       </div>
       ${remindedText([c])}
       ${repliesHtml(rg, false)}
@@ -563,6 +584,7 @@
           </tr>`).join('')}</tbody></table></div>
       <p class="hint">「還沒看」「看過了，還沒放」的區，家人還報不了名；按「📋 提醒還沒處理的區」複製一段文字傳給那一區的組長。名字不含電話；陪同不算人數。</p>`;
     bindAnswers(body, rg, () => summary(body, guard, id));
+    bindCopy(body, [c]);
     const hr = body.querySelector('[data-hqremind]');
     if (hr) hr.addEventListener('click', () => remindNow([c], () => summary(body, guard, id)));
     body.querySelectorAll('[data-people]').forEach((b) => b.addEventListener('click', () => {
@@ -1077,6 +1099,118 @@
       Busy.show(n ? '存檔中⋯' : '發出中⋯');
       try { await Api.admin('hqNoticeSave', { notice }); Busy.hide(); m.close(); done(); } catch (e) { Busy.hide(); box.innerHTML = errHtml(e); box.hidden = false; }
     });
+  }
+
+
+  // ---------- ⭐ 固定活動範本、📋 複製成新的分派（2026/11/23） ----------
+
+  const dayDiff = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000);
+  /** 往後一年：國曆同一天（2/29 → 2/28）或農曆同一天（閏月當平常月，三十沒有就用廿九） */
+  function nextYear(ymd, lunar) {
+    const [y, m, d] = ymd.split('-').map(Number);
+    if (lunar && window.Solar && window.Lunar) {
+      try {
+        const l = window.Solar.fromYmd(y, m, d).getLunar();
+        const mo = Math.abs(l.getMonth());
+        let day = l.getDay();
+        for (; day >= 28; day--) {
+          try { return window.Lunar.fromYmd(l.getYear() + 1, mo, day).getSolar().toYmd(); } catch (e) { /* 這個月沒有三十：往前一天 */ }
+        }
+        return window.Lunar.fromYmd(l.getYear() + 1, mo, day).getSolar().toYmd();
+      } catch (e) { /* 換不出來就用國曆 */ }
+    }
+    const last = new Date(Date.UTC(y + 1, m, 0)).getUTCDate();
+    return `${y + 1}-${String(m).padStart(2, '0')}-${String(Math.min(d, last)).padStart(2, '0')}`;
+  }
+
+  /** ⭐ 存成範本：名稱、類別、時間、地點、說明、了愿項目、名額、送給哪幾區、截止前幾天（不含日期） */
+  function saveTplModal(cs, done) {
+    const c = cs[0];
+    const dd = c.deadline ? dayDiff(c.deadline, c.start) : '';
+    const m = Modal.open(`<h2 class="modal-title">⭐ 存成固定活動範本</h2>
+      <p class="modal-note">每年（或常常）都有的活動，存成範本，下次按「⭐ 從範本開」帶入名稱、類別、時間、地點、說明、了愿項目、名額、送給哪幾區，只要填日期就能送出。</p>
+      <form class="admin-form" novalidate>
+        <label class="form-row"><span>範本名稱</span><input class="input" name="name" maxlength="40" value="${esc(c.title)}"></label>
+        <dl class="modal-rows">
+          <div><dt>類別</dt><dd>${esc(catLabel(c.category))}${c.nature ? `（性質：${esc(c.nature)}）` : ''}</dd></div>
+          <div><dt>時間、地點</dt><dd>${esc([c.startTime ? c.startTime + (c.endTime ? '–' + c.endTime : '') : '', c.location].filter(Boolean).join('・') || '（沒填）')}</dd></div>
+          <div><dt>送給</dt><dd>${c.regions.length} 區・名額${esc({ none: '不限', assigned: '分壇分配', self: '各區自己報' }[c.quotaMode])}</dd></div>
+          <div><dt>報名截止</dt><dd>${dd === '' ? '不設' : `活動前 ${dd} 天`}</dd></div>
+        </dl>
+        <div class="form-error" data-error hidden></div>
+        <div class="modal-actions"><button type="submit" class="btn btn-primary btn-block">⭐ 存成範本</button><button type="button" class="btn btn-block" data-close>返回</button></div>
+      </form>`);
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    const f = m.el.querySelector('form');
+    f.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const box = f.querySelector('[data-error]');
+      box.hidden = true;
+      Busy.show('存範本中⋯');
+      try {
+        await Api.admin('hqTemplateSave', { template: Object.assign({}, c, { id: undefined, name: f.elements.name.value, deadlineDays: dd }) });
+        Busy.hide();
+        m.close();
+        done();
+      } catch (e) { Busy.hide(); box.innerHTML = errHtml(e); box.hidden = false; }
+    });
+  }
+
+  /** 📋 複製成新的分派：日期往後一年（國曆或農曆同一天）或往後幾天，先存成草稿，再到草稿頁檢查、送出 */
+  function copyModal(cs) {
+    const st = { mode: 'year', days: 7 };
+    const shift = (ymd) => (st.mode === 'year' ? nextYear(ymd, false) : st.mode === 'lunar' ? nextYear(ymd, true) : addDays(ymd, st.days));
+    const m = Modal.open(`<h2 class="modal-title">📋 複製成新的分派</h2>
+      <p class="modal-note">${esc(cs[0].title)}・${cs.length} 個日期。內容、名額、送給哪幾區照抄，<strong>先存成草稿</strong>（各區還看不到），到草稿頁改日期、檢查後再送出。</p>
+      <form class="admin-form" novalidate>
+        <fieldset class="form-block"><legend>新的日期</legend><div class="hq-radio-list">${[['year', '明年・國曆同一天', '例：2026/3/7 → 2027/3/7'], ['lunar', '明年・農曆同一天', '法會、初一十五這種看農曆的'], ['days', '往後幾天', '例：下個月同一個星期幾＝往後 28 天']].map(([v, l, h]) => `<label class="check"><input type="radio" name="mode" value="${v}"${v === st.mode ? ' checked' : ''}> <span><b>${l}</b><small class="muted">${h}</small></span></label>`).join('')}</div></fieldset>
+        <label class="form-row" data-days hidden><span>往後幾天</span><input class="input" name="days" inputmode="numeric" maxlength="3" value="${st.days}"></label>
+        <fieldset class="form-block"><legend>要複製的日期</legend><div class="hq-copy-dates" data-list></div></fieldset>
+        <div class="form-error" data-error hidden></div>
+        <div class="modal-actions"><button type="submit" class="btn btn-primary btn-block">📋 複製成草稿</button><button type="button" class="btn btn-block" data-close>返回</button></div>
+      </form>`);
+    const f = m.el.querySelector('form');
+    const picked = cs.map(() => true);
+    const paint = () => {
+      f.querySelector('[data-list]').innerHTML = cs.map((c, i) => `<label class="check"><input type="checkbox" data-pick="${i}"${picked[i] ? ' checked' : ''}> ${esc(Fmt.shortDate(c.start))} → <b>${esc(Fmt.shortDate(shift(c.start)))}</b><small class="muted">${esc(shift(c.start).slice(0, 4))}</small></label>`).join('');
+      f.querySelectorAll('[data-pick]').forEach((x) => x.addEventListener('change', () => { picked[Number(x.dataset.pick)] = x.checked; }));
+    };
+    paint();
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    f.querySelectorAll('input[name=mode]').forEach((x) => x.addEventListener('change', () => { st.mode = x.value; f.querySelector('[data-days]').hidden = st.mode !== 'days'; paint(); }));
+    f.elements.days.addEventListener('input', () => { st.days = Math.max(1, Number(f.elements.days.value) || 1); paint(); });
+    f.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const box = f.querySelector('[data-error]');
+      box.hidden = true;
+      const todo = cs.filter((c, i) => picked[i]);
+      if (!todo.length) { box.textContent = '請勾要複製的日期'; box.hidden = false; return; }
+      const items = todo.map((c) => {
+        const start = shift(c.start);
+        return Object.assign({}, c, { id: undefined, start, end: addDays(start, dayDiff(c.start, c.end || c.start)), deadline: c.deadline ? addDays(start, -dayDiff(c.deadline, c.start)) : '', source: '複製自 ' + c.start });
+      });
+      Busy.show(`複製中⋯（${items.length} 個日期）`);
+      try {
+        await Api.admin('hqSaveDrafts', { items });
+        Busy.hide();
+        m.close();
+        location.hash = '#/admin/hq/group/' + encodeURIComponent(groupKey(cs[0]));
+      } catch (e) { Busy.hide(); box.innerHTML = errHtml(e); box.hidden = false; }
+    });
+  }
+
+  /** 範本 → 表單的欄位（日期之後填） */
+  function fromTpl(t) {
+    return { title: t.title, category: t.category, nature: t.nature, start: '', end: '', startTime: t.startTime || '', endTime: t.endTime || '', location: t.location || '', attire: t.attire || '', description: t.description || '',
+      positions: (t.positions || []).length ? t.positions : [{ name: '參加' }], deadline: '', quotaMode: t.quotaMode || 'none', quotas: Object.assign({}, t.quotas), regions: (t.regions || []).slice(), autoRemind: t.autoRemind !== false };
+  }
+
+  /** 總表、整組總覽的「📋 複製成新的分派」「⭐ 存成範本」 */
+  function bindCopy(root, cs) {
+    const a = root.querySelector('[data-copy]');
+    if (a) a.addEventListener('click', () => copyModal(cs));
+    const b = root.querySelector('[data-save-tpl]');
+    if (b) b.addEventListener('click', () => saveTplModal(cs, () => root.insertAdjacentHTML('afterbegin', '<div class="notice notice-success" role="status"><p>⭐ 已存成範本。下次在分派清單的「⭐ 固定活動範本」點它，或開新的分派時「⭐ 從範本開」。</p></div>')));
   }
 
   window.HqAdminPage = { show };

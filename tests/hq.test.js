@@ -379,3 +379,26 @@ test('分壇公告：發給選的區 → 各區按「知道了」→ 分壇看�
   inbox = (await R.she.admin('adminHqInbox')).data;
   assert.deepEqual(inbox.notices.map((x) => x.title), ['測試教育公告']);
 });
+
+test('固定活動範本：存（不含日期）、列出、改、刪；類別帳號只管自己那一類；名稱不能重複', async () => {
+  const R = await setup();
+  let r = await R.hq.admin('hqTemplateSave', { template: Object.assign({}, CAMPAIGN, { name: '每年測試大典', deadlineDays: 3, end: '2026-12-21' }) });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  const t = r.data.template;
+  assert.equal(t.start, undefined, '範本不存日期');
+  assert.equal(t.days, 1, '跨兩天');
+  assert.equal(t.deadlineDays, 3);
+  assert.deepEqual(t.quotas, { main: 3, she: 2 });
+  assert.equal((await R.hq.admin('hqTemplateSave', { template: Object.assign({}, CAMPAIGN, { name: '每年測試大典' }) })).error.code, 'VALIDATION', '名稱重複');
+  r = await R.hq.admin('hqTemplateSave', { template: Object.assign({}, t, { location: '測試地點二' }) });
+  assert.equal(r.data.template.location, '測試地點二');
+  assert.equal((await R.hq.admin('hqTemplateList')).data.templates.length, 1);
+  await R.hq.admin('adminSaveAccount', { account: { account: '測試道務', role: '道務', password: 'test-pass-2' } });
+  const tok = (await R.hq.call({ action: 'adminLogin', account: '測試道務', password: 'test-pass-2' })).data.token;
+  const dao = (action, body) => R.hq.call(Object.assign({ action, token: tok }, body || {}));
+  assert.equal((await dao('hqTemplateList')).data.templates.length, 0, '勤務的範本道務看不到');
+  assert.equal((await dao('hqTemplateDelete', { id: t.id })).error.code, 'FORBIDDEN');
+  assert.equal((await R.she.admin('hqTemplateList')).error.code, 'FORBIDDEN');
+  assert.equal((await R.hq.admin('hqTemplateDelete', { id: t.id })).ok, true);
+  assert.equal((await R.hq.admin('hqTemplateList')).data.templates.length, 0);
+});

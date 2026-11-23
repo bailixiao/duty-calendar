@@ -534,6 +534,49 @@ export function createHq({ gs, store, cross, openRegions }) {
     return { ok: true };
   }
 
+  // ---- ⭐ 固定活動範本（2026/11/23）：指令碼屬性 HQ_TEMPLATES（陣列）；不含日期，開分派時帶入 ----
+  const templates = () => { try { const a = JSON.parse(store.getProp('HQ_TEMPLATES') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
+  special.hqTemplateList = async (body, curRegion) => {
+    const who = requireHqAdmin(body, curRegion, true);
+    return { templates: templates().filter((t) => canCat(who, t.category)).sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant')) };
+  };
+  /** 存範本（有 id＝修改）：body.template = 分派的欄位＋name（範本名稱）、deadlineDays（活動前幾天截止） */
+  special.hqTemplateSave = async (body, curRegion) => {
+    const who = requireHqAdmin(body, curRegion);
+    const x = body.template || {};
+    const all = templates();
+    const old = x.id ? all.find((t) => t.id === x.id) : null;
+    if (x.id && !old) throw err('NOT_FOUND', '找不到這個範本，可能已經刪掉了');
+    guardCat(who, old);
+    // 借 clean() 檢查欄位（日期隨便給一個，存的時候拿掉）
+    const c = clean(Object.assign({}, x, { start: '2000-01-01', end: '2000-01-01', deadline: '' }), null, true);
+    guardCat(who, c);
+    const name = String(x.name || c.title).trim().slice(0, 40);
+    const dd = String(x.deadlineDays == null ? '' : x.deadlineDays).trim();
+    if (dd && !/^\d{1,2}$/.test(dd)) throw err('VALIDATION', '報名截止「活動前幾天」請填 0～99 的數字');
+    const days = Math.max(0, Math.round((Date.parse(x.end || x.start || '') - Date.parse(x.start || '')) / 86400000)) || 0;
+    const t = {
+      id: old ? old.id : 'T-' + crypto.randomUUID().replace(/-/g, '').slice(0, 10),
+      name, title: c.title, category: c.category, nature: c.nature, startTime: c.startTime, endTime: c.endTime, days,
+      location: c.location, attire: c.attire, description: c.description, positions: c.positions,
+      quotaMode: c.quotaMode, quotas: c.quotas, regions: c.regions, autoRemind: c.autoRemind, deadlineDays: dd === '' ? '' : Number(dd),
+      createdAt: old ? old.createdAt : gs.nowString_(), updatedAt: gs.nowString_(), by: who.account || '總管理者'
+    };
+    if (all.some((y) => y.id !== t.id && y.name === t.name)) throw err('VALIDATION', '已經有叫「' + t.name + '」的範本，換個名稱或改原本那個');
+    if (!old && all.length >= 100) throw err('VALIDATION', '範本最多 100 個，請先刪掉用不到的');
+    store.setProp('HQ_TEMPLATES', JSON.stringify(old ? all.map((y) => (y.id === t.id ? t : y)) : all.concat([t])));
+    return { template: t };
+  };
+  special.hqTemplateDelete = async (body, curRegion) => {
+    const who = requireHqAdmin(body, curRegion);
+    const all = templates();
+    const t = all.find((y) => y.id === body.id);
+    if (!t) throw err('NOT_FOUND', '找不到這個範本');
+    guardCat(who, t);
+    store.setProp('HQ_TEMPLATES', JSON.stringify(all.filter((y) => y.id !== t.id)));
+    return { deleted: t.id };
+  };
+
   /** 各區這一邊：分壇叫過來（Durable Object 之間；不經過網路，不用登入） */
   function rpc(method, payload) {
     if (method === 'hqDeliver') return gs.hqDeliver_(payload);

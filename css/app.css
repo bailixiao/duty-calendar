@@ -2915,3 +2915,23 @@ button.veg-chip:hover { border-color: var(--ok); }
 .hq-chip.is-read { background: var(--ok-soft); border-color: #b9cdb4; color: var(--ok); }
 .hq-chip.is-unread { background: #fff8ec; border-color: #f0d9b5; }
 .hq-chip.is-off { color: var(--muted); }
+
+/* ---------- ⭐ 固定活動範本、📋 複製成新的分派（2026/11/23） ---------- */
+.hq-tpls { border: 1px solid var(--line); background: var(--card); border-radius: var(--radius); padding: 4px 12px; margin: 0 0 14px; }
+.hq-tpls summary { cursor: pointer; min-height: 44px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-weight: 700; }
+.hq-tpls summary small { font-weight: 400; color: var(--ink-2); }
+.hq-tpl-list { display: grid; gap: 8px; margin: 4px 0 10px; }
+.hq-tpl { display: flex; gap: 8px; align-items: stretch; }
+.hq-tpl-go { flex: 1; display: block; text-decoration: none; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+.hq-tpl-go strong { display: block; }
+.hq-tpl-go small { display: block; color: var(--ink-2); }
+.hq-tpl-use { display: block; color: var(--accent); font-weight: 700; margin-top: 2px; }
+.hq-tpl-del { flex: none; min-width: 48px; }
+.hq-tpl-pick { border: 1px dashed var(--accent); background: var(--accent-soft); border-radius: var(--radius); padding: 10px 12px; margin: 0 0 14px; }
+.hq-tpl-pick .form-row { margin: 0; }
+.hq-tpl-pick .hint { margin: 8px 0 0; }
+.hq-radio-list { display: grid; gap: 8px; }
+.hq-radio-list .check { display: flex; gap: 8px; align-items: flex-start; }
+.hq-radio-list small { display: block; }
+.hq-copy-dates { display: grid; gap: 6px; max-height: 260px; overflow: auto; }
+.hq-copy-dates small { margin-left: 6px; }
