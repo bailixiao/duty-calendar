@@ -3041,3 +3041,46 @@ button.veg-chip:hover { border-color: var(--ok); }
 .why-people { margin: 6px 0; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
 .why-people summary { cursor: pointer; min-height: 40px; display: flex; align-items: center; line-height: 1.5; }
 .why-people p { margin: 6px 0 4px; line-height: 1.8; }
+/* 🔗 活動名稱歸類（2026/11/23） */
+.why-groups { margin: 12px 0 0; padding: 8px 12px; border: 1px dashed var(--line); border-radius: 10px; }
+.why-groups summary { cursor: pointer; min-height: 40px; display: flex; align-items: center; font-weight: 600; }
+.grp-list { list-style: none; padding: 0; margin: 6px 0 10px; display: grid; gap: 6px; }
+.grp-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 6px 8px; border-radius: 8px; background: var(--card); }
+.grp-list b { color: var(--accent); }
+.grp-sub { margin: 8px 0 0; font-size: .92rem; }
+.grp-add { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0 4px; }
+.grp-add .input { width: auto; max-width: 100%; min-width: 8em; }
+/* 📈 道親佔比折線圖、🗓 月份熱度表（2026/11/23） */
+.ratio-line { margin: 16px 0 4px; }
+.ratio-title { margin: 0 0 4px; font-weight: 700; }
+.ratio-title small { display: block; font-weight: 400; color: var(--ink-2); font-size: .85rem; }
+.ratio-line svg { width: 100%; height: auto; display: block; overflow: visible; }
+.rl-avg { stroke: var(--muted); stroke-width: 2; stroke-dasharray: 6 6; }
+.rl-avg-t { fill: var(--muted); font-size: 15px; }
+.rl-line { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linejoin: round; }
+.rl-dot { stroke: #fff; stroke-width: 2; }
+.rl-dot.is-hi { fill: var(--accent); }
+.rl-dot.is-lo { fill: #c99a7d; }
+.rl-dot.is-cur { stroke: var(--ink); stroke-width: 3; }
+.rl-val { fill: var(--ink); font-size: 16px; font-weight: 700; }
+.rl-val.is-cur { fill: var(--accent); }
+.rl-x { fill: var(--ink-2); font-size: 14px; }
+.rl-x.is-cur { fill: var(--accent); font-weight: 700; }
+.heat-kind { margin: 0 0 8px; }
+.heat-wrap { overflow-x: auto; }
+.heat { border-collapse: separate; border-spacing: 4px; width: 100%; table-layout: fixed; font-size: .85rem; }
+.heat th { font-weight: 400; color: var(--ink-2); padding: 0; text-align: center; white-space: nowrap; }
+.heat tbody th { width: 3.4em; text-align: left; }
+.heat thead th { font-weight: 700; color: var(--ink); }
+.heat thead th:first-child { width: 3.4em; }
+.heat td { padding: 0; text-align: center; height: 44px; }
+.heat-cell { width: 100%; height: 44px; padding: 0; border: 0; border-radius: 6px; font: inherit; cursor: pointer; color: var(--ink); background: rgba(158, 61, 34, var(--a)); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.15; }
+.heat-cell b { font-size: 1rem; }
+.heat-cell small { font-size: .72rem; opacity: .85; }
+.heat-cell.is-dark { color: #fff; }
+.heat td.is-cur .heat-cell, .heat td.is-cur { outline: 2px solid var(--ink); outline-offset: 1px; border-radius: 6px; }
+.heat-empty { color: var(--muted); }
+.heat-future { background: transparent; }
+.heat-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 8px 0 0; font-size: .85rem; color: var(--ink-2); }
+.heat-legend i { display: inline-block; width: 18px; height: 14px; border-radius: 3px; background: rgba(158, 61, 34, var(--a)); }
+.heat-legend small { margin-left: 6px; }

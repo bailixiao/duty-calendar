@@ -285,7 +285,8 @@
    *     lostDao: [名字]（上一期有來的道親、這一期沒來）, newDao: [名字]（這一期才來的道親） }
    *   比較的期間沒有資料回傳 null。
    */
-  function explain(events, p, today, vs) {
+  function explain(events, p, today, vs, groups) {
+    const fam = (n) => (groups && groups[n]) || n; // 活動歸類：改過名字的算成同一個（2026/11/23）
     const q = vs === 'ly' ? (p.unit === 'year' ? null : lastYear(p)) : shift(p, -1);
     if (!q) return null;
     const partial = contains(p, today);
@@ -331,7 +332,7 @@
     // 依活動名稱：差最多的活動
     const byName = new Map();
     const put = (list, key) => list.forEach((e) => {
-      const n = e.series || e.name;
+      const n = fam(e.series || e.name);
       if (!byName.has(n)) byName.set(n, { name: n, a: { dao: 0, tan: 0, total: 0, events: 0 }, b: { dao: 0, tan: 0, total: 0, events: 0 } });
       const x = byName.get(n)[key];
       x.dao += e.dao.length; x.tan += e.tan.length; x.total += e.dao.length + e.tan.length + e.unknown.length; x.events += 1;
@@ -348,7 +349,36 @@
     return { q, partial, a, b, ratio: { from: rb, to: ra, dDao, dTan, why }, count: { why: countWhy, avgA, avgB }, items, lostDao, newDao };
   }
 
-  const api = { explain, activity, ageStats, careList, compare, startOf, addDays, UNIT_NAME, periodOf, shift, lastYear, contains, label, prevName, lastYearName, summarize, trend, ranking, byCategory, missingIdentity, delta, pct, textReport, eventsIn };
+  /**
+   * 活動改過名字的建議（2026/11/23）：舊名稱只出現在前面、新名稱只出現在後面（日期不重疊），
+   * 而且一個包含另一個，或最後兩個字一樣（例：區中心打掃 → 初一十五打掃、12人小組 → 12人小組輪值）。回傳 [{ from, to }]
+   */
+  function suggestGroups(events, groups) {
+    groups = groups || {};
+    const span = new Map();
+    events.forEach((e) => {
+      const n = e.series || e.name;
+      const x = span.get(n) || { first: e.date, last: e.date, count: 0 };
+      if (e.date < x.first) x.first = e.date;
+      if (e.date > x.last) x.last = e.date;
+      x.count += 1;
+      span.set(n, x);
+    });
+    const out = [];
+    span.forEach((a, from) => {
+      if (groups[from]) return;
+      let best = null;
+      span.forEach((b, to) => {
+        if (to === from || groups[to] === from || a.last >= b.first) return;
+        const like = to.indexOf(from) !== -1 || from.indexOf(to) !== -1 || (from.length >= 3 && to.length >= 3 && from.length <= 6 && to.length <= 6 && from.slice(-2) === to.slice(-2));
+        if (like && (!best || b.count > best.b.count)) best = { to, b };
+      });
+      if (best) out.push({ from, to: best.to });
+    });
+    return out.sort((x, y) => x.to.localeCompare(y.to, 'zh-Hant') || x.from.localeCompare(y.from, 'zh-Hant')).slice(0, 20);
+  }
+
+  const api = { explain, suggestGroups, activity, ageStats, careList, compare, startOf, addDays, UNIT_NAME, periodOf, shift, lastYear, contains, label, prevName, lastYearName, summarize, trend, ranking, byCategory, missingIdentity, delta, pct, textReport, eventsIn };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.StatsCalc = api;
 })();

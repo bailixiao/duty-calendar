@@ -157,3 +157,17 @@ test('變化的原因（2026/11/23）：佔比下降是壇辦變多、人次變�
   assert.deepEqual(r.newDao, ['測試戊']);
   assert.equal(C.explain(evs, { unit: 'month', year: 2026, n: 7 }, '2026-11-23', 'prev'), null, '上一期沒資料');
 });
+
+test('活動歸類（2026/11/23）：改過名字的算成同一個；建議新舊名稱', () => {
+  const C = require('../js/stats-calc.js');
+  const e = (date, name, dao, tan) => ({ date, dutyId: name + date, name, series: name, tan, dao, unknown: [], accompany: [] });
+  const evs = [e('2026-08-05', '區中心打掃', ['測試甲'], []), e('2026-08-06', '測試小組', [], ['測試乙']), e('2026-09-05', '初一十五打掃', ['測試甲'], ['測試丙']), e('2026-09-06', '測試小組輪值', [], ['測試乙']), e('2026-09-07', '測試園遊會', [], [])];
+  const sug = C.suggestGroups(evs, {});
+  assert.deepEqual(sug, [{ from: '區中心打掃', to: '初一十五打掃' }, { from: '測試小組', to: '測試小組輪值' }]);
+  const groups = { 區中心打掃: '初一十五打掃', 測試小組: '測試小組輪值' };
+  const r = C.explain(evs, { unit: 'month', year: 2026, n: 9 }, '2026-11-23', 'prev', groups);
+  const it = r.items.find((x) => x.name === '初一十五打掃');
+  assert.deepEqual([it.b.total, it.a.total], [1, 2], '舊名稱算進新名稱');
+  assert.equal(r.items.some((x) => x.name === '區中心打掃'), false);
+  assert.deepEqual(C.suggestGroups(evs, groups), [], '對好的不再建議');
+});

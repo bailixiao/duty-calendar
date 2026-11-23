@@ -146,7 +146,10 @@
             }).join('')}
           </div>
           <div class="trend-detail" data-trend-detail aria-live="polite"></div>
+          ${ratioLineHtml(trend, p)}
         </section>
+
+        ${heatHtml(ev, p, data.today)}
 
         <section class="stats-section">
           <h3 class="admin-sub">比較</h3>
@@ -159,7 +162,7 @@
           </table>
         </section>
 
-        ${whyHtml(ev, p, data.today, lyP)}
+        ${whyHtml(ev, p, data.today, lyP, data.statsGroups || {})}
 
         ${cats.length ? `
         <section class="stats-section">
@@ -237,6 +240,14 @@
       keepPlace(body, '[data-trend]', rerender);
     }));
     trendDetail(trend.findIndex((t) => t.period.year === p.year && t.period.n === p.n));
+    bindGroups(body, guard, data, rerender, ev);
+    body.querySelectorAll('[data-heat]').forEach((b) => b.addEventListener('click', () => {
+      const [y, m] = b.dataset.heat.split('-').map(Number);
+      state.unit = 'month';
+      state.period = { unit: 'month', year: y, n: m };
+      keepPlace(body, '[data-heatmap]', rerender);
+    }));
+    body.querySelectorAll('input[name=heatkind]').forEach((x) => x.addEventListener('change', () => { state.heatKind = x.value; keepPlace(body, '[data-heatmap]', rerender); }));
     body.querySelectorAll('input[name=whyvs]').forEach((x) => x.addEventListener('change', () => { state.whyVs = x.value; rerender(); }));
     body.querySelectorAll('[data-why-more]').forEach((x) => x.addEventListener('click', () => { state.whyAll = !state.whyAll; rerender(); }));
     const lh = body.querySelector('[data-latest-here]');
@@ -568,11 +579,82 @@
   }
 
   /** 類別、月季年、上一期下一期的按鈕（一般統計與教育統計共用） */
+  // ---------- 📈 道親佔比折線圖（2026/11/23）：和長條圖同樣的期間，虛線是這幾期的平均 ----------
+
+  function ratioLineHtml(trend, p) {
+    const pts = trend.map((t, i) => ({ i, t, v: t.total ? t.dao / t.total : null }));
+    const has = pts.filter((x) => x.v !== null);
+    if (has.length < 2) return '';
+    const sumDao = trend.reduce((n, t) => n + t.dao, 0), sumAll = trend.reduce((n, t) => n + t.total, 0);
+    const avg = sumAll ? sumDao / sumAll : 0;
+    const W = trend.length * 60, H = 230, top = 34, bottom = 30;
+    // 上下範圍依資料放大（升降才看得清楚）
+    const vs = has.map((x) => x.v).concat([avg]);
+    const lo = Math.max(0, Math.min(...vs) - 0.08), hi = Math.min(1, Math.max(...vs) + 0.08);
+    const X = (i) => i * 60 + 30;
+    const Y = (v) => top + (1 - (v - lo) / Math.max(0.01, hi - lo)) * (H - top - bottom);
+    const line = has.map((x) => `${X(x.i)},${Y(x.v).toFixed(1)}`).join(' ');
+    const isCur = (t) => t.period.year === p.year && t.period.n === p.n;
+    return `
+          <div class="ratio-line" data-ratio-line>
+            <p class="ratio-title">📈 道親佔比的升降<small>虛線＝這 ${trend.length} ${p.unit === 'month' ? '個月' : p.unit === 'quarter' ? '季' : '年'}的平均 ${C.pct(avg)}；高於虛線＝道親比例比平常高</small></p>
+            <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="道親佔比折線圖：${has.map((x) => esc(C.label(x.t.period, 'plain')) + ' ' + C.pct(x.v)).join('、')}">
+              <line x1="0" x2="${W}" y1="${Y(avg).toFixed(1)}" y2="${Y(avg).toFixed(1)}" class="rl-avg"/>
+              <text x="4" y="${(Y(avg) + 18).toFixed(1)}" text-anchor="start" class="rl-avg-t">平均 ${C.pct(avg)}</text>
+              <polyline points="${line}" class="rl-line"/>
+              ${has.map((x) => `<circle cx="${X(x.i)}" cy="${Y(x.v).toFixed(1)}" r="${isCur(x.t) ? 7 : 5}" class="rl-dot${x.v >= avg ? ' is-hi' : ' is-lo'}${isCur(x.t) ? ' is-cur' : ''}"/>
+              <text x="${X(x.i)}" y="${(Y(x.v) - 12).toFixed(1)}" text-anchor="middle" class="rl-val${isCur(x.t) ? ' is-cur' : ''}">${C.pct(x.v)}</text>`).join('')}
+              ${trend.map((t, i) => `<text x="${X(i)}" y="${H - 8}" text-anchor="middle" class="rl-x${isCur(t) ? ' is-cur' : ''}">${esc(p.unit === 'quarter' ? (t.period.year - 1911) + 'Q' + t.period.n : p.unit === 'month' ? t.period.n + '月' : (t.period.year - 1911) + '年')}</text>`).join('')}
+            </svg>
+          </div>`;
+  }
+
+  // ---------- 🗓 月份熱度表（2026/11/23）：一列一年、一格一個月，顏色越深人次越多；點格子看那個月 ----------
+
+  function heatHtml(ev, p, today) {
+    if (!ev.length) return '';
+    const kind = state.heatKind === 'ratio' ? 'ratio' : 'total';
+    const cells = {};
+    ev.forEach((e) => {
+      const k = e.date.slice(0, 7);
+      const c = cells[k] || (cells[k] = { total: 0, dao: 0, events: 0 });
+      c.total += e.dao.length + e.tan.length + e.unknown.length;
+      c.dao += e.dao.length;
+      c.events += 1;
+    });
+    const years = [];
+    const y0 = Number(Object.keys(cells).sort()[0].slice(0, 4)), y1 = Number(today.slice(0, 4));
+    for (let y = y1; y >= y0; y--) years.push(y);
+    const max = Math.max(1, ...Object.values(cells).map((c) => c.total));
+    const val = (c) => (kind === 'ratio' ? (c.total ? c.dao / c.total : null) : c.total);
+    const shade = (c) => { const v = val(c); if (v === null || !c.total) return 0; return kind === 'ratio' ? v : v / max; };
+    const curK = p.unit === 'month' ? `${p.year}-${String(p.n).padStart(2, '0')}` : '';
+    return `
+        <section class="stats-section" data-heatmap>
+          <h3 class="admin-sub">🗓 每個月的熱度</h3>
+          <div class="seg heat-kind no-print">${[['total', '出勤人次'], ['ratio', '道親佔比']].map(([v, l]) => `<label class="seg-item"><input type="radio" name="heatkind" value="${v}"${v === kind ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div>
+          <p class="hint">一列一個月、一欄一年（同一個月可以比不同年）；顏色越深＝${kind === 'ratio' ? '道親佔比越高' : '人次越多'}。哪幾個月每年都比較冷，一眼就看得出來。點格子看那個月的統計。</p>
+          <div class="heat-wrap"><table class="heat">
+            <thead><tr><th></th>${years.slice().reverse().map((y) => `<th>${y - 1911} 年</th>`).join('')}</tr></thead>
+            <tbody>${Array.from({ length: 12 }, (_, i) => `<tr><th>${i + 1} 月</th>${years.slice().reverse().map((y) => {
+              const k = `${y}-${String(i + 1).padStart(2, '0')}`;
+              const c = cells[k];
+              if (k > today.slice(0, 7)) return '<td class="heat-future"></td>';
+              if (!c) return `<td class="heat-empty${k === curK ? ' is-cur' : ''}">·</td>`;
+              const a = shade(c);
+              const ratio = c.total ? c.dao / c.total : null;
+              return `<td class="${k === curK ? 'is-cur' : ''}"><button type="button" class="heat-cell${a > 0.55 ? ' is-dark' : ''}" style="--a:${(0.12 + a * 0.88).toFixed(2)}" data-heat="${y}-${i + 1}" title="${y - 1911} 年 ${i + 1} 月：${c.total} 人次、道親 ${C.pct(ratio)}、${c.events} 場"><b>${kind === 'ratio' ? C.pct(ratio) : c.total}</b><small>${kind === 'ratio' ? c.total + ' 人次' : '道親 ' + C.pct(ratio)}</small></button></td>`;
+            }).join('')}</tr>`).join('')}</tbody>
+          </table></div>
+          <p class="heat-legend"><span>少</span><i style="--a:.15"></i><i style="--a:.4"></i><i style="--a:.65"></i><i style="--a:.9"></i><span>多</span>${kind === 'ratio' ? '<small>（大字＝道親佔比，小字＝人次）</small>' : '<small>（大字＝出勤人次，小字＝道親佔比）</small>'}</p>
+        </section>`;
+  }
+
   // ---------- 🔍 變化的原因（2026/11/23）：和上一期、去年同期比，差在哪裡 ----------
 
-  function whyHtml(ev, p, today, lyP) {
+  function whyHtml(ev, p, today, lyP, groups) {
     const vs = state.whyVs === 'ly' && lyP ? 'ly' : 'prev';
-    const r = C.explain(ev, p, today, vs);
+    const r = C.explain(ev, p, today, vs, groups);
     const pickVs = `<div class="seg why-vs no-print">${[['prev', '比' + C.prevName(p.unit)], lyP ? ['ly', '比' + C.lastYearName(p.unit)] : null].filter(Boolean).map(([v, l]) => `<label class="seg-item"><input type="radio" name="whyvs" value="${v}"${v === vs ? ' checked' : ''}><span>${l}</span></label>`).join('')}</div>`;
     if (!r) return `<section class="stats-section why"><h3 class="admin-sub">🔍 變化的原因</h3>${pickVs}<p class="muted">${vs === 'ly' ? C.lastYearName(p.unit) : C.prevName(p.unit)}沒有資料，沒辦法比。</p></section>`;
     const qName = esc(C.label(r.q, 'plain'));
@@ -603,7 +685,60 @@
           <details class="why-people"${r.newDao.length ? '' : ' hidden'}><summary>這一${C.UNIT_NAME[p.unit]}新來的道親（${qName}都沒來過）：<b>${r.newDao.length} 位</b></summary><p>${names(r.newDao)}</p></details>
           ${!r.lostDao.length && !r.newDao.length ? '<p class="muted">來的道親和以前一樣。</p>' : ''}
           <p class="hint">「差」＝這一${C.UNIT_NAME[p.unit]}減${qName}的人次（＋多、−少）。道親佔比下降，不一定是道親沒來，也可能是那段期間壇辦特別多（例如大活動）。</p>
+          ${groupsHtml(ev, groups)}
         </section>`;
+  }
+
+  /** 🔗 活動改過名字：把新舊名稱對起來（只影響統計；2026/11/23） */
+  const canGroup = () => ['總管理者', '勤務', '道務', '教育'].indexOf((Api.adminWho() || {}).role) !== -1;
+  function groupsHtml(ev, groups) {
+    const keys = Object.keys(groups);
+    const sug = canGroup() ? C.suggestGroups(ev, groups) : [];
+    const names = [...new Set(ev.map((e) => e.series || e.name))].sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+    return `<details class="why-groups no-print"${state.grpOpen || (!keys.length && sug.length) ? ' open' : ''} data-grp>
+      <summary>🔗 活動改過名字？把新舊名稱對起來${keys.length ? `（已對好 ${keys.length} 個）` : sug.length ? `（有 ${sug.length} 個建議）` : ''}</summary>
+      <p class="hint">同一種活動換了名字（例：「區中心打掃」改成「初一十五打掃」），統計會當成兩個活動，「差最多的活動」就看不準。對起來以後，舊名稱算成新名稱。只影響統計，不會改到勤務。</p>
+      ${keys.length ? `<ul class="grp-list">${keys.map((k) => `<li><span>${esc(k)}</span><b>→ ${esc(groups[k])}</b>${canGroup() ? `<button type="button" class="btn btn-small btn-quiet-danger" data-grp-del="${esc(k)}" aria-label="不要對起來：${esc(k)}">🗑</button>` : ''}</li>`).join('')}</ul>` : ''}
+      ${sug.length ? `<p class="grp-sub">💡 系統找到的可能是同一個活動（舊名稱只在以前出現、新名稱只在後來出現），勾對的：</p>
+        <ul class="grp-list">${sug.map((x, i) => `<li><label class="check"><input type="checkbox" data-grp-sug="${i}"> ${esc(x.from)}</label><b>→ ${esc(x.to)}</b></li>`).join('')}</ul>
+        <button type="button" class="btn btn-small btn-primary" data-grp-apply>把勾的對起來</button>` : ''}
+      ${canGroup() ? `<div class="grp-add"><span>自己對：</span><select class="input" data-grp-from><option value="">舊名稱</option>${names.map((n) => `<option>${esc(n)}</option>`).join('')}</select><span>→</span><select class="input" data-grp-to><option value="">算成</option>${names.map((n) => `<option>${esc(n)}</option>`).join('')}</select><button type="button" class="btn btn-small" data-grp-add>加入</button></div>` : ''}
+    </details>`;
+  }
+  /** 存歸類（勾的建議、自己對的、刪掉的），存好重畫、畫面停在原地 */
+  function bindGroups(body, guard, data, rerender, ev) {
+    const box = body.querySelector('[data-grp]');
+    if (!box) return;
+    box.addEventListener('toggle', () => { state.grpOpen = box.open; });
+    const save = async (next) => {
+      Busy.show('存檔中⋯');
+      try {
+        const res = await Api.admin('adminStatsGroupsSave', { groups: next });
+        data.statsGroups = res.statsGroups;
+        Busy.hide();
+        state.grpOpen = true;
+        keepPlace(body, '[data-grp]', rerender);
+      } catch (e) { Busy.hide(); if (!guard(e)) alert(e.message); }
+    };
+    const cur = () => Object.assign({}, data.statsGroups || {});
+    box.querySelectorAll('[data-grp-del]').forEach((b) => b.addEventListener('click', () => { const g = cur(); delete g[b.dataset.grpDel]; save(g); }));
+    const ap = box.querySelector('[data-grp-apply]');
+    if (ap) ap.addEventListener('click', () => {
+      const sug = C.suggestGroups(ev, data.statsGroups || {});
+      const picked = [...box.querySelectorAll('[data-grp-sug]:checked')].map((x) => sug[Number(x.dataset.grpSug)]).filter(Boolean);
+      if (!picked.length) { alert('請先勾要對起來的名稱'); return; }
+      const g = cur();
+      picked.forEach((x) => { g[x.from] = x.to; });
+      save(g);
+    });
+    const add = box.querySelector('[data-grp-add]');
+    if (add) add.addEventListener('click', () => {
+      const from = box.querySelector('[data-grp-from]').value, to = box.querySelector('[data-grp-to]').value;
+      if (!from || !to || from === to) { alert('請選兩個不一樣的名稱'); return; }
+      const g = cur();
+      g[from] = to;
+      save(g);
+    });
   }
 
   /** 重畫但畫面停在原地：sel 那一塊重畫前後在螢幕上同一個位置（不會跳到最上面） */

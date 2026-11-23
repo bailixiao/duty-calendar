@@ -64,7 +64,31 @@ function statsEvents_() {
 }
 
 function adminStats_() {
-  return { today: todayString_(), events: statsEvents_(), eduSessions: eduSessions_(), sheetUpdatedAt: PropertiesService.getScriptProperties().getProperty('STATS_UPDATED_AT') || '' };
+  return { today: todayString_(), events: statsEvents_(), eduSessions: eduSessions_(), sheetUpdatedAt: PropertiesService.getScriptProperties().getProperty('STATS_UPDATED_AT') || '', statsGroups: statsGroups_() };
+}
+
+/**
+ * 統計的活動歸類（2026/11/23）：活動改過名字時，把舊名稱算成新名稱（例：區中心打掃 → 初一十五打掃），跨期比較才準。
+ * 指令碼屬性 STATS_GROUPS ＝ { 名稱: 算成哪一個名稱 }；只影響統計，不改勤務本身。
+ */
+function statsGroups_() {
+  try { var o = JSON.parse(PropertiesService.getScriptProperties().getProperty('STATS_GROUPS') || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; }
+}
+/** body.groups = { 名稱: 算成 }（總管理者、勤務、道務、教育） */
+function adminStatsGroupsSave_(body) {
+  var g = body.groups && typeof body.groups === 'object' ? body.groups : {};
+  var out = {};
+  Object.keys(g).slice(0, 200).forEach(function (k) {
+    var from = cleanText_(k).slice(0, 60), to = cleanText_(g[k]).slice(0, 60);
+    if (from && to && from !== to) out[from] = to;
+  });
+  // 不要繞圈：A→B、B→C 的話 A 直接算成 C
+  Object.keys(out).forEach(function (k) { var seen = {}; var t = out[k]; while (out[t] && !seen[t]) { seen[t] = 1; t = out[t]; } out[k] = t; if (t === k) delete out[k]; });
+  return withSignupLock_(function () {
+    PropertiesService.getScriptProperties().setProperty('STATS_GROUPS', JSON.stringify(out));
+    writeDutyLog_('修改勤務', '統計的活動歸類｜' + Object.keys(out).length + ' 個名稱');
+    return { statsGroups: out };
+  });
 }
 
 /**
