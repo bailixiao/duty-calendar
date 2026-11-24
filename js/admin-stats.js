@@ -604,10 +604,14 @@
       const last = EduCare.lastText(d.care, p.name, key);
       const box = li.querySelector('[data-away-act]');
       box.innerHTML = c ? `<span class="ecare-done">✓ 已關心（${esc(c.by)} ${esc(String(c.at).slice(5, 10).replace('-', '/'))}）${c.note ? '：' + esc(c.note) : ''}</span>${d.canEdit ? ' <button type="button" class="link-btn" data-away-undo>取消</button>' : ''}`
-        : `${last ? `<span class="care-last">${esc(last)}</span>` : ''}${d.canEdit ? '<button type="button" class="btn btn-small btn-primary" data-away-ok>✓ 已關心</button>' : ''}`;
+        : `${last ? `<span class="care-last">${esc(last)}</span>` : ''}${EduCare.claimLine((d.claims || {})[key], d.canEdit)}${d.canEdit ? `<span class="care-btns"><button type="button" class="btn btn-small btn-primary" data-away-ok>✓ 已關心</button>${(d.claims || {})[key] ? '' : '<button type="button" class="btn btn-small" data-claim>🙋 我來關心</button>'}</span>` : ''}`;
       li.classList.toggle('is-done', !!c);
       const ok = box.querySelector('[data-away-ok]');
       if (ok) ok.addEventListener('click', () => EduCare.openCare({ key, name: p.name, temple: p.temple, label: '久沒來的關懷', icon: '💛', reason: `最近 ${v.daysAgo} 天沒有來（最後一次 ${Fmt.shortDate(v.last)} ${v.lastName}）` }, d.care, (nd) => { d = nd; draw(); }));
+      const cl = box.querySelector('[data-claim]');
+      if (cl) cl.addEventListener('click', () => EduCare.openClaim({ key, name: p.name }, (nd) => { d = nd; draw(); }));
+      const cu = box.querySelector('[data-claim-undo]');
+      if (cu) cu.addEventListener('click', () => EduCare.undoClaim({ key, name: p.name }, (nd) => { d = nd; draw(); }));
       const un = box.querySelector('[data-away-undo]');
       if (un) un.addEventListener('click', async () => { try { d = await Api.admin('adminEduCare', { key, name: p.name, label: '久沒來的關懷', undo: true }); draw(); } catch (e) { alert(e.message); } });
     });

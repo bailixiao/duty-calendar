@@ -177,6 +177,41 @@
     });
   }
 
+  // ---------- 🙋 認領（2026/11/24）：按「已關心」之前先寫誰負責，組員分工不重複 ----------
+  const CLAIMER_KEY = 'duty-calendar:care-claimer';
+  /** 認領那一行：「🙋 誰 負責（m/d）」；canEdit 時附「取消」 */
+  function claimLine(cl, canEdit) {
+    if (!cl) return '';
+    return `<p class="care-claim">🙋 ${esc(cl.who)} 負責關心（${esc(dayText(cl.at))}）${canEdit ? ' <button type="button" class="link-btn" data-claim-undo>取消</button>' : ''}</p>`;
+  }
+  /** 「🙋 我來關心」：填誰負責（成員名單提示；記住這台上次填的） */
+  function openClaim(x, onSaved, guard) {
+    let last = '';
+    try { last = localStorage.getItem(CLAIMER_KEY) || ''; } catch (e) { /* 不能記也沒關係 */ }
+    const m = Modal.open(`<h2 class="modal-title">🙋 誰來關心 ${esc(x.name)}？</h2>
+      <p class="modal-note">寫上負責的人，其他組員就知道這位有人負責了。關心過了再按「✓ 已關心」。</p>
+      <label class="form-row"><span>負責的人</span><input class="input" data-who maxlength="20" autocomplete="off" value="${esc(last)}"></label>
+      <div class="form-error" data-err hidden></div>
+      <div class="modal-actions"><button type="button" class="btn btn-primary btn-block" data-ok>🙋 我來關心</button><button type="button" class="btn btn-block" data-close>返回</button></div>`);
+    const input = m.el.querySelector('[data-who]');
+    if (window.MemberSuggest) MemberSuggest.attach(input);
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    m.el.querySelector('[data-ok]').addEventListener('click', async (ev) => {
+      const who = input.value.trim();
+      const er = m.el.querySelector('[data-err]');
+      if (!who) { er.textContent = '請填誰負責'; er.hidden = false; return; }
+      ev.target.disabled = true;
+      try {
+        const d = await Api.admin('adminEduCareClaim', { key: x.key, name: x.name, who });
+        try { localStorage.setItem(CLAIMER_KEY, who); } catch (e) { /* 不能記也沒關係 */ }
+        m.close(); onSaved(d);
+      } catch (e) { ev.target.disabled = false; if (guard && guard(e)) return; er.textContent = e.message; er.hidden = false; }
+    });
+  }
+  async function undoClaim(x, onSaved, guard) {
+    try { onSaved(await Api.admin('adminEduCareClaim', { key: x.key, name: x.name, undo: true })); } catch (e) { if (!(guard && guard(e))) alert(e.message); }
+  }
+
   /** box：放畫面的地方；opts = { members（已讀好的成員名單）, guard } */
   // 關心名單每一類先顯示 5 位，下面「全部打開」看全部、「收起來」回到每類 5 位（2026/11/24）；按了已關心重畫也保持
   const FIRST = 5;
@@ -211,7 +246,7 @@
                 ${!c && lastText(d.care, x.name, x.key) ? `<p class="care-last">${esc(lastText(d.care, x.name, x.key))}</p>` : ''}
                 ${c ? `<p class="ecare-done">✓ 已關心（${esc(c.by)} ${esc(String(c.at).slice(5, 10).replace('-', '/'))}）${c.note ? '：' + esc(c.note) : ''}${d.canEdit ? ` <button type="button" class="link-btn" data-care-undo="${gi}|${i}">取消</button>` : ''}</p>`
                   : x.noCare ? `<p class="ecare-talk">${opts.personHtml ? '👆 點名字改學校，改好就會自動拿掉' : '學校改好就會自動拿掉'}</p>`
-                  : d.canEdit ? `<button type="button" class="btn btn-small btn-primary" data-care="${gi}|${i}">✓ 已關心</button>` : ''}
+                  : `${claimLine((d.claims || {})[x.key], d.canEdit).replace('data-claim-undo', `data-claim-undo="${gi}|${i}"`)}${d.canEdit ? `<div class="care-btns"><button type="button" class="btn btn-small btn-primary" data-care="${gi}|${i}">✓ 已關心</button>${(d.claims || {})[x.key] ? '' : `<button type="button" class="btn btn-small" data-claim="${gi}|${i}">🙋 我來關心</button>`}</div>` : ''}`}
               </li>`; }).join('')}</ul>
           </div>`; }).join('') : '<p class="panel-empty">這個月沒有要特別關心的人（升學、生日、升班都還沒到）。生日在「👥 人員 → 成員」補，填了就會自動列進來。</p>'}
         ${hidden || (showAll && more) ? `<div class="ecare-more no-print"><button type="button" class="btn" data-care-all>${showAll ? '▴ 收起來（每類只看前 5 位）' : `▾ 全部打開（還有 ${hidden} 位）`}</button></div>` : ''}
@@ -228,20 +263,22 @@
         const x = pick(b.dataset.care);
         openCare({ key: x.key, name: x.name, temple: x.temple, label: x.group.title, reason: x.reason, icon: x.group.icon }, d.care, (nd) => { d = nd; draw(); }, opts.guard);
       }));
+      box.querySelectorAll('[data-claim]').forEach((b) => b.addEventListener('click', () => openClaim(pick(b.dataset.claim), (nd) => { d = nd; draw(); }, opts.guard)));
+      box.querySelectorAll('[data-claim-undo]').forEach((b) => b.addEventListener('click', () => undoClaim(pick(b.dataset.claimUndo), (nd) => { d = nd; draw(); }, opts.guard)));
       box.querySelectorAll('[data-care-undo]').forEach((b) => b.addEventListener('click', async () => {
         const x = pick(b.dataset.careUndo);
         try { d = await Api.admin('adminEduCare', { key: x.key, name: x.name, label: x.group.title, undo: true }); draw(); } catch (e) { if (!(opts.guard && opts.guard(e))) alert(e.message); }
       }));
       const cp = box.querySelector('[data-care-copy]');
       if (cp) cp.addEventListener('click', async () => {
-        const text = `💛【教育組關心名單】${d.today.slice(5).replace('-', '/')}\n` + groups.map((g) => `\n${g.icon} ${g.title}（${g.items.length} 位）\n` + g.items.map((x) => `・${x.name}${x.temple ? '（' + x.temple + '）' : ''} ${x.label}｜${x.reason}${d.care[x.key] ? '｜✓已關心' : ''}`).join('\n')).join('\n');
+        const text = `💛【教育組關心名單】${d.today.slice(5).replace('-', '/')}\n` + groups.map((g) => `\n${g.icon} ${g.title}（${g.items.length} 位）\n` + g.items.map((x) => `・${x.name}${x.temple ? '（' + x.temple + '）' : ''} ${x.label}｜${x.reason}${d.care[x.key] ? '｜✓已關心' : (d.claims || {})[x.key] ? '｜🙋' + d.claims[x.key].who + ' 負責' : ''}`).join('\n')).join('\n');
         cp.textContent = (await Share.copyText(text)) ? '已複製 ✓' : '複製失敗，請再按一次';
       });
     };
     draw();
   }
 
-  const api = { build, mount, historyOf, lastText, openCare, EVENTS, TOPICS };
+  const api = { build, mount, historyOf, lastText, openCare, openClaim, undoClaim, claimLine, EVENTS, TOPICS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.EduCare = api;
 })(typeof window !== 'undefined' ? window : globalThis);

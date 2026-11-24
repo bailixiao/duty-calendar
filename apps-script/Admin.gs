@@ -80,6 +80,7 @@ function adminDuty_(body) {
   data.groupContact = adminGroupContact_(data.groupType, data.group);
   var duty = findDutyById_(body.id);
   if (duty) Object.assign(data, dutyReports_(duty));
+  data.attendOk = attendOkOfDuty_(body.id);
   return data;
 }
 
@@ -365,7 +366,10 @@ function adminRun_(body) {
     case 'adminHqReplySeen': return adminHqReplySeen_(body);
     case 'adminHqWatch': return adminHqWatch_(body);
     case 'adminEduCareList': return adminEduCareList_();
+    case 'adminAttendPending': return adminAttendPending_();
+    case 'adminAttendOk': return adminAttendOk_(body);
     case 'adminEduCare': return adminEduCare_(body);
+    case 'adminEduCareClaim': return adminEduCareClaim_(body);
     case 'adminStatsGroupsSave': return adminStatsGroupsSave_(body);
     case 'adminAssignGroups': return adminAssignGroups_(body);
     case 'adminSplitSignup': return adminSplitSignup_(body);

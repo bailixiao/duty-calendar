@@ -42,6 +42,7 @@ function adminSetAttendance_(body) {
         .forEach(function (s) { updateRow_(SHEETS.SIGNUPS, s, { '組長': '', '更新時間': now }); });
     }
     updateRow_(SHEETS.SIGNUPS, row, changes);
+    if (changes['出席'] && row['日期'] <= todayString_()) attendOkMark_([{ dutyId: row['勤務ID'], date: row['日期'] }]); // 看過名單了，算確認出席
     var what = [];
     if (changes['出席'] && changes['出席'] !== before['出席']) what.push('改為' + changes['出席']);
     if (changes['陪同'] && changes['陪同'] !== before['陪同']) what.push(changes['陪同'] === '是' ? '改為陪同' : '改為了愿');
@@ -102,6 +103,7 @@ function adminAddAttendee_(body) {
     }]);
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.SIGNUPS);
+    if (body.date <= todayString_()) attendOkMark_([{ dutyId: duty['勤務ID'], date: body.date }]); // 補登過，算確認出席
     return { signupId: row['報名ID'], warnings: warnings };
   });
 }
@@ -215,4 +217,106 @@ function adminSplitSignup_(body) {
     invalidateTable_(SHEETS.SIGNUPS);
     return { names: parts };
   });
+}
+
+// =====================================================================
+// 出席確認（2026/11/24）：活動過了，管理者看過名單（沒來的改未到、有來沒報名的補登）就算「確認好了」，
+// 統計、關懷名單、年度報表才準。指令碼屬性 ATTEND_OK ＝ { 勤務ID|日期: { by, at } }（只留 60 天）。
+//   - 改出席／未到、補登（過去的日期）、點名，都自動算確認。
+//   - 後台近期勤務最上面列「最近 14 天還沒確認出席」；勤務名單頁按「✓ 出席確認好了」。
+//   - 每天早上 7 點：昨天還沒確認的，推播給收「系統通知」的手機（一天一則）。
+// =====================================================================
+var ATTEND_OK_PROP = 'ATTEND_OK';
+var ATTEND_PENDING_DAYS = 14;
+
+function attendOkRead_() {
+  try { var o = JSON.parse(PropertiesService.getScriptProperties().getProperty(ATTEND_OK_PROP) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; }
+}
+
+/** 記「確認好了」（undo＝拿掉）；items＝[{ dutyId, date }] */
+function attendOkMark_(items, undo) {
+  var ok = attendOkRead_();
+  var cut = addDaysStr_(todayString_(), -60);
+  Object.keys(ok).forEach(function (k) { if (k.split('|')[1] < cut) delete ok[k]; });
+  var who = (ADMIN_SESSION_ && (ADMIN_SESSION_.account || ADMIN_SESSION_.role)) || '點名';
+  items.forEach(function (it) {
+    var k = it.dutyId + '|' + it.date;
+    if (undo) delete ok[k];
+    else if (!ok[k]) ok[k] = { by: who, at: nowString_() };
+  });
+  PropertiesService.getScriptProperties().setProperty(ATTEND_OK_PROP, JSON.stringify(ok));
+  return ok;
+}
+
+/** 需要確認出席的場次：今天以前（from～昨天）、不是公告型、有人報名、還沒確認的 */
+function attendPendingList_(from, to, role) {
+  var ok = attendOkRead_();
+  var duties = {};
+  readTableCached_(SHEETS.DUTIES).forEach(function (d) {
+    if (!d['勤務ID'] || d['模式'] === '公告型') return;
+    if (role && CATEGORIES.indexOf(role) !== -1 && dutyCategory_(d) !== role) return;
+    duties[d['勤務ID']] = d;
+  });
+  var map = {};
+  activeSignups_().forEach(function (s) {
+    var d = duties[s['勤務ID']];
+    if (!d || !s['日期'] || s['日期'] < from || s['日期'] > to) return;
+    var k = s['勤務ID'] + '|' + s['日期'];
+    if (ok[k]) return;
+    var x = map[k] = map[k] || { dutyId: s['勤務ID'], date: s['日期'], name: d['名稱'], category: dutyCategory_(d), count: 0, absent: 0 };
+    x.count++;
+    if (s['出席'] === '未到') x.absent++;
+  });
+  return Object.keys(map).map(function (k) { return map[k]; })
+    .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : String(a.name).localeCompare(String(b.name)); });
+}
+
+/** 後台：最近 14 天還沒確認出席的場次（類別帳號只看自己類別） */
+function adminAttendPending_() {
+  var today = todayString_();
+  return { today: today, days: ATTEND_PENDING_DAYS,
+    items: attendPendingList_(addDaysStr_(today, -ATTEND_PENDING_DAYS), addDaysStr_(today, -1), ADMIN_SESSION_ && ADMIN_SESSION_.role) };
+}
+
+/** 後台：body = { items: [{ dutyId, date }], undo }：確認好了（或取消確認）。只能是今天（含）以前 */
+function adminAttendOk_(body) {
+  var today = todayString_();
+  var items = (body.items || []).filter(function (it) { return it && it.dutyId && /^\d{4}-\d{2}-\d{2}$/.test(String(it.date || '')) && it.date <= today; }).slice(0, 100);
+  if (!items.length) throw new ApiError_('BAD_REQUEST', '沒有要確認的場次（活動當天以後才能確認）');
+  items.forEach(function (it) { if (!findDutyById_(it.dutyId)) throw new ApiError_('NOT_FOUND', '找不到這個勤務'); });
+  return withSignupLock_(function () {
+    var ok = attendOkMark_(items, !!body.undo);
+    items.forEach(function (it) {
+      var d = findDutyById_(it.dutyId);
+      writeDutyLog_('修正', (d ? d['名稱'] : it.dutyId) + '｜' + it.date + '｜' + (body.undo ? '取消出席確認' : '出席確認好了'));
+    });
+    return { ok: items.map(function (it) { return ok[it.dutyId + '|' + it.date] || null; }) };
+  });
+}
+
+/** 這個勤務每一天的確認（勤務名單頁用）：{ 日期: { by, at } } */
+function attendOkOfDuty_(dutyId) {
+  var ok = attendOkRead_();
+  var out = {};
+  Object.keys(ok).forEach(function (k) { var p = k.split('|'); if (p[0] === dutyId) out[p[1]] = ok[k]; });
+  return out;
+}
+
+/** 每天早上：昨天還沒確認出席的，推播給收系統通知的手機（一天一次） */
+function attendRemind_() {
+  var today = todayString_();
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('ATTEND_REMIND_DAY') === today) return { items: 0, skipped: 'done' };
+  props.setProperty('ATTEND_REMIND_DAY', today);
+  var y = addDaysStr_(today, -1);
+  var items = attendPendingList_(y, y, '');
+  if (!items.length) return { items: 0 };
+  var targets = pushTargets_('系統通知');
+  if (!targets.length) return { items: items.length, phones: 0 };
+  var names = items.map(function (x) { return x.name; });
+  withSignupLock_(function () {
+    pushMessageTo_(targets, '📋 昨天 ' + items.length + ' 場還沒確認出席',
+      names.join('、').slice(0, 60) + '\n沒來的改「未到」、有來沒報名的「補登」，看過沒問題按「✓ 出席確認好了」。', '#/admin');
+  });
+  return { items: items.length, phones: targets.length };
 }

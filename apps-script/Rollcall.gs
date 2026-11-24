@@ -88,6 +88,7 @@ function rollcallSet_(body) {
       SpreadsheetApp.flush();
       invalidateTable_(SHEETS.SIGNUPS);
     }
+    attendOkMark_([{ dutyId: duty['勤務ID'], date: body.date }]); // 點過名，算確認出席
     return rollcallList_(duty, body.date);
   });
 }

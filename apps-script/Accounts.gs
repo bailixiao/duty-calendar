@@ -82,10 +82,10 @@ function currentTokenKey_(account) {
 
 // 所有角色都能用的讀取
 var ADMIN_READ_ACTIONS = ['adminPing', 'adminLogout', 'adminMe', 'adminRecent', 'adminDuty', 'adminLogs', 'adminDay', 'adminRoster',
-  'adminDutyList', 'adminDutyForEdit', 'adminStats', 'adminMembers', 'adminGroups', 'adminGoals', 'adminVenue', 'adminVenueStats', 'adminPushList', 'adminFaq', 'adminRepairs', 'adminRecentSignups', 'adminSignupDigestWatch', 'adminNoticeTail', 'adminHqInbox', 'adminHqWatch', 'adminEduCareList'];
+  'adminDutyList', 'adminDutyForEdit', 'adminStats', 'adminMembers', 'adminGroups', 'adminGoals', 'adminVenue', 'adminVenueStats', 'adminPushList', 'adminFaq', 'adminRepairs', 'adminRecentSignups', 'adminSignupDigestWatch', 'adminNoticeTail', 'adminHqInbox', 'adminHqWatch', 'adminEduCareList', 'adminAttendPending'];
 // 依勤務類別判斷的寫入（勤務／道務／教育帳號只能動自己類別）
 var ADMIN_CATEGORY_ACTIONS = ['adminCancel', 'adminReschedule', 'adminRestore', 'adminCreateDuties', 'adminUpdateDuty',
-  'adminDeleteDuty', 'adminSetAttendance', 'adminAddAttendee', 'adminDraftFromImages', 'adminUpdateStatsSheet', 'adminSetTeachers', 'adminSaveGoals', 'adminVenueDecide', 'adminVenueEdit', 'adminVenueConvert', 'adminGridMove', 'adminGridNote', 'adminPushSave', 'adminPushDelete', 'adminAutoPushSave', 'adminRollcallLink', 'adminReportLink', 'adminImportAttendance', 'adminSetMemberExtra', 'adminSplitSignup', 'adminSetPinned', 'adminChangePosition', 'adminAdjustPositions', 'adminHqSeen', 'adminHqPublish', 'adminHqPublishMany', 'adminHqDecline', 'adminHqReplySeen', 'adminEduCare', 'adminStatsGroupsSave'];
+  'adminDeleteDuty', 'adminSetAttendance', 'adminAddAttendee', 'adminDraftFromImages', 'adminUpdateStatsSheet', 'adminSetTeachers', 'adminSaveGoals', 'adminVenueDecide', 'adminVenueEdit', 'adminVenueConvert', 'adminGridMove', 'adminGridNote', 'adminPushSave', 'adminPushDelete', 'adminAutoPushSave', 'adminRollcallLink', 'adminReportLink', 'adminImportAttendance', 'adminSetMemberExtra', 'adminSplitSignup', 'adminSetPinned', 'adminChangePosition', 'adminAdjustPositions', 'adminHqSeen', 'adminHqPublish', 'adminHqPublishMany', 'adminHqDecline', 'adminHqReplySeen', 'adminEduCare', 'adminEduCareClaim', 'adminStatsGroupsSave', 'adminAttendOk'];
 
 // 成員、分組的編輯動作，與可以編輯的帳號（總管理者另外全部可以）
 var PEOPLE_EDIT_ACTIONS = ['adminSaveMember', 'adminDeleteMember', 'adminMemberCandidates', 'adminAddMembers', 'adminMergeNames', 'adminClearCandidates',
@@ -114,6 +114,8 @@ function targetDuties_(body) {
       return (body.items || []).map(function (it) { return findDutyById_(it.id); });
     case 'adminDeleteDuty': // 同名一起刪：一起刪的那些也要檢查
       return [findDutyById_(body.id)].concat((body.alsoIds || []).map(findDutyById_));
+    case 'adminAttendOk':
+      return (body.items || []).map(function (it) { return findDutyById_(it && it.dutyId); });
     case 'adminRollcallLink': case 'adminReportLink':
       return [findDutyById_(body.dutyId)];
     case 'adminImportAttendance': // 新增的場次在 adminImportAttendance_ 裡固定成帳號的類別

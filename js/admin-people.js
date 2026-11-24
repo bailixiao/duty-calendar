@@ -230,6 +230,56 @@
     });
   }
 
+  /**
+   * 🔍 找可能重複的成員（2026/11/24，js/member-dups.js）：寫法很像的兩位列出來，
+   * 「合併成同一人」（選主要名字，另一個變別名、報名紀錄改名）或「不是同一人」（這台記住，不再列）。
+   */
+  const DUP_IGNORE_KEY = 'duty-calendar:dup-ignore';
+  function findDups(members, guard, reload) {
+    let ignore;
+    try { ignore = new Set(JSON.parse(localStorage.getItem(DUP_IGNORE_KEY) || '[]')); } catch (e) { ignore = new Set(); }
+    const desc = (x) => [x.identity, x.temple, x.active ? '' : '已停用', (x.aliases || []).length ? '別名：' + x.aliases.join('、') : ''].filter(Boolean).join('・');
+    const md = Modal.open('<h2 class="modal-title">🔍 可能重複的成員</h2><div data-dups-body></div><div class="modal-actions"><button type="button" class="btn btn-block" data-close>返回</button></div>');
+    md.el.querySelector('[data-close]').addEventListener('click', () => md.close());
+    const draw = () => {
+      const pairs = MemberDups.find(members, ignore);
+      const box = md.el.querySelector('[data-dups-body]');
+      box.innerHTML = pairs.length ? `
+        <p class="modal-note">找到 ${pairs.length} 組寫法很像的名字。同一個人登記成兩位，出勤次數會被拆開算、關懷名單也可能誤列。同名但不同${esc(window.SITE.temple)}的是不同人，不會列出來。</p>
+        <ul class="dup-list">${pairs.map((p, i) => `
+          <li class="dup-item"><p class="dup-why">${esc(p.why)}</p>
+            <div class="merge-choice">${[p.a, p.b].map((x, k) => `<label class="check merge-opt"><input type="radio" name="keep${i}" value="${k}"${k === 0 ? ' checked' : ''}> <span><strong>${esc(x.name)}</strong>${desc(x) ? `<small>${esc(desc(x))}</small>` : ''}</span></label>`).join('')}</div>
+            <p class="hint">是同一人的話，選<strong>真名</strong>當主要名字，另一個會變成別名。</p>
+            <div class="care-btns"><button type="button" class="btn btn-small btn-primary" data-dup-merge="${i}">👥 合併成同一人</button><button type="button" class="btn btn-small" data-dup-ignore="${i}">不是同一人</button></div>
+          </li>`).join('')}</ul>` : '<p class="panel-empty">沒有找到寫法很像的成員 😊</p>';
+      box.querySelectorAll('[data-dup-ignore]').forEach((b) => b.addEventListener('click', () => {
+        ignore.add(pairs[Number(b.dataset.dupIgnore)].key);
+        try { localStorage.setItem(DUP_IGNORE_KEY, JSON.stringify([...ignore])); } catch (e) { /* 不能記就這次不列 */ }
+        draw();
+      }));
+      box.querySelectorAll('[data-dup-merge]').forEach((b) => b.addEventListener('click', async () => {
+        const i = Number(b.dataset.dupMerge);
+        const p = pairs[i];
+        const k = Number(box.querySelector(`[name=keep${i}]:checked`).value);
+        const keep = k ? p.b : p.a;
+        const drop = k ? p.a : p.b;
+        md.close();
+        if (!(await Confirm.open({ title: '確定合併成同一人嗎？', rows: [['主要名字', keep.name], ['變成別名', drop.name]], note: '「' + drop.name + '」以前的報名紀錄會改成「' + keep.name + '」，名單上只留「' + keep.name + '」。', confirmText: '確定合併' }))) return;
+        Busy.show('合併中⋯');
+        try {
+          const res = await Api.admin('adminMergeMembers', { keep: { row: keep.row, original: keep.name }, drop: { row: drop.row, original: drop.name } });
+          Busy.hide();
+          notice(AdminPage.notice('success', '已合併成同一人', `「${drop.name}」變成「${keep.name}」的別名${res.changed ? `，報名紀錄改了 ${res.changed} 筆` : ''}`));
+          afterWrite(reload);
+        } catch (err) {
+          Busy.hide();
+          if (!guard(err)) { notice(`<div class="notice notice-error" role="alert"><p>${errorHtml(err)}</p></div>`); reload(); }
+        }
+      }));
+    };
+    draw();
+  }
+
   /** 合併佛堂：同一個佛堂有兩種寫法，把其中一個全部改成另一個（成員、報名紀錄一起改） */
   function mergeTemple(list, guard, reload) {
     const count = (t) => list.filter((m) => m.temple === t).length;
@@ -304,7 +354,7 @@
       ${AdminPage.staleNote(stale)}
       ${flash}
       ${pendingList.length ? `<div class="notice pending-banner" role="status"><p>🆕 <strong>有 ${pendingList.length} 位新成員待確認</strong>（報名時自動加入的新名字）</p>${memberState.filter === 'pending' ? '<p class="muted">確認每一位：沒問題按「保留」；要改身分、佛堂、分組按「修改」（存檔就算保留）；其實是名單上的某人（寫法不同）按「合併到⋯」；打錯或不需要的按「刪除」。</p>' : '<button type="button" class="btn btn-primary" data-show-pending>查看待確認的人</button>'}</div>` : ''}
-      ${canEditPeople() ? '<div class="admin-actions"><button type="button" class="btn btn-primary" data-add>＋ 新增成員</button><button type="button" class="btn" data-from-signups>從出勤紀錄加入成員</button><button type="button" class="btn" data-import-members>📋 匯入成員資料</button><button type="button" class="btn" data-same-name>👥 同名的舊紀錄</button><button type="button" class="btn" data-merge-temple>🏠 合併佛堂</button></div>' : ''}
+      ${canEditPeople() ? '<div class="admin-actions"><button type="button" class="btn btn-primary" data-add>＋ 新增成員</button><button type="button" class="btn" data-from-signups>從出勤紀錄加入成員</button><button type="button" class="btn" data-import-members>📋 匯入成員資料</button><button type="button" class="btn" data-same-name>👥 同名的舊紀錄</button><button type="button" class="btn" data-merge-temple>🏠 合併佛堂</button><button type="button" class="btn" data-dups>🔍 找可能重複的成員</button></div>' : ''}
       <div class="list-filter">
         <select class="input" data-filter aria-label="狀態">
           ${pendingList.length ? `<option value="pending"${memberState.filter === 'pending' ? ' selected' : ''}>🆕 待確認（${pendingList.length}）</option>` : ''}
@@ -442,6 +492,7 @@
       body.querySelector('[data-import-members]').addEventListener('click', () => importMembers(guard, reload));
       body.querySelector('[data-same-name]').addEventListener('click', () => sameNameSignups(guard));
       body.querySelector('[data-merge-temple]').addEventListener('click', () => mergeTemple(data.members, guard, reload));
+      body.querySelector('[data-dups]').addEventListener('click', () => findDups(data.members, guard, reload));
     }
     rows.addEventListener('click', (ev) => {
       const b = ev.target.closest('[data-row]');

@@ -7,6 +7,7 @@
  * 按「已關心」時，一句紀錄也加到那位成員的「成全紀錄」最前面（最多 300 字，舊的從後面剪掉）。
  */
 var EDU_CARE_PROP = 'EDU_CARE';
+var EDU_CLAIM_PROP = 'EDU_CARE_CLAIM'; // 2026/11/24 認領：{ 關心代號: { who（負責的人，成員名單上的名字）, at, by（哪個帳號按的） } }（只留 60 天）
 var EDU_CARE_ROLES = ['總管理者', '勤務', '教育', '道務']; // 總管理者＝SUPER_ACCOUNT（檔案載入順序不一定，這裡直接寫）
 
 function eduCareRead_(prop) {
@@ -18,7 +19,7 @@ function eduCareCanEdit_() {
 
 /** 關心紀錄 */
 function adminEduCareList_() {
-  return { care: eduCareRead_(EDU_CARE_PROP), today: todayString_(),
+  return { care: eduCareRead_(EDU_CARE_PROP), claims: eduCareRead_(EDU_CLAIM_PROP), today: todayString_(),
     canEdit: !!ADMIN_SESSION_ && EDU_CARE_ROLES.indexOf(ADMIN_SESSION_.role) !== -1 };
 }
 
@@ -53,6 +54,29 @@ function adminEduCare_(body) {
       }
     }
     writeDutyLog_('成員', '教育組關心名單｜' + name + '｜' + String(body.label || '') + (body.undo ? '｜取消已關心' : '｜已關心' + (note ? '：' + note : '')));
+    return adminEduCareList_();
+  });
+}
+
+/**
+ * 「🙋 我來關心」認領（2026/11/24）：按「已關心」之前先寫誰負責，組員分工不重複。
+ * body = { key, name, who（負責的人）, undo }。已關心以後認領就沒用了，前端不再顯示。
+ */
+function adminEduCareClaim_(body) {
+  eduCareCanEdit_();
+  var key = String(body.key || '').slice(0, 120);
+  var name = normalizeName_(body.name);
+  var who = normalizeName_(body.who || '').slice(0, 20);
+  if (!key || !name) throw new ApiError_('BAD_REQUEST', '缺少要關心的人');
+  if (!body.undo && !who) throw new ApiError_('BAD_REQUEST', '請填誰負責關心');
+  return withSignupLock_(function () {
+    var claims = eduCareRead_(EDU_CLAIM_PROP);
+    var cut = addDaysStr_(todayString_(), -60);
+    Object.keys(claims).forEach(function (k) { if (String(claims[k].at || '').slice(0, 10) < cut) delete claims[k]; });
+    if (body.undo) delete claims[key];
+    else claims[key] = { who: who, at: nowString_(), by: ADMIN_SESSION_.account || ADMIN_SESSION_.role, name: name };
+    PropertiesService.getScriptProperties().setProperty(EDU_CLAIM_PROP, JSON.stringify(claims));
+    writeDutyLog_('成員', '關心名單｜' + name + (body.undo ? '｜取消認領' : '｜' + who + ' 負責關心'));
     return adminEduCareList_();
   });
 }

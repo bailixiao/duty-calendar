@@ -27,6 +27,46 @@
     return { year, roc: year - 1911, until: partial, total, last, cats, months, top, thanks };
   }
 
+  /**
+   * 🎴 個人年度感謝卡（2026/11/24）：一個人這一年的出勤。今年還沒過完時，去年也只算到同一天。
+   * 回傳 { name, year, roc, until, count（次）, days（天）, last（去年次數）, cats: [{ name, count }], top: [{ name, count }]（最常參加的 5 個）, first, latest: { date, name } }
+   */
+  function person(events, name, year, today) {
+    const partial = today.slice(0, 4) === String(year) ? today : '';
+    const has = (e) => e.dao.indexOf(name) !== -1 || e.tan.indexOf(name) !== -1 || (e.unknown || []).indexOf(name) !== -1;
+    const inYear = (y, until) => events.filter((e) => e.date.slice(0, 4) === String(y) && (!until || e.date <= until) && has(e)).sort((a, b) => a.date.localeCompare(b.date));
+    const mine = inYear(year, partial);
+    const count = (list, key) => {
+      const m = new Map();
+      list.forEach((e) => { const k = key(e); m.set(k, (m.get(k) || 0) + 1); });
+      return [...m.entries()].map(([k, n]) => ({ name: k, count: n })).sort((a, b) => b.count - a.count);
+    };
+    const catName = (c) => (c === '勤務' ? '總務・勤務' : c);
+    return {
+      name, year, roc: year - 1911, until: partial,
+      count: mine.length,
+      days: new Set(mine.map((e) => e.date)).size,
+      last: inYear(year - 1, partial ? `${year - 1}${today.slice(4)}` : '').length,
+      cats: count(mine, (e) => catName(e.category || '勤務')),
+      top: count(mine, (e) => e.series || e.name).slice(0, 5),
+      first: mine.length ? { date: mine[0].date, name: mine[0].name } : null,
+      latest: mine.length ? { date: mine[mine.length - 1].date, name: mine[mine.length - 1].name } : null
+    };
+  }
+
+  /** 卡片上的幾行字 */
+  function cardLines(p) {
+    const md = (x) => `${Number(x.slice(5, 7))}/${Number(x.slice(8, 10))}`;
+    return {
+      head: `${p.roc} 年，您參加了 ${p.count} 次、共 ${p.days} 天`,
+      vs: p.last ? (p.count > p.last ? `比去年多了 ${p.count - p.last} 次 🎉` : p.count === p.last ? '和去年一樣用心 🙏' : `去年 ${p.last} 次`) : '',
+      cats: p.cats.map((c) => `${c.name} ${c.count} 次`).join('、'),
+      top: p.top.map((x) => `${x.name}（${x.count} 次）`),
+      first: p.first ? `今年第一次：${md(p.first.date)} ${p.first.name}` : '',
+      latest: p.count > 1 ? `最近一次：${md(p.latest.date)} ${p.latest.name}` : ''
+    };
+  }
+
   /** 和去年比：+12%、-5%、（去年沒有）'' */
   function diff(now, before) {
     if (!before) return '';
@@ -84,7 +124,116 @@
         <tbody>${r.top.map((x, i) => `<tr><td>${i + 1}</td><th>${esc(x.name)}</th><td>${x.events}</td><td>${x.total}</td><td>${pct(x.total ? x.dao / x.total : null)}</td></tr>`).join('')}</tbody></table>` : ''}
 
       ${r.thanks.length ? `<h3 class="yr-h">🙏 感謝名單<small>出勤最多的 ${r.thanks.length} 位</small></h3>
-      <ol class="yr-thanks">${r.thanks.map((x) => `<li>${esc(x.name)}<small>${x.count} 次</small></li>`).join('')}</ol>` : ''}`;
+      <ol class="yr-thanks">${r.thanks.map((x) => `<li><button type="button" class="yr-card-btn" data-yr-card="${esc(x.name)}" title="做感謝卡">${esc(x.name)}</button><small>${x.count} 次</small></li>`).join('')}</ol>
+      <p class="hint no-print">點名字可以做「🎴 個人感謝卡」（存圖片傳給他）；不在名單上的人在下面打名字。</p>` : ''}
+      <div class="yr-card-row no-print"><input class="input" data-yr-card-name placeholder="打名字做 🎴 個人感謝卡" autocomplete="off"><button type="button" class="btn" data-yr-card-go>🎴 做感謝卡</button></div>`;
+  }
+
+  // ---------- 🎴 個人年度感謝卡（畫成圖，存圖片／傳 LINE；樣子和了愿感謝狀一樣） ----------
+  const CARD = { paper: '#fbf5e9', gold: '#b8862b', red: '#a8322d', ink: '#2b2118', muted: '#7a6a5a', head: '#23476b' };
+  const SANS = '"Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif';
+  const SERIF = '"Noto Serif TC", "Songti TC", "PMingLiU", "MingLiU", serif';
+  function fitFont(ctx, text, width, size, weight, family) {
+    let s = size;
+    do { ctx.font = `${weight} ${s}px ${family}`; s -= 2; } while (ctx.measureText(text).width > width && s > 14);
+  }
+  function drawCard(p, site, arts) {
+    const L = cardLines(p);
+    const W = 1080, PAD = 90, ART_H = 240;
+    const imgs = arts || [];
+    const top = imgs.length ? ART_H + 40 : 0;
+    const body = 560 + (L.vs ? 52 : 0) + (L.cats ? 52 : 0) + (L.top.length ? 48 * (L.top.length + 1) : 0) + 56 * [L.first, L.latest].filter(Boolean).length;
+    const H = top + body + 180;
+    const cv = document.createElement('canvas');
+    cv.width = W;
+    cv.height = H;
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = CARD.paper;
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = CARD.gold;
+    ctx.lineWidth = 8;
+    ctx.strokeRect(22, 22, W - 44, H - 44);
+    ctx.lineWidth = 2;
+    ctx.strokeRect(38, 38, W - 76, H - 76);
+    if (imgs.length) {
+      const sizes = imgs.map((img) => ({ img, w: img.naturalWidth * ART_H / img.naturalHeight }));
+      const total = sizes.reduce((n, s) => n + s.w, 0) + 20 * (sizes.length - 1);
+      const k = Math.min(1, (W - PAD * 2) / total);
+      let ax = (W - total * k) / 2;
+      ctx.save();
+      ctx.globalCompositeOperation = 'multiply';
+      sizes.forEach((s) => { const h = ART_H * k; ctx.drawImage(s.img, ax, 60 + (ART_H - h), s.w * k, h); ax += (s.w + 20) * k; });
+      ctx.restore();
+      ctx.translate(0, top);
+    }
+    ctx.textAlign = 'center';
+    ctx.fillStyle = CARD.red;
+    ctx.font = `900 84px ${SERIF}`;
+    ctx.fillText('感　謝　卡', W / 2, 160);
+    ctx.fillStyle = CARD.head;
+    fitFont(ctx, p.name, W - PAD * 2, 64, 800, SANS);
+    ctx.fillText(p.name, W / 2, 260);
+    ctx.fillStyle = CARD.ink;
+    fitFont(ctx, L.head, W - PAD * 2, 38, 700, SANS);
+    ctx.fillText(L.head, W / 2, 340);
+    let y = 340;
+    if (L.vs) { y += 52; ctx.fillStyle = CARD.red; fitFont(ctx, L.vs, W - PAD * 2, 30, 600, SANS); ctx.fillText(L.vs, W / 2, y); }
+    if (L.cats) { y += 52; ctx.fillStyle = CARD.muted; fitFont(ctx, L.cats, W - PAD * 2, 28, 500, SANS); ctx.fillText(L.cats, W / 2, y); }
+    ctx.textAlign = 'left';
+    y += 40;
+    if (L.top.length) {
+      y += 48;
+      ctx.fillStyle = CARD.head;
+      ctx.font = `700 32px ${SANS}`;
+      ctx.fillText('最常參加的活動', PAD, y);
+      L.top.forEach((t, i) => { y += 48; ctx.fillStyle = CARD.ink; fitFont(ctx, `${i + 1}. ${t}`, W - PAD * 2 - 30, 30, 400, SANS); ctx.fillText(`${i + 1}. ${t}`, PAD + 20, y); });
+    }
+    [L.first, L.latest].filter(Boolean).forEach((t) => { y += 56; ctx.fillStyle = CARD.muted; fitFont(ctx, t, W - PAD * 2, 26, 500, SANS); ctx.fillText(t, PAD, y); });
+    y += 100;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = CARD.ink;
+    fitFont(ctx, '感謝您這一年的發心護持，辛苦了，感恩！', W - PAD * 2, 36, 700, SERIF);
+    ctx.fillText('感謝您這一年的發心護持，辛苦了，感恩！', W / 2, y);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = CARD.muted;
+    ctx.font = `500 26px ${SANS}`;
+    const sign = (site || '') + (p.until ? `（統計到 ${Number(p.until.slice(5, 7))}/${Number(p.until.slice(8, 10))}）` : '');
+    ctx.fillText(sign, W - PAD, H - top - 70);
+    return cv;
+  }
+
+  /** 做一張個人感謝卡：預覽＋傳到 LINE（手機分享／電腦複製圖片） */
+  async function openCard(events, who, year, today, site) {
+    const p = person(events, who, year, today);
+    if (!p.count) {
+      const m0 = Modal.open(`<h2 class="modal-title">🎴 個人感謝卡</h2><p>${esc(who)} 在 ${p.roc} 年沒有出勤紀錄（名字要和統計上的一樣；同名不同佛堂的寫成「名字（佛堂）」）。</p><div class="modal-actions"><button type="button" class="btn btn-block" data-close>關閉</button></div>`);
+      m0.el.querySelector('[data-close]').addEventListener('click', () => m0.close());
+      return;
+    }
+    Busy.show('產生感謝卡中⋯');
+    const arts = root.ThanksImage && ThanksImage.loadArts ? await ThanksImage.loadArts() : [];
+    Busy.hide();
+    const cv = drawCard(p, site, arts);
+    const m = Modal.open(`
+      <h2 class="modal-title">🎴 ${esc(p.name)} 的感謝卡</h2>
+      <img class="image-full thanks-preview" src="${cv.toDataURL('image/png')}" alt="${esc(p.name)} 的感謝卡">
+      <div class="modal-actions">
+        <button type="button" class="btn btn-primary btn-block" data-card-share>📤 傳到 LINE（手機分享／電腦複製圖片）</button>
+        <button type="button" class="btn btn-block" data-close>關閉</button>
+      </div>`);
+    m.el.classList.add('modal-wide');
+    m.el.querySelector('[data-close]').addEventListener('click', () => m.close());
+    const btn = m.el.querySelector('[data-card-share]');
+    btn.addEventListener('click', async () => {
+      const back = btn.textContent;
+      btn.disabled = true;
+      try {
+        const r = await GridImage.shareCanvas(cv, `${p.name}感謝卡.png`, `${p.name} 感謝卡`);
+        btn.textContent = { share: '已開啟分享 ✓', copy: '已複製圖片 ✓，到 LINE 貼上', download: '已下載圖片 ✓', cancel: back }[r];
+      } catch (e) { btn.textContent = '失敗了，請再試一次'; }
+      btn.disabled = false;
+      setTimeout(() => { btn.textContent = back; }, 3500);
+    });
   }
 
   /** 打開報表（蓋在畫面上；列印時只印報表）。groups＝統計的活動歸類（改過名字的算成同一個） */
@@ -105,6 +254,12 @@
       el.querySelector('[data-yr-year]').addEventListener('change', (ev) => pick(Number(ev.target.value)));
       el.querySelector('[data-yr-print]').addEventListener('click', () => window.print());
       el.querySelector('[data-yr-close]').addEventListener('click', close);
+      el.querySelectorAll('[data-yr-card]').forEach((b) => b.addEventListener('click', () => openCard(events, b.dataset.yrCard, y, today, name)));
+      const cn = el.querySelector('[data-yr-card-name]');
+      if (cn) {
+        if (root.MemberSuggest) MemberSuggest.attach(cn);
+        el.querySelector('[data-yr-card-go]').addEventListener('click', () => { if (cn.value.trim()) openCard(events, cn.value.trim(), y, today, name); });
+      }
       const cp = el.querySelector('[data-yr-copy]');
       cp.addEventListener('click', async () => { cp.textContent = (await Share.copyText(text(r, name))) ? '已複製 ✓' : '複製失敗，請再按一次'; });
       el.scrollTop = 0;
@@ -121,7 +276,7 @@
     pick(year);
   }
 
-  const api = { build, text, diff, open };
+  const api = { build, text, diff, open, person, cardLines };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.YearReport = api;
 })(typeof window !== 'undefined' ? window : globalThis);

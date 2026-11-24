@@ -598,6 +598,7 @@
         ${staleNote(stale)}
         ${Api.adminWho().role === '唯讀' ? '' : '<div data-hq-inbox></div>'}
         ${seesSite() ? '<div data-onboarding></div>' : ''}
+        ${['唯讀', '場管'].indexOf(Api.adminWho().role) !== -1 ? '' : '<div data-attend-check></div>'}
         ${Api.adminWho().role === '唯讀' ? '' : '<div data-recent-signups></div>'}
         ${['道務', '教育', '唯讀'].indexOf(Api.adminWho().role) !== -1 ? '' : '<div class="admin-actions"><button type="button" class="btn" data-general-notice>📢 總務佈達（初一十五打掃、拜香輪值）</button></div>'}
         ${['道務', '教育'].indexOf(Api.adminWho().role) !== -1 ? '' : shortDates.size
@@ -632,6 +633,7 @@
         </div>` : ''}`;
       Share.bind(body, () => Share.shortageText(rows.map((r) => ({ duty: r.d, date: r.date, state: r.st }))));
       Share.bindNoNeed(body);
+      if (window.AttendCheck && !stale) AttendCheck.mount(body.querySelector('[data-attend-check]'), guard);
       RecentSignups.mount(body.querySelector('[data-recent-signups]'), guard, recentFresh);
       mountOnboarding(body.querySelector('[data-onboarding]'));
       HqInbox.mount(body.querySelector('[data-hq-inbox]'), guard);
@@ -823,6 +825,7 @@
           <h3 class="admin-sub">報名名單${dates.length > 1 ? `<span class="h2-sub">${Fmt.shortDate(date)}</span>` : ''}</h3>
           ${dates.length > 1 ? `<div class="date-tabs">${dates.map((x) => `<button type="button" class="date-tab${x === date ? ' is-active' : ''}" data-date="${x}"><span class="date-tab-day">${Fmt.shortDate(x)}</span></button>`).join('')}</div>` : ''}
           <ul class="position-list">${positions}</ul>
+          ${window.AttendCheck ? AttendCheck.dutyHtml(d, date, canEdit) : ''}
           <p class="hint">${past ? '出席修正：預設報名＝出席。沒來的人按「改未到」，沒報名但有來的人按「補登」。統計表只算出席、非陪同的人。' : '管理者可以取消、改期任何日期（含當天與過去）的報名；按「＋ 幫人報名」可以直接幫人加上（不受報名截止日限制）。'}</p>
         </section>`}
       ${reportsHtml(d, date)}
@@ -843,6 +846,7 @@
     }));
     // 📸 活動照片（2026/11/23）：後台（不是唯讀）可以刪
     if (window.Album) Album.mount(body.querySelector('[data-album]'), d, { admin: ['唯讀', '場管'].indexOf(Api.adminWho().role) === -1, guard, date });
+    if (window.AttendCheck) AttendCheck.bindDuty(body, d, date, renderDuty, guard);
     const rc = body.querySelector('[data-rollcall]');
     if (rc) rc.addEventListener('click', () => rollcallLink(d, date));
     const rl = body.querySelector('[data-report-link]');
