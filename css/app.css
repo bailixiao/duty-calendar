@@ -2963,15 +2963,9 @@ button.veg-chip:hover { border-color: var(--ok); }
 .age-outside { font-size: .9rem; color: var(--ink-2); margin: 4px 0 8px; }
 .age-others { margin: 12px 0 6px; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
 /* 教育組的關心名單（2026/11/23） */
-.ecare-group { margin: 8px 0; }
-.ecare-head { display: flex; align-items: baseline; gap: 8px; margin: 0 0 4px; font-size: 1.05rem; font-weight: 700; cursor: pointer; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); list-style: none; }
-.ecare-head::-webkit-details-marker { display: none; }
-.ecare-head::before { content: '▸'; color: var(--ink-2); }
-.ecare-group[open] > .ecare-head::before { content: '▾'; }
-.ecare-group[open] > .ecare-head { margin-bottom: 8px; }
-.ecare-fold { margin: 8px 0 0; }
-.care-fold > summary { cursor: pointer; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); margin: 8px 0; }
-.care-fold-tip { color: var(--ink-2); font-size: .9rem; margin-left: 4px; }
+.ecare-group { margin: 12px 0 16px; }
+.ecare-head { display: flex; align-items: baseline; gap: 8px; margin: 0 0 4px; font-size: 1.05rem; }
+.ecare-more, .care-more { margin: 10px 0 4px; }
 .ecare-head span { font-weight: 400; font-size: .9rem; color: var(--ink-2); }
 .ecare-topic { margin: 0 0 8px; padding: 8px 10px; border-radius: 10px; background: #fff8ec; border: 1px solid #f0d9b5; font-size: .95rem; }
 .ecare-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }

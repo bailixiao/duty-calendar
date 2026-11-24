@@ -178,8 +178,9 @@
   }
 
   /** box：放畫面的地方；opts = { members（已讀好的成員名單）, guard } */
-  // 關心名單每一類可以點開／收起來，也可以一次全部打開（2026/11/24）；記住哪幾類開著，按了已關心重畫也不會跳回去
-  const openGroups = new Set();
+  // 關心名單每一類先顯示 5 位，下面「全部打開」看全部、「收起來」回到每類 5 位（2026/11/24）；按了已關心重畫也保持
+  const FIRST = 5;
+  let showAll = false;
 
   async function mount(box, opts) {
     let d;
@@ -193,15 +194,16 @@
       const groups = build(opts.members, d.today, null, Family.schoolStage, EduStats.AGE_CLASSES);
       const n = groups.reduce((s, g) => s + g.items.length, 0);
       const done = groups.reduce((s, g) => s + g.items.filter((x) => d.care[x.key]).length, 0);
+      const more = groups.reduce((s, g) => s + Math.max(0, g.items.length - FIRST), 0);
+      const hidden = showAll ? 0 : more;
       box.innerHTML = `
         <h3 class="admin-sub">💛 這個月的關心名單<span class="h2-sub">${n ? `${n} 位・已關心 ${done} 位` : '依生日、學齡自動列出'}</span></h3>
         <p class="hint">系統依成員的生日（出生年）自動列出：🎓 升學年（國三、高三整年，每學期關心一次）、升國中、大學畢業、🎂 生日（35 歲以下，有填月日的）、🏫 升學後學校要更新、🔄 升班銜接。關心過了按「✓ 已關心」，組員之間不會重複找同一個人；寫的一句話也會記進那位成員的成全紀錄。</p>
-        ${n ? `<div class="admin-actions no-print ecare-fold"><button type="button" class="btn btn-small" data-care-all>${groups.every((g) => openGroups.has(g.title)) ? '▴ 全部收起來' : '▾ 全部打開'}</button></div>` : ''}
         ${n ? groups.map((g, gi) => { const gd = g.items.filter((x) => d.care[x.key]).length; return `
-          <details class="ecare-group" data-group="${esc(g.title)}"${openGroups.has(g.title) ? ' open' : ''}>
-            <summary class="ecare-head">${g.icon} ${esc(g.title)}<span>${g.items.length} 位${gd ? `・已關心 ${gd}` : ''}</span></summary>
+          <div class="ecare-group">
+            <h4 class="ecare-head">${g.icon} ${esc(g.title)}<span>${g.items.length} 位${gd ? `・已關心 ${gd}` : ''}</span></h4>
             <p class="ecare-topic">💡 ${esc(g.topic)}</p>
-            <ul class="ecare-list">${g.items.map((x, i) => { const c = d.care[x.key]; return `
+            <ul class="ecare-list">${g.items.map((x, i) => { if (!showAll && i >= FIRST) return ''; const c = d.care[x.key]; return `
               <li class="ecare-item${c ? ' is-done' : ''}">
                 <div class="ecare-who"><strong>${opts.personHtml ? opts.personHtml(x.name, x.temple) : esc(x.name)}</strong>${x.temple ? `<small>${esc(x.temple)}</small>` : ''}${x.label ? `<span class="tag">${esc(x.label)}</span>` : ''}</div>
                 <p class="ecare-reason">${esc(x.reason)}</p>
@@ -211,16 +213,15 @@
                   : x.noCare ? `<p class="ecare-talk">${opts.personHtml ? '👆 點名字改學校，改好就會自動拿掉' : '學校改好就會自動拿掉'}</p>`
                   : d.canEdit ? `<button type="button" class="btn btn-small btn-primary" data-care="${gi}|${i}">✓ 已關心</button>` : ''}
               </li>`; }).join('')}</ul>
-          </details>`; }).join('') : '<p class="panel-empty">這個月沒有要特別關心的人（升學、生日、升班都還沒到）。生日在「👥 人員 → 成員」補，填了就會自動列進來。</p>'}
+          </div>`; }).join('') : '<p class="panel-empty">這個月沒有要特別關心的人（升學、生日、升班都還沒到）。生日在「👥 人員 → 成員」補，填了就會自動列進來。</p>'}
+        ${hidden || (showAll && more) ? `<div class="ecare-more no-print"><button type="button" class="btn" data-care-all>${showAll ? '▴ 收起來（每類只看前 5 位）' : `▾ 全部打開（還有 ${hidden} 位）`}</button></div>` : ''}
         <div class="admin-actions no-print">${n ? '<button type="button" class="btn" data-care-copy>📋 複製名單（貼到 LINE 分工）</button>' : ''}</div>`;
       const allBtn = box.querySelector('[data-care-all]');
-      const syncAll = () => { if (allBtn) allBtn.textContent = groups.every((g) => openGroups.has(g.title)) ? '▴ 全部收起來' : '▾ 全部打開'; };
-      box.querySelectorAll('details[data-group]').forEach((el) => el.addEventListener('toggle', () => { if (el.open) openGroups.add(el.dataset.group); else openGroups.delete(el.dataset.group); syncAll(); }));
       if (allBtn) allBtn.addEventListener('click', () => {
-        const open = !groups.every((g) => openGroups.has(g.title));
-        groups.forEach((g) => (open ? openGroups.add(g.title) : openGroups.delete(g.title)));
-        box.querySelectorAll('details[data-group]').forEach((el) => { el.open = open; });
-        syncAll();
+        const wasAll = showAll;
+        showAll = !showAll;
+        draw();
+        if (wasAll) box.scrollIntoView({ block: 'start' });
       });
       const pick = (v) => { const [gi, i] = v.split('|').map(Number); return groups[gi].items[i] && Object.assign({ group: groups[gi] }, groups[gi].items[i]); };
       box.querySelectorAll('[data-care]').forEach((b) => b.addEventListener('click', () => {

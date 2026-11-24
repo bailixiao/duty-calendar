@@ -549,10 +549,11 @@
         <section class="stats-section care-section">
           <h3 class="admin-sub">💛 關懷名單<span class="h2-sub">過去一年來過 3 次以上，最近 ${state.careDays} 天沒有出席</span></h3>
           <div class="seg care-days no-print">${[30, 60, 90].map((d) => `<label class="seg-item"><input type="radio" name="careDays" value="${d}"${d === state.careDays ? ' checked' : ''}><span>${d} 天</span></label>`).join('')}</div>
-          ${list.length ? `<details class="care-fold" data-care-fold${state.careOpen ? ' open' : ''}><summary><b>${list.length} 位</b><span class="care-fold-tip">${state.careOpen ? '（點這裡收起來）' : '（點這裡全部打開）'}</span></summary><ul class="care-list">${list.map((v, i) => `
+          ${list.length ? `<ul class="care-list">${list.slice(0, state.careOpen ? list.length : 5).map((v, i) => `
             <li data-away="${i}"><span class="care-name">${esc(v.name)}${v.identity ? ` <span class="tag">${esc(v.identity)}</span>` : ''}</span>
               <span class="care-meta">最後一次：${esc(Fmt.shortDate(v.last))} ${esc(v.lastName)}（${v.daysAgo} 天前）・過去一年 ${v.count} 次</span>
-              <span class="care-act" data-away-act></span></li>`).join('')}</ul></details>
+              <span class="care-act" data-away-act></span></li>`).join('')}</ul>
+          ${list.length > 5 ? `<div class="care-more no-print"><button type="button" class="btn" data-care-more>${state.careOpen ? '▴ 收起來（只看前 5 位）' : `▾ 全部打開（還有 ${list.length - 5} 位）`}</button></div>` : ''}
           <div class="admin-actions no-print"><button type="button" class="btn" data-care-copy>複製關懷名單</button></div>` : '<p class="muted">沒有需要關懷的人 😊</p>'}
           <p class="hint">可以打電話或在 LINE 問候一下，邀請他們回來 🙏 問候過了按「✓ 已關心」記一句，大家就不會重複找同一位，以前誰關心過、說了什麼也看得到（也會記進那位成員的成全紀錄）。（只算出席、非陪同的紀錄）</p>
         </section>`;
@@ -576,8 +577,8 @@
 
   function bindCare(body, events, today, rerender) {
     body.querySelectorAll('input[name=busyMin]').forEach((r) => r.addEventListener('change', () => { state.busyMin = Number(r.value); keepPlace(body, '.busy-section', rerender); }));
-    const fold = body.querySelector('[data-care-fold]');
-    if (fold) fold.addEventListener('toggle', () => { state.careOpen = fold.open; fold.querySelector('.care-fold-tip').textContent = fold.open ? '（點這裡收起來）' : '（點這裡全部打開）'; });
+    const more = body.querySelector('[data-care-more]');
+    if (more) more.addEventListener('click', () => { state.careOpen = !state.careOpen; keepPlace(body, '.care-section', rerender); });
     body.querySelectorAll('input[name=careDays]').forEach((r) => r.addEventListener('change', () => { state.careDays = Number(r.value); rerender(); }));
     const list = C.careList(events, today, state.careDays, 3);
     if (list.length && body.querySelector('[data-away]')) awayCare(body, list);
