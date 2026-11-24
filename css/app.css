@@ -3179,3 +3179,11 @@ body.yr-open { overflow: hidden; }
 .fb-meta b { color: var(--ink); font-size: 1rem; }
 .fb-text { margin: 0 0 6px; white-space: normal; }
 .fb-note { margin: 0 0 6px; color: var(--ok); font-size: .92rem; }
+/* 後台首頁瘦身（2026/11/24）：出席確認是「要處理的事」裡的一行，點開才列；勤務先列兩週 */
+.todo-toggle { display: flex; align-items: center; gap: 6px; width: 100%; padding: 8px 10px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.todo-toggle span { margin-left: auto; color: var(--ink-2); }
+.todo-attend .attend-check { padding: 6px 2px 2px; }
+.todo-attend .attend-check .hint { margin: 4px 0; }
+.recent-more { margin: 4px 0 12px; }
+.todo-attend .attend-list a { display: block; padding: 0; border: 0; background: none; border-radius: 0; }
+.todo-attend .attend-list a span { margin-left: 0; color: inherit; }

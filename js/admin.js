@@ -566,6 +566,7 @@
   // ---------- 近期勤務 ----------
 
   let recentFresh = false; // 打開近期勤務時重新讀「最新報名」
+  let recentAll = false; // 首頁瘦身（2026/11/24）：勤務先列兩週，後面的按一下再打開
   function showRecent() {
     const body = shell('');
     recentFresh = true;
@@ -590,6 +591,9 @@
       const pinBtn = (d) => (canPin(d)
         ? `<button type="button" class="link-btn pin-btn${d.pinned ? ' is-on' : ''}" data-pin="${esc(d.id)}">${d.pinned ? '📌 首頁中・拿掉' : '📌 放到首頁'}</button>` : '');
 
+      const cut = Fmt.addDays(data.today, 13);
+      const later = rows.filter((r) => r.date > cut).length;
+      const laterFirst = (rows.find((r) => r.date > cut) || {}).date;
       const byDate = new Map();
       rows.forEach((r) => {
         if (!byDate.has(r.date)) byDate.set(r.date, []);
@@ -600,14 +604,14 @@
         ${staleNote(stale)}
         ${Api.adminWho().role === '唯讀' ? '' : '<div data-hq-inbox></div>'}
         ${seesSite() ? '<div data-onboarding></div>' : ''}
-        ${['唯讀', '場管'].indexOf(Api.adminWho().role) !== -1 ? '' : '<div data-todo></div><div data-attend-check></div>'}
+        ${['唯讀', '場管'].indexOf(Api.adminWho().role) !== -1 ? '' : '<div data-todo></div>'}
         ${Api.adminWho().role === '唯讀' ? '' : '<div data-recent-signups></div>'}
         ${['道務', '教育', '唯讀'].indexOf(Api.adminWho().role) !== -1 ? '' : '<div class="admin-actions"><button type="button" class="btn" data-general-notice>📢 總務佈達（初一十五打掃、拜香輪值）</button></div>'}
         ${['道務', '教育'].indexOf(Api.adminWho().role) !== -1 ? '' : shortDates.size
           ? `<div class="notice notice-error" role="status"><p><strong>近一個月有 ${shortDates.size} 天缺人</strong></p><p>${Fmt.shortDateList(shortDates)}</p>${Share.buttonsHtml()}</div>`
           : '<div class="notice notice-success" role="status"><p><strong>近一個月都不缺人</strong></p></div>'}
         ${rows.some((r) => r.d.mode !== '公告型') ? Share.noNeedHtml() : ''}
-        ${[...byDate.entries()].map(([date, items]) => `
+        ${[...byDate.entries()].filter(([date]) => recentAll || date <= cut).map(([date, items]) => `
           <section class="admin-day">
             <h2 class="admin-day-title">${Fmt.shortDate(date)}${date === data.today ? '<span class="h2-sub">今天</span>' : ''}</h2>
             <div class="card-list">
@@ -627,7 +631,8 @@
                   </div>`}
                 </div>`).join('')}
             </div>
-          </section>`).join('') || `<p class="panel-empty">近一個月沒有${term()}</p>`}
+          </section>`).join('') || `<p class="panel-empty">${later ? `兩週內沒有${term()}` : `近一個月沒有${term()}`}</p>`}
+        ${later ? `<button type="button" class="btn btn-block recent-more" data-recent-more>${recentAll ? '▴ 收起來（只看兩週內）' : `▾ 看後面的（${Fmt.shortDate(laterFirst)}以後，還有 ${later} 筆）`}</button>` : ''}
         ${rows.some((r) => r.d.mode !== '公告型') ? `<div class="invite-bar" data-invite-bar hidden>
           <span data-invite-count></span>
           <button type="button" class="btn btn-primary" data-invite-copy>複製勾選的通知</button>
@@ -635,7 +640,9 @@
         </div>` : ''}`;
       Share.bind(body, () => Share.shortageText(rows.map((r) => ({ duty: r.d, date: r.date, state: r.st }))));
       Share.bindNoNeed(body);
-      if (window.AttendCheck && !stale) { AttendCheck.mountTodo(body.querySelector('[data-todo]'), guard); AttendCheck.mount(body.querySelector('[data-attend-check]'), guard); }
+      const rm = body.querySelector('[data-recent-more]');
+      if (rm) rm.addEventListener('click', () => { recentAll = !recentAll; renderRecent(body, data, stale); });
+      if (window.AttendCheck && !stale) AttendCheck.mountHome(body.querySelector('[data-todo]'), guard);
       RecentSignups.mount(body.querySelector('[data-recent-signups]'), guard, recentFresh);
       mountOnboarding(body.querySelector('[data-onboarding]'));
       HqInbox.mount(body.querySelector('[data-hq-inbox]'), guard);
