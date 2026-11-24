@@ -5,7 +5,10 @@
 (function () {
   'use strict';
 
+  // 網站版本：<meta name="app-version">（正式網站每個檔案的 ?v= 是內容雜湊，見 tools/build-pages.js）；沒有的話看 app.js 的 ?v=
   const mine = (() => {
+    const meta = document.querySelector('meta[name="app-version"]');
+    if (meta && meta.content) return meta.content;
     const s = document.querySelector('script[src*="js/app.js?v="]');
     const m = s && /[?&]v=([\w-]+)/.exec(s.getAttribute('src'));
     return m ? m[1] : '';
@@ -33,7 +36,8 @@
     url.searchParams.set('vcheck', String(Date.now())); // sw.js 不處理帶 vcheck 的（不會拿到手機裡存的舊網頁）
     const res = await fetch(url.href, { cache: 'no-store' });
     if (!res.ok) return '';
-    const m = /js\/app\.js\?v=([\w-]+)/.exec(await res.text());
+    const text = await res.text();
+    const m = /<meta name="app-version" content="([\w-]+)"/.exec(text) || /js\/app\.js\?v=([\w-]+)/.exec(text);
     return m ? m[1] : '';
   }
 

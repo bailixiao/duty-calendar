@@ -79,7 +79,8 @@
       [t.members, '🆕', '位新成員待確認（報名時自動加入的新名字）', '#/admin/members'],
       [t.venue, '🏠', `筆${venueWord}借用申請待審核`, '#/admin/venue'],
       [t.venueAsk, '🔁', `筆${venueWord}借用的取消／改期申請`, '#/admin/venue'],
-      [t.repairs, '🔧', '件修繕待處理', '#/admin/venue']
+      [t.repairs, '🔧', '件修繕待處理', '#/admin/venue'],
+      [t.feedback, '💬', '則意見回饋還沒看', '#/admin/feedback']
     ].filter((x) => x[0] > 0);
     box.innerHTML = items.length ? `
       <section class="todo-card" role="status">

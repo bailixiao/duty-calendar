@@ -72,6 +72,7 @@ function doPost(e) {
       case 'groupNoteDelete': return deleteGroupNote_(body);
       case 'venueWatch': return venueWatch_(body);
       case 'reportRepair': return reportRepair_(body);
+      case 'sendFeedback': return sendFeedback_(body);
       case 'repairWatch': return repairWatch_(body);
       case 'rollcallGet': return rollcallGet_(body);
       case 'rollcallSet': return rollcallSet_(body);

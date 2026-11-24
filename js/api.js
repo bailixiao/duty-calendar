@@ -221,6 +221,7 @@
     getThanks: () => get('thanks', {}), // 感謝排行榜（近三個月了愿次數）
     getRepairs: () => get('getRepairs', {}),
     reportRepair: (p) => post(Object.assign({ action: 'reportRepair' }, p)),
+    sendFeedback: (p) => post(Object.assign({ action: 'sendFeedback' }, p)), // 💬 意見回饋（feedback.js）
     repairWatch: (endpoint, id) => post({ action: 'repairWatch', endpoint, id }),
     repairUpload: (p) => post(Object.assign({ action: 'repairUpload' }, p)),
     getVenue: (from, to) => get('getVenue', { from, to }),

@@ -26,6 +26,7 @@ function adminTodo_() {
     out.venueAsk = Object.keys(asks).length;
     out.repairs = repairRows_().filter(function (r) { return r['狀態'] === '待處理'; }).length;
   }
+  if (role === SUPER_ACCOUNT) out.feedback = feedbackUnread_(); // 💬 意見回饋（Feedback.gs）
   return out;
 }
 

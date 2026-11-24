@@ -3169,3 +3169,13 @@ body.yr-open { overflow: hidden; }
 .todo-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
 .todo-list a { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); color: inherit; text-decoration: none; }
 .todo-list a span { margin-left: auto; color: var(--ink-2); }
+/* 💬 意見回饋（2026/11/24） */
+.feedback-box { margin: 20px 0 12px; padding: 14px 16px; border-radius: 14px; background: var(--card); border: 1px dashed #d8c39a; text-align: center; }
+.feedback-title { margin: 0 0 4px; font-weight: 700; font-size: 1.05rem; }
+.fb-list { list-style: none; padding: 0; margin: 10px 0; display: grid; gap: 10px; }
+.fb-item { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--card); }
+.fb-item.is-unread { border-left: 4px solid #c9572a; }
+.fb-meta { margin: 0 0 4px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; color: var(--ink-2); font-size: .92rem; }
+.fb-meta b { color: var(--ink); font-size: 1rem; }
+.fb-text { margin: 0 0 6px; white-space: normal; }
+.fb-note { margin: 0 0 6px; color: var(--ok); font-size: .92rem; }

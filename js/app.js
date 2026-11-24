@@ -31,13 +31,44 @@
   let calendarScrollY = 0;
   let current = 'calendar';
 
+  /**
+   * 後台的程式（index.html 裡 type="text/x-admin" 的）：進後台時才依序下載、執行（2026/11/24）。
+   * 一起開始下載，async=false 讓它們照順序執行；有一個失敗就整個重來。
+   */
+  let adminLoading = null;
+  const adminLoaded = new Set(); // 已經執行過的（重試時不重複執行）
+  function loadAdmin() {
+    if (adminLoading) return adminLoading;
+    const tags = [...document.querySelectorAll('script[type="text/x-admin"]')].map((t) => t.getAttribute('src')).filter((src) => !adminLoaded.has(src));
+    adminLoading = new Promise((ok, fail) => {
+      let left = tags.length;
+      if (!left) { ok(); return; }
+      tags.forEach((src) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.async = false;
+        s.onload = () => { adminLoaded.add(src); left -= 1; if (!left) ok(); };
+        s.onerror = () => { adminLoading = null; fail(new Error('後台程式下載失敗')); };
+        document.body.appendChild(s);
+      });
+    });
+    return adminLoading;
+  }
+  window.App = Object.assign(window.App || {}, { loadAdmin });
+
   function route() {
     // 宏教分壇（/hq/）沒有行事曆，只有後台的「📣 分派」（2026/11/22）
     if (window.Region && Region.code === 'hq' && !/^#\/(admin|setup)/.test(location.hash)) { location.replace('#/admin'); return; }
     const admin = location.hash.match(/^#\/admin\/?(.*)$/);
     if (admin) {
       show('admin');
-      AdminPage.show(admin[1]);
+      if (window.AdminPage) { AdminPage.show(admin[1]); return; }
+      // 後台的程式第一次進來才下載（2026/11/24）：家人們打開網站不用多下載後台的部分
+      views.admin.innerHTML = '<p class="panel-empty" role="status">打開管理後台中⋯</p>';
+      loadAdmin().then(() => { if (/^#\/admin/.test(location.hash)) route(); }, () => {
+        views.admin.innerHTML = '<div class="notice notice-error" role="alert"><p><strong>後台沒有打開</strong></p><p>可能是網路不穩，請再試一次。</p><button type="button" class="btn" data-admin-retry>再試一次</button></div>';
+        views.admin.querySelector('[data-admin-retry]').addEventListener('click', route);
+      });
       return;
     }
     // 分區：開通連結（設定總管理者密碼）
@@ -241,7 +272,7 @@
     document.querySelectorAll('[data-feature]').forEach((el) => { el.hidden = !!(S.features && S.features[el.dataset.feature] === false); }); // 分區：設定更新後可能再打開
   }
 
-  window.App = { applySite }; // 後台「⚙️ 區設定」存好後重新套用
+  window.App = Object.assign(window.App || {}, { applySite }); // 後台「⚙️ 區設定」存好後重新套用
 
   document.addEventListener('DOMContentLoaded', () => {
     applySite();
@@ -257,6 +288,8 @@
     views.report = document.getElementById('view-report');
     views.setup = document.getElementById('view-setup');
     CalendarPage.init();
+    // 這台登入過後台：網頁開好後在背景先把後台的程式下載好，按「管理」時不用等
+    if (Api.isAdmin()) setTimeout(() => loadAdmin().catch(() => {}), 2500);
     // 搬家測試：用 ?api=cf 試用 Cloudflare 版時，左下角顯示提示，按一下切回正式版
     if (window.APP_CONFIG.TEST) {
       const b = document.createElement('a');

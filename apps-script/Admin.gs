@@ -369,6 +369,8 @@ function adminRun_(body) {
     case 'adminAttendPending': return adminAttendPending_();
     case 'adminAttendOk': return adminAttendOk_(body);
     case 'adminTodo': return adminTodo_();
+    case 'adminFeedbackList': return adminFeedbackList_();
+    case 'adminFeedbackSet': return adminFeedbackSet_(body);
     case 'adminDupIgnore': return adminDupIgnore_(body);
     case 'adminBdayPushSave': return adminBdayPushSave_(body);
     case 'adminEduCare': return adminEduCare_(body);
