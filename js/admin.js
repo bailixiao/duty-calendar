@@ -598,7 +598,7 @@
         ${staleNote(stale)}
         ${Api.adminWho().role === '唯讀' ? '' : '<div data-hq-inbox></div>'}
         ${seesSite() ? '<div data-onboarding></div>' : ''}
-        ${['唯讀', '場管'].indexOf(Api.adminWho().role) !== -1 ? '' : '<div data-attend-check></div>'}
+        ${['唯讀', '場管'].indexOf(Api.adminWho().role) !== -1 ? '' : '<div data-todo></div><div data-attend-check></div>'}
         ${Api.adminWho().role === '唯讀' ? '' : '<div data-recent-signups></div>'}
         ${['道務', '教育', '唯讀'].indexOf(Api.adminWho().role) !== -1 ? '' : '<div class="admin-actions"><button type="button" class="btn" data-general-notice>📢 總務佈達（初一十五打掃、拜香輪值）</button></div>'}
         ${['道務', '教育'].indexOf(Api.adminWho().role) !== -1 ? '' : shortDates.size
@@ -633,7 +633,7 @@
         </div>` : ''}`;
       Share.bind(body, () => Share.shortageText(rows.map((r) => ({ duty: r.d, date: r.date, state: r.st }))));
       Share.bindNoNeed(body);
-      if (window.AttendCheck && !stale) AttendCheck.mount(body.querySelector('[data-attend-check]'), guard);
+      if (window.AttendCheck && !stale) { AttendCheck.mountTodo(body.querySelector('[data-todo]'), guard); AttendCheck.mount(body.querySelector('[data-attend-check]'), guard); }
       RecentSignups.mount(body.querySelector('[data-recent-signups]'), guard, recentFresh);
       mountOnboarding(body.querySelector('[data-onboarding]'));
       HqInbox.mount(body.querySelector('[data-hq-inbox]'), guard);

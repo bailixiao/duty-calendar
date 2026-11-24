@@ -476,6 +476,7 @@ export function createApp(store, opts) {
     if (when === 'today') { // 早上：活動隔天提醒上傳照片（Album.gs，2026/11/24）
       try { gs.albumRemind_(); await flushPush(); } catch (e) { console.error('提醒上傳照片', e); }
       try { gs.attendRemind_(); await flushPush(); } catch (e) { console.error('出席確認提醒', e); }
+      try { gs.birthdayPush_(); await flushPush(); } catch (e) { console.error('生日祝福', e); }
     }
     if (when === 'tomorrow') { // 晚上 8 點：順便送管理者的報名彙整（SignupDigest.gs）
       try { gs.sendSignupDigest_(); await flushPush(); } catch (e) { console.error('報名彙整', e); }

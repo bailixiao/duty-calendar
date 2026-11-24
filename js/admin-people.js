@@ -232,12 +232,18 @@
 
   /**
    * 🔍 找可能重複的成員（2026/11/24，js/member-dups.js）：寫法很像的兩位列出來，
-   * 「合併成同一人」（選主要名字，另一個變別名、報名紀錄改名）或「不是同一人」（這台記住，不再列）。
+   * 「合併成同一人」（選主要名字，另一個變別名、報名紀錄改名）或「不是同一人」（記在網站上，大家都不再列，Todo.gs adminDupIgnore）。
    */
-  const DUP_IGNORE_KEY = 'duty-calendar:dup-ignore';
-  function findDups(members, guard, reload) {
-    let ignore;
-    try { ignore = new Set(JSON.parse(localStorage.getItem(DUP_IGNORE_KEY) || '[]')); } catch (e) { ignore = new Set(); }
+  const DUP_IGNORE_KEY = 'duty-calendar:dup-ignore'; // 舊版記在這台的「不是同一人」：打開時搬到網站上
+  function findDups(data, guard, reload) {
+    const members = data.members;
+    const ignore = new Set(data.dupIgnore || []);
+    let local = [];
+    try { local = JSON.parse(localStorage.getItem(DUP_IGNORE_KEY) || '[]').filter((k) => !ignore.has(k)); } catch (e) { local = []; }
+    if (local.length) {
+      local.forEach((k) => ignore.add(k));
+      Api.admin('adminDupIgnore', { keys: local }).then((r) => { data.dupIgnore = r.dupIgnore; try { localStorage.removeItem(DUP_IGNORE_KEY); } catch (e) { /* 沒關係 */ } }).catch(() => {});
+    }
     const desc = (x) => [x.identity, x.temple, x.active ? '' : '已停用', (x.aliases || []).length ? '別名：' + x.aliases.join('、') : ''].filter(Boolean).join('・');
     const md = Modal.open('<h2 class="modal-title">🔍 可能重複的成員</h2><div data-dups-body></div><div class="modal-actions"><button type="button" class="btn btn-block" data-close>返回</button></div>');
     md.el.querySelector('[data-close]').addEventListener('click', () => md.close());
@@ -252,10 +258,16 @@
             <p class="hint">是同一人的話，選<strong>真名</strong>當主要名字，另一個會變成別名。</p>
             <div class="care-btns"><button type="button" class="btn btn-small btn-primary" data-dup-merge="${i}">👥 合併成同一人</button><button type="button" class="btn btn-small" data-dup-ignore="${i}">不是同一人</button></div>
           </li>`).join('')}</ul>` : '<p class="panel-empty">沒有找到寫法很像的成員 😊</p>';
-      box.querySelectorAll('[data-dup-ignore]').forEach((b) => b.addEventListener('click', () => {
-        ignore.add(pairs[Number(b.dataset.dupIgnore)].key);
-        try { localStorage.setItem(DUP_IGNORE_KEY, JSON.stringify([...ignore])); } catch (e) { /* 不能記就這次不列 */ }
-        draw();
+      box.querySelectorAll('[data-dup-ignore]').forEach((b) => b.addEventListener('click', async () => {
+        const key = pairs[Number(b.dataset.dupIgnore)].key;
+        b.disabled = true;
+        try {
+          const r = await Api.admin('adminDupIgnore', { keys: [key] });
+          data.dupIgnore = r.dupIgnore;
+          ignore.add(key);
+          AdminPage.clearMemo();
+          draw();
+        } catch (err) { b.disabled = false; if (!guard(err)) alert(err.message || '沒有存起來'); }
       }));
       box.querySelectorAll('[data-dup-merge]').forEach((b) => b.addEventListener('click', async () => {
         const i = Number(b.dataset.dupMerge);
@@ -492,7 +504,7 @@
       body.querySelector('[data-import-members]').addEventListener('click', () => importMembers(guard, reload));
       body.querySelector('[data-same-name]').addEventListener('click', () => sameNameSignups(guard));
       body.querySelector('[data-merge-temple]').addEventListener('click', () => mergeTemple(data.members, guard, reload));
-      body.querySelector('[data-dups]').addEventListener('click', () => findDups(data.members, guard, reload));
+      body.querySelector('[data-dups]').addEventListener('click', () => findDups(data, guard, reload));
     }
     rows.addEventListener('click', (ev) => {
       const b = ev.target.closest('[data-row]');

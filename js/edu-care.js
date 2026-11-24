@@ -145,7 +145,7 @@
    * 關心紀錄（2026/11/24）：care（EDU_CARE）裡這個人的每一筆，新的在前。
    * 舊的紀錄沒有 name，用代號的第一段（名字|原因|⋯）。exceptKey：不算這一筆（「上次關心」用）。
    */
-  const REASON_WORD = { g9: '國三', g12: '高三', g6: '升國中', u4: '大學畢業', bday: '生日', move: '升班', away: '久沒來', school: '升學' };
+  const REASON_WORD = { g9: '國三', g12: '高三', g6: '升國中', u4: '大學畢業', bday: '生日', move: '升班', away: '久沒來', new: '新朋友', school: '升學' };
   function historyOf(care, name, exceptKey) {
     return Object.keys(care || {}).filter((k) => k !== exceptKey && (care[k].name || k.split('|')[0]) === name)
       .map((k) => Object.assign({ key: k, why: REASON_WORD[k.split('|')[1]] || '' }, care[k]))

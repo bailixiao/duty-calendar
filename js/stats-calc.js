@@ -161,6 +161,32 @@
   }
 
   /**
+   * 🆕 新朋友回訪（2026/11/24）：第一次來（events 裡最早一次）在 30～90 天前、之後都沒再來的人。
+   * 回傳和 careList 一樣的格式（last＝第一次的日期、lastName＝那次的活動、count＝1），多 isNew: true；第一次來比較近的排前面。
+   */
+  function newcomerList(events, today, minDays, maxDays) {
+    const near = addDays(today, -(minDays || 30));
+    const far = addDays(today, -(maxDays || 90));
+    const map = new Map();
+    events.filter((e) => e.date <= today).forEach((e) => {
+      const add = (names, identity) => names.forEach((n) => {
+        const v = map.get(n) || { name: n, identity, count: 0, first: '', firstName: '' };
+        v.count += 1;
+        if (!v.identity) v.identity = identity;
+        if (!v.first || e.date < v.first) { v.first = e.date; v.firstName = e.name; }
+        map.set(n, v);
+      });
+      add(e.tan, '壇辦');
+      add(e.dao, '道親');
+      add(e.unknown, '');
+    });
+    return [...map.values()]
+      .filter((v) => v.count === 1 && v.first <= near && v.first >= far)
+      .map((v) => ({ name: v.name, identity: v.identity, count: 1, last: v.first, lastName: v.firstName, daysAgo: daysBetween(v.first, today), isNew: true }))
+      .sort((a, b) => (a.last > b.last ? -1 : a.last < b.last ? 1 : strokeCompare(a.name, b.name)));
+  }
+
+  /**
    * 近一年每個人出席幾次（全部類別）：回傳 Map 名字 → { count, 勤務, 道務, 教育, last（最近一次日期）, items: { '類別|項目': { name, category, count } } }。
    * 名字和統計一樣（同名不同佛堂的會是「名字（佛堂）」）。
    */
@@ -408,7 +434,7 @@
     return out.sort((x, y) => x.to.localeCompare(y.to, 'zh-Hant') || x.from.localeCompare(y.from, 'zh-Hant')).slice(0, 20);
   }
 
-  const api = { explain, suggestGroups, activity, ageStats, careList, busyList, compare, startOf, addDays, UNIT_NAME, periodOf, shift, lastYear, contains, label, prevName, lastYearName, summarize, trend, ranking, byCategory, missingIdentity, delta, pct, textReport, eventsIn };
+  const api = { explain, suggestGroups, activity, ageStats, careList, newcomerList, busyList, compare, startOf, addDays, UNIT_NAME, periodOf, shift, lastYear, contains, label, prevName, lastYearName, summarize, trend, ranking, byCategory, missingIdentity, delta, pct, textReport, eventsIn };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.StatsCalc = api;
 })();

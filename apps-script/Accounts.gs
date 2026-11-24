@@ -82,14 +82,14 @@ function currentTokenKey_(account) {
 
 // 所有角色都能用的讀取
 var ADMIN_READ_ACTIONS = ['adminPing', 'adminLogout', 'adminMe', 'adminRecent', 'adminDuty', 'adminLogs', 'adminDay', 'adminRoster',
-  'adminDutyList', 'adminDutyForEdit', 'adminStats', 'adminMembers', 'adminGroups', 'adminGoals', 'adminVenue', 'adminVenueStats', 'adminPushList', 'adminFaq', 'adminRepairs', 'adminRecentSignups', 'adminSignupDigestWatch', 'adminNoticeTail', 'adminHqInbox', 'adminHqWatch', 'adminEduCareList', 'adminAttendPending'];
+  'adminDutyList', 'adminDutyForEdit', 'adminStats', 'adminMembers', 'adminGroups', 'adminGoals', 'adminVenue', 'adminVenueStats', 'adminPushList', 'adminFaq', 'adminRepairs', 'adminRecentSignups', 'adminSignupDigestWatch', 'adminNoticeTail', 'adminHqInbox', 'adminHqWatch', 'adminEduCareList', 'adminAttendPending', 'adminTodo'];
 // 依勤務類別判斷的寫入（勤務／道務／教育帳號只能動自己類別）
 var ADMIN_CATEGORY_ACTIONS = ['adminCancel', 'adminReschedule', 'adminRestore', 'adminCreateDuties', 'adminUpdateDuty',
   'adminDeleteDuty', 'adminSetAttendance', 'adminAddAttendee', 'adminDraftFromImages', 'adminUpdateStatsSheet', 'adminSetTeachers', 'adminSaveGoals', 'adminVenueDecide', 'adminVenueEdit', 'adminVenueConvert', 'adminGridMove', 'adminGridNote', 'adminPushSave', 'adminPushDelete', 'adminAutoPushSave', 'adminRollcallLink', 'adminReportLink', 'adminImportAttendance', 'adminSetMemberExtra', 'adminSplitSignup', 'adminSetPinned', 'adminChangePosition', 'adminAdjustPositions', 'adminHqSeen', 'adminHqPublish', 'adminHqPublishMany', 'adminHqDecline', 'adminHqReplySeen', 'adminEduCare', 'adminEduCareClaim', 'adminStatsGroupsSave', 'adminAttendOk'];
 
 // 成員、分組的編輯動作，與可以編輯的帳號（總管理者另外全部可以）
 var PEOPLE_EDIT_ACTIONS = ['adminSaveMember', 'adminDeleteMember', 'adminMemberCandidates', 'adminAddMembers', 'adminMergeNames', 'adminClearCandidates',
-  'adminConfirmMembers', 'adminMergePendingMember', 'adminSaveGroup', 'adminDeleteGroup', 'adminMergeMembers', 'adminImportMembers', 'adminSameNameSignups', 'adminAssignSignupTemple', 'adminMergeTemple', 'adminSetFamily', 'adminAssignGroups'];
+  'adminConfirmMembers', 'adminMergePendingMember', 'adminSaveGroup', 'adminDeleteGroup', 'adminMergeMembers', 'adminImportMembers', 'adminSameNameSignups', 'adminAssignSignupTemple', 'adminMergeTemple', 'adminSetFamily', 'adminAssignGroups', 'adminDupIgnore'];
 var PEOPLE_EDIT_ROLES = ['道務', '教育'];
 
 function findDutyById_(id) {

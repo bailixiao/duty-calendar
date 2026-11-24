@@ -149,7 +149,7 @@ function adminPushList_() {
   duties.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : String(a.startTime || '').localeCompare(String(b.startTime || '')); });
   var plans = pushPlanRows_().filter(function (r) { return !cat || r['類別'] === cat; }).map(pushPlanOut_);
   var devices = readTable_(SHEETS.PUSH).filter(function (r) { return r['啟用'] !== '否' && r['端點']; }).length;
-  return { today: today, now: nowString_(), devices: devices, duties: duties, auto: autoShortSettings_(), plans: plans.sort(function (a, b) { return String(b.at).localeCompare(String(a.at)); }).slice(0, 80) };
+  return { today: today, now: nowString_(), devices: devices, duties: duties, auto: autoShortSettings_(), bday: bdayPushOn_(), plans: plans.sort(function (a, b) { return String(b.at).localeCompare(String(a.at)); }).slice(0, 80) };
 }
 
 /**

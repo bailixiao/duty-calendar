@@ -183,7 +183,7 @@
           ${rank.length > 10 ? `<button type="button" class="btn btn-small no-print" data-rank-all>${state.rankAll ? '只看前 10 名' : `看全部 ${rank.length} 位`}</button>` : ''}
         </section>` : ''}
 
-        ${careHtml(ev, data.today)}
+        ${careHtml(ev, data.today, data.events)}
         ${busyHtml(ev, data.today)}
 
         <section class="stats-section">
@@ -257,7 +257,7 @@
     body.querySelectorAll('input[name=rank]').forEach((r) => r.addEventListener('change', () => { state.rankKind = r.value; rerender(); }));
     const all = body.querySelector('[data-rank-all]');
     if (all) all.addEventListener('click', () => { state.rankAll = !state.rankAll; rerender(); });
-    bindCare(body, ev, data.today, rerender);
+    bindCare(body, ev, data.today, rerender, data.events);
     body.querySelector('[data-print]').addEventListener('click', () => window.print());
     body.querySelector('[data-year-report]').addEventListener('click', () => YearReport.open(data.events, p.year, data.today, (window.Region && Region.name) || (window.SITE && SITE.name) || '', data.statsGroups || {}));
     body.querySelector('[data-copy]').addEventListener('click', () => copyReport(C.textReport(ev, p)));
@@ -415,7 +415,7 @@
               <span class="edu-teacher-courses">${t.courses.map((c) => `${esc(c.name)} ${c.count} ${L.unit}`).join('、')}</span></li>`).join('')}</ul>`
             : `<p class="muted">${L.noStaff}</p>`}
         </section>
-        ${careHtml((data.events || []).filter((e) => (e.category || '勤務') === cat), data.today)}
+        ${careHtml((data.events || []).filter((e) => (e.category || '勤務') === cat), data.today, data.events)}
         ${busyHtml((data.events || []).filter((e) => (e.category || '勤務') === cat), data.today)}
         <div class="stats-actions no-print"><button type="button" class="btn btn-primary" data-xlsx>⬇ 匯出 Excel（${L.item}總覽＋每個${L.item}的出缺勤表）</button></div>
         ${cat === '道務' ? '<section class="stats-section" data-veg></section><section class="stats-section" data-ages></section><section class="stats-section" data-goals></section>' : ''}
@@ -452,7 +452,7 @@
     const cp = body.querySelector('[data-copy-grid]');
     if (cp) cp.addEventListener('click', () => copyReport(EduStats.gridText(cur)));
     body.querySelector('[data-xlsx]').addEventListener('click', () => exportXlsx(body, () => StatsExport.edu(courses, teacherList, L, cat, p)));
-    bindCare(body, (data.events || []).filter((e) => (e.category || '勤務') === cat), data.today, () => render(body, guard, data, false));
+    bindCare(body, (data.events || []).filter((e) => (e.category || '勤務') === cat), data.today, () => render(body, guard, data, false), data.events);
     // 各年齡層適合的班（2026/11/23）
     const ac = body.querySelector('[data-age-classes]');
     if (ac) mountAgeClasses(ac, allCourses, data.today, guard);
@@ -543,19 +543,27 @@
 
   // ---------- 關懷名單：以前常來、最近很久沒來的人 ----------
 
-  function careHtml(events, today) {
-    const list = C.careList(events, today, state.careDays, 3);
+  /** 關懷名單：🆕 新朋友（來過一次、一個月沒再來，2026/11/24）排前面，再來是以前常來、最近很久沒來的人 */
+  //   新朋友看全部類別（別的類別常來的不算新朋友），只列這一頁的類別裡來過的
+  function careItems(events, today, all) {
+    const here = new Set();
+    events.forEach((e) => [e.tan, e.dao, e.unknown].forEach((l) => (l || []).forEach((n) => here.add(n))));
+    return C.newcomerList(all || events, today).filter((v) => here.has(v.name)).concat(C.careList(events, today, state.careDays, 3));
+  }
+
+  function careHtml(events, today, all) {
+    const list = careItems(events, today, all);
     return `
         <section class="stats-section care-section">
           <h3 class="admin-sub">💛 關懷名單<span class="h2-sub">過去一年來過 3 次以上，最近 ${state.careDays} 天沒有出席</span></h3>
           <div class="seg care-days no-print">${[30, 60, 90].map((d) => `<label class="seg-item"><input type="radio" name="careDays" value="${d}"${d === state.careDays ? ' checked' : ''}><span>${d} 天</span></label>`).join('')}</div>
           ${list.length ? `<ul class="care-list">${list.slice(0, state.careOpen ? list.length : 5).map((v, i) => `
-            <li data-away="${i}"><span class="care-name">${esc(v.name)}${v.identity ? ` <span class="tag">${esc(v.identity)}</span>` : ''}</span>
-              <span class="care-meta">最後一次：${esc(Fmt.shortDate(v.last))} ${esc(v.lastName)}（${v.daysAgo} 天前）・過去一年 ${v.count} 次</span>
+            <li data-away="${i}"${v.isNew ? ' class="is-new"' : ''}><span class="care-name">${esc(v.name)}${v.isNew ? ' <span class="tag tag-new">🆕 新朋友</span>' : ''}${v.identity ? ` <span class="tag">${esc(v.identity)}</span>` : ''}</span>
+              <span class="care-meta">${v.isNew ? `第一次來：${esc(Fmt.shortDate(v.last))} ${esc(v.lastName)}（${v.daysAgo} 天前），之後還沒再來` : `最後一次：${esc(Fmt.shortDate(v.last))} ${esc(v.lastName)}（${v.daysAgo} 天前）・過去一年 ${v.count} 次`}</span>
               <span class="care-act" data-away-act></span></li>`).join('')}</ul>
           ${list.length > 5 ? `<div class="care-more no-print"><button type="button" class="btn" data-care-more>${state.careOpen ? '▴ 收起來（只看前 5 位）' : `▾ 全部打開（還有 ${list.length - 5} 位）`}</button></div>` : ''}
           <div class="admin-actions no-print"><button type="button" class="btn" data-care-copy>複製關懷名單</button></div>` : '<p class="muted">沒有需要關懷的人 😊</p>'}
-          <p class="hint">可以打電話或在 LINE 問候一下，邀請他們回來 🙏 問候過了按「✓ 已關心」記一句，大家就不會重複找同一位，以前誰關心過、說了什麼也看得到（也會記進那位成員的成全紀錄）。（只算出席、非陪同的紀錄）</p>
+          <p class="hint">🆕 新朋友＝第一次來之後一個月還沒再來的人，第二次會不會來，最需要有人主動邀請。可以打電話或在 LINE 問候一下，邀請他們回來 🙏 問候過了按「✓ 已關心」記一句，大家就不會重複找同一位，以前誰關心過、說了什麼也看得到（也會記進那位成員的成全紀錄）。（只算出席、非陪同的紀錄）</p>
         </section>`;
   }
 
@@ -575,16 +583,18 @@
         </section>`;
   }
 
-  function bindCare(body, events, today, rerender) {
+  function bindCare(body, events, today, rerender, all) {
     body.querySelectorAll('input[name=busyMin]').forEach((r) => r.addEventListener('change', () => { state.busyMin = Number(r.value); keepPlace(body, '.busy-section', rerender); }));
     const more = body.querySelector('[data-care-more]');
     if (more) more.addEventListener('click', () => { state.careOpen = !state.careOpen; keepPlace(body, '.care-section', rerender); });
     body.querySelectorAll('input[name=careDays]').forEach((r) => r.addEventListener('change', () => { state.careDays = Number(r.value); rerender(); }));
-    const list = C.careList(events, today, state.careDays, 3);
+    const list = careItems(events, today, all);
     if (list.length && body.querySelector('[data-away]')) awayCare(body, list);
     const cp = body.querySelector('[data-care-copy]');
     if (cp) cp.addEventListener('click', () => {
-      copyReport(['💛 關懷名單（最近 ' + state.careDays + ' 天沒有出席）', ...list.map((v) => `${v.name}：最後 ${Fmt.shortDate(v.last)} ${v.lastName}（${v.daysAgo} 天前），過去一年 ${v.count} 次`)].join('\n'));
+      copyReport(['💛 關懷名單（最近 ' + state.careDays + ' 天沒有出席；🆕＝新朋友）', ...list.map((v) => (v.isNew
+        ? `🆕 ${v.name}：第一次來 ${Fmt.shortDate(v.last)} ${v.lastName}（${v.daysAgo} 天前），之後還沒再來`
+        : `${v.name}：最後 ${Fmt.shortDate(v.last)} ${v.lastName}（${v.daysAgo} 天前），過去一年 ${v.count} 次`))].join('\n'));
     });
   }
 
@@ -599,7 +609,8 @@
     const draw = () => body.querySelectorAll('[data-away]').forEach((li) => {
       const v = list[Number(li.dataset.away)];
       const p = split(v.name);
-      const key = `${p.name}|away|${v.last}`;
+      const key = `${p.name}|${v.isNew ? 'new' : 'away'}|${v.last}`;
+      const label = v.isNew ? '新朋友回訪' : '久沒來的關懷';
       const c = d.care[key];
       const last = EduCare.lastText(d.care, p.name, key);
       const box = li.querySelector('[data-away-act]');
@@ -607,13 +618,13 @@
         : `${last ? `<span class="care-last">${esc(last)}</span>` : ''}${EduCare.claimLine((d.claims || {})[key], d.canEdit)}${d.canEdit ? `<span class="care-btns"><button type="button" class="btn btn-small btn-primary" data-away-ok>✓ 已關心</button>${(d.claims || {})[key] ? '' : '<button type="button" class="btn btn-small" data-claim>🙋 我來關心</button>'}</span>` : ''}`;
       li.classList.toggle('is-done', !!c);
       const ok = box.querySelector('[data-away-ok]');
-      if (ok) ok.addEventListener('click', () => EduCare.openCare({ key, name: p.name, temple: p.temple, label: '久沒來的關懷', icon: '💛', reason: `最近 ${v.daysAgo} 天沒有來（最後一次 ${Fmt.shortDate(v.last)} ${v.lastName}）` }, d.care, (nd) => { d = nd; draw(); }));
+      if (ok) ok.addEventListener('click', () => EduCare.openCare({ key, name: p.name, temple: p.temple, label, icon: v.isNew ? '🆕' : '💛', reason: v.isNew ? `第一次來是 ${Fmt.shortDate(v.last)} ${v.lastName}，${v.daysAgo} 天了還沒再來` : `最近 ${v.daysAgo} 天沒有來（最後一次 ${Fmt.shortDate(v.last)} ${v.lastName}）` }, d.care, (nd) => { d = nd; draw(); }));
       const cl = box.querySelector('[data-claim]');
       if (cl) cl.addEventListener('click', () => EduCare.openClaim({ key, name: p.name }, (nd) => { d = nd; draw(); }));
       const cu = box.querySelector('[data-claim-undo]');
       if (cu) cu.addEventListener('click', () => EduCare.undoClaim({ key, name: p.name }, (nd) => { d = nd; draw(); }));
       const un = box.querySelector('[data-away-undo]');
-      if (un) un.addEventListener('click', async () => { try { d = await Api.admin('adminEduCare', { key, name: p.name, label: '久沒來的關懷', undo: true }); draw(); } catch (e) { alert(e.message); } });
+      if (un) un.addEventListener('click', async () => { try { d = await Api.admin('adminEduCare', { key, name: p.name, label, undo: true }); draw(); } catch (e) { alert(e.message); } });
     });
     draw();
   }

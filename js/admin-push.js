@@ -45,6 +45,7 @@
       ${AdminPage.staleNote(stale)}
       <p class="hint">推播會送給所有開啟「🔔 手機提醒」的手機（目前 <strong>${data.devices}</strong> 支），點通知會打開活動的報名頁。</p>
       ${autoHtml(data.auto)}
+      ${bdayHtml(data.bday)}
       ${Api.adminWho().role === '總管理者' ? '<div class="venue-watch" data-sys></div>' : ''}
       <form class="push-form" data-push-form novalidate>
         <h2 class="admin-sub">${form.id ? '修改排定的推播' : '新增推播'}</h2>
@@ -88,6 +89,7 @@
       ${done.length ? `<ul class="push-plans">${done.map((p) => planHtml(p, false)).join('')}</ul>` : '<p class="muted">還沒有送過。</p>'}`;
 
     bindAuto(body, guard, data);
+    bindBday(body, guard);
     const sys = body.querySelector('[data-sys]');
     if (sys) drawSystemWatch(sys, guard);
     const f = body.querySelector("[data-push-form]");
@@ -218,6 +220,42 @@
       <div class="form-error" data-auto-err hidden></div>
       <button type="submit" class="btn btn-primary">儲存設定</button>
     </form>`;
+  }
+
+  // ---------- 🎂 生日祝福推播（總管理者，2026/11/24，Todo.gs birthdayPush_） ----------
+  function bdayHtml(on) {
+    if (on === undefined || Api.adminWho().role !== '總管理者') return '';
+    return `<form class="push-form push-auto" data-bday novalidate>
+      <h2 class="admin-sub">🎂 生日祝福推播 <span class="badge ${on ? 'badge-ok' : 'badge-full'}">${on ? '開啟中' : '關閉'}</span></h2>
+      <p class="hint">開啟後，成員生日當天早上 7 點，推播一則「🎂 生日快樂」給他自己的手機。只送給手機開了提醒、「我是誰」填了這個名字的人；成員要有填生日的月日（👥 人員 → 成員）。</p>
+      <label class="check"><input type="checkbox" name="on"${on ? ' checked' : ''}> 開啟生日祝福推播</label>
+      <div class="form-error" data-bday-err hidden></div>
+      <button type="submit" class="btn btn-primary">儲存設定</button>
+    </form>`;
+  }
+
+  function bindBday(body, guard) {
+    const f = body.querySelector('[data-bday]');
+    if (!f) return;
+    f.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const on = f.elements.on.checked;
+      const err = f.querySelector('[data-bday-err]');
+      err.hidden = true;
+      Busy.show('儲存中⋯');
+      try {
+        const res = await Api.admin('adminBdayPushSave', { on });
+        Busy.hide();
+        AdminPage.clearMemo();
+        render(body, guard, res, false);
+        body.insertAdjacentHTML('afterbegin', `<div class="notice notice-success" role="status"><p><strong>${on ? '已開啟生日祝福推播 🎂' : '已關閉生日祝福推播'}</strong></p></div>`);
+      } catch (e) {
+        Busy.hide();
+        if (guard(e)) return;
+        err.textContent = e.message || '沒有存起來';
+        err.hidden = false;
+      }
+    });
   }
 
   function bindAuto(body, guard) {

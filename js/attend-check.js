@@ -65,5 +65,28 @@
     if (u) u.addEventListener('click', () => go(true));
   }
 
-  root.AttendCheck = { mount, dutyHtml, bindDuty };
+  /**
+   * 📌 要處理的事（2026/11/24，Todo.gs adminTodo_）：新成員待確認、場地申請待審、取消／改期申請、修繕待處理。
+   * 有件數的才列，點一下到那一頁；都沒有就不顯示。出席確認在下面另外一塊（mount）。
+   */
+  async function mountTodo(box, guard) {
+    if (!box) return;
+    let t;
+    try { t = await Api.admin('adminTodo', {}, true); } catch (e) { if (!(guard && guard(e))) box.innerHTML = ''; return; }
+    if (!box.isConnected) return;
+    const venueWord = (window.SITE && SITE.venue) || '場地';
+    const items = [
+      [t.members, '🆕', '位新成員待確認（報名時自動加入的新名字）', '#/admin/members'],
+      [t.venue, '🏠', `筆${venueWord}借用申請待審核`, '#/admin/venue'],
+      [t.venueAsk, '🔁', `筆${venueWord}借用的取消／改期申請`, '#/admin/venue'],
+      [t.repairs, '🔧', '件修繕待處理', '#/admin/venue']
+    ].filter((x) => x[0] > 0);
+    box.innerHTML = items.length ? `
+      <section class="todo-card" role="status">
+        <p class="todo-title">📌 要處理的事</p>
+        <ul class="todo-list">${items.map(([n, icon, text, href]) => `<li><a href="${href}">${icon} <b>${n}</b> ${esc(text)}<span aria-hidden="true">›</span></a></li>`).join('')}</ul>
+      </section>` : '';
+  }
+
+  root.AttendCheck = { mount, mountTodo, dutyHtml, bindDuty };
 })(window);

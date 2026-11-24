@@ -14,7 +14,8 @@ function adminMembers_() {
   return {
     members: readTable_(SHEETS.MEMBERS).filter(function (m) { return m['姓名']; }).map(memberToJson_),
     groups: groupList_(),
-    temples: templeList_()
+    temples: templeList_(),
+    dupIgnore: dupIgnoreList_() // 「不是同一人」（Todo.gs，2026/11/24）
   };
 }
 
