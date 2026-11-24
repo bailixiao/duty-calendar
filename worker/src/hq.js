@@ -596,6 +596,36 @@ export function createHq({ gs, store, cross, openRegions }) {
     return { clashes: out.slice(0, 100) };
   };
 
+  /**
+   * 各區排活動時看那幾天別的地方有什麼（2026/11/24）：body = { dates }。
+   * 回傳 { clashes: [{ kind: 'hq'|'region', id, region, regionName, date, name, time, location }] }：
+   *   分壇派給這一區的（草稿不算）、其他區勾「讓分壇和其他區看得到」的大活動。只提醒，不擋。
+   */
+  special.regionClash = async (body, curRegion) => {
+    regionAdmin(body, curRegion);
+    const dates = (Array.isArray(body.dates) ? body.dates : []).filter((d) => DATE.test(String(d))).slice(0, 62);
+    if (!dates.length) return { clashes: [] };
+    const from = dates.slice().sort()[0], to = dates.slice().sort().pop();
+    const open = await openSet();
+    const out = [];
+    const timeOf = (x) => (x.startTime ? x.startTime + (x.endTime ? '–' + x.endTime : '') : '');
+    const jobs = [cross(HQ_CODE, 'hqOnDates', { region: curRegion, from, to }).then((list) => (list || []).forEach((x) => dates.filter((d) => d >= x.start && d <= x.end).forEach((d) => {
+      out.push({ kind: 'hq', id: x.id, region: HQ_CODE, regionName: '宏教分壇', date: d, name: x.name, time: timeOf(x), location: x.location });
+    }))).catch(() => {})];
+    TARGET_CODES.filter((r) => r !== curRegion && open.has(r)).forEach((r) => jobs.push(cross(r, 'hqClash', { from, to }).then((list) => (list || []).forEach((x) => dates.filter((d) => d >= x.start && d <= x.end).forEach((d) => {
+      out.push({ kind: 'region', id: '', region: r, regionName: regionName(r), date: d, name: x.name, time: timeOf(x), location: x.location });
+    }))).catch(() => {})));
+    await Promise.all(jobs);
+    out.sort((a, b) => a.date.localeCompare(b.date) || (a.kind === 'hq' ? -1 : 0) - (b.kind === 'hq' ? -1 : 0) || TARGET_CODES.indexOf(a.region) - TARGET_CODES.indexOf(b.region));
+    return { clashes: out.slice(0, 60) };
+  };
+  /** 分壇那一邊：送給這一區、和 from～to 重疊的分派（草稿不算） */
+  function onDates(p) {
+    const region = String((p && p.region) || ''), from = String((p && p.from) || ''), to = String((p && p.to) || '');
+    return list().filter((c) => c.status !== 'draft' && (c.regions || []).indexOf(region) !== -1 && c.start <= to && (c.end || c.start) >= from)
+      .map((c) => ({ id: c.id, start: c.start, end: c.end || c.start, name: c.title, startTime: c.startTime || '', endTime: c.endTime || '', location: c.location || '' }));
+  }
+
   // ---- ⭐ 固定活動範本（2026/11/23）：指令碼屬性 HQ_TEMPLATES（陣列）；不含日期，開分派時帶入 ----
   const templates = () => { try { const a = JSON.parse(store.getProp('HQ_TEMPLATES') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
   special.hqTemplateList = async (body, curRegion) => {
@@ -659,6 +689,7 @@ export function createHq({ gs, store, cross, openRegions }) {
     if (method === 'hqNoticeOut') return gs.hqNoticeOut_(payload);
     if (method === 'hqReplyIn') return replyIn(payload);
     if (method === 'hqNoticeRead') return noticeRead(payload);
+    if (method === 'hqOnDates') return onDates(payload);
     if (method === 'hqAiKey') {
       const p = gs.propsForAsync_();
       return { key: p.getProperty('GEMINI_API_KEY') || '', model: p.getProperty('GEMINI_MODEL') || '' };

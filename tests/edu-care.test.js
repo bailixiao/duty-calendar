@@ -41,7 +41,7 @@ test('生日：前 3 天到後 7 天、35 歲以下；升班銜接：6～8 月�
   assert.equal(build(ms, '2027-12-10').find((g) => g.id === 'move'), undefined, '11 月以後不列');
 });
 
-test('已關心：教育帳號可以記（寫進成員的成全紀錄）、可以取消；勤務帳號不行', () => {
+test('已關心：可以記（寫進成員的成全紀錄、記名字）、可以取消；勤務帳號也可以（2026/11/24），唯讀不行', () => {
   const env = createEnv(Date.UTC(2026, 10, 23, 2, 0, 0));
   const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
   const call = (action, body, tok) => env.post(Object.assign({ action, token: tok || token }, body));
@@ -49,14 +49,32 @@ test('已關心：教育帳號可以記（寫進成員的成全紀錄）、可�
   let r = call('adminEduCare', { key: '測試國三|cap|2026', name: '測試國三', label: '國中會考・考前', note: '打電話打氣' });
   assert.equal(r.ok, true, JSON.stringify(r.error));
   assert.equal(r.data.care['測試國三|cap|2026'].note, '打電話打氣');
+  assert.equal(r.data.care['測試國三|cap|2026'].name, '測試國三');
   const m = call('adminMembers').data.members.find((x) => x.name === '測試國三');
   assert.match(m.careNote, /^11\/23 國中會考・考前：打電話打氣（總管理者）/);
   r = call('adminEduCare', { key: '測試國三|cap|2026', name: '測試國三', undo: true });
   assert.equal(r.data.care['測試國三|cap|2026'], undefined);
   call('adminSaveAccount', { account: { account: '測試勤務', role: '勤務', password: 'test-pass-5' } });
   const tok = env.post({ action: 'adminLogin', account: '測試勤務', password: 'test-pass-5' }).data.token;
-  assert.equal(call('adminEduCare', { key: 'x|cap|2026', name: 'x' }, tok).error.code, 'FORBIDDEN');
-  assert.equal(call('adminEduCareList', {}, tok).data.canEdit, false);
+  r = call('adminEduCare', { key: '測試國三|away|2026-08-01', name: '測試國三', label: '久沒來的關懷', note: '最近工作忙' }, tok);
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.equal(r.data.canEdit, true);
+  call('adminSaveAccount', { account: { account: '測試唯讀', role: '唯讀', password: 'test-pass-6' } });
+  const ro = env.post({ action: 'adminLogin', account: '測試唯讀', password: 'test-pass-6' }).data.token;
+  assert.equal(call('adminEduCare', { key: 'x|away|2026', name: 'x' }, ro).error.code, 'FORBIDDEN');
+  assert.equal(call('adminEduCareList', {}, ro).data.canEdit, false);
+});
+
+test('關心紀錄（2026/11/24）：同一個人的每一筆合起來，新的在前；舊的沒有名字用代號第一段', () => {
+  const care = {
+    '測試甲|bday|2026': { at: '2026-06-03 10:00:00', by: '教育', note: '送卡片' },
+    '測試甲|away|2026-08-01': { at: '2026-10-01 09:00:00', by: '勤務', note: '工作忙', name: '測試甲' },
+    '測試乙|bday|2026': { at: '2026-07-01 09:00:00', by: '教育', note: '' }
+  };
+  const h = EduCare.historyOf(care, '測試甲');
+  assert.deepEqual(h.map((x) => x.why), ['久沒來', '生日']);
+  assert.equal(EduCare.lastText(care, '測試甲', '測試甲|away|2026-08-01'), '上次關心：6/3 教育（生日）：送卡片');
+  assert.equal(EduCare.lastText(care, '測試丙'), '');
 });
 
 test('升學了，學校要更新（2026/11/23）：7～10 月列出換階段、學校還沒改成新階段的；改好就拿掉', () => {

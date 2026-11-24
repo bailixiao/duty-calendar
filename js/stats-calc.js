@@ -105,6 +105,36 @@
   }
 
   /**
+   * 人力負荷（2026/11/24）：最近 days 天（到 today 為止）出勤 min 次以上的人，次數多的在前。
+   * 回傳 { people: [{ name, identity, count, days（幾天）, items: [{ name, count }]（做了哪些，多的在前） }], avg（有來的人平均幾次）, total（有來的人數） }
+   */
+  function busyList(events, today, days, min) {
+    const from = addDays(today, -((days || 30) - 1));
+    const map = new Map();
+    events.filter((e) => e.date >= from && e.date <= today).forEach((e) => {
+      const add = (names, identity) => names.forEach((n) => {
+        const v = map.get(n) || { name: n, identity, count: 0, dates: new Set(), byName: new Map() };
+        v.count += 1;
+        v.dates.add(e.date);
+        if (!v.identity) v.identity = identity;
+        const k = e.series || e.name;
+        v.byName.set(k, (v.byName.get(k) || 0) + 1);
+        map.set(n, v);
+      });
+      add(e.tan, '壇辦');
+      add(e.dao, '道親');
+      add(e.unknown, '');
+    });
+    const all = [...map.values()];
+    const avg = all.length ? all.reduce((n, v) => n + v.count, 0) / all.length : 0;
+    const people = all.filter((v) => v.count >= (min || 8))
+      .map((v) => ({ name: v.name, identity: v.identity, count: v.count, days: v.dates.size,
+        items: [...v.byName.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'zh-Hant')) }))
+      .sort((a, b) => b.count - a.count || strokeCompare(a.name, b.name));
+    return { people, avg, total: all.length };
+  }
+
+  /**
    * 關懷名單：過去一年（到 today 為止）出席至少 minCount 次，但最近 days 天沒有出席的人。
    * 回傳 [{ name, identity, count（過去一年出席次數）, last（最後出席日）, lastName（最後出席的項目）, daysAgo }]，最久沒來的在前。
    */
@@ -378,7 +408,7 @@
     return out.sort((x, y) => x.to.localeCompare(y.to, 'zh-Hant') || x.from.localeCompare(y.from, 'zh-Hant')).slice(0, 20);
   }
 
-  const api = { explain, suggestGroups, activity, ageStats, careList, compare, startOf, addDays, UNIT_NAME, periodOf, shift, lastYear, contains, label, prevName, lastYearName, summarize, trend, ranking, byCategory, missingIdentity, delta, pct, textReport, eventsIn };
+  const api = { explain, suggestGroups, activity, ageStats, careList, busyList, compare, startOf, addDays, UNIT_NAME, periodOf, shift, lastYear, contains, label, prevName, lastYearName, summarize, trend, ranking, byCategory, missingIdentity, delta, pct, textReport, eventsIn };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.StatsCalc = api;
 })();

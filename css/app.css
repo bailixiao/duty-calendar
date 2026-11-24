@@ -3084,3 +3084,59 @@ button.veg-chip:hover { border-color: var(--ok); }
 .heat-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 8px 0 0; font-size: .85rem; color: var(--ink-2); }
 .heat-legend i { display: inline-block; width: 18px; height: 14px; border-radius: 3px; background: rgba(158, 61, 34, var(--a)); }
 .heat-legend small { margin-left: 6px; }
+
+/* 關心紀錄（2026/11/24）：關懷名單的已關心、上次關心、以前的紀錄 */
+.care-act { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 4px; }
+.care-act:empty { display: none; }
+.care-list li.is-done { border-left-color: var(--ok); opacity: .85; }
+.care-last { margin: 2px 0 0; color: var(--ink-2); font-size: .88rem; }
+.care-history { margin: 6px 0 10px; padding: 8px 12px; border-radius: 10px; background: var(--bg-soft, rgba(0,0,0,.04)); }
+.care-history-title { margin: 0 0 4px; font-weight: 700; font-size: .92rem; }
+.care-history ul { margin: 0; padding-left: 1.1em; display: grid; gap: 3px; font-size: .92rem; }
+.care-history .tag { margin-left: 4px; }
+
+/* 排活動時那幾天別的地方有什麼（2026/11/24） */
+.clash-peek { margin: 6px 0 4px; padding: 8px 12px; border-radius: 10px; border: 1px solid #e2b33c; background: rgba(226, 179, 60, .1); font-size: .92rem; }
+.clash-peek-title { margin: 0 0 4px; font-weight: 700; }
+.clash-peek ul { margin: 0; padding-left: 1.1em; display: grid; gap: 2px; }
+
+/* ⚖️ 人力負荷（2026/11/24） */
+.busy-list { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
+.busy-list li { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 8px 12px; border: 1px solid var(--line); border-left: 4px solid #c4703a; border-radius: 10px; background: var(--card); }
+.busy-name { font-weight: 700; }
+.busy-count { font-weight: 700; color: #9e3d22; white-space: nowrap; }
+.busy-items { grid-column: 1 / -1; color: var(--ink-2); font-size: .9rem; }
+
+/* 📄 年度報表（2026/11/24，js/year-report.js）：蓋在畫面上；列印時只印報表 */
+.yr-overlay { position: fixed; inset: 0; z-index: 1000; overflow-y: auto; background: var(--bg, #faf6ef); padding: 12px 16px 40px; }
+body.yr-open { overflow: hidden; }
+.yr-bar-top { position: sticky; top: -12px; z-index: 1; display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 0; background: var(--bg, #faf6ef); }
+.yr-bar-top select { width: auto; min-width: 7em; }
+.yr-page { max-width: 820px; margin: 0 auto; background: #fff; color: #222; border-radius: 12px; padding: 20px 22px; box-shadow: 0 1px 6px rgba(0,0,0,.08); }
+.yr-head h2 { margin: 0 0 4px; font-size: 1.5rem; }
+.yr-head .muted { margin: 0 0 14px; font-size: .9rem; color: #666; }
+.yr-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.yr-tile { display: grid; gap: 2px; padding: 12px; border: 1px solid #e5ddd0; border-radius: 10px; }
+.yr-tile-label { font-size: .88rem; color: #666; }
+.yr-tile b { font-size: 1.7rem; line-height: 1.1; color: #9e3d22; }
+.yr-tile small { color: #666; }
+.yr-tile-vs { font-size: .85rem; color: #666; }
+.yr-sum { margin: 10px 0 0; font-weight: 700; }
+.yr-h { margin: 20px 0 6px; font-size: 1.1rem; border-bottom: 2px solid #9e3d22; padding-bottom: 3px; }
+.yr-h small { margin-left: 8px; font-weight: 400; font-size: .85rem; color: #666; }
+.yr-table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+.yr-table th, .yr-table td { padding: 5px 6px; border-bottom: 1px solid #eee; text-align: right; }
+.yr-table th:first-child, .yr-table tbody th { text-align: left; }
+.yr-table thead th { font-size: .85rem; color: #666; font-weight: 700; }
+.yr-months .yr-bar { width: 40%; }
+.yr-bar span { display: block; height: 12px; border-radius: 6px; background: #c4703a; }
+.yr-months tr.is-future td { color: #aaa; text-align: left; }
+.yr-thanks { columns: 3 10em; margin: 4px 0 0; padding-left: 1.5em; }
+.yr-thanks li { break-inside: avoid; }
+.yr-thanks small { margin-left: 6px; color: #666; }
+@media print {
+  body.yr-open > *:not(.yr-overlay) { display: none !important; }
+  body.yr-open .yr-overlay { position: static; overflow: visible; padding: 0; background: #fff; }
+  body.yr-open .yr-page { box-shadow: none; padding: 0; max-width: none; }
+  .yr-table tr, .yr-tile { break-inside: avoid; }
+}

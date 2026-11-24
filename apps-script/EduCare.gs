@@ -1,17 +1,19 @@
 /**
  * 教育組的關心名單（2026/11/23）：名單本身由前端依成員的生日、學齡算（js/edu-care.js：大考升學、生日、升班銜接），
  * 這裡只存「誰已經關心過了」（大考日期不記，2026/11/23 改：國三、高三整年都列）。
- *   指令碼屬性 EDU_CARE        ＝ { 關心代號（名字|原因|學年）: { at, by, note } }（只留一年）
+ *   指令碼屬性 EDU_CARE        ＝ { 關心代號（名字|原因|學年）: { at, by, note, name } }（只留一年）
+ * 2026/11/24：統計的「💛 關懷名單」（久沒來的人，代號 名字|away|最後出席日）也記在這裡；勤務帳號也可以記。
+ *   同一個人的每一筆（不同原因、不同時間）合起來就是他的關心紀錄（前端 EduCare.historyOf）。
  * 按「已關心」時，一句紀錄也加到那位成員的「成全紀錄」最前面（最多 300 字，舊的從後面剪掉）。
  */
 var EDU_CARE_PROP = 'EDU_CARE';
-var EDU_CARE_ROLES = ['總管理者', '教育', '道務']; // 總管理者＝SUPER_ACCOUNT（檔案載入順序不一定，這裡直接寫）
+var EDU_CARE_ROLES = ['總管理者', '勤務', '教育', '道務']; // 總管理者＝SUPER_ACCOUNT（檔案載入順序不一定，這裡直接寫）
 
 function eduCareRead_(prop) {
   try { var o = JSON.parse(PropertiesService.getScriptProperties().getProperty(prop) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; }
 }
 function eduCareCanEdit_() {
-  if (!ADMIN_SESSION_ || EDU_CARE_ROLES.indexOf(ADMIN_SESSION_.role) === -1) throw new ApiError_('FORBIDDEN', '關心名單只有總管理者、教育、道務帳號能記錄');
+  if (!ADMIN_SESSION_ || EDU_CARE_ROLES.indexOf(ADMIN_SESSION_.role) === -1) throw new ApiError_('FORBIDDEN', '關心紀錄只有總管理者、勤務、道務、教育帳號能記');
 }
 
 /** 關心紀錄 */
@@ -37,7 +39,7 @@ function adminEduCare_(body) {
     Object.keys(care).forEach(function (k) { if (String(care[k].at || '').slice(0, 10) < cut) delete care[k]; });
     var who = ADMIN_SESSION_.account || ADMIN_SESSION_.role;
     if (body.undo) delete care[key];
-    else care[key] = { at: nowString_(), by: who, note: note };
+    else care[key] = { at: nowString_(), by: who, note: note, name: name };
     PropertiesService.getScriptProperties().setProperty(EDU_CARE_PROP, JSON.stringify(care));
     if (!body.undo) {
       // 加到成員的成全紀錄（同名用佛堂分；找不到就只記關心名單）

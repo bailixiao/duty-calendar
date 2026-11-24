@@ -275,8 +275,12 @@
 
   const memberState = { q: '', filter: 'active', identity: 'all', missing: '' };
   // 還沒填的資料（2026/11/22）：後台人員整理成員用
-  const MISSING = [['temple', '沒填佛堂', (m) => !m.temple], ['age', '沒填年齡', (m) => m.age === '' || m.age === undefined || m.age === null], ['identity', '沒填身分', (m) => !m.identity]];
-  const missingOf = (m) => MISSING.filter(([, , f]) => f(m));
+  // 2026/11/24 資料補齊：多「生日沒填月日」（選填，不算進「有任何一項沒填」）、「學生沒填學校」（國小～大學的年紀）
+  const isStudent = (m) => { if (!m.birthYear || !window.Family) return false; const st = Family.schoolStage(m.birthYear); return !!st && st.stage !== '幼兒園'; };
+  const MISSING = [['temple', '沒填佛堂', (m) => !m.temple], ['age', '沒填生日（出生年）', (m) => m.age === '' || m.age === undefined || m.age === null], ['identity', '沒填身分', (m) => !m.identity],
+    ['school', '學生沒填學校', (m) => isStudent(m) && !String(m.school || '').trim()], ['birthday', '生日沒填月日', (m) => !!m.birthYear && !m.birthday, true]];
+  const missingOf = (m) => MISSING.filter(([, , f, optional]) => !optional && f(m));
+  const missingTags = (m) => MISSING.filter(([k, , f]) => f(m) && (memberState.missing === 'any' ? !MISSING.find((x) => x[0] === k)[3] : k === memberState.missing || !MISSING.find((x) => x[0] === k)[3]));
   const IDENTITY_ORDER = [['點傳師', '點傳師'], ['壇辦', '壇辦'], ['道親', '道親'], ['未求道', '未求道'], ['', '未填身分']];
   const SHORT = {}; // 篩選按鈕的短名稱（2026/11/22 起「未填身分」寫完整，才不會以為是沒填佛堂、年齡）
 
@@ -326,7 +330,7 @@
           <li><button type="button" class="person-card${m.active ? '' : ' is-inactive'}" data-row="${m.row}">
             <span class="person-card-name">${esc(m.name)}${m.aliases && m.aliases.length ? `<small class="person-alias">（${esc(m.aliases.join('、'))}）</small>` : ''}${m.temple ? `<span class="tag tag-temple">${esc(m.temple)}</span>` : ''}${m.overseas ? `<span class="tag tag-temple">🌏 ${esc(m.overseas)}</span>` : ''}
               ${m.identity ? `<span class="tag">${esc(m.identity)}</span>` : '<span class="tag tag-warn">未填身分</span>'}
-              ${m.active ? '' : '<span class="tag">已停用</span>'}${m.pending ? '<span class="tag tag-warn">待確認</span>' : ''}${m.identity === '道親' && m.vegetarian ? '<span class="tag">🥬 清口</span>' : ''}${m.age !== '' && m.age !== undefined ? `<span class="tag">${m.age} 歲</span>` : ''}${m.birthday ? `<span class="tag">🎂 ${Number(m.birthday.slice(0, 2))}/${Number(m.birthday.slice(3))}</span>` : ''}${famTags(m)}${memberState.missing ? missingOf(m).filter(([k]) => k !== 'identity').map(([, label]) => `<span class="tag tag-warn">${label.replace('沒填', '未填')}</span>`).join('') : ''}</span>
+              ${m.active ? '' : '<span class="tag">已停用</span>'}${m.pending ? '<span class="tag tag-warn">待確認</span>' : ''}${m.identity === '道親' && m.vegetarian ? '<span class="tag">🥬 清口</span>' : ''}${m.age !== '' && m.age !== undefined ? `<span class="tag">${m.age} 歲</span>` : ''}${m.birthday ? `<span class="tag">🎂 ${Number(m.birthday.slice(0, 2))}/${Number(m.birthday.slice(3))}</span>` : ''}${famTags(m)}${memberState.missing ? missingTags(m).filter(([k]) => k !== 'identity').map(([, label]) => `<span class="tag tag-warn">${label.replace('沒填', '未填')}</span>`).join('') : ''}</span>
             <span class="person-card-meta">${esc(GROUP_TYPES.filter((t) => m.groups[t]).map((t) => `${t.replace('組', '')}：${m.groups[t]}`).join('・') || '未分組')}${m.note ? '・' + esc(m.note) : ''}</span>
           </button></li>`;
     function draw() {

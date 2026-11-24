@@ -17,7 +17,7 @@ var DUTY_FIELD_MAP_ = {
   startTime: '開始時間', endTime: '結束時間', location: '地點',
   groupType: '分組類型', group: '負責組', attire: '服裝', description: '說明', deadline: '報名截止日', multi: '可兼任', totalNeed: '共需人數', leaderTitle: '組長職稱', category: '類別', dm: 'DM',
   layout: '版面', stages: '階段', teachers: '師資', merge: '合併顯示',
-  lecturers: '講師', leaders: '帶班', assistants: '助理帶班', pinned: '首頁置頂', hqShow: '分壇看得到', templePick: '報名選佛堂', tickets: '登記張數', price: '面額', batches: '分批截止日'
+  lecturers: '講師', leaders: '帶班', assistants: '助理帶班', pinned: '首頁置頂', hqShow: '分壇看得到', photoRemind: '提醒上傳照片', templePick: '報名選佛堂', tickets: '登記張數', price: '面額', batches: '分批截止日'
 };
 
 // 道務的負責人員欄位（統計「負責人員」用）
@@ -97,6 +97,8 @@ function normalizeDutyInput_(input, ctx) {
   duty['首頁置頂'] = input.pinned === true || input.pinned === '是' || input.pinned === 'true' ? '是' : '';
   // 分壇看得到：本區的大活動讓宏教分壇排分派時看得到，日期撞到會提醒（是／空白，2026/11/23）
   duty['分壇看得到'] = input.hqShow === true || input.hqShow === '是' || input.hqShow === 'true' ? '是' : '';
+  // 提醒上傳照片：活動最後一天的隔天早上，推播給有來的人（Album.gs albumRemind_，是／空白，2026/11/24）
+  duty['提醒上傳照片'] = input.photoRemind === true || input.photoRemind === '是' || input.photoRemind === 'true' ? '是' : '';
   // 登記張數：報名時每人填張數；面額＝每張幾元（整數，可空白，2026/11/2）
   duty['登記張數'] = input.tickets === true || input.tickets === '是' || input.tickets === 'true' ? '是' : '';
   var price = String(input.price === undefined || input.price === null ? '' : input.price).trim();
@@ -276,6 +278,7 @@ function mergeBulkInput_(target, targetPositions, sourceOldName, sourceOldPositi
     leaderTitle: has('positions') ? src['組長職稱'] : target['組長職稱'],
     pinned: target['首頁置頂'] || '', // 首頁置頂照各筆原本的
     hqShow: target['分壇看得到'] || '', // 分壇看得到也照各筆原本的
+    photoRemind: target['提醒上傳照片'] || '', // 提醒上傳照片也照各筆原本的
     templePick: has('positions') ? src['報名選佛堂'] : target['報名選佛堂'], // 報名選佛堂跟著了愿項目一起改
     tickets: has('positions') ? src['登記張數'] : target['登記張數'], // 登記張數、面額也跟著了愿項目一起改
     price: has('positions') ? src['面額'] : target['面額'],

@@ -800,7 +800,8 @@
               <label class="form-row"><span>${st.dateType === 'range' ? '開始日' : '日期'}</span>
                 <input class="input" type="date" name="start" value="${esc(s.start)}"></label>
               ${st.dateType === 'range' ? `<label class="form-row"><span>結束日</span>
-                <input class="input" type="date" name="end" value="${esc(s.end)}"></label>` : ''}`}
+                <input class="input" type="date" name="end" value="${esc(s.end)}"></label>` : ''}
+              ${window.Region && Region.code !== 'hq' ? '<div class="clash-peek" data-clash-peek aria-live="polite" hidden></div>' : ''}`}
             ${st.dateType === 'multi' ? '<p class="hint">多個日期時不設報名截止日（每筆都是前一天都能報名），之後可以個別編輯。</p>' : s.batches.length ? batchFields() : `<label class="form-row"><span>報名截止日（可空白）</span>
               <input class="input" type="date" name="deadline" value="${esc(s.deadline || '')}"></label>
             <p class="hint">空白＝${F()}前一天都能報名。填了日期，過了那天網頁就不能再報名（管理者仍可補登）。</p>
@@ -921,10 +922,16 @@
             <p class="hint">按鈕點了就到這個${T()}的報名頁；${T()}最後一天過了會自動不顯示。</p>
           </fieldset>
 
+          <fieldset class="form-block">
+            <legend>📷 活動隔天提醒上傳照片</legend>
+            <label class="check"><input type="checkbox" name="photoRemind"${s.photoRemind === true || s.photoRemind === '是' ? ' checked' : ''}> ${T()}最後一天的隔天早上，推播提醒有來的家人：有拍照的話上傳到活動相簿</label>
+            <p class="hint">只送給有報名、沒有被記未到，而且手機有開提醒（填了名字）的人。適合法會、大典、出遊這種會拍照的${T()}；天天都有的輪值不用勾。</p>
+          </fieldset>
+
           ${window.Region && Region.code === 'hq' ? '' : `<fieldset class="form-block">
-            <legend>📣 讓宏教分壇看得到</legend>
-            <label class="check"><input type="checkbox" name="hqShow"${s.hqShow === true || s.hqShow === '是' ? ' checked' : ''}> 這是本區的大活動，讓分壇排分派時看得到（日期撞到會提醒分壇）</label>
-            <p class="hint">例如本區法會、大典、園遊會。只給分壇看名稱、日期、時間、地點，不含名單。</p>
+            <legend>📣 讓宏教分壇和其他區看得到</legend>
+            <label class="check"><input type="checkbox" name="hqShow"${s.hqShow === true || s.hqShow === '是' ? ' checked' : ''}> 這是本區的大活動，讓分壇和其他區排活動時看得到（日期撞到會提醒）</label>
+            <p class="hint">例如本區法會、大典、園遊會。只給看名稱、日期、時間、地點，不含名單。</p>
           </fieldset>`}
 
           ${lunar || st.dateType === 'multi' ? '<div data-preview></div>' : ''}
@@ -1133,6 +1140,7 @@
       if (f.elements.multi) s.multi = f.elements.multi.checked;
       if (f.elements.pinned) s.pinned = f.elements.pinned.checked;
       if (f.elements.hqShow) s.hqShow = f.elements.hqShow.checked;
+      if (f.elements.photoRemind) s.photoRemind = f.elements.photoRemind.checked;
       if (f.elements.templePick) s.templePick = f.elements.templePick.checked;
       if (f.elements.tickets) s.tickets = f.elements.tickets.checked;
       if (f.elements.price) s.price = f.elements.price.value.trim();
@@ -1202,6 +1210,29 @@
         sync();
         pick.innerHTML = mergeOptions();
       });
+      // 那幾天別的地方有什麼（2026/11/24）：分壇派下來的、其他區勾「讓分壇和其他區看得到」的大活動；只提醒、不擋
+      const peek = f.querySelector('[data-clash-peek]');
+      if (peek) {
+        let timer = 0, seq = 0;
+        const look = () => {
+          clearTimeout(timer);
+          timer = setTimeout(async () => {
+            const a = f.elements.start && f.elements.start.value, b = (f.elements.end && f.elements.end.value) || a;
+            if (!a || !/^\d{4}-\d{2}-\d{2}$/.test(a) || b < a) { peek.hidden = true; return; }
+            const dates = Fmt.datesBetween(a, b).slice(0, 31);
+            const my = ++seq;
+            let r;
+            try { r = await Api.admin('regionClash', { dates }, true); } catch (e) { return; } // 問不到就不顯示
+            if (my !== seq || !peek.isConnected) return;
+            const list = (r.clashes || []).filter((x) => !(x.kind === 'hq' && editing && s.hqId && x.id === s.hqId));
+            peek.hidden = !list.length;
+            peek.innerHTML = list.length ? `<p class="clash-peek-title">📅 那${dates.length > 1 ? '幾' : ''}天別的地方也有活動（只是提醒，一樣可以存）</p>
+              <ul>${list.slice(0, 10).map((x) => `<li><b>${esc(Fmt.shortDate(x.date))}</b> ${x.kind === 'hq' ? '🏯 分壇派的' : '📣 ' + esc(x.regionName)}：${esc(x.name)}${x.time ? '・' + esc(x.time) : ''}${x.location ? '・' + esc(x.location) : ''}</li>`).join('')}</ul>` : '';
+          }, 500);
+        };
+        ['start', 'end'].forEach((n) => { if (f.elements[n]) f.elements[n].addEventListener('change', look); });
+        look();
+      }
       // 時間清除：手機的時間選擇器常常沒有清除鍵
       f.querySelectorAll('[data-clear-time]').forEach((b) => b.addEventListener('click', () => {
         const input = f.elements[b.dataset.clearTime];
@@ -1364,6 +1395,7 @@
         multi: s.mode === '公告型' || quotaOnly() ? false : !!(s.multi === true || s.multi === '是'),
         pinned: !!(s.pinned === true || s.pinned === '是'),
         hqShow: !!(s.hqShow === true || s.hqShow === '是'),
+        photoRemind: !!(s.photoRemind === true || s.photoRemind === '是'),
         tickets: s.mode !== '公告型' && quotaOnly() && !!(s.tickets === true || s.tickets === '是'),
         price: s.mode !== '公告型' && quotaOnly() && (s.tickets === true || s.tickets === '是') ? String(s.price || '') : '',
         batches: s.mode !== '公告型' && st.dateType !== 'multi' ? s.batches.filter(Boolean) : [],

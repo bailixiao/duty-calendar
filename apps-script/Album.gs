@@ -8,6 +8,41 @@
 var ALBUM_MAX_PHOTOS = 60;
 var ALBUM_MAX_LINKS = 5;
 
+/**
+ * 活動隔天提醒上傳照片（2026/11/24）：每天早上的排程呼叫。勾了「提醒上傳照片」、最後一天是昨天的勤務，
+ * 推播給昨天有來（報名沒取消、不是未到）、手機有開提醒並填了名字的人。一天只送一次。
+ * 回傳 { duties, phones }
+ */
+function albumRemind_() {
+  var today = todayString_();
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('ALBUM_REMIND_DAY') === today) return { duties: 0, phones: 0, skipped: 'done' };
+  props.setProperty('ALBUM_REMIND_DAY', today);
+  var y = addDaysStr_(today, -1);
+  var duties = readTableCached_(SHEETS.DUTIES).filter(function (d) { return d['勤務ID'] && d['提醒上傳照片'] === '是' && (d['結束日'] || d['開始日']) === y; });
+  if (!duties.length) return { duties: 0, phones: 0 };
+  var phones = readTable_(SHEETS.PUSH).filter(function (r) { return r['啟用'] !== '否' && r['端點'] && r['名字']; });
+  var sent = 0;
+  var byPhone = {}; // 同一支手機一天只收一則（好幾個活動的話寫在一起）
+  duties.forEach(function (d) {
+    var names = {};
+    activeSignups_().forEach(function (s) { if (s['勤務ID'] === d['勤務ID'] && s['出席'] !== '未到' && s['日期'] >= d['開始日'] && s['日期'] <= y) names[normalizeName_(s['姓名'])] = true; });
+    phones.forEach(function (p) {
+      if (!names[normalizeName_(p['名字'])]) return;
+      (byPhone[p['裝置ID'] || p['端點']] = byPhone[p['裝置ID'] || p['端點']] || { p: p, duties: [] }).duties.push(d);
+    });
+  });
+  Object.keys(byPhone).forEach(function (k) {
+    var x = byPhone[k];
+    var d = x.duties[0];
+    var title = '📷 ' + (x.duties.length > 1 ? '昨天的活動辛苦了' : '「' + String(d['名稱']).slice(0, 20) + '」辛苦了');
+    var body = '有拍照的話，可以上傳到活動相簿，大家都看得到 🙏' + (x.duties.length > 1 ? '（' + x.duties.map(function (z) { return z['名稱']; }).join('、').slice(0, 40) + '）' : '');
+    pushMessageTo_([{ '裝置ID': x.p['裝置ID'] || pushIdOf_(x.p['端點']), '端點': x.p['端點'] }], title, body, '#/duty/' + d['勤務ID'] + '?date=' + y);
+    sent++;
+  });
+  return { duties: duties.length, phones: sent };
+}
+
 function albumRows_() {
   return readTable_(SHEETS.ALBUM).filter(function (r) { return r['ID']; });
 }

@@ -605,10 +605,37 @@ async function main() {
     }
     await regionShots(c, only);
     await hqShots(c, only);
+    await clashShots(c, only);
   } finally {
     c.close();
     proc.kill();
   }
+}
+
+/**
+ * 📅 排活動時那天別的地方有什麼（2026/11/24）：教全區勾「讓分壇和其他區看得到」、分壇派給教捨區 → 教捨區新增勤務選那天
+ * （測試版只有教捨區、分壇能問別區，所以從教捨區拍）
+ */
+async function clashShots(c, only) {
+  if (only.length && only.indexOf('clash-peek') === -1) return;
+  const go = async (url) => { await c.send('Page.navigate', { url }); await sleep(5000); };
+  const login = PREP + `const pw = document.querySelector('#admin-password') || document.querySelector('input[type=password]'); if (pw) { pw.value = 'test-pass'; pw.form.requestSubmit(); await __wait(2500); }`;
+  const D = '2027-02-14';
+  await go(BASE + '#/admin');
+  await run(c, login);
+  await run(c, PREP + `await Api.admin('adminCreateDuties', { duties: [{ name: '測試教全區新春園遊會', category: '勤務', nature: '活動', mode: '公告型', start: '${D}', end: '${D}', startTime: '10:00', endTime: '16:00', location: '測試區中心', hqShow: true, positions: [] }] });`);
+  await go(BASE + 'hq/#/admin');
+  await run(c, login);
+  await run(c, PREP + `await Api.admin('hqSave', { campaign: { title: '測試分壇新春團拜', category: '道務', start: '${D}', startTime: '09:00', endTime: '11:00', location: '測試分壇', positions: ['參加'], quotaMode: 'none', regions: ['she'] } });`);
+  await go(BASE + 'she/#/admin');
+  await run(c, login);
+  await run(c, PREP + `location.hash = '#/admin/duties/new'; for (let i = 0; i < 30 && !document.querySelector('input[name=start]'); i++) { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.includes('自己填')); if (b) b.click(); await __wait(300); }
+    const st = document.querySelector('input[name=start]'); st.value = '${D}'; st.dispatchEvent(new Event('change', { bubbles: true }));
+    for (let i = 0; i < 30 && document.querySelector('[data-clash-peek]').hidden; i++) await __wait(300);
+    if (document.querySelector('[data-clash-peek]').hidden) throw new Error('沒有出現撞期提示');`);
+  await shot(c, path.join(OUT, 'clash-peek.png'), PREP + `const fs = document.querySelector('input[name=start]').closest('fieldset'); fs.scrollIntoView({ block: 'center' }); const r = fs.getBoundingClientRect(); const p = document.querySelector('[data-clash-peek]').getBoundingClientRect();
+    return { x: 0, y: r.top + scrollY - 6, width: innerWidth, height: p.bottom - r.top + 14 };`);
+  console.log('✓ clash-peek');
 }
 
 // 給 tools/tutorial-shots.js 共用
