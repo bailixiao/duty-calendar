@@ -134,6 +134,7 @@
       <div class="draft-photo">
         <label class="btn btn-block btn-photo">📷 選照片、拍照或選檔案<input type="file" accept="image/*,.pdf,.docx,.xlsx,.xls,.csv" multiple hidden data-photo></label>
         <input class="input" type="text" data-hint placeholder="補充說明（選填）例：這是 11 月的；我們負責香積">
+        <input class="input" type="text" data-pages placeholder="PDF 只讀第幾頁（選填）例：2-3, 18">
         <select class="input" data-careful aria-label="判讀方式"><option value="1">Gemini Pro（準，預設）</option><option value="">⚡ 快速（Gemini Flash，比較快）</option></select>
         <p class="modal-note">照片一次最多 6 張，也可以選 PDF、Word、Excel；電腦也可以把照片拖進來，或截圖後按 Ctrl+V 貼上。AI 會先找活動、再找${esc(window.SITE.org)}那一行要幾個人，再找時間、地點、服裝、說明；只整理${esc(window.SITE.org)}的部分。內容會交給 Google Gemini 讀取，整理好後可以在下面直接修改，確認後才新增。</p>
         <div class="draft-thumbs" data-thumbs></div>
@@ -227,23 +228,49 @@
       // 先顯示縮圖，確認選對照片（檔案顯示檔名）
       el.querySelector('[data-thumbs]').innerHTML = photos.map((f) => `<img src="${URL.createObjectURL(f)}" alt="">`).join('') + docs.map((f) => `<span class="tag">📄 ${esc(f.name)}</span>`).join(' ');
       const started = Date.now();
-      const tick = () => Busy.show('AI 正在讀⋯', `已經等了 ${Math.round((Date.now() - started) / 1000)} 秒（通常 ${careful ? '30～90' : '10～30'} 秒），請不要關閉畫面`);
+      let label = '準備檔案';
+      let step = 0, steps = 0;
+      const tick = () => Busy.show('AI 正在讀⋯' + (steps > 1 ? `（第 ${step}／${steps} 批）` : ''), `${label}：已經等了 ${Math.round((Date.now() - started) / 1000)} 秒，請不要關閉畫面`);
       tick();
       const timer = setInterval(tick, 1000);
+      // 一批一批讀（2026/11/26）：Gemini Pro 一次讀太多頁會等太久，照片 2 張一批、PDF 大約一頁一批；等太久就拆一半再讀
+      const size = careful ? { text: 2500, images: 1 } : { text: 8000, images: 3 };
+      const batches = [];
+      const fails = [];
+      let found = [];
+      let downgraded = false;
       try {
         const images = await Promise.all(photos.map(shrinkImage));
-        // PDF、Word、Excel：有文字的讀成文字，掃描的頁畫成圖（和照片加起來最多 6 張）
-        let text = '';
+        for (let i = 0; i < images.length; i += careful ? 2 : 3) batches.push({ label: `照片 ${i + 1}～${Math.min(images.length, i + (careful ? 2 : 3))}`, images: images.slice(i, i + (careful ? 2 : 3)) });
+        const pages = el.querySelector('[data-pages]').value;
         for (const f of docs) {
-          (await MemberFile.chunksOf(f, '', null, { text: 30000, images: 6 })).forEach((c) => {
-            if (c.text) text += (text ? '\n\n' : '') + '【' + c.label + '】\n' + c.text;
-            (c.images || []).forEach((im) => { if (images.length < 6) images.push(im); });
-          });
+          label = f.name;
+          (await MemberFile.chunksOf(f, pages, (p, n) => { label = `${f.name} 第 ${p}／${n} 頁`; }, size)).forEach((c) => batches.push(c));
         }
-        const res = await Api.admin('adminDraftFromImages', { images, text: text.slice(0, 30000), hint: el.querySelector('[data-hint]').value, careful });
+        steps = batches.length;
+        for (let i = 0; i < batches.length; i++) {
+          const c = batches[i];
+          step = i + 1; steps = batches.length; label = c.label;
+          try {
+            const r = await Api.admin('adminDraftFromImages', { images: c.images || [], text: c.text || '', hint: el.querySelector('[data-hint]').value, careful });
+            if (r.downgraded) downgraded = true;
+            found = found.concat(r.duties);
+          } catch (e) {
+            if (e.code === 'UNAUTHORIZED') throw e;
+            const half = MemberFile.splitChunk(c);
+            if (e.code === 'NETWORK' && half) { batches.splice(i + 1, 0, ...half); continue; }
+            if (e.code === 'AI' && /找不到本區/.test(e.message || '')) continue; // 這幾頁沒有我們區的：跳過
+            fails.push(`${c.label}：${e.code === 'NETWORK' ? '等太久沒有回應' : e.message}`);
+            if (e.code === 'AI_LIMIT' || e.code === 'CONFIG') break;
+          }
+        }
         clearInterval(timer);
         Busy.hide();
-        await showEditor(res.duties, `<div class="notice notice-success" role="status"><p><strong>AI 整理好 ${res.duties.length} 筆（${Math.round((Date.now() - started) / 1000)} 秒）</strong></p>${res.downgraded ? '<p>Gemini Pro 現在不能用（太忙或額度用完），這次改用快速的 Flash，請多核對。</p>' : ''}<p>請看下面每一筆：「🔎 AI 看到的」是它從照片找到的關鍵字和本區那一段，可以對照；有錯直接改，名字已自動對照成員名單。確認後按最下面的「確認新增」。</p></div>`);
+        // 不同批讀到同一個活動（同名同一天）只留一筆
+        const seen = new Set();
+        found = found.filter((d) => { const k = String(d.name || '').replace(/\s/g, '') + '|' + (d.start || d.lunarDate || ''); if (seen.has(k)) return false; seen.add(k); return true; });
+        if (!found.length) { err(fails.length ? fails.join('；') : `找不到${window.SITE.org}的勤務資料，請確認內容，或在補充說明寫「這是哪個活動」`); return; }
+        await showEditor(found, `<div class="notice notice-success" role="status"><p><strong>AI 整理好 ${found.length} 筆（${steps > 1 ? steps + ' 批，' : ''}${Math.round((Date.now() - started) / 1000)} 秒）</strong></p>${downgraded ? '<p>Gemini Pro 現在不能用（太忙或額度用完），有幾批改用快速的 Flash，請多核對。</p>' : ''}${fails.length ? `<p>有幾批沒讀到：${esc(fails.join('；'))}</p>` : ''}<p>請看下面每一筆：「🔎 AI 看到的」是它找到的關鍵字和本區那一段，可以對照；有錯直接改，名字已自動對照成員名單。確認後按最下面的「確認新增」。</p></div>`);
       } catch (e) {
         clearInterval(timer);
         Busy.hide();

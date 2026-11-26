@@ -637,3 +637,4 @@
 - 呼叫改在 worker/src/hq.js special.adminDraftFromImages（{ images, text, hint, careful } → { duties, model, downgraded }）：這一區沒有 Gemini 金鑰就借教全區的（原本其他區沒有金鑰會失敗）。分壇不能用（用「從檔案匯入行事曆」）。
 
 - **2026/11/26 起 AI 預設用 Gemini Pro**（教全區已開 Gemini 付費、帳單設了每月上限）：從照片或檔案新增、從檔案帶入舊資料、分壇從檔案匯入行事曆的「判讀方式」預設「Gemini Pro（準）」，另一個選項「⚡ 快速（Gemini Flash）」；伺服器沒帶 careful 也用 Pro，只有 careful: false 才用 Flash；Pro 不能用時照舊改用 Flash 並提示。上面寫「仔細判讀」的地方都是指 Pro。
+- **一批一批讀、等太久自動拆小（2026/11/26）**：AI 判讀的請求網頁等 4 分鐘（其他 API 照舊 90 秒，js/api.js SLOW_ACTIONS）。Gemini Pro 一批：文字約 2500 字（PDF 大約一頁）、圖 1 張；快速（Flash）：文字 8000 字、圖 3 張。某一批等太久（NETWORK）就用 MemberFile.splitChunk 拆成兩半（文字從中間的換行切、圖分開）再讀，拆到很小還是太久才算失敗。「從照片或檔案新增」也改成一批一批讀（照片 Pro 2 張、Flash 3 張一批），多了「PDF 只讀第幾頁」；某一批 AI 說找不到本區的就跳過（年度分工表很多頁跟本區無關），不同批讀到同名同一天的只留一筆。

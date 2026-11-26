@@ -104,9 +104,11 @@
   }
 
   /** 寫入（報名）。連線失敗不自動重送，避免重複寫入；超過 90 秒視為連線問題（之後由報名表單查證是否已寫入） */
+  // AI 判讀（Gemini Pro 讀密密麻麻的表要比較久）等 4 分鐘（2026/11/26）
+  const SLOW_ACTIONS = ['adminDraftFromImages', 'adminOldImportAi', 'hqImportAi'];
   async function postOnce(body) {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 90000);
+    const timer = setTimeout(() => ctrl.abort(), SLOW_ACTIONS.indexOf(body.action) !== -1 ? 240000 : 90000);
     try {
       const res = await fetch(apiUrl(), {
         method: 'POST',

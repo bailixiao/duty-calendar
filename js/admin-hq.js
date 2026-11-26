@@ -733,7 +733,7 @@
       let chunks = [];
       prog.innerHTML = '<p class="muted">準備檔案中⋯</p>';
       for (const f of files) {
-        try { chunks = chunks.concat((await chunksOf(f, body.querySelector('[data-pages]').value, (p, n) => { prog.innerHTML = `<p class="muted">準備檔案中⋯（${esc(f.name)} 第 ${p}／${n} 頁）</p>`; }, careful ? { text: 6000, images: 2 } : null)).map((c) => Object.assign(c, { file: f.name }))); } catch (e) { errs.push(e.message || String(e)); }
+        try { chunks = chunks.concat((await chunksOf(f, body.querySelector('[data-pages]').value, (p, n) => { prog.innerHTML = `<p class="muted">準備檔案中⋯（${esc(f.name)} 第 ${p}／${n} 頁）</p>`; }, careful ? { text: 2500, images: 1 } : null)).map((c) => Object.assign(c, { file: f.name }))); } catch (e) { errs.push(e.message || String(e)); }
       }
       const found = [];
       for (let i = 0; i < chunks.length; i++) {
@@ -745,6 +745,8 @@
           r.items.forEach((x) => found.push(Object.assign({}, x, { source: c.label })));
         } catch (e) {
           if (e.code === 'UNAUTHORIZED') { guard(e); return; }
+          const half = MemberFile.splitChunk(c); // 等太久：拆一半再讀
+          if (e.code === 'NETWORK' && half) { chunks.splice(i + 1, 0, ...half); continue; }
           errs.push(`${c.label}：${e.code === 'NETWORK' ? '等太久沒有回應（這一批可能太多頁，可以用「只讀第幾頁」分開讀）' : e.message}`);
           if (e.code === 'AI_LIMIT' || e.code === 'CONFIG') break;
         } finally { clearInterval(tick); }

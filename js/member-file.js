@@ -388,7 +388,19 @@
     throw new Error(`「${name}」不是 PDF、Word、Excel 或照片`);
   }
 
-  const api = { chunksOf, pageSet, loadPdfJs: pdfJs, loadSheetJs: sheetJs, FIELDS, FIELD_KEYS, parseIdentity, parseVegetarian, parseAge, parseBirth, parseMonthDay, parseOverseas, detect, toItems, docxXmlToTables, pdfItemsToRows, alignByHeader, readFile, textToRows };
+  /** 一批太大（AI 等太久）：拆成兩半（文字從中間的換行切、圖分兩批）；已經很小就回傳 null */
+  function splitChunk(c) {
+    const imgs = c.images || [];
+    if (imgs.length > 1) { const h = Math.ceil(imgs.length / 2); return [Object.assign({}, c, { label: c.label + '（前半）', images: imgs.slice(0, h) }), Object.assign({}, c, { label: c.label + '（後半）', images: imgs.slice(h) })]; }
+    const t = c.text || '';
+    if (imgs.length || t.length < 1200) return null;
+    let cut = t.lastIndexOf('\n', Math.floor(t.length / 2));
+    if (cut < t.length / 4) cut = t.lastIndexOf(' ', Math.floor(t.length / 2));
+    if (cut < t.length / 4) cut = Math.floor(t.length / 2);
+    return [Object.assign({}, c, { label: c.label + '（前半）', text: t.slice(0, cut) }), Object.assign({}, c, { label: c.label + '（後半）', text: t.slice(cut) })];
+  }
+
+  const api = { chunksOf, pageSet, splitChunk, loadPdfJs: pdfJs, loadSheetJs: sheetJs, FIELDS, FIELD_KEYS, parseIdentity, parseVegetarian, parseAge, parseBirth, parseMonthDay, parseOverseas, detect, toItems, docxXmlToTables, pdfItemsToRows, alignByHeader, readFile, textToRows };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.MemberFile = api;
 })(typeof window !== 'undefined' ? window : globalThis);

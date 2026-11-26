@@ -79,7 +79,7 @@
       const btn = ev.currentTarget;
       btn.disabled = true;
       const careful = !!$('[data-careful]').value;
-      const size = careful ? { text: 6000, images: 2 } : { text: 12000, images: 4 };
+      const size = careful ? { text: 2500, images: 1 } : { text: 8000, images: 3 }; // Pro 一批大約一頁（讀密的表才不會等太久）
       const errs = [];
       const found = [];
       const toAi = []; // { label, text?, images? }
@@ -115,7 +115,10 @@
           r.sessions.forEach((s) => found.push(Object.assign({}, s, { source: c.label, byTable: false })));
         } catch (e) {
           if (e.code === 'UNAUTHORIZED') { clearInterval(tick); guard(e); return; }
-          errs.push(`${c.label}：${e.code === 'NETWORK' ? '等太久沒有回應（可以改用一般判讀，或把檔案分小一點）' : e.message}`);
+          // 等太久：拆成兩半再讀（文字切一半、圖分開），還是太久才算失敗
+          const half = MemberFile.splitChunk(c);
+          if (e.code === 'NETWORK' && half) { toAi.splice(i + 1, 0, ...half); continue; }
+          errs.push(`${c.label}：${e.code === 'NETWORK' ? '等太久沒有回應（可以改用「⚡ 快速」，或用「只讀第幾頁」分開讀）' : e.message}`);
           if (e.code === 'AI_LIMIT' || e.code === 'CONFIG') { clearInterval(tick); break; }
         } finally { clearInterval(tick); }
       }
