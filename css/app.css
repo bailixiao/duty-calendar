@@ -3214,3 +3214,5 @@ body.yr-open { overflow: hidden; }
 .oi-tags { margin: 0; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: .85rem; }
 .tag-new { background: var(--ok-soft); color: var(--ok); }
 .sticky-actions { position: sticky; bottom: 0; padding: 10px 0; background: var(--paper); }
+/* 從照片／檔案新增：AI 看到的（2026/11/26） */
+.de-seen { display: flex; flex-direction: column; gap: 4px; background: var(--ok-soft); border-radius: 10px; padding: 8px 12px; font-size: .95rem; }

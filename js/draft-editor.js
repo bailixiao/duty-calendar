@@ -75,6 +75,7 @@
       positions: (Array.isArray(d.positions) && d.positions.length ? d.positions : [{ name: '了愿', min: 2, max: '' }])
         .map((p) => ({ name: String(p.name || ''), min: p.min === '' || p.min === undefined ? '' : String(p.min), max: p.max === '' || p.max === undefined || p.max === null ? '' : String(p.max) })),
       notes: Array.isArray(d.uncertain) ? d.uncertain.slice() : [],
+      seen: { keywords: Array.isArray(d.keywords) ? d.keywords.map(String).filter(Boolean).slice(0, 6) : [], regionText: String(d.regionText || '').slice(0, 300), regionNeed: String(d.regionNeed || '').replace(/[^\d]/g, '').slice(0, 4) },
       people: {} // 了愿項目名稱 → [{ name, status, original?, candidates? }]
     };
     const natures = NATURES_BY_CAT[x.category];
@@ -178,6 +179,7 @@
           <h3>第 ${i + 1} 筆</h3>
           <button type="button" class="btn btn-small btn-quiet-danger" data-remove>刪除這筆</button>
         </div>
+        ${x.seen && (x.seen.keywords.length || x.seen.regionText || x.seen.regionNeed) ? `<div class="de-seen">🔎 AI 看到的：${x.seen.keywords.length ? `<span>關鍵字 ${x.seen.keywords.map((k) => `<span class="tag">${esc(k)}</span>`).join(' ')}</span>` : ''}${x.seen.regionText ? `<span>本區那一段：「${esc(x.seen.regionText)}」</span>` : ''}${x.seen.regionNeed ? `<span>本區總共要 <strong>${esc(x.seen.regionNeed)}</strong> 人${x.positions.reduce((n, p) => n + (Number(p.max || p.min) || 0), 0) !== Number(x.seen.regionNeed) ? '（和下面項目的人數加起來不一樣，請確認）' : ''}</span>` : ''}</div>` : ''}
         ${x.notes.length ? `<div class="de-notes">⚠️ 請特別確認：<ul>${x.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul></div>` : ''}
         ${f('名稱', inp('name'))}
         <div class="de-row">

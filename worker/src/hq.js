@@ -341,6 +341,39 @@ export function createHq({ gs, store, cross, openRegions }) {
   }
 
   /**
+   * 從照片／檔案新增勤務草稿（2026/11/26 改：比 async-actions.js 原本的多了檔案文字、最多 6 張、仔細判讀、借教全區的金鑰）。
+   * body = { images, text, hint, careful } → { duties, model, downgraded }。只回傳草稿，不寫入。
+   */
+  special.adminDraftFromImages = async (body, curRegion) => {
+    if (curRegion === HQ_CODE) throw err('FORBIDDEN', '分壇請用「從檔案匯入行事曆」');
+    gs.requireAdmin_(body);
+    const images = Array.isArray(body.images) ? body.images : [];
+    const text = String(body.text || '').slice(0, 30000);
+    if (!images.length && !text.trim()) throw err('BAD_REQUEST', '請選擇照片或檔案');
+    if (images.length > 6) throw err('BAD_REQUEST', '一次最多 6 張照片（或 6 頁）');
+    const parts = [{ text: gs.aiDraftPrompt_(gs.cleanText_(body.hint || '')) }];
+    if (text.trim()) parts.push({ text: '以下是檔案的文字：\n' + text });
+    images.forEach((img) => {
+      const mime = String((img && img.mime) || '');
+      const data = String((img && img.data) || '');
+      if (!/^image\/(jpeg|png|webp)$/.test(mime) || !data) throw err('BAD_REQUEST', '照片格式只能是 jpg、png');
+      if (data.length > 6000000) throw err('BAD_REQUEST', '照片太大，請換一張小一點的');
+      parts.push({ inline_data: { mime_type: mime, data } });
+    });
+    const res = await aiRun(parts, !!body.careful);
+    let duties;
+    try {
+      const parsed = JSON.parse(res.text);
+      duties = Array.isArray(parsed) ? parsed : Array.isArray(parsed.duties) ? parsed.duties : [parsed];
+    } catch (e) {
+      throw err('AI', '看不太懂，請換清楚一點的照片或檔案再試，或改用「仔細判讀」');
+    }
+    duties = duties.filter((d) => d && typeof d === 'object' && d.name);
+    if (!duties.length) throw err('AI', '找不到本區的勤務資料，請確認內容，或在補充說明寫「這是哪個活動」');
+    return { duties, model: res.model, downgraded: !!res.downgraded };
+  };
+
+  /**
    * 從檔案帶入舊資料（各區，2026/11/26）：body = { text, images（最多 4 張）, hint, part, year, careful }
    * 回傳 { sessions: [整理過的一場], model, downgraded }。只讀、不寫入。
    */

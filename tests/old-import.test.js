@@ -50,3 +50,14 @@ test('匯入：新增的勤務帶結束日、結束時間、性質；同一場�
   assert.equal(call('adminRestore', { row: logs()[0].row, signupId: '' }).ok, true);
   assert.equal(call('adminDutyForEdit', { id }).error.code, 'NOT_FOUND');
 });
+
+test('從照片或檔案新增：提示照順序找活動、本區要幾人，多回本區那一段和總人數', () => {
+  const env = createEnv(NOW);
+  const p = env.fn('aiDraftPrompt_')('我們負責香積');
+  assert.match(p, /1\. 先找出每個活動/);
+  assert.match(p, /2\. 再找「教全區」在表上的那一行/);
+  assert.match(p, /"regionText"/);
+  assert.match(p, /"regionNeed"/);
+  assert.match(p, /min 和 max 都填那個數字/);
+  assert.match(p, /管理者補充說明：我們負責香積/);
+});

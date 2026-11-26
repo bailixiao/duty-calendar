@@ -132,9 +132,10 @@
     const m = Modal.open(`
       <h2 class="modal-title">從照片新增${T()}</h2>
       <div class="draft-photo">
-        <label class="btn btn-block btn-photo">📷 選照片或拍照<input type="file" accept="image/*" multiple hidden data-photo></label>
-        <input class="input" type="text" data-hint placeholder="補充說明（選填）例：這是 11 月的">
-        <p class="modal-note">一次最多 3 張；電腦也可以把照片拖進來，或截圖後按 Ctrl+V 貼上。只整理${esc(window.SITE.org)}的部分。照片會交給 Google Gemini 讀取，整理好後可以在下面直接修改，確認後才新增。</p>
+        <label class="btn btn-block btn-photo">📷 選照片、拍照或選檔案<input type="file" accept="image/*,.pdf,.docx,.xlsx,.xls,.csv" multiple hidden data-photo></label>
+        <input class="input" type="text" data-hint placeholder="補充說明（選填）例：這是 11 月的；我們負責香積">
+        <select class="input" data-careful aria-label="判讀方式"><option value="">一般判讀（快，約 10～30 秒）</option><option value="1">🔍 仔細判讀（Gemini Pro，比較準，約 30～90 秒）</option></select>
+        <p class="modal-note">照片一次最多 6 張，也可以選 PDF、Word、Excel；電腦也可以把照片拖進來，或截圖後按 Ctrl+V 貼上。AI 會先找活動、再找${esc(window.SITE.org)}那一行要幾個人，再找時間、地點、服裝、說明；只整理${esc(window.SITE.org)}的部分。內容會交給 Google Gemini 讀取，整理好後可以在下面直接修改，確認後才新增。</p>
         <div class="draft-thumbs" data-thumbs></div>
       </div>
       <div data-ai-note></div>
@@ -203,7 +204,7 @@
     });
     // 電腦：截圖後 Ctrl+V 貼上，或把照片拖進視窗
     el.addEventListener('paste', (ev) => {
-      const files = [...(ev.clipboardData ? ev.clipboardData.files : [])].filter((f) => /^image\//.test(f.type));
+      const files = [...(ev.clipboardData ? ev.clipboardData.files : [])];
       if (!files.length) return;
       ev.preventDefault();
       fromPhotos(files);
@@ -213,25 +214,36 @@
     el.addEventListener('drop', (ev) => {
       ev.preventDefault();
       el.classList.remove('is-dragover');
-      fromPhotos([...ev.dataTransfer.files].filter((f) => /^image\//.test(f.type)));
+      fromPhotos([...ev.dataTransfer.files]);
     });
 
     async function fromPhotos(all) {
-      const files = all.slice(0, 3);
-      if (!files.length) return;
+      const isImg = (f) => /^image\//.test(f.type);
+      const photos = all.filter(isImg).slice(0, 6);
+      const docs = all.filter((f) => !isImg(f)).slice(0, 3);
+      if (!photos.length && !docs.length) return;
       err('');
-      // 先顯示縮圖，確認選對照片
-      el.querySelector('[data-thumbs]').innerHTML = files.map((f) => `<img src="${URL.createObjectURL(f)}" alt="">`).join('');
+      const careful = !!el.querySelector('[data-careful]').value;
+      // 先顯示縮圖，確認選對照片（檔案顯示檔名）
+      el.querySelector('[data-thumbs]').innerHTML = photos.map((f) => `<img src="${URL.createObjectURL(f)}" alt="">`).join('') + docs.map((f) => `<span class="tag">📄 ${esc(f.name)}</span>`).join(' ');
       const started = Date.now();
-      const tick = () => Busy.show('AI 正在讀照片⋯', `已經等了 ${Math.round((Date.now() - started) / 1000)} 秒（通常 10～30 秒），請不要關閉畫面`);
+      const tick = () => Busy.show('AI 正在讀⋯', `已經等了 ${Math.round((Date.now() - started) / 1000)} 秒（通常 ${careful ? '30～90' : '10～30'} 秒），請不要關閉畫面`);
       tick();
       const timer = setInterval(tick, 1000);
       try {
-        const images = await Promise.all(files.map(shrinkImage));
-        const res = await Api.admin('adminDraftFromImages', { images, hint: el.querySelector('[data-hint]').value });
+        const images = await Promise.all(photos.map(shrinkImage));
+        // PDF、Word、Excel：有文字的讀成文字，掃描的頁畫成圖（和照片加起來最多 6 張）
+        let text = '';
+        for (const f of docs) {
+          (await MemberFile.chunksOf(f, '', null, { text: 30000, images: 6 })).forEach((c) => {
+            if (c.text) text += (text ? '\n\n' : '') + '【' + c.label + '】\n' + c.text;
+            (c.images || []).forEach((im) => { if (images.length < 6) images.push(im); });
+          });
+        }
+        const res = await Api.admin('adminDraftFromImages', { images, text: text.slice(0, 30000), hint: el.querySelector('[data-hint]').value, careful });
         clearInterval(timer);
         Busy.hide();
-        await showEditor(res.duties, `<div class="notice notice-success" role="status"><p><strong>AI 整理好 ${res.duties.length} 筆（${Math.round((Date.now() - started) / 1000)} 秒）</strong></p><p>請看下面每一筆，有錯直接改；名字已自動對照成員名單。確認後按最下面的「確認新增」。</p></div>`);
+        await showEditor(res.duties, `<div class="notice notice-success" role="status"><p><strong>AI 整理好 ${res.duties.length} 筆（${Math.round((Date.now() - started) / 1000)} 秒）</strong></p>${res.downgraded ? '<p>仔細判讀的 AI 現在不能用（今天的額度用完或太忙），這次改用一般判讀，請多核對。</p>' : ''}<p>請看下面每一筆：「🔎 AI 看到的」是它從照片找到的關鍵字和本區那一段，可以對照；有錯直接改，名字已自動對照成員名單。確認後按最下面的「確認新增」。</p></div>`);
       } catch (e) {
         clearInterval(timer);
         Busy.hide();
@@ -448,7 +460,7 @@
         <h2 class="modal-title">＋ 新增${T()}</h2>
         <div class="add-ways">
           <a class="more-item" href="#/admin/duties/new" data-way><strong>✍️ 自己填</strong><span>一筆一筆填表單（也可以一次建好幾天、農曆規則）</span></a>
-          <button type="button" class="more-item" data-way-photo><strong>📷 從照片</strong><span>拍公告、DM 或行事曆，自動整理成草稿再確認</span></button>
+          <button type="button" class="more-item" data-way-photo><strong>📷 從照片或檔案</strong><span>拍公告、DM、行事曆，或選 PDF／Word／Excel；AI 找出本區要幾人、時間地點服裝，整理成草稿再確認</span></button>
           <a class="more-item" href="#/admin/import" data-way><strong>📋 從 Excel 貼上</strong><span>從 Excel／Google 試算表複製好幾列貼上，一次匯入</span></a>
           ${window.Region && Region.code ? '<button type="button" class="more-item" data-way-tpl><strong>📚 從教全區借範本</strong><span>教全區常用的勤務（時間、說明、了愿項目、名額），選一個帶入再改</span></button>' : ''}
         </div>
