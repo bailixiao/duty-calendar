@@ -84,7 +84,8 @@
     applySite(regionDefaults());
     try { applySite(JSON.parse(localStorage.getItem(SITE_KEY) || 'null')); } catch (e) { /* 第一次、無痕模式：用預設 */ }
     const link = document.querySelector('link[rel="manifest"]');
-    if (link) link.setAttribute('href', 'manifests/' + code + '.webmanifest'); // 加到主畫面：這一區的名稱、打開這一區
+    // 加到主畫面：這一區的名稱、打開這一區。自己的網站上傳時已經換好（tools/build-pages.js），本機測試版才在這裡換
+    if (link && !ownSite) link.setAttribute('href', 'manifests/' + code + '.webmanifest');
   }
 
   /** 向伺服器拿這一區最新的設定（開機時呼叫）；有變就套用並記在手機裡。這一區還沒開通就回 false */

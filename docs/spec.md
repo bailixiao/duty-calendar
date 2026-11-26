@@ -592,3 +592,7 @@
   - 分壇回覆送回來（hqReportReply → siteReportReply_）：更新狀態、回覆，有變動就推給「系統通知」的手機「🛠 網站負責人回覆了（狀態）」，網址 #/admin/sitereport。
 - **宏教分壇**（worker/src/hq.js，指令碼屬性 HQ_REPORTS，最多 500 筆）：分頁「🛠 各區回報」（#/admin/hqreport，總管理者、唯讀看得到，只有總管理者能改）：還沒處理好／全部；每筆：區名、時間、狀態、誰回報（或家人「名字」寫的意見由誰轉上來）、內容、補充、截圖、頁面・手機・版本；「🔧 處理中」「✓ 修好了」「不用改」「💬 寫回覆」（500 字，寫回覆時新的自動變處理中）。改了送回那一區，那一區連不上的寫「那一區暫時沒收到」，再按一次就重送。新的回報推給分壇開了「分壇通知」的手機「🛠 某區回報網站問題」。
 - 不收電話；家人們的名字（選填）跟著轉上去。
+## 2026/11/26 每一區自己的網站、加到主畫面是那一區
+
+- 網址：見上面「分區」——教全區 `https://jiaoquan-cal.pages.dev/`、各區 `https://jiao<代號>-cal.pages.dev/`、宏教分壇 `https://hong-cal.pages.dev/`；舊網址（`/she/`、`?r=she`）自動轉過去。
+- **加到主畫面是那一區的名稱**：原本各區的標題、manifest 是打開後才用程式換的，手機加到主畫面時常常讀到一打開的「教全區行事曆」。現在 `tools/build-pages.js --deploy` 上傳每一區之前，先把 `index.html` 的 `<title>`、`apple-mobile-web-app-title` 和 `manifest.webmanifest`（名稱、說明、start_url／scope ＝ `./`）換成那一區的，所以一打開就是那一區；`js/region.js` 在那一區自己的網站上不再換 manifest（本機測試版 `?r=` 照舊換成 `manifests/<代號>.webmanifest`）。

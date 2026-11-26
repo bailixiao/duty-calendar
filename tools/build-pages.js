@@ -70,11 +70,35 @@ if (process.argv.includes('--deploy')) {
         execSync(W + 'project create ' + p + ' --production-branch main', { cwd: ROOT, stdio: 'inherit' });
       }
     });
+    // 加到主畫面（2026/11/26）：手機讀的是一打開的 HTML 和 manifest，所以每一區上傳前先把 index.html 的標題、
+    // apple-mobile-web-app-title 和 manifest.webmanifest 換成那一區的名稱（start_url 是那一區自己的網站），傳完再換回教全區的。
+    const page = path.join(OUT, 'index.html');
+    const man = path.join(OUT, 'manifest.webmanifest');
+    const baseHtml = fs.readFileSync(page, 'utf8');
+    const baseMan = fs.readFileSync(man, 'utf8');
+    const codeOf = {};
+    Object.keys(REGIONS).forEach((c) => { codeOf[regionHost(c)] = c; });
     const failed = [];
     projects.forEach((p) => {
-      console.log('\n===== 上傳 ' + p + '.pages.dev =====');
+      const c = codeOf[p];
+      if (c) {
+        const title = REGIONS[c] + '行事曆';
+        const html = baseHtml.replace(/<title>[^<]*<\/title>/, '<title>' + title + '</title>')
+          .replace(/(<meta name="apple-mobile-web-app-title" content=")[^"]*"/, '$1' + title + '"');
+        if (html.indexOf('<title>' + title + '</title>') === -1 || html.indexOf('content="' + title + '"') === -1) throw new Error('index.html 換不了區名：' + p);
+        fs.writeFileSync(page, html);
+        const m = JSON.parse(baseMan);
+        Object.assign(m, { id: './', name: title, short_name: title, description: REGIONS[c] + (c === 'hq' ? '分派後台' : '勤務報名與行事曆'), start_url: './', scope: './' });
+        fs.writeFileSync(man, JSON.stringify(m, null, 2) + '\n');
+      } else {
+        fs.writeFileSync(page, baseHtml);
+        fs.writeFileSync(man, baseMan);
+      }
+      console.log('\n===== 上傳 ' + p + '.pages.dev' + (c ? '（' + REGIONS[c] + '）' : '') + ' =====');
       try { execSync(W + 'deploy .pages-dist --project-name ' + p + ' --branch main --commit-dirty=true', { cwd: ROOT, stdio: 'inherit' }); } catch (e) { failed.push(p); }
     });
+    fs.writeFileSync(page, baseHtml);
+    fs.writeFileSync(man, baseMan);
     if (failed.length) { console.error('\n沒有上傳成功：' + failed.join('、') + '（可以用 --only 再傳一次）'); process.exit(1); }
     console.log('\n全部上傳好了：' + projects.length + ' 個網站');
   })().catch((e) => { console.error(e); process.exit(1); });
