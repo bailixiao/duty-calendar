@@ -15,7 +15,7 @@ const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 const HQ_NAME_TEXT = '宏教分壇';
 // 上下溝通（2026/11/23）：各區回覆分壇／申請調名額（hqAnswer）、截止前 3 天自動提醒（autoRemind，分壇每天早上 7 點的排程）、分壇公告（HQ_NOTICES）。
 
-export function createHq({ gs, store, cross, openRegions }) {
+export function createHq({ gs, store, cross, openRegions, localAiKey }) {
   const err = (code, msg, details) => new gs.ApiError_(code, msg, details);
   const list = () => { try { const a = JSON.parse(store.getProp('HQ_CAMPAIGNS') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
   const save = (a) => store.setProp('HQ_CAMPAIGNS', JSON.stringify(a));
@@ -312,7 +312,7 @@ export function createHq({ gs, store, cross, openRegions }) {
       if (data.length > 6000000) throw err('BAD_REQUEST', '有一頁太大了，請稍後再試');
       parts.push({ inline_data: { mime_type: mime, data } });
     });
-    const res = await aiRun(parts, body.careful !== false);
+    const res = await aiRun(parts, body.careful !== false, curRegion);
     let items;
     try {
       const parsed = JSON.parse(res.text);
@@ -325,10 +325,39 @@ export function createHq({ gs, store, cross, openRegions }) {
   };
 
   /** Gemini：這一區有金鑰就用自己的，沒有就借教全區的；預設用 Pro（2026/11/26 起；careful: false 才用 Flash），Pro 不能用時改用 Flash（downgraded） */
-  async function aiRun(parts, careful) {
+  /** 本機 AI 門口的通道網址（教全區記著；15 分鐘內報到過才算開著） */
+  function localUrlHere() {
+    const at = Number(store.getProp('LOCAL_AI_AT') || 0);
+    return Date.now() - at < 15 * 60 * 1000 ? String(store.getProp('LOCAL_AI_URL') || '') : '';
+  }
+  /** 先問這台電腦的模型（tools/local-ai/gateway.js）；沒開、太久、讀不好就回 null，改用 Gemini */
+  async function localRun(url, parts) {
+    if (!url || !localAiKey) return null;
+    try {
+      const r = await fetch(url + '/generate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-local-ai-key': localAiKey }, body: JSON.stringify({ parts }), signal: AbortSignal.timeout(170000) });
+      if (!r.ok) return null;
+      const j = await r.json();
+      if (!j || !j.ok || !j.text) return null;
+      // 小模型常把陣列包在物件裡（{ "activities": [...] }）：拿出裡面那個陣列
+      let out = JSON.parse(j.text);
+      if (!Array.isArray(out) && out && typeof out === 'object') {
+        const arr = Object.keys(out).map((k) => out[k]).find((v) => Array.isArray(v) && v.length && typeof v[0] === 'object');
+        if (arr && !out.name && !out.title) out = arr;
+      }
+      return { text: JSON.stringify(out), model: j.model || '本機', local: true };
+    } catch (e) { return null; }
+  }
+  async function aiRun(parts, careful, curRegion) {
+    const isMain = !curRegion || curRegion === 'main';
     let key = null;
-    if (!gs.propsForAsync_().getProperty('GEMINI_API_KEY')) {
+    // 其他區：沒有自己的 Gemini 金鑰、或要問本機 AI 門口的網址，就問教全區（教全區不叫自己）
+    if (!isMain && (!gs.propsForAsync_().getProperty('GEMINI_API_KEY') || localAiKey)) {
       try { key = await cross('main', 'hqAiKey'); } catch (e) { /* 問不到就用自己的 */ }
+    }
+    // 本機模型（2026/11/26，先留著）：Worker 有設 LOCAL_AI_KEY、門口有開（tools/local-ai/gateway.js）才會先用，不行再用 Gemini；沒設就完全不影響
+    if (localAiKey) {
+      const local = await localRun(isMain ? localUrlHere() : ((key && key.localUrl) || ''), parts);
+      if (local && /[[{]/.test(local.text)) return local;
     }
     const override = key && key.key ? key : null;
     if (careful) {
@@ -360,7 +389,7 @@ export function createHq({ gs, store, cross, openRegions }) {
       if (data.length > 6000000) throw err('BAD_REQUEST', '照片太大，請換一張小一點的');
       parts.push({ inline_data: { mime_type: mime, data } });
     });
-    const res = await aiRun(parts, body.careful !== false);
+    const res = await aiRun(parts, body.careful !== false, curRegion);
     let duties;
     try {
       const parsed = JSON.parse(res.text);
@@ -395,7 +424,7 @@ export function createHq({ gs, store, cross, openRegions }) {
       if (data.length > 6000000) throw err('BAD_REQUEST', '有一頁太大了，請稍後再試');
       parts.push({ inline_data: { mime_type: mime, data } });
     });
-    const res = await aiRun(parts, body.careful !== false);
+    const res = await aiRun(parts, body.careful !== false, curRegion);
     let list;
     try {
       const parsed = JSON.parse(res.text);
@@ -825,7 +854,7 @@ export function createHq({ gs, store, cross, openRegions }) {
     if (method === 'hqReportReply') return gs.siteReportReply_(payload);
     if (method === 'hqAiKey') {
       const p = gs.propsForAsync_();
-      return { key: p.getProperty('GEMINI_API_KEY') || '', model: p.getProperty('GEMINI_MODEL') || '', proModel: p.getProperty('GEMINI_PRO_MODEL') || '' };
+      return { key: p.getProperty('GEMINI_API_KEY') || '', model: p.getProperty('GEMINI_MODEL') || '', proModel: p.getProperty('GEMINI_PRO_MODEL') || '', localUrl: localUrlHere() };
     }
     throw new Error('不認得的分派動作：' + method);
   }

@@ -7,6 +7,7 @@ import { regionOf, SITE_BASE } from './regions.js';
 import { regionAdmin } from './region-admin.js';
 import { createSqlBackups } from './backup-store.js';
 import { runSchedule } from './schedule.js';
+import { createHash, timingSafeEqual } from 'node:crypto';
 
 export class DutyStore extends DurableObject {
   constructor(ctx, env) {
@@ -15,6 +16,7 @@ export class DutyStore extends DurableObject {
       this.store = createSqlStore(ctx.storage);
       // 宏教分壇分派：叫別區的 Durable Object（worker/src/hq.js）
       this.app = createApp(this.store, {
+        localAiKey: env.LOCAL_AI_KEY || '', // 本機 AI 門口的密碼（tools/local-ai/gateway.js，2026/11/26）
         cross: (region, method, payload) => stub(env, region).hqRpc(region, method, payload),
         openRegions: () => stub(env, 'main').openRegions()
       });
@@ -50,6 +52,9 @@ export class DutyStore extends DurableObject {
     return this.app.openRegions();
   }
 
+  /** 本機 AI 門口的通道網址（教全區記著，各區問教全區） */
+  setLocalAi(url) { try { return this.app.setLocalAi(url); } finally { this.store.persist(); } }
+
   // 開通新區用（worker/src/region-admin.js）
   vapidKeys() { try { return this.app.vapidKeys(); } finally { this.store.persist(); } }
   openRegion(opts) { try { return this.app.openRegion(opts); } finally { this.store.persist(); } }
@@ -81,6 +86,17 @@ function stub(env, region) {
   return env.DB.get(env.DB.idFromName(region || 'main'), { locationHint: 'apac' });
 }
 
+async function localAiCheckIn(body, env) {
+  const expected = String(env.LOCAL_AI_KEY || '');
+  if (!expected) return { ok: false, error: { code: 'CONFIG', message: '還沒設定 LOCAL_AI_KEY' } };
+  const sha = (s) => createHash('sha256').update(String(s || '')).digest();
+  if (!timingSafeEqual(sha(body && body.key), sha(expected))) return { ok: false, error: { code: 'UNAUTHORIZED', message: '密碼不正確' } };
+  const u = String((body && body.url) || '');
+  if (u && !/^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(u)) return { ok: false, error: { code: 'BAD_REQUEST', message: '通道網址不對' } };
+  await stub(env, 'main').setLocalAi(u);
+  return { ok: true };
+}
+
 const badRegion = () => new Response(JSON.stringify({ ok: false, error: { code: 'BAD_REGION', message: '找不到這一區，請確認網址' } }), {
   headers: { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' }
 });
@@ -92,6 +108,12 @@ export default {
       let body = {};
       try { body = await request.json(); } catch (e) { /* 空的 */ }
       const out = request.method === 'POST' ? await regionAdmin(body, { key: env.REGION_ADMIN_KEY, siteBase: SITE_BASE, stub: (r) => stub(env, r), backup: stub(env, 'backup') }) : { ok: false };
+      return new Response(JSON.stringify(out), { headers: { 'Content-Type': 'application/json; charset=utf-8' } });
+    }
+    if (url.pathname === '/local-ai') { // 本機 AI 門口報到：{ key, url }（url 空白＝沒開了），tools/local-ai/gateway.js
+      let body = {};
+      try { body = await request.json(); } catch (e) { /* 空的 */ }
+      const out = request.method === 'POST' ? await localAiCheckIn(body, env) : { ok: false };
       return new Response(JSON.stringify(out), { headers: { 'Content-Type': 'application/json; charset=utf-8' } });
     }
     const region = regionOf(url);

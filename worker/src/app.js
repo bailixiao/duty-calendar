@@ -394,7 +394,7 @@ export function createApp(store, opts) {
   // ---------- 宏教分壇分派（2026/11/22，worker/src/hq.js、apps-script/Hq.gs） ----------
   // opts.cross(區, 動作, 資料)：叫另一區的 Durable Object；opts.openRegions()：已經開通的區（問教全區）
   const hq = createHq({
-    gs, store,
+    gs, store, localAiKey: (opts && opts.localAiKey) || '',
     cross: (opts && opts.cross) || (async () => { throw new Error('沒有跨區連線'); }),
     openRegions: (opts && opts.openRegions) || (async () => [])
   });
@@ -509,5 +509,12 @@ export function createApp(store, opts) {
     return (Array.isArray(list) ? list : []).filter((r) => Object.prototype.hasOwnProperty.call(REGIONS, r));
   }
 
-  return { gs, handle, cron, openRegions, vapidKeys, openRegion, addOpenRegion, snapshot, restore, usageToday, usageCheck, hqRpc };
+  /** 本機 AI 門口（2026/11/26）：通道網址與報到時間（教全區記著；超過 15 分鐘沒報到就當沒開） */
+  function setLocalAi(url) {
+    store.setProp('LOCAL_AI_URL', String(url || ''));
+    store.setProp('LOCAL_AI_AT', String(Date.now()));
+    return { ok: true };
+  }
+
+  return { gs, handle, cron, openRegions, vapidKeys, openRegion, addOpenRegion, snapshot, restore, usageToday, usageCheck, hqRpc, setLocalAi };
 }

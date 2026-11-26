@@ -638,3 +638,12 @@
 
 - **2026/11/26 起 AI 預設用 Gemini Pro**（教全區已開 Gemini 付費、帳單設了每月上限）：從照片或檔案新增、從檔案帶入舊資料、分壇從檔案匯入行事曆的「判讀方式」預設「Gemini Pro（準）」，另一個選項「⚡ 快速（Gemini Flash）」；伺服器沒帶 careful 也用 Pro，只有 careful: false 才用 Flash；Pro 不能用時照舊改用 Flash 並提示。上面寫「仔細判讀」的地方都是指 Pro。
 - **一批一批讀、等太久自動拆小（2026/11/26）**：AI 判讀的請求網頁等 4 分鐘（其他 API 照舊 90 秒，js/api.js SLOW_ACTIONS）。Gemini Pro 一批：文字約 2500 字（PDF 大約一頁）、圖 1 張；快速（Flash）：文字 8000 字、圖 3 張。某一批等太久（NETWORK）就用 MemberFile.splitChunk 拆成兩半（文字從中間的換行切、圖分開）再讀，拆到很小還是太久才算失敗。「從照片或檔案新增」也改成一批一批讀（照片 Pro 2 張、Flash 3 張一批），多了「PDF 只讀第幾頁」；某一批 AI 說找不到本區的就跳過（年度分工表很多頁跟本區無關），不同批讀到同名同一天的只留一筆。
+
+## 2026/11/27 本機 AI（先留著，還沒啟用）
+
+- 想省 Gemini 的錢，試了在維護者電腦（RTX 4070 12GB）用 Ollama 跑看圖小模型（qwen2.5vl:7b、gemma3:12b）。用分壇年度分工表第 18 頁（彌勒山 12 人小組輪值表）比：Qwen 日期錯、只抓到一次；Gemma 日期對但把 20 區全列出來、沒挑出本區；Gemini Flash、Pro 都正確抓到本區兩次（Pro 連交接時間也有）。**小模型不夠準，目前不用**，程式和電腦上的模型先留著。
+- 程式（啟用前完全不影響網站）：
+  - `tools/local-ai/gateway.js`：本機門口（127.0.0.1:8788，POST /generate，要 x-local-ai-key），轉給 Ollama /api/chat（JSON 輸出），一次一件；用 cloudflared 臨時通道（trycloudflare.com）把網址報到 Worker（POST /local-ai { key, url }，每 5 分鐘一次，關掉時報 url 空白）。`--setup` 產生門口密碼存在 `%USERPROFILE%\.duty-local-ai.json`，用 wrangler secret put 設成 Worker 的 LOCAL_AI_KEY（不印出來、不放進程式）。
+  - Worker：`/local-ai` 驗 LOCAL_AI_KEY 後存到教全區 props（LOCAL_AI_URL、LOCAL_AI_AT），15 分鐘內報到過才算開著；hq.js aiRun 在**有設 LOCAL_AI_KEY** 時先問本機（等 170 秒），讀不到再用 Gemini；其他區向教全區問網址（hqAiKey 多回 localUrl）。沒設 LOCAL_AI_KEY 就和原本一樣。
+  - 小模型常把陣列包在物件裡，拿出裡面的陣列；測試發現用 Ollama 的 JSON schema（format 給 schema，要求 { duties: [...] }）會好很多，要啟用時改 gateway 用 schema。
+- 要啟用：`node tools/local-ai/gateway.js --setup`（一次），之後開著 `node tools/local-ai/gateway.js`。
