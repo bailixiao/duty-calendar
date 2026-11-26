@@ -12,7 +12,6 @@
 var ADMIN_TOKEN_TTL_SEC = 21600; // 6 小時（CacheService 上限）
 var ADMIN_MAX_FAILS = 10;
 var ADMIN_LOCK_SEC = 600;
-var RESTORABLE_ACTIONS = ['報名', '取消', '改期', '調整職司', '換項目'];
 
 function adminLogin_(body) {
   var who = checkLogin_(body.account, body.password);
@@ -119,6 +118,7 @@ function adminLogs_(body) {
     actions: actions,
     total: logs.length,
     logs: logs.slice(offset, offset + limit).map(function (l) {
+      var undo = l['還原時間'] ? null : logUndoInfo_(l); // 能不能還原／刪掉（LogUndo.gs）
       return {
         row: l._row,
         time: l['時間'],
@@ -126,7 +126,9 @@ function adminLogs_(body) {
         signupId: l['報名ID'],
         summary: l['內容摘要'],
         restoredAt: l['還原時間'],
-        restorable: RESTORABLE_ACTIONS.indexOf(l['動作']) !== -1 && !l['還原時間']
+        restorable: !!undo,
+        undoLabel: undo ? undo.label : '',
+        undoNote: undo ? undo.note : ''
       };
     })
   };
@@ -145,7 +147,8 @@ function adminRestore_(body) {
     var log = readTable_(SHEETS.LOGS).filter(function (l) { return l._row === Number(body.row); })[0];
     if (!log || log['報名ID'] !== body.signupId) throw new ApiError_('NOT_FOUND', '找不到這筆操作紀錄，請重新整理');
     if (log['還原時間']) throw new ApiError_('ALREADY', '這筆紀錄已經還原過了（' + log['還原時間'] + '）');
-    if (RESTORABLE_ACTIONS.indexOf(log['動作']) === -1) throw new ApiError_('BAD_REQUEST', '這種紀錄不能還原');
+    var info = logUndoInfo_(log);
+    if (!info) throw new ApiError_('BAD_REQUEST', '這種紀錄不能還原');
 
     var signups = readTable_(SHEETS.SIGNUPS);
     var now = nowString_();
@@ -169,7 +172,10 @@ function adminRestore_(body) {
       touched.push(row);
     }
 
-    if (log['動作'] === '報名') {
+    if (info.kind !== 'signup') {
+      // 勤務、成員、分組、出席確認（LogUndo.gs，2026/11/26）
+      warnings = logUndoRun_(info, now);
+    } else if (log['動作'] === '報名') {
       cancelRow(log['報名ID']);
     } else if (log['動作'] === '取消') {
       reactivateRow(log['報名ID']);
@@ -195,11 +201,12 @@ function adminRestore_(body) {
       '時間': now,
       '動作': '還原',
       '報名ID': log['報名ID'],
-      '內容摘要': '還原「' + log['動作'] + '」：' + log['內容摘要'] + (warnings.length ? '（警告：' + warnings.join('；') + '）' : ''),
+      '內容摘要': (info.label === '刪掉' ? '從紀錄刪掉「' : '還原「') + log['動作'] + '」：' + log['內容摘要'] + (warnings.length ? '（警告：' + warnings.join('；') + '）' : ''),
       '還原用的前一版資料': JSON.stringify({ logRow: log._row, action: log['動作'] })
     }]);
     SpreadsheetApp.flush();
-    invalidateTable_(SHEETS.SIGNUPS);
+    if (info.kind === 'signup') invalidateTable_(SHEETS.SIGNUPS);
+    else invalidateAllTables_();
 
     return {
       warnings: warnings,

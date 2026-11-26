@@ -2,7 +2,7 @@
  * 管理後台：勤務的新增、修改、刪除（規格第 8 節管理者後台第 2、3 項）。
  *   - 全部寫入都排進報名的同一把鎖，避免改勤務時剛好有人報名。
  *   - 檢查不通過就整批不寫入，並列出原因。
- *   - 每次都寫入操作紀錄（這幾類紀錄不提供還原）。
+ *   - 每次都寫入操作紀錄，存修改前的資料，可以在操作紀錄還原或刪掉（LogUndo.gs，2026/11/26）。
  */
 
 var MAX_CREATE_DUTIES = 400;
@@ -38,8 +38,9 @@ function adminSetPinned_(body) {
     if (!row) throw new ApiError_('NOT_FOUND', '找不到這個勤務，請重新整理');
     var on = body.pinned === true;
     if ((row['首頁置頂'] === '是') !== on) {
+      var before = rowSnapshot_(SHEETS.DUTIES, row);
       updateRow_(SHEETS.DUTIES, row, { '首頁置頂': on ? '是' : '' });
-      writeDutyLog_('修改勤務', row['名稱'] + '｜' + row['開始日'] + (on ? '（放到首頁）' : '（從首頁拿掉）'));
+      writeDutyLog_('修改勤務', row['名稱'] + '｜' + row['開始日'] + (on ? '（放到首頁）' : '（從首頁拿掉）'), { undo: 'dutyEdit', duties: [before] });
       SpreadsheetApp.flush();
       invalidateTable_(SHEETS.DUTIES);
     }
@@ -130,7 +131,8 @@ function adminCreateDuties_(body) {
     appendRows_(SHEETS.POSITIONS, positionRows);
     appendRows_(SHEETS.SIGNUPS, signupRows);
     if (signupRows.length) invalidateTable_(SHEETS.SIGNUPS);
-    writeDutyLog_('新增勤務', createSummary_(dutyRows) + (signupRows.length ? '｜含分配人員 ' + signupRows.length + ' 人' : ''));
+    writeDutyLog_('新增勤務', createSummary_(dutyRows) + (signupRows.length ? '｜含分配人員 ' + signupRows.length + ' 人' : ''),
+      undoSnap_({ undo: 'dutyCreate', ids: ids, signupIds: signupRows.map(function (s) { return s['報名ID']; }) }));
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.DUTIES);
     invalidateTable_(SHEETS.POSITIONS);
@@ -197,6 +199,14 @@ function adminUpdateDuty_(body) {
     });
     if (errors.length) throw new ApiError_('VALIDATION', '勤務沒有存檔，請看下面的說明', errors);
 
+    // 修改前的樣子（操作紀錄可以還原）
+    var undo = { undo: 'dutyEdit', duties: [], positions: {} };
+    plans.forEach(function (plan) {
+      undo.duties.push(rowSnapshot_(SHEETS.DUTIES, plan.row));
+      undo.positions[plan.row['勤務ID']] = plan.oldPositions.map(function (p) { return rowSnapshot_(SHEETS.POSITIONS, p); });
+    });
+    if (moveTo) undo.moved = { from: oldStart, ids: signupsOf_(signups, source['勤務ID']).map(function (s) { return s['報名ID']; }) };
+
     var deletions = [];
     var appends = [];
     plans.forEach(function (plan) {
@@ -229,7 +239,7 @@ function adminUpdateDuty_(body) {
     }
 
     var summary = source['名稱'] + '｜' + oldStart + (moveTo ? ' → ' + moveTo + '（名單 ' + moved + ' 筆一起移過去）' : '') + (plans.length > 1 ? '（連同其他 ' + (plans.length - 1) + ' 筆同名勤務：' + fields.map(bulkFieldLabel_).join('、') + '）' : '');
-    writeDutyLog_('修改勤務', summary);
+    writeDutyLog_('修改勤務', summary, undoSnap_(undo));
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.DUTIES);
     invalidateTable_(SHEETS.POSITIONS);
@@ -265,7 +275,7 @@ function adminDeleteDuty_(body) {
       var positions = positionsOf_(allPositions, duty['勤務ID']);
       positions.forEach(function (p) { positionRows.push(p._row); });
       writeDutyLog_('刪除勤務', duty['名稱'] + '｜' + duty['開始日'] + (duty['結束日'] && duty['結束日'] !== duty['開始日'] ? '～' + duty['結束日'] : ''),
-        { duty: rowSnapshot_(SHEETS.DUTIES, duty), positions: positions.map(function (p) { return rowSnapshot_(SHEETS.POSITIONS, p); }) });
+        { undo: 'dutyDelete', duty: rowSnapshot_(SHEETS.DUTIES, duty), positions: positions.map(function (p) { return rowSnapshot_(SHEETS.POSITIONS, p); }) });
     });
     deleteRows_(SHEETS.POSITIONS, positionRows);
     deleteRows_(SHEETS.DUTIES, targets.map(function (d) { return d._row; }));
@@ -419,7 +429,7 @@ function adminMoveDuty_(body) {
     var signups = readTable_(SHEETS.SIGNUPS).filter(function (s) { return s['勤務ID'] === duty['勤務ID'] && s['日期'] === from; });
     updateRow_(SHEETS.DUTIES, duty, { '開始日': to, '結束日': to });
     signups.forEach(function (s) { updateRow_(SHEETS.SIGNUPS, s, { '日期': to, '更新時間': nowString_() }); });
-    writeDutyLog_('勤務搬日期', duty['名稱'] + '｜' + from + ' → ' + to + '（報名 ' + signups.length + ' 筆一起搬）', { id: duty['勤務ID'], from: from, to: to });
+    writeDutyLog_('勤務搬日期', duty['名稱'] + '｜' + from + ' → ' + to + '（報名 ' + signups.length + ' 筆一起搬）', { undo: 'dutyMove', id: duty['勤務ID'], from: from, to: to, ids: signups.map(function (s) { return s['報名ID']; }) });
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.DUTIES);
     invalidateTable_(SHEETS.SIGNUPS);

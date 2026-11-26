@@ -4,11 +4,6 @@
 
   const esc = Fmt.esc;
   const PAGE_SIZE = 50;
-  const RESTORE_EXPLAIN = {
-    '報名': '還原後，這筆報名會被取消。',
-    '取消': '還原後，這筆報名會恢復為有效。',
-    '改期': '還原後，會取消改期後的那筆，並恢復原本的日期。'
-  };
 
   // ---------- 操作紀錄 ----------
 
@@ -83,7 +78,7 @@
               </div>
               <p class="log-summary">${esc(l.summary)}</p>
               ${l.restoredAt ? `<p class="log-restored">已於 ${esc(l.restoredAt)} 還原</p>` : ''}
-              ${l.restorable && !stale ? `<button type="button" class="btn btn-small" data-restore="${l.row}">還原</button>` : ''}
+              ${l.restorable && !stale ? `<button type="button" class="btn btn-small${l.undoLabel === '刪掉' ? ' btn-danger' : ''}" data-restore="${l.row}">${esc(l.undoLabel || '還原')}</button>` : ''}
             </li>`).join('') || '<li class="panel-empty">還沒有任何紀錄</li>'}
         </ul>
         ${offset < total ? '<button type="button" class="btn btn-block" data-more>載入更多</button>' : ''}`;
@@ -105,27 +100,28 @@
     }
 
     async function restore(l) {
+      const label = l.undoLabel || '還原';
       const ok = await Confirm.open({
-        title: `確定要還原這筆「${l.action}」嗎？`,
+        title: label === '刪掉' ? `確定要刪掉這筆「${l.action}」新增的資料嗎？` : `確定要${label}嗎？（「${l.action}」）`,
         rows: [['時間', l.time], ['內容', l.summary]],
-        note: RESTORE_EXPLAIN[l.action],
-        confirmText: '確定還原',
+        note: l.undoNote,
+        confirmText: '確定' + label,
         cancelText: '返回'
       });
       if (!ok) return;
-      Busy.show('還原中⋯');
+      Busy.show(label + '中⋯');
       try {
         const res = await Api.admin('adminRestore', { row: l.row, signupId: l.signupId });
         Busy.hide();
         flash = res.warnings.length
-          ? `<div class="notice notice-error" role="status"><p><strong>已還原，但請注意：</strong></p><p>${res.warnings.map(esc).join('<br>')}</p></div>`
-          : AdminPage.notice('success', '已還原', l.summary);
+          ? `<div class="notice notice-error" role="status"><p><strong>已${esc(label)}，但請注意：</strong></p><p>${res.warnings.map(esc).join('<br>')}</p></div>`
+          : AdminPage.notice('success', '已' + label, l.summary);
         AdminPage.clearMemo();
         if (window.CalendarPage) CalendarPage.refresh();
       } catch (err) {
         Busy.hide();
         if (guard(err)) return;
-        flash = AdminPage.notice('error', err.message || '還原失敗', '');
+        flash = AdminPage.notice('error', err.message || label + '失敗', '');
       }
       loadFirst();
     }

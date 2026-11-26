@@ -81,6 +81,8 @@ function adminSaveMember_(body) {
       if (autoGroup) values[TEMPLE_GROUP_TYPE] = autoGroup;
     }
     var summary;
+    var undo = row ? { undo: 'memberEdit', before: rowSnapshot_(SHEETS.MEMBERS, row), name: name, temple: values['佛堂'] !== undefined ? values['佛堂'] : cleanText_(row['佛堂']) }
+      : { undo: 'memberNew', name: name, temple: values['佛堂'] || '' };
     if (row) {
       if (normalizeName_(row['姓名']) !== name) renameParentRefs_(rows, normalizeName_(row['姓名']), name);
       summary = '修改｜' + row['姓名'] + (row['姓名'] !== name ? ' → ' + name : '') +
@@ -90,7 +92,7 @@ function adminSaveMember_(body) {
       summary = '新增｜' + name;
       appendRows_(SHEETS.MEMBERS, [values]);
     }
-    writeDutyLog_('成員', summary);
+    writeDutyLog_('成員', summary, undo);
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.MEMBERS);
     return {};
@@ -158,6 +160,7 @@ function adminSaveGroup_(body) {
     };
     var renamed = { duties: 0, members: 0 };
     var summary;
+    var undo = row ? { undo: 'groupEdit', before: rowSnapshot_(SHEETS.GROUPS, row), type: type, name: name } : { undo: 'groupNew', type: type, name: name };
     if (row) {
       var oldName = row['組名'];
       updateRow_(SHEETS.GROUPS, row, values);
@@ -167,7 +170,7 @@ function adminSaveGroup_(body) {
       appendRows_(SHEETS.GROUPS, [values]);
       summary = '新增｜' + type + ' ' + name;
     }
-    writeDutyLog_('分組', summary);
+    writeDutyLog_('分組', summary, undo);
     SpreadsheetApp.flush();
     invalidateAllTables_();
     return { renamed: renamed };
@@ -185,14 +188,15 @@ function adminDeleteGroup_(body) {
       throw new ApiError_('FORBIDDEN', '還有 ' + used.length + ' 筆勤務由「' + name + '」負責，不能刪除；請先把這些勤務改成其他組');
     }
     var cleared = 0;
+    var clearedNames = [];
     if (MEMBER_GROUP_COLUMNS.indexOf(type) !== -1) {
       readTable_(SHEETS.MEMBERS).forEach(function (m) {
-        if (m[type] === name) { var c = {}; c[type] = ''; updateRow_(SHEETS.MEMBERS, m, c); cleared++; }
+        if (m[type] === name) { var c = {}; c[type] = ''; updateRow_(SHEETS.MEMBERS, m, c); cleared++; clearedNames.push(m['姓名']); }
       });
     }
     deleteRows_(SHEETS.GROUPS, [row._row]);
     writeDutyLog_('分組', '刪除｜' + type + ' ' + name + (cleared ? '（' + cleared + ' 位成員的組別一併清空）' : ''),
-      rowSnapshot_(SHEETS.GROUPS, row));
+      undoSnap_({ undo: 'groupDelete', row: rowSnapshot_(SHEETS.GROUPS, row), cleared: clearedNames }));
     SpreadsheetApp.flush();
     invalidateAllTables_();
     return { clearedMembers: cleared };
@@ -564,7 +568,7 @@ function adminDeleteMember_(body) {
     var row = findRowChecked_(readTable_(SHEETS.MEMBERS), body.row, '姓名', body.original, '成員');
     if (row['啟用中'] !== '否' && row['待確認'] !== '是') throw new ApiError_('FORBIDDEN', '只能刪除已停用的成員，請先停用'); // 待確認的可以直接刪
     deleteRows_(SHEETS.MEMBERS, [row._row]);
-    writeDutyLog_('成員', '刪除｜' + row['姓名'], rowSnapshot_(SHEETS.MEMBERS, row));
+    writeDutyLog_('成員', '刪除｜' + row['姓名'], { undo: 'memberDelete', row: rowSnapshot_(SHEETS.MEMBERS, row) });
     SpreadsheetApp.flush();
     invalidateTable_(SHEETS.MEMBERS);
     return {};

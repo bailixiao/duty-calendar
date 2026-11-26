@@ -288,7 +288,8 @@ function adminAttendOk_(body) {
     var ok = attendOkMark_(items, !!body.undo);
     items.forEach(function (it) {
       var d = findDutyById_(it.dutyId);
-      writeDutyLog_('修正', (d ? d['名稱'] : it.dutyId) + '｜' + it.date + '｜' + (body.undo ? '取消出席確認' : '出席確認好了'));
+      writeDutyLog_('修正', (d ? d['名稱'] : it.dutyId) + '｜' + it.date + '｜' + (body.undo ? '取消出席確認' : '出席確認好了'),
+        { undo: 'attendOk', item: { dutyId: it.dutyId, date: it.date }, was: !!body.undo });
     });
     return { ok: items.map(function (it) { return ok[it.dutyId + '|' + it.date] || null; }) };
   });
