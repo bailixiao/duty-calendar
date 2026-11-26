@@ -10,7 +10,7 @@ function feedbackRows_() {
   return readTable_(SHEETS.FEEDBACK).filter(function (r) { return r['ID']; });
 }
 
-/** 公開：body = { text, name, page } */
+/** 公開：body = { text, name, page, shots（截圖檔案代號，feedbackUpload 先傳好，最多 3 張） } */
 function sendFeedback_(body) {
   var text = String(body.text || '').replace(/\r\n/g, '\n').replace(/^\s+|\s+$/g, '').slice(0, 500);
   var name = normalizeName_(body.name || '').slice(0, 20);
@@ -19,7 +19,7 @@ function sendFeedback_(body) {
   return withSignupLock_(function () {
     var now = nowString_();
     var id = newId_('FB');
-    appendRows_(SHEETS.FEEDBACK, [{ 'ID': id, '時間': now, '姓名': name, '內容': text, '頁面': page, '狀態': '未讀', '處理說明': '', '處理人': '', '處理時間': '' }]);
+    appendRows_(SHEETS.FEEDBACK, [{ 'ID': id, '時間': now, '姓名': name, '內容': text, '頁面': page, '狀態': '未讀', '處理說明': '', '處理人': '', '處理時間': '', '截圖': cleanShots_(body.shots).join(',') }]);
     invalidateTable_(SHEETS.FEEDBACK);
     pushMessageTo_(pushTargets_('系統通知'), '💬 有新的意見回饋', (name ? name + '：' : '') + text.slice(0, 60), '#/admin/feedback');
     return { id: id };
@@ -28,7 +28,7 @@ function sendFeedback_(body) {
 
 function feedbackOut_(r) {
   return { id: r['ID'], at: r['時間'], name: r['姓名'] || '', text: r['內容'] || '', page: r['頁面'] || '', status: r['狀態'] || '未讀',
-    note: r['處理說明'] || '', by: r['處理人'] || '', doneAt: r['處理時間'] || '' };
+    note: r['處理說明'] || '', by: r['處理人'] || '', doneAt: r['處理時間'] || '', shots: cleanShots_(String(r['截圖'] || '').split(',')) };
 }
 
 function requireFeedbackAdmin_() {
@@ -41,6 +41,8 @@ function adminFeedbackList_() {
   var since = addDaysStr_(todayString_(), -365);
   var items = feedbackRows_().filter(function (r) { return String(r['時間']).slice(0, 10) >= since; }).map(feedbackOut_)
     .sort(function (a, b) { return String(b.at).localeCompare(String(a.at)); });
+  var fw = siteReportByFeedback_(); // 轉給網站負責人的（SiteReport.gs）
+  items.forEach(function (x) { if (fw[x.id]) x.forwarded = fw[x.id]; });
   return { items: items };
 }
 

@@ -222,6 +222,7 @@
     getRepairs: () => get('getRepairs', {}),
     reportRepair: (p) => post(Object.assign({ action: 'reportRepair' }, p)),
     sendFeedback: (p) => post(Object.assign({ action: 'sendFeedback' }, p)), // 💬 意見回饋（feedback.js）
+    feedbackUpload: (p) => post(Object.assign({ action: 'feedbackUpload' }, p)), // 意見回饋的截圖（2026/11/26）
     repairWatch: (endpoint, id) => post({ action: 'repairWatch', endpoint, id }),
     repairUpload: (p) => post(Object.assign({ action: 'repairUpload' }, p)),
     getVenue: (from, to) => get('getVenue', { from, to }),

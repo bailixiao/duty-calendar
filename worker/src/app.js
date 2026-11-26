@@ -123,6 +123,24 @@ export function createApp(store, opts) {
     return { id };
   };
 
+  /** 截圖（2026/11/26）：意見回饋（公開，受防止亂報名限制）、回報網站問題（管理者）。只收照片、最大 2MB */
+  const takeShot = (body, tag) => {
+    const mime = String(body.mime || '');
+    if (['image/jpeg', 'image/png', 'image/webp'].indexOf(mime) === -1) throw new gs.ApiError_('BAD_REQUEST', '只能上傳圖片');
+    const bytes = Uint8Array.from(Buffer.from(String(body.data || ''), 'base64'));
+    if (!bytes.length) throw new gs.ApiError_('BAD_REQUEST', '圖片是空的');
+    if (bytes.length > 2 * 1024 * 1024) throw new gs.ApiError_('BAD_REQUEST', '圖片太大（最大 2MB）');
+    const id = 'F-' + crypto.randomUUID().replace(/-/g, '').slice(0, 20);
+    store.putFile(id, mime, tag, bytes);
+    return { id };
+  };
+  special.feedbackUpload = (body) => { gs.rateLimit_(Object.assign({}, body, { action: 'feedbackUpload' })); return takeShot(body, 'feedback'); };
+  special.adminReportShot = (body) => {
+    const who = gs.requireAdmin_(body);
+    if (who.role === '唯讀') throw new gs.ApiError_('FORBIDDEN', '唯讀帳號不能回報');
+    return takeShot(body, 'site-report');
+  };
+
   // ---------- 📸 活動相簿（2026/11/23，apps-script/Album.gs）：任何人都可以上傳，大圖＋縮圖兩個檔案 ----------
   const ALBUM_LIMIT = 80; // 同一個網路 10 分鐘最多上傳幾張（一次選很多張也夠）
   special.albumUpload = (body) => {
@@ -420,7 +438,7 @@ export function createApp(store, opts) {
     let body = null;
     try { body = JSON.parse(text || '{}'); } catch (e) { /* 交給 doPost 回錯誤 */ }
     const action = body && body.action;
-    if ((action === 'repairUpload' || action === 'reportUpload' || action === 'albumUpload') && body) { // 帶上網路位址的雜湊（防止亂報名計數）
+    if ((action === 'repairUpload' || action === 'reportUpload' || action === 'albumUpload' || action === 'feedbackUpload') && body) { // 帶上網路位址的雜湊（防止亂報名計數）
       const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || '';
       if (ip) body._client = createHash('sha256').update('dc|' + ip).digest('hex').slice(0, 16);
     }

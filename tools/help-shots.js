@@ -640,6 +640,7 @@ async function main() {
     await regionShots(c, only);
     await hqShots(c, only);
     await clashShots(c, only);
+    await reportShots(c, only);
   } finally {
     c.close();
     proc.kill();
@@ -650,6 +651,40 @@ async function main() {
  * 📅 排活動時那天別的地方有什麼（2026/11/24）：教全區勾「讓分壇和其他區看得到」、分壇派給教捨區 → 教捨區新增勤務選那天
  * （測試版只有教捨區、分壇能問別區，所以從教捨區拍）
  */
+/**
+ * 🛠 回報網站問題（2026/11/26）：教全區管理者回報（附一張畫的截圖）→ 分壇「🛠 各區回報」回覆 → 教全區看到回覆
+ */
+async function reportShots(c, only) {
+  const names = ['site-report', 'hq-report'];
+  if (only.length && !names.some((n) => only.indexOf(n) !== -1)) return;
+  const go = async (url) => { await c.send('Page.navigate', { url }); await sleep(5000); };
+  const login = PREP + `const pw = document.querySelector('#admin-password') || document.querySelector('input[type=password]'); if (pw) { pw.value = 'test-pass'; pw.form.requestSubmit(); await __wait(2500); }`;
+  await go(BASE + '#/admin');
+  await run(c, login);
+  // 假的手機截圖：畫面中間一個轉圈圈
+  await run(c, PREP + `const cv = document.createElement('canvas'); cv.width = 390; cv.height = 700; const g = cv.getContext('2d');
+    g.fillStyle = '#f6f1e7'; g.fillRect(0, 0, 390, 700); g.fillStyle = '#8b3a1e'; g.fillRect(0, 0, 390, 70); g.fillStyle = '#fff'; g.font = 'bold 26px sans-serif'; g.fillText('年度報表', 24, 46);
+    g.strokeStyle = '#c9572a'; g.lineWidth = 10; g.beginPath(); g.arc(195, 330, 50, 0, Math.PI * 1.5); g.stroke(); g.fillStyle = '#555'; g.font = '22px sans-serif'; g.fillText('讀取中⋯', 150, 430);
+    const data = cv.toDataURL('image/jpeg', 0.85).split(',')[1];
+    const sh = await Api.admin('adminReportShot', { mime: 'image/jpeg', data });
+    await Api.admin('adminSiteReport', { text: '統計頁按「年度報表」，畫面一直轉圈圈，等了一分鐘還是一樣。用 iPhone 才會這樣，電腦正常。', shots: [sh.id], device: 'iPhone iOS 18.1・Safari・390×844', version: '20261126a' });`);
+  await go(BASE + 'hq/#/admin');
+  await run(c, login);
+  await run(c, PREP + `location.hash = '#/admin/hqreport'; for (let i = 0; i < 30 && !document.querySelector('.fb-item'); i++) await __wait(300); for (let i = 0; i < 20 && !(document.querySelector('.fb-item img') || {}).complete; i++) await __wait(300); await __wait(500);`);
+  if (!only.length || only.indexOf('hq-report') !== -1) {
+    await shot(c, path.join(OUT, 'hq-report.png'), PREP + `const b = document.querySelector('[data-body]'); b.scrollIntoView(); const r = b.getBoundingClientRect(); return { x: 0, y: r.top + scrollY - 6, width: innerWidth, height: Math.min(1400, r.height + 12) };`);
+    console.log('✓ hq-report');
+  }
+  await run(c, PREP + `const x = (await Api.admin('hqReportList', {})).items.find((y) => y.status === '新的'); if (x) await Api.admin('hqReportSet', { region: x.region, id: x.id, status: '修好了', reply: '已經修好了，請把網頁關掉再打開 🙏' });`);
+  await go(BASE + '#/admin/sitereport');
+  await run(c, login);
+  await run(c, PREP + `location.hash = '#/admin'; await __wait(300); location.hash = '#/admin/sitereport'; for (let i = 0; i < 30 && !document.querySelector('.sr-reply'); i++) await __wait(300); document.querySelector('[data-sr-form] textarea').value = '例：在統計頁按「年度報表」，畫面一直轉圈圈'; await __wait(500);`);
+  if (!only.length || only.indexOf('site-report') !== -1) {
+    await shot(c, path.join(OUT, 'site-report.png'), PREP + `const b = document.querySelector('[data-body]'); b.scrollIntoView(); const r = b.getBoundingClientRect(); return { x: 0, y: r.top + scrollY - 6, width: innerWidth, height: Math.min(1600, r.height + 12) };`);
+    console.log('✓ site-report');
+  }
+}
+
 async function clashShots(c, only) {
   if (only.length && only.indexOf('clash-peek') === -1) return;
   const go = async (url) => { await c.send('Page.navigate', { url }); await sleep(5000); };

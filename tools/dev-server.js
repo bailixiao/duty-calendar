@@ -28,7 +28,7 @@ async function startMock() {
   const googleEnv = require('../tests/env').createEnv();
   const sheets = Object.fromEntries(Object.entries(googleEnv.sheets).map(([n, sh]) => [n, sh.data]));
   const store = createMemoryStore();
-  const app = createApp(store);
+  const app = createApp(store, { cross: (r, m, p) => mockCross.cross(r, m, p) }); // 教全區也能叫分壇（回報網站問題，2026/11/26；正式版每一區都有）
   await app.handle(new Request('http://localhost/', { method: 'POST', body: JSON.stringify({ action: 'import', sheets, props: { ADMIN_PASSWORD: 'test-pass', ADMIN_CONTACT: '測試管理者' } }) }));
   app.gs.ensurePushKeys_(); // 本機測試也能開啟手機提醒
   store.persist();

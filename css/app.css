@@ -3187,3 +3187,16 @@ body.yr-open { overflow: hidden; }
 .recent-more { margin: 4px 0 12px; }
 .todo-attend .attend-list a { display: block; padding: 0; border: 0; background: none; border-radius: 0; }
 .todo-attend .attend-list a span { margin-left: 0; color: inherit; }
+/* 截圖、🛠 回報網站問題（2026/11/26，feedback.js、site-report.js） */
+.shot-pick { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
+.shot-pick:empty { display: none; }
+.shot-thumb { position: relative; display: block; width: 88px; height: 88px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: var(--card); }
+.shot-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.shot-del { position: absolute; top: 2px; right: 2px; width: 26px; height: 26px; border-radius: 50%; border: 0; background: rgba(0,0,0,.6); color: #fff; font-size: 14px; line-height: 26px; padding: 0; cursor: pointer; }
+.shot-add { align-self: flex-start; cursor: pointer; }
+.shot-add[hidden] { display: none; }
+.sr-form { margin: 8px 0 18px; padding: 12px 14px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); }
+.sr-h3 { margin: 18px 0 8px; font-size: 1.05rem; }
+.sr-who { margin: 2px 0; color: var(--ink-2); font-size: .92em; }
+.sr-info { margin: 4px 0; color: var(--ink-2); font-size: .85em; word-break: break-all; }
+.sr-reply { margin: 6px 0; padding: 8px 10px; border-radius: 10px; background: #eef6ea; border: 1px solid #cfe3c4; }

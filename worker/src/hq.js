@@ -669,6 +669,56 @@ export function createHq({ gs, store, cross, openRegions }) {
     return { deleted: t.id };
   };
 
+  // ---- 🛠 回報網站問題（2026/11/26）：各區 → 分壇「🛠 各區回報」（網站負責人）；分壇回覆 → 那一區 ----
+  //   分壇存指令碼屬性 HQ_REPORTS（陣列，最多 500 筆）；各區自己也存一份（apps-script/SiteReport.gs SITE_REPORTS）。
+  const reports = () => { try { const a = JSON.parse(store.getProp('HQ_REPORTS') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } };
+  const saveReports = (a) => store.setProp('HQ_REPORTS', JSON.stringify(a.slice(-500)));
+  const REPORT_STATUS = ['新的', '處理中', '修好了', '不用改'];
+  /** 各區：回報（直接寫，或從意見回饋轉上去）。先送到分壇，成功才存在這一區 */
+  special.adminSiteReport = async (body, curRegion) => {
+    const who = regionAdmin(body, curRegion);
+    const rec = gs.hqAs_(who, () => gs.siteReportBuild_(body));
+    try { await cross(HQ_CODE, 'hqReportIn', { region: curRegion, rec }); } catch (e) { throw err('NETWORK', '網站負責人那邊暫時收不到，請稍後再按一次'); }
+    return gs.hqAs_(who, () => gs.siteReportSave_(rec));
+  };
+  /** 分壇那一邊：收到一筆回報，通知分壇的管理者（開了「分壇通知」的手機） */
+  function reportIn(p) {
+    const region = String((p && p.region) || '');
+    const r = (p && p.rec) || {};
+    if (TARGET_CODES.indexOf(region) === -1 || !r.id) return { ok: false };
+    const all = reports().filter((x) => !(x.region === region && x.id === r.id));
+    all.push(Object.assign({}, r, { region, regionName: regionName(region), status: '新的', reply: '', replyAt: '', replyBy: '' }));
+    saveReports(all);
+    gs.hqNotifyAdmins_('', '🛠 ' + regionName(region) + '回報網站問題', String(r.text || '').slice(0, 60), '#/admin/hqreport');
+    return { ok: true };
+  }
+  /** 分壇：各區回報清單（新的在前）。總管理者、唯讀看得到 */
+  special.hqReportList = async (body, curRegion) => {
+    const who = requireHqAdmin(body, curRegion, true);
+    if (['總管理者', '唯讀'].indexOf(who.role) === -1) throw err('FORBIDDEN', '各區回報只有分壇的總管理者看得到');
+    return { items: reports().slice().reverse(), role: who.role };
+  };
+  /** 分壇：改狀態、寫回覆（body = { region, id, status, reply }），送回那一區 */
+  special.hqReportSet = async (body, curRegion) => {
+    const who = requireHqAdmin(body, curRegion);
+    if (who.role !== '總管理者') throw err('FORBIDDEN', '只有分壇的總管理者能回覆');
+    const all = reports();
+    const r = all.find((x) => x.region === String(body.region || '') && x.id === String(body.id || ''));
+    if (!r) throw err('NOT_FOUND', '找不到這筆回報');
+    if (body.status !== undefined) {
+      if (REPORT_STATUS.indexOf(body.status) === -1) throw err('VALIDATION', '狀態不對');
+      r.status = body.status;
+    }
+    if (body.reply !== undefined) r.reply = String(body.reply || '').replace(/\r/g, '').trim().slice(0, 500);
+    r.replyAt = gs.nowString_();
+    r.replyBy = who.account || '總管理者';
+    let sent = true;
+    try { await cross(r.region, 'hqReportReply', { id: r.id, status: r.status, reply: r.reply, at: r.replyAt }); } catch (e) { sent = false; }
+    r.replySent = sent;
+    saveReports(all);
+    return { items: all.slice().reverse(), role: who.role, sent };
+  };
+
   /** 各區這一邊：分壇叫過來（Durable Object 之間；不經過網路，不用登入） */
   function rpc(method, payload) {
     if (method === 'hqDeliver') return gs.hqDeliver_(payload);
@@ -690,6 +740,8 @@ export function createHq({ gs, store, cross, openRegions }) {
     if (method === 'hqReplyIn') return replyIn(payload);
     if (method === 'hqNoticeRead') return noticeRead(payload);
     if (method === 'hqOnDates') return onDates(payload);
+    if (method === 'hqReportIn') return reportIn(payload); // 🛠 回報網站問題（2026/11/26）
+    if (method === 'hqReportReply') return gs.siteReportReply_(payload);
     if (method === 'hqAiKey') {
       const p = gs.propsForAsync_();
       return { key: p.getProperty('GEMINI_API_KEY') || '', model: p.getProperty('GEMINI_MODEL') || '' };

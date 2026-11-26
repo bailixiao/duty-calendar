@@ -133,6 +133,7 @@
     if (isHq()) {
       if (sub === 'accounts' && Api.adminWho().role === '總管理者') return AccountsPage.show(shell('accounts'), guard);
       if (sub === 'help') return HelpAdminPage.show(shell('help'), guard);
+      if (sub === 'hqreport' && ['總管理者', '唯讀'].indexOf(Api.adminWho().role) !== -1) return SiteReportPage.hqShow(shell('hqreport'), guard); // 🛠 各區回報（site-report.js）
       return HqAdminPage.show(shell(sub === 'hqstats' || sub === 'hqnotice' ? sub : ''), guard, sub);
     }
     prefetch();
@@ -141,6 +142,7 @@
     if (sub === 'more') return showMore(shell('more'));
     if (sub === 'tidy' && Api.adminWho().role === '總管理者') return showTidy(shell('tidy'));
     if (sub === 'feedback' && Api.adminWho().role === '總管理者') return Feedback.adminShow(shell('feedback'), guard); // 💬 意見回饋（feedback.js）
+    if (sub === 'sitereport' && Api.adminWho().role !== '唯讀') return SiteReportPage.show(shell('sitereport'), guard); // 🛠 回報網站問題（site-report.js）
     if (Api.adminWho().role === '場管' || sub === 'venue') return VenueAdminPage.show(shell('venue'), guard); // 場管帳號只有場地借用（和教學）
     if (sub === 'accounts') return AccountsPage.show(shell('accounts'), guard);
     if (sub === 'site' && seesSite()) return SitePage.show(shell('site'), guard);
@@ -170,6 +172,7 @@
     if (who.role === '總管理者') list.push(['accounts', '👤 帳號', '新增勤務／道務／教育／唯讀帳號、重設密碼、停用']);
     if (seesSite()) list.push(['site', '⚙️ 區設定', '區名、場地、地點選項、功能開關']);
     if (who.role === '總管理者') list.push(['feedback', '💬 意見回饋', '家人們在常見問題最下面寫給管理者的問題和建議']);
+    if (who.role !== '唯讀') list.push(['sitereport', '🛠 回報網站問題', '網站本身的問題（按了沒反應、畫面跑掉）寫給網站負責人，可以附截圖']);
     if (who.role === '總管理者') list.push(['tidy', '🧹 資料整理', '同一種勤務有好幾種名稱，勾起來合成一個（統計才會算在一起）']);
     list.push(['help', '📖 教學', '後台每個功能怎麼用']);
     return list;
@@ -184,7 +187,7 @@
   function tabList() {
     const who = Api.adminWho();
     // 分壇：分派、統計；總管理者另外有帳號（新增總務・勤務／道務／教育帳號，2026/11/22）
-    if (isHq()) return [['', '📣 分派', ['']], ['hqnotice', '📢 公告', ['hqnotice']], ['hqstats', '📊 統計', ['hqstats']]].concat(who.role === '總管理者' ? [['accounts', '👤 帳號', ['accounts']]] : []);
+    if (isHq()) return [['', '📣 分派', ['']], ['hqnotice', '📢 公告', ['hqnotice']], ['hqstats', '📊 統計', ['hqstats']]].concat(['總管理者', '唯讀'].indexOf(who.role) !== -1 ? [['hqreport', '🛠 各區回報', ['hqreport']]] : [], who.role === '總管理者' ? [['accounts', '👤 帳號', ['accounts']]] : []);
     const T = term();
     if (who.role === '場管') return [['venue', '場地借用', ['venue']], ['help', '📖 教學', ['help']]];
     const venueOn = !(window.SITE.features && window.SITE.features.venue === false); // 分區：沒有場地可借的區關掉
