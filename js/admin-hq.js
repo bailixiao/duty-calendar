@@ -697,7 +697,6 @@
         <label class="form-row"><span>PDF 只讀第幾頁（可空白＝全部，例：6-8, 13）</span><input class="input" data-pages placeholder="例：6-8"></label>
         <label class="form-row"><span>給 AI 的補充說明（可空白）</span><input class="input" data-hint placeholder="例：只要 115 年的；日期是民國年"></label>
       </div>
-      <label class="form-row"><span>判讀方式</span><select class="input" data-careful><option value="">Gemini Flash（預設，便宜）</option><option value="1">🔍 Gemini Pro（比較準、比較貴，讀不準時再用）</option></select></label>
       <button type="button" class="btn btn-primary btn-block" data-read disabled>先選檔案，才能開始讀</button>
       <p class="hint">檔案會交給 Google 的 AI 讀（和「從照片新增」一樣）。AI 可能看錯，日期、時間請一定要看過。人名、電話不會整理進來。</p>
       <div data-progress></div>
@@ -727,7 +726,7 @@
     body.querySelector('[data-read]').addEventListener('click', async (ev) => {
       const btn = ev.currentTarget;
       btn.disabled = true;
-      const careful = !!body.querySelector('[data-careful]').value;
+      const careful = false; // 只用 Gemini Flash（2026/11/27）
       let downgraded = false;
       const errs = [];
       let chunks = [];

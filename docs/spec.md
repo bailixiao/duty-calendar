@@ -647,3 +647,5 @@
   - Worker：`/local-ai` 驗 LOCAL_AI_KEY 後存到教全區 props（LOCAL_AI_URL、LOCAL_AI_AT），15 分鐘內報到過才算開著；hq.js aiRun 在**有設 LOCAL_AI_KEY** 時先問本機（等 170 秒），讀不到再用 Gemini；其他區向教全區問網址（hqAiKey 多回 localUrl）。沒設 LOCAL_AI_KEY 就和原本一樣。
   - 小模型常把陣列包在物件裡，拿出裡面的陣列；測試發現用 Ollama 的 JSON schema（format 給 schema，要求 { duties: [...] }）會好很多，要啟用時改 gateway 用 schema。
 - 要啟用：`node tools/local-ai/gateway.js --setup`（一次），之後開著 `node tools/local-ai/gateway.js`。
+
+- **2026/11/27 只用 Gemini Flash**（省錢；等本機 AI 弄好再換）：三個畫面拿掉「判讀方式」選單，伺服器 aiRun 一律 careful=false（Flash，一批文字 8000 字、圖 3 張）。上面寫「Pro」「仔細判讀」的都先不適用；程式（geminiGenerate 的 careful、GEMINI_PRO_MODEL）留著，之後要再開只改 aiRun 和畫面。

@@ -1,5 +1,5 @@
 // 管理後台：📂 從檔案帶入舊資料（#/admin/oldimport，2026/11/26）。規格見 docs/spec.md「從檔案帶入舊資料」。
-//   選檔案 → Excel／Word 的表格直接讀（OldParse，不經過 AI）→ 讀不懂的、PDF、照片才給 AI（adminOldImportAi，預設 Gemini Flash，可以選 Pro）
+//   選檔案 → Excel／Word 的表格直接讀（OldParse，不經過 AI）→ 讀不懂的、PDF、照片才給 AI（adminOldImportAi，用 Gemini Flash）
 //   → 依月份核對、修改 → 每 60 場送一次 adminImportAttendance（已經有的勤務補名單、沒有的新增；名單上已經有的人跳過）。
 (function () {
   'use strict';
@@ -55,7 +55,6 @@
         <p class="muted" data-picked></p>
         <div class="form-grid-2">
           <label class="form-row"><span>年份（表上只寫月/日時用，可空白）</span><input class="input" data-year inputmode="numeric" placeholder="例：2024 或 113"></label>
-          <label class="form-row"><span>判讀方式（給 AI 的部分）</span><select class="input" data-careful><option value="">Gemini Flash（預設，便宜）</option><option value="1">🔍 Gemini Pro（比較準、比較貴，讀不準時再用）</option></select></label>
           ${fixedCat ? '' : `<label class="form-row"><span>表上沒寫類別的算</span><select class="input" data-defcat>${CATS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></label>`}
           <label class="form-row"><span>給 AI 的補充說明（可空白）</span><input class="input" data-hint placeholder="例：日期是民國年；只要出勤的人"></label>
         </div>
@@ -78,7 +77,7 @@
     $('[data-read]').addEventListener('click', async (ev) => {
       const btn = ev.currentTarget;
       btn.disabled = true;
-      const careful = !!$('[data-careful]').value;
+      const careful = false; // 只用 Gemini Flash（2026/11/27）
       const size = careful ? { text: 2500, images: 1 } : { text: 8000, images: 3 }; // Pro 一批大約一頁（讀密的表才不會等太久）
       const errs = [];
       const found = [];

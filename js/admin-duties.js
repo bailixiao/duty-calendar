@@ -135,7 +135,6 @@
         <label class="btn btn-block btn-photo">📷 選照片、拍照或選檔案<input type="file" accept="image/*,.pdf,.docx,.xlsx,.xls,.csv" multiple hidden data-photo></label>
         <input class="input" type="text" data-hint placeholder="補充說明（選填）例：這是 11 月的；我們負責香積">
         <input class="input" type="text" data-pages placeholder="PDF 只讀第幾頁（選填）例：2-3, 18">
-        <select class="input" data-careful aria-label="判讀方式"><option value="">Gemini Flash（預設，便宜）</option><option value="1">🔍 Gemini Pro（比較準、比較貴，讀不準時再用）</option></select>
         <p class="modal-note">照片一次最多 6 張，也可以選 PDF、Word、Excel；電腦也可以把照片拖進來，或截圖後按 Ctrl+V 貼上。AI 會先找活動、再找${esc(window.SITE.org)}那一行要幾個人，再找時間、地點、服裝、說明；只整理${esc(window.SITE.org)}的部分。內容會交給 Google Gemini 讀取，整理好後可以在下面直接修改，確認後才新增。</p>
         <div class="draft-thumbs" data-thumbs></div>
       </div>
@@ -224,7 +223,7 @@
       const docs = all.filter((f) => !isImg(f)).slice(0, 3);
       if (!photos.length && !docs.length) return;
       err('');
-      const careful = !!el.querySelector('[data-careful]').value;
+      const careful = false; // 只用 Gemini Flash（2026/11/27；等本機 AI 弄好再換）
       // 先顯示縮圖，確認選對照片（檔案顯示檔名）
       el.querySelector('[data-thumbs]').innerHTML = photos.map((f) => `<img src="${URL.createObjectURL(f)}" alt="">`).join('') + docs.map((f) => `<span class="tag">📄 ${esc(f.name)}</span>`).join(' ');
       const started = Date.now();

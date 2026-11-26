@@ -312,7 +312,7 @@ export function createHq({ gs, store, cross, openRegions, localAiKey }) {
       if (data.length > 6000000) throw err('BAD_REQUEST', '有一頁太大了，請稍後再試');
       parts.push({ inline_data: { mime_type: mime, data } });
     });
-    const res = await aiRun(parts, body.careful === true, curRegion);
+    const res = await aiRun(parts, false, curRegion);
     let items;
     try {
       const parsed = JSON.parse(res.text);
@@ -324,7 +324,7 @@ export function createHq({ gs, store, cross, openRegions, localAiKey }) {
     return { items, model: res.model, downgraded: res.downgraded };
   };
 
-  /** Gemini：這一區有金鑰就用自己的，沒有就借教全區的；預設用 Flash（2026/11/27 改回；careful: true 才用 Pro），Pro 不能用時改用 Flash（downgraded） */
+  /** Gemini：這一區有金鑰就用自己的，沒有就借教全區的；目前一律用 Flash（2026/11/27；careful 先不用，等本機 AI 弄好再換） */
   /** 本機 AI 門口的通道網址（教全區記著；15 分鐘內報到過才算開著） */
   function localUrlHere() {
     const at = Number(store.getProp('LOCAL_AI_AT') || 0);
@@ -389,7 +389,7 @@ export function createHq({ gs, store, cross, openRegions, localAiKey }) {
       if (data.length > 6000000) throw err('BAD_REQUEST', '照片太大，請換一張小一點的');
       parts.push({ inline_data: { mime_type: mime, data } });
     });
-    const res = await aiRun(parts, body.careful === true, curRegion);
+    const res = await aiRun(parts, false, curRegion);
     let duties;
     try {
       const parsed = JSON.parse(res.text);
@@ -424,7 +424,7 @@ export function createHq({ gs, store, cross, openRegions, localAiKey }) {
       if (data.length > 6000000) throw err('BAD_REQUEST', '有一頁太大了，請稍後再試');
       parts.push({ inline_data: { mime_type: mime, data } });
     });
-    const res = await aiRun(parts, body.careful === true, curRegion);
+    const res = await aiRun(parts, false, curRegion);
     let list;
     try {
       const parsed = JSON.parse(res.text);
