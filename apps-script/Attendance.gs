@@ -125,13 +125,19 @@ function adminImportAttendance_(body) {
     var date = cleanText_(s.date);
     if (!isDateString_(date)) throw new ApiError_('VALIDATION', label + '的日期格式不對');
     var duty = s.dutyId ? findDutyById_(s.dutyId) : null;
+    var created = false;
     if (!duty && s.create) {
       var c = s.create;
-      var cat = ADMIN_SESSION_.role === SUPER_ACCOUNT ? (c.category || '勤務') : ADMIN_SESSION_.role;
+      var cat = ADMIN_SESSION_.role === SUPER_ACCOUNT ? (CATEGORIES.indexOf(c.category) !== -1 ? c.category : '勤務') : ADMIN_SESSION_.role;
       duty = readTable_(SHEETS.DUTIES).filter(function (d) { return d['勤務ID'] && d['名稱'] === c.name && d['開始日'] === date && dutyCategory_(d) === cat; })[0] || null;
       if (!duty) {
-        adminCreateDuties_({ duties: [{ name: c.name, category: cat, nature: c.nature || '課程', mode: '報名型', start: date, startTime: c.startTime || '', location: c.location || '',
+        // 性質照類別（表上有寫且合法就用）；從檔案帶入舊資料（2026/11/26）多帶結束日、結束時間
+        var natures = NATURES_BY_CATEGORY_[cat] || ['勤務'];
+        var nature = natures.indexOf(c.nature) !== -1 ? c.nature : natures[0];
+        var end = isDateString_(cleanText_(c.end)) && cleanText_(c.end) > date ? cleanText_(c.end) : '';
+        adminCreateDuties_({ allowDuplicate: true, duties: [{ name: c.name, category: cat, nature: nature, mode: '報名型', start: date, end: end, startTime: c.startTime || '', endTime: c.endTime || '', location: c.location || '',
           positions: [{ name: cat === '勤務' ? '出勤' : '參加', min: 0, max: null }] }] });
+        created = true;
         duty = readTable_(SHEETS.DUTIES).filter(function (d) { return d['勤務ID'] && d['名稱'] === c.name && d['開始日'] === date && dutyCategory_(d) === cat; })[0];
       }
     }
@@ -168,7 +174,7 @@ function adminImportAttendance_(body) {
       if (rows.length) {
         appendRows_(SHEETS.SIGNUPS, rows);
         addPendingMembers_(rows, duty['名稱']);
-        appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '修正', '報名ID': '', '內容摘要': duty['名稱'] + '｜' + date + '｜匯入出勤名單 ' + rows.length + ' 位：' + rows.map(function (r) { return r['姓名']; }).join('、'), '還原用的前一版資料': '' }]);
+        appendRows_(SHEETS.LOGS, [{ '時間': now, '動作': '修正', '報名ID': '', '內容摘要': duty['名稱'] + '｜' + date + '｜匯入出勤名單 ' + rows.length + ' 位：' + rows.map(function (r) { return r['姓名']; }).join('、'), '還原用的前一版資料': JSON.stringify({ undo: 'attendImport', dutyId: duty['勤務ID'], created: created, signupIds: rows.map(function (r) { return r['報名ID']; }) }) }]);
         SpreadsheetApp.flush();
         invalidateTable_(SHEETS.SIGNUPS);
       }

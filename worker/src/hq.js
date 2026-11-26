@@ -312,9 +312,7 @@ export function createHq({ gs, store, cross, openRegions }) {
       if (data.length > 6000000) throw err('BAD_REQUEST', '有一頁太大了，請稍後再試');
       parts.push({ inline_data: { mime_type: mime, data } });
     });
-    let key = null;
-    try { key = await cross('main', 'hqAiKey'); } catch (e) { /* 問不到就用自己的 */ }
-    const res = await geminiGenerate(gs, parts, key && key.key ? key : null);
+    const res = await aiRun(parts, !!body.careful);
     let items;
     try {
       const parsed = JSON.parse(res.text);
@@ -323,7 +321,57 @@ export function createHq({ gs, store, cross, openRegions }) {
       throw err('AI', '這幾頁看不太懂，可以跳過或換清楚一點的檔案再試');
     }
     items = items.filter((x) => x && typeof x === 'object' && x.title).slice(0, 150);
-    return { items, model: res.model };
+    return { items, model: res.model, downgraded: res.downgraded };
+  };
+
+  /** Gemini：這一區有金鑰就用自己的，沒有就借教全區的；仔細判讀（Pro）不能用時改用一般模型（downgraded） */
+  async function aiRun(parts, careful) {
+    let key = null;
+    if (!gs.propsForAsync_().getProperty('GEMINI_API_KEY')) {
+      try { key = await cross('main', 'hqAiKey'); } catch (e) { /* 問不到就用自己的 */ }
+    }
+    const override = key && key.key ? key : null;
+    if (careful) {
+      try { return await geminiGenerate(gs, parts, override, { careful: true }); } catch (e) {
+        if (e.code !== 'AI_LIMIT' && e.code !== 'AI') throw e;
+      }
+      return Object.assign(await geminiGenerate(gs, parts, override), { downgraded: true });
+    }
+    return geminiGenerate(gs, parts, override);
+  }
+
+  /**
+   * 從檔案帶入舊資料（各區，2026/11/26）：body = { text, images（最多 4 張）, hint, part, year, careful }
+   * 回傳 { sessions: [整理過的一場], model, downgraded }。只讀、不寫入。
+   */
+  special.adminOldImportAi = async (body, curRegion) => {
+    if (curRegion === HQ_CODE) throw err('FORBIDDEN', '分壇請用「從檔案匯入行事曆」');
+    const who = gs.requireAdmin_(body);
+    if (who.role === '唯讀' || who.role === '場管') throw err('FORBIDDEN', '這個帳號沒有權限做這件事');
+    const images = Array.isArray(body.images) ? body.images : [];
+    const text = String(body.text || '').slice(0, 30000);
+    if (!images.length && !text.trim()) throw err('BAD_REQUEST', '沒有要讀的內容');
+    if (images.length > 4) throw err('BAD_REQUEST', '一次最多 4 頁');
+    const year = /^20\d\d$/.test(String(body.year || '')) ? String(body.year) : '';
+    const parts = [{ text: gs.oldImportPrompt_(gs.cleanText_(body.hint || ''), gs.cleanText_(body.part || ''), year) }];
+    if (text.trim()) parts.push({ text: '以下是檔案的文字：\n' + text });
+    images.forEach((img) => {
+      const mime = String((img && img.mime) || '');
+      const data = String((img && img.data) || '');
+      if (!/^image\/(jpeg|png|webp)$/.test(mime) || !data) throw err('BAD_REQUEST', '圖片格式只能是 jpg、png');
+      if (data.length > 6000000) throw err('BAD_REQUEST', '有一頁太大了，請稍後再試');
+      parts.push({ inline_data: { mime_type: mime, data } });
+    });
+    const res = await aiRun(parts, !!body.careful);
+    let list;
+    try {
+      const parsed = JSON.parse(res.text);
+      list = Array.isArray(parsed) ? parsed : Array.isArray(parsed.sessions) ? parsed.sessions : [parsed];
+    } catch (e) {
+      throw err('AI', '這幾頁看不太懂，可以跳過或換清楚一點的檔案再試');
+    }
+    const sessions = list.filter((x) => x && typeof x === 'object').map((x) => gs.oldImportClean_(x)).filter((x) => x.name || x.people.length).slice(0, 200);
+    return { sessions, model: res.model, downgraded: !!res.downgraded };
   };
 
   // =====================================================================
@@ -744,7 +792,7 @@ export function createHq({ gs, store, cross, openRegions }) {
     if (method === 'hqReportReply') return gs.siteReportReply_(payload);
     if (method === 'hqAiKey') {
       const p = gs.propsForAsync_();
-      return { key: p.getProperty('GEMINI_API_KEY') || '', model: p.getProperty('GEMINI_MODEL') || '' };
+      return { key: p.getProperty('GEMINI_API_KEY') || '', model: p.getProperty('GEMINI_MODEL') || '', proModel: p.getProperty('GEMINI_PRO_MODEL') || '' };
     }
     throw new Error('不認得的分派動作：' + method);
   }

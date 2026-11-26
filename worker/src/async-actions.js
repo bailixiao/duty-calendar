@@ -77,12 +77,16 @@ export async function sendPushAll(gs, when) {
 // ---------- AI 讀照片（Ai.gs） ----------
 
 /** override＝{ key, model }：用別的金鑰（宏教分壇借用教全區的，2026/11/22） */
-export async function geminiGenerate(gs, parts, override) {
+// opts.careful：仔細判讀（2026/11/26）用 Pro 模型（GEMINI_PRO_MODEL，再 gemini-pro-latest，再問 Google 有哪些 Pro）
+export async function geminiGenerate(gs, parts, override, opts) {
+  const careful = !!(opts && opts.careful);
   const props = gs.propsForAsync_();
   const key = (override && override.key) || props.getProperty('GEMINI_API_KEY');
   if (!key) throw new gs.ApiError_('CONFIG', '尚未設定 Gemini 金鑰，請依部署說明在「指令碼屬性」設定 GEMINI_API_KEY');
-  const custom = (override && override.key) ? (override.model || '') : props.getProperty('GEMINI_MODEL');
-  const models = (custom ? [custom] : []).concat(gs.aiDefaultModels_().filter((m) => m !== custom));
+  const custom = careful ? (props.getProperty('GEMINI_PRO_MODEL') || (override && override.proModel) || '')
+    : (override && override.key) ? (override.model || '') : props.getProperty('GEMINI_MODEL');
+  const defaults = careful ? ['gemini-pro-latest'] : gs.aiDefaultModels_();
+  const models = (custom ? [custom] : []).concat(defaults.filter((m) => m !== custom));
   const payload = JSON.stringify({ contents: [{ role: 'user', parts }], generationConfig: { responseMimeType: 'application/json', temperature: 0.2 } });
   const call = (model) => fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: payload
@@ -99,7 +103,7 @@ export async function geminiGenerate(gs, parts, override) {
           ((await r.json()).models || [])
             .filter((m) => (m.supportedGenerationMethods || []).includes('generateContent'))
             .map((m) => String(m.name).replace(/^models\//, ''))
-            .filter((n) => /flash/.test(n) && !/image|tts|audio|live|thinking|embed/.test(n))
+            .filter((n) => (careful ? /pro/ : /flash/).test(n) && !/image|tts|audio|live|thinking|embed|vision/.test(n))
             .sort((a, b) => (/lite/.test(a) - /lite/.test(b)) || (b < a ? -1 : b > a ? 1 : 0))
             .forEach((m) => { if (!models.includes(m)) models.push(m); });
         }

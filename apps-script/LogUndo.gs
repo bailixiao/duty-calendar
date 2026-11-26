@@ -48,6 +48,7 @@ function logUndoInfo_(l) {
     dutyEdit: ['還原', '勤務會改回修改前的樣子（名稱、日期、時間、了愿項目等）；跟著移動的名單一起移回去。'],
     dutyMove: ['還原', '勤務和報名會一起搬回原本的日期。'],
     attendOk: ['還原', '出席確認會改回原本的狀態。'],
+    attendImport: ['還原', '這次匯入的名單會取消；這次新增的勤務沒有其他人報名的話一起刪掉。'],
     memberNew: ['刪掉', '會把這位成員從成員名單刪掉（過去的報名紀錄不受影響）。'],
     memberEdit: ['還原', '這位成員的資料會改回修改前的樣子。'],
     memberDelete: ['還原', '會把刪掉的成員放回成員名單。'],
@@ -136,6 +137,20 @@ function logUndoRun_(info, now) {
         var hit = p.ids ? p.ids.indexOf(s['報名ID']) !== -1 : (s['勤務ID'] === p.id && s['日期'] === p.to);
         if (hit) updateRow_(SHEETS.SIGNUPS, s, { '日期': p.from, '更新時間': now });
       });
+    },
+    attendImport: function () {
+      var ids = p.signupIds || [];
+      var signups = readTable_(SHEETS.SIGNUPS);
+      signups.forEach(function (s) {
+        if (ids.indexOf(s['報名ID']) !== -1 && s['狀態'] !== '已取消') updateRow_(SHEETS.SIGNUPS, s, { '狀態': '已取消', '更新時間': now });
+      });
+      if (!p.created) return;
+      var duty = findById_(readTable_(SHEETS.DUTIES), '勤務ID', p.dutyId);
+      if (!duty) return;
+      var others = signups.filter(function (s) { return s['勤務ID'] === p.dutyId && s['狀態'] !== '已取消'; });
+      if (others.length) { warnings.push('「' + duty['名稱'] + '」還有其他人的名單，勤務留著'); return; }
+      deleteRows_(SHEETS.POSITIONS, positionsOf_(readTable_(SHEETS.POSITIONS), p.dutyId).map(function (x) { return x._row; }));
+      deleteRows_(SHEETS.DUTIES, [duty._row]);
     },
     attendOk: function () {
       attendOkMark_([p.item], !p.was);

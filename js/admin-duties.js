@@ -294,7 +294,7 @@
       ${flash}
       <div class="admin-actions">
         <button type="button" class="btn btn-primary" data-add-open>＋ 新增${T()}</button>
-        ${Api.adminWho().role === '唯讀' ? '' : '<button type="button" class="btn" data-att-import>📋 匯入出勤名單</button>'}
+        ${Api.adminWho().role === '唯讀' ? '' : '<button type="button" class="btn" data-att-import>📋 匯入出勤名單</button><a class="btn" href="#/admin/oldimport">📂 從檔案帶入舊資料</a>'}
       </div>
       <div class="list-filter">
         <select class="input" data-filter aria-label="月份">

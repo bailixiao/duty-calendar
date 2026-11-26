@@ -678,77 +678,8 @@
     if (!d) return '';
     try { return window.Lunar.fromYmd(Number(year) || new Date().getFullYear(), mo, d).getSolar().toYmd(); } catch (e) { return ''; }
   }
-  /** 「6-8, 10」→ 要讀的頁碼集合（空白＝全部） */
-  function pageSet(text, max) {
-    const t = String(text || '').trim();
-    if (!t) return null;
-    const out = new Set();
-    t.split(/[,，、\s]+/).forEach((p) => { const m = p.match(/^(\d+)(?:[-～~到](\d+))?$/); if (!m) return; const a = Number(m[1]), b = Number(m[2] || m[1]); for (let i = Math.max(1, a); i <= Math.min(max, b); i++) out.add(i); });
-    return out.size ? out : null;
-  }
-  /** 圖片縮小成 JPEG（最寬 1600），回傳 base64 */
-  async function shrink(src) {
-    const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('圖片讀不到')); i.src = src; });
-    const k = Math.min(1, 1600 / Math.max(img.width, img.height));
-    const c = document.createElement('canvas');
-    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-    return c.toDataURL('image/jpeg', 0.8).split(',')[1];
-  }
-  const fileUrl = (f) => URL.createObjectURL(f);
-
-  /** 把檔案拆成一批一批要給 AI 讀的：{ label, images: [{mime,data}], text } */
-  async function chunksOf(file, pages, onPage) {
-    const name = file.name || '檔案';
-    const ext = (name.split('.').pop() || '').toLowerCase();
-    const out = [];
-    if (/^image\//.test(file.type) || ['jpg', 'jpeg', 'png', 'webp', 'heic'].indexOf(ext) !== -1) {
-      const u = fileUrl(file);
-      try { out.push({ label: name, images: [{ mime: 'image/jpeg', data: await shrink(u) }] }); } finally { URL.revokeObjectURL(u); }
-      return out;
-    }
-    if (ext === 'pdf') {
-      await MemberFile.loadPdfJs();
-      const pdf = await window.pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
-      const want = pageSet(pages, pdf.numPages);
-      let imgs = [], imgFrom = 0, imgTo = 0, texts = [], textFrom = 0, textTo = 0;
-      const flushImgs = () => { const to = imgTo; if (imgs.length) out.push({ label: `${name} 第 ${imgFrom}${to > imgFrom ? '～' + to : ''} 頁`, images: imgs }); imgs = []; };
-      const flushText = () => { const to = textTo; if (texts.length) out.push({ label: `${name} 第 ${textFrom}${to > textFrom ? '～' + to : ''} 頁`, text: texts.join('\n\n') }); texts = []; };
-      for (let p = 1; p <= pdf.numPages; p++) {
-        if (want && !want.has(p)) continue;
-        if (onPage) onPage(p, pdf.numPages);
-        const page = await pdf.getPage(p);
-        const tc = await page.getTextContent();
-        // NFKC：PDF 的部首字（⽉⽇⼤）換回一般的字；中文字之間的空白拿掉
-        const txt = tc.items.map((it) => it.str).join(' ').normalize('NFKC').replace(/\s+/g, ' ').replace(/([㐀-鿿])\s+(?=[㐀-鿿])/g, '$1').trim();
-        if (txt.length > 80) { // 有文字的頁：直接給文字（快、準）
-          if (!texts.length) textFrom = p;
-          texts.push('【第 ' + p + ' 頁】' + txt);
-          textTo = p;
-          if (texts.join('').length > 12000) flushText();
-        } else { // 掃描的頁：畫成圖片
-          const vp = page.getViewport({ scale: Math.min(2, 1600 / page.getViewport({ scale: 1 }).width) });
-          const c = document.createElement('canvas');
-          c.width = vp.width; c.height = vp.height;
-          await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
-          if (!imgs.length) imgFrom = p;
-          imgs.push({ mime: 'image/jpeg', data: c.toDataURL('image/jpeg', 0.75).split(',')[1] });
-          imgTo = p;
-          if (imgs.length >= 4) flushImgs();
-        }
-      }
-      flushImgs(); flushText();
-      return out;
-    }
-    if (['docx', 'xlsx', 'xls', 'xlsm', 'csv', 'ods'].indexOf(ext) !== -1) {
-      const srcs = await MemberFile.readFile(file);
-      const text = srcs.map((s) => '【' + s.label + '】\n' + s.rows.map((r) => r.map((x) => (x instanceof Date ? x.toISOString().slice(0, 10) : String(x == null ? '' : x))).filter(Boolean).join('\t')).filter(Boolean).join('\n')).join('\n\n');
-      for (let i = 0; i < text.length; i += 12000) out.push({ label: name + (text.length > 12000 ? ` 第 ${i / 12000 + 1} 段` : ''), text: text.slice(i, i + 12000) });
-      return out;
-    }
-    if (ext === 'doc') throw new Error(`「${name}」是舊版 Word（.doc），請用 Word 打開後「另存新檔」成 .docx 再選`);
-    throw new Error(`「${name}」不是 PDF、Word、Excel 或照片`);
-  }
+  // 檔案拆成一批一批給 AI 讀：搬到 js/member-file.js（MemberFile.chunksOf；2026/11/26 從檔案帶入舊資料也用）
+  const chunksOf = (file, pages, onPage, size) => MemberFile.chunksOf(file, pages, onPage, size);
 
   async function importPage(body, guard) {
     let data;
@@ -766,6 +697,7 @@
         <label class="form-row"><span>PDF 只讀第幾頁（可空白＝全部，例：6-8, 13）</span><input class="input" data-pages placeholder="例：6-8"></label>
         <label class="form-row"><span>給 AI 的補充說明（可空白）</span><input class="input" data-hint placeholder="例：只要 115 年的；日期是民國年"></label>
       </div>
+      <label class="form-row"><span>判讀方式</span><select class="input" data-careful><option value="">一般（快）</option><option value="1">🔍 仔細判讀（Gemini Pro，比較慢、比較準）</option></select></label>
       <button type="button" class="btn btn-primary btn-block" data-read disabled>先選檔案，才能開始讀</button>
       <p class="hint">檔案會交給 Google 的 AI 讀（和「從照片新增」一樣）。AI 可能看錯，日期、時間請一定要看過。人名、電話不會整理進來。</p>
       <div data-progress></div>
@@ -795,18 +727,21 @@
     body.querySelector('[data-read]').addEventListener('click', async (ev) => {
       const btn = ev.currentTarget;
       btn.disabled = true;
+      const careful = !!body.querySelector('[data-careful]').value;
+      let downgraded = false;
       const errs = [];
       let chunks = [];
       prog.innerHTML = '<p class="muted">準備檔案中⋯</p>';
       for (const f of files) {
-        try { chunks = chunks.concat((await chunksOf(f, body.querySelector('[data-pages]').value, (p, n) => { prog.innerHTML = `<p class="muted">準備檔案中⋯（${esc(f.name)} 第 ${p}／${n} 頁）</p>`; })).map((c) => Object.assign(c, { file: f.name }))); } catch (e) { errs.push(e.message || String(e)); }
+        try { chunks = chunks.concat((await chunksOf(f, body.querySelector('[data-pages]').value, (p, n) => { prog.innerHTML = `<p class="muted">準備檔案中⋯（${esc(f.name)} 第 ${p}／${n} 頁）</p>`; }, careful ? { text: 6000, images: 2 } : null)).map((c) => Object.assign(c, { file: f.name }))); } catch (e) { errs.push(e.message || String(e)); }
       }
       const found = [];
       for (let i = 0; i < chunks.length; i++) {
         const c = chunks[i];
         const t0 = Date.now(); const paint = () => { prog.innerHTML = `<p class="muted">AI 讀檔中⋯（${i + 1}／${chunks.length}：${esc(c.label)}）已經 ${Math.round((Date.now() - t0) / 1000)} 秒，每一批大約 10～60 秒</p><progress max="${chunks.length}" value="${i}"></progress>`; }; paint(); const tick = setInterval(paint, 1000);
         try {
-          const r = await Api.admin('hqImportAi', { images: c.images || [], text: c.text || '', hint: body.querySelector('[data-hint]').value, part: c.label });
+          const r = await Api.admin('hqImportAi', { images: c.images || [], text: c.text || '', hint: body.querySelector('[data-hint]').value, part: c.label, careful });
+          if (r.downgraded) downgraded = true;
           r.items.forEach((x) => found.push(Object.assign({}, x, { source: c.label })));
         } catch (e) {
           if (e.code === 'UNAUTHORIZED') { guard(e); return; }
@@ -827,7 +762,7 @@
       }).filter((x) => { const k = x.title + '|' + x.start; if (!x.title || seen.has(k)) return false; seen.add(k); return true; })
         .sort((a, b) => (a.start || '9999').localeCompare(b.start || '9999'));
       rows.forEach((x) => { x.pick = !!x.start && x.start >= today; });
-      prog.innerHTML = (errs.length ? `<p class="form-error">${errs.map(esc).join('<br>')}</p>` : '') + `<p>讀到 <strong>${rows.length}</strong> 筆活動${rows.length ? '，看一下、改一下，不要的取消勾選。已經過去的日期先不勾。' : '。'}</p>`;
+      prog.innerHTML = (downgraded ? '<p class="notice">仔細判讀的 AI 現在不能用（今天的額度用完或太忙），有幾批改用一般判讀，請多核對。</p>' : '') + (errs.length ? `<p class="form-error">${errs.map(esc).join('<br>')}</p>` : '') + `<p>讀到 <strong>${rows.length}</strong> 筆活動${rows.length ? '，看一下、改一下，不要的取消勾選。已經過去的日期先不勾。' : '。'}</p>`;
       drawRows();
     });
 

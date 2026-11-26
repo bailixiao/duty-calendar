@@ -4,6 +4,7 @@
 //   #/admin/duty/<id> 勤務名單管理
 //   #/admin/duties…   勤務管理：列表、新增、編輯（見 admin-duties.js）
 //   #/admin/import    批次匯入（見 admin-import.js）
+//   #/admin/oldimport 從檔案帶入舊資料（見 old-import.js）
 //   #/admin/members   成員名單管理、#/admin/groups 分組管理（見 admin-people.js）
 //   #/admin/stats     統計（見 admin-stats.js）、#/admin/history 匯入歷史資料（見 admin-history.js）
 //   #/admin/logs      操作紀錄與還原
@@ -150,6 +151,7 @@
     if (m) return showDuty(decodeURIComponent(m[1]), m[2] || '');
     if (/^duties(\/|\?|$)/.test(sub)) return DutyAdminPage.show(shell('duties'), guard, sub);
     if (sub === 'import') return ImportPage.show(shell('duties'), guard);
+    if (sub === 'oldimport') return OldImportPage.show(shell('duties'), guard); // 📂 從檔案帶入舊資料（2026/11/26）
     if (sub === 'members') return PeoplePage.members(shell('members'), guard);
     if (sub === 'groups') return PeoplePage.groups(shell('groups'), guard);
     if (sub === 'youth') return PeoplePage.youth(shell('youth'), guard);

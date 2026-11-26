@@ -641,6 +641,7 @@ async function main() {
     await hqShots(c, only);
     await clashShots(c, only);
     await reportShots(c, only);
+    await oldImportShots(c, only);
   } finally {
     c.close();
     proc.kill();
@@ -683,6 +684,24 @@ async function reportShots(c, only) {
     await shot(c, path.join(OUT, 'site-report.png'), PREP + `const b = document.querySelector('[data-body]'); b.scrollIntoView(); const r = b.getBoundingClientRect(); return { x: 0, y: r.top + scrollY - 6, width: innerWidth, height: Math.min(1600, r.height + 12) };`);
     console.log('✓ site-report');
   }
+}
+
+/** 📂 從檔案帶入舊資料（2026/11/26）：用假的 CSV 讀成一場一場，拍核對畫面 */
+async function oldImportShots(c, only) {
+  if (only.length && only.indexOf('old-import') === -1) return;
+  const go = async (url) => { await c.send('Page.navigate', { url }); await sleep(5000); };
+  const login = PREP + `const pw = document.querySelector('#admin-password') || document.querySelector('input[type=password]'); if (pw) { pw.value = 'test-pass'; pw.form.requestSubmit(); await __wait(2500); }`;
+  await go(BASE + '#/admin');
+  await run(c, login);
+  await run(c, PREP + `location.hash = '#/admin/oldimport'; for (let i = 0; i < 30 && !document.querySelector('[data-files]'); i++) await __wait(300);
+    const csv = '日期,活動名稱,時間,地點,壇辦,道親\\n113/3/9,宏宗打掃,8:00-12:00,宏宗,測試甲,測試乙、測試丙\\n3/16,中秋聯誼,14:00-17:00,區中心,,測試乙\\n,,,,,測試新朋友';
+    const dt = new DataTransfer(); dt.items.add(new File([csv], '113年活動紀錄.csv', { type: 'text/csv' }));
+    const inp = document.querySelector('[data-files]'); inp.files = dt.files; inp.dispatchEvent(new Event('change'));
+    document.querySelector('[data-read]').click();
+    for (let i = 0; i < 30 && !document.querySelector('details.oi-month'); i++) await __wait(300);
+    document.querySelector('details.oi-month').open = true; await __wait(500);`);
+  await shot(c, path.join(OUT, 'old-import.png'), PREP + `const b = document.querySelector('[data-list]'); b.scrollIntoView(); const r = b.getBoundingClientRect(); return { x: 0, y: r.top + scrollY - 6, width: innerWidth, height: Math.min(1400, r.height + 12) };`);
+  console.log('✓ old-import');
 }
 
 async function clashShots(c, only) {

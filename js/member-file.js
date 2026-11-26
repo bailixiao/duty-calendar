@@ -268,7 +268,15 @@
     const buf = await file.arrayBuffer();
     if (['xlsx', 'xls', 'xlsm', 'csv', 'ods'].indexOf(ext) !== -1) {
       await sheetJs();
-      const wb = root.XLSX.read(buf, { type: 'array', cellDates: true });
+      // CSV 是純文字：SheetJS 直接讀會把 UTF-8 當成 latin1 變亂碼，先自己解碼（UTF-8 不對就是 Excel 存的 Big5）
+      let wb;
+      if (ext === 'csv') {
+        let text = new TextDecoder('utf-8').decode(buf);
+        if (text.indexOf('�') !== -1) { try { text = new TextDecoder('big5').decode(buf); } catch (e) { /* 不支援就用 UTF-8 */ } }
+        wb = root.XLSX.read(text.replace(/^﻿/, ''), { type: 'string', cellDates: true, raw: true });
+      } else {
+        wb = root.XLSX.read(buf, { type: 'array', cellDates: true });
+      }
       return wb.SheetNames.map((sn) => ({
         label: wb.SheetNames.length > 1 ? `${name}（${sn}）` : name,
         rows: root.XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: '' })
@@ -305,7 +313,82 @@
     return String(text || '').split(/\r?\n/).filter((l) => clean(l)).map((l) => (l.indexOf('\t') !== -1 ? l.split('\t') : l.split(/\s{2,}|　+|,|，/)).map(clean));
   }
 
-  const api = { loadPdfJs: pdfJs, loadSheetJs: sheetJs, FIELDS, FIELD_KEYS, parseIdentity, parseVegetarian, parseAge, parseBirth, parseMonthDay, parseOverseas, detect, toItems, docxXmlToTables, pdfItemsToRows, alignByHeader, readFile, textToRows };
+  // ---------- 給 AI 讀的：檔案拆成一批一批（宏教分壇從檔案匯入行事曆、各區從檔案帶入舊資料） ----------
+  /** 「6-8, 10」→ 要讀的頁碼集合（空白＝全部） */
+  function pageSet(text, max) {
+    const t = String(text || '').trim();
+    if (!t) return null;
+    const out = new Set();
+    t.split(/[,，、\s]+/).forEach((p) => { const m = p.match(/^(\d+)(?:[-～~到](\d+))?$/); if (!m) return; const a = Number(m[1]), b = Number(m[2] || m[1]); for (let i = Math.max(1, a); i <= Math.min(max, b); i++) out.add(i); });
+    return out.size ? out : null;
+  }
+  /** 圖片縮小成 JPEG（最寬 1600），回傳 base64 */
+  async function shrink(src) {
+    const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('圖片讀不到')); i.src = src; });
+    const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', 0.8).split(',')[1];
+  }
+  const fileUrl = (f) => URL.createObjectURL(f);
+
+  /** 把檔案拆成一批一批要給 AI 讀的：{ label, images: [{mime,data}], text } */
+  async function chunksOf(file, pages, onPage, size) {
+    const maxText = (size && size.text) || 12000;
+    const maxImgs = (size && size.images) || 4;
+    const name = file.name || '檔案';
+    const ext = (name.split('.').pop() || '').toLowerCase();
+    const out = [];
+    if (/^image\//.test(file.type) || ['jpg', 'jpeg', 'png', 'webp', 'heic'].indexOf(ext) !== -1) {
+      const u = fileUrl(file);
+      try { out.push({ label: name, images: [{ mime: 'image/jpeg', data: await shrink(u) }] }); } finally { URL.revokeObjectURL(u); }
+      return out;
+    }
+    if (ext === 'pdf') {
+      await pdfJs();
+      const pdf = await root.pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+      const want = pageSet(pages, pdf.numPages);
+      let imgs = [], imgFrom = 0, imgTo = 0, texts = [], textFrom = 0, textTo = 0;
+      const flushImgs = () => { const to = imgTo; if (imgs.length) out.push({ label: `${name} 第 ${imgFrom}${to > imgFrom ? '～' + to : ''} 頁`, images: imgs }); imgs = []; };
+      const flushText = () => { const to = textTo; if (texts.length) out.push({ label: `${name} 第 ${textFrom}${to > textFrom ? '～' + to : ''} 頁`, text: texts.join('\n\n') }); texts = []; };
+      for (let p = 1; p <= pdf.numPages; p++) {
+        if (want && !want.has(p)) continue;
+        if (onPage) onPage(p, pdf.numPages);
+        const page = await pdf.getPage(p);
+        const tc = await page.getTextContent();
+        // NFKC：PDF 的部首字（⽉⽇⼤）換回一般的字；中文字之間的空白拿掉
+        const txt = tc.items.map((it) => it.str).join(' ').normalize('NFKC').replace(/\s+/g, ' ').replace(/([㐀-鿿])\s+(?=[㐀-鿿])/g, '$1').trim();
+        if (txt.length > 80) { // 有文字的頁：直接給文字（快、準）
+          if (!texts.length) textFrom = p;
+          texts.push('【第 ' + p + ' 頁】' + txt);
+          textTo = p;
+          if (texts.join('').length > maxText) flushText();
+        } else { // 掃描的頁：畫成圖片
+          const vp = page.getViewport({ scale: Math.min(2, 1600 / page.getViewport({ scale: 1 }).width) });
+          const c = document.createElement('canvas');
+          c.width = vp.width; c.height = vp.height;
+          await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+          if (!imgs.length) imgFrom = p;
+          imgs.push({ mime: 'image/jpeg', data: c.toDataURL('image/jpeg', 0.75).split(',')[1] });
+          imgTo = p;
+          if (imgs.length >= maxImgs) flushImgs();
+        }
+      }
+      flushImgs(); flushText();
+      return out;
+    }
+    if (['docx', 'xlsx', 'xls', 'xlsm', 'csv', 'ods'].indexOf(ext) !== -1) {
+      const srcs = await readFile(file);
+      const text = srcs.map((s) => '【' + s.label + '】\n' + s.rows.map((r) => r.map((x) => (x instanceof Date ? x.toISOString().slice(0, 10) : String(x == null ? '' : x))).filter(Boolean).join('\t')).filter(Boolean).join('\n')).join('\n\n');
+      for (let i = 0; i < text.length; i += maxText) out.push({ label: name + (text.length > maxText ? ` 第 ${i / maxText + 1} 段` : ''), text: text.slice(i, i + maxText) });
+      return out;
+    }
+    if (ext === 'doc') throw new Error(`「${name}」是舊版 Word（.doc），請用 Word 打開後「另存新檔」成 .docx 再選`);
+    throw new Error(`「${name}」不是 PDF、Word、Excel 或照片`);
+  }
+
+  const api = { chunksOf, pageSet, loadPdfJs: pdfJs, loadSheetJs: sheetJs, FIELDS, FIELD_KEYS, parseIdentity, parseVegetarian, parseAge, parseBirth, parseMonthDay, parseOverseas, detect, toItems, docxXmlToTables, pdfItemsToRows, alignByHeader, readFile, textToRows };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.MemberFile = api;
 })(typeof window !== 'undefined' ? window : globalThis);

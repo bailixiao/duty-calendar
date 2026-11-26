@@ -3200,3 +3200,17 @@ body.yr-open { overflow: hidden; }
 .sr-who { margin: 2px 0; color: var(--ink-2); font-size: .92em; }
 .sr-info { margin: 4px 0; color: var(--ink-2); font-size: .85em; word-break: break-all; }
 .sr-reply { margin: 6px 0; padding: 8px 10px; border-radius: 10px; background: #eef6ea; border: 1px solid #cfe3c4; }
+
+/* 📂 從檔案帶入舊資料（2026/11/26，js/old-import.js） */
+.oi-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 12px 0; }
+.oi-month { border: 1px solid var(--line); border-radius: 10px; margin: 8px 0; background: var(--card); }
+.oi-month > summary { padding: 10px 12px; cursor: pointer; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.oi-body { padding: 0 10px 10px; display: grid; gap: 10px; }
+.oi-item { border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: grid; gap: 6px; }
+.oi-item.is-warn { border-color: var(--accent); }
+.oi-item.is-off { opacity: .55; }
+.oi-pick { font-weight: 600; }
+.oi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 6px; }
+.oi-tags { margin: 0; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: .85rem; }
+.tag-new { background: var(--ok-soft); color: var(--ok); }
+.sticky-actions { position: sticky; bottom: 0; padding: 10px 0; background: var(--paper); }
