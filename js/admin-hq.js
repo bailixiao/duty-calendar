@@ -697,7 +697,7 @@
         <label class="form-row"><span>PDF 只讀第幾頁（可空白＝全部，例：6-8, 13）</span><input class="input" data-pages placeholder="例：6-8"></label>
         <label class="form-row"><span>給 AI 的補充說明（可空白）</span><input class="input" data-hint placeholder="例：只要 115 年的；日期是民國年"></label>
       </div>
-      <label class="form-row"><span>判讀方式</span><select class="input" data-careful><option value="">一般（快）</option><option value="1">🔍 仔細判讀（Gemini Pro，比較慢、比較準）</option></select></label>
+      <label class="form-row"><span>判讀方式</span><select class="input" data-careful><option value="1">Gemini Pro（準，預設）</option><option value="">⚡ 快速（Gemini Flash，比較快）</option></select></label>
       <button type="button" class="btn btn-primary btn-block" data-read disabled>先選檔案，才能開始讀</button>
       <p class="hint">檔案會交給 Google 的 AI 讀（和「從照片新增」一樣）。AI 可能看錯，日期、時間請一定要看過。人名、電話不會整理進來。</p>
       <div data-progress></div>
@@ -762,7 +762,7 @@
       }).filter((x) => { const k = x.title + '|' + x.start; if (!x.title || seen.has(k)) return false; seen.add(k); return true; })
         .sort((a, b) => (a.start || '9999').localeCompare(b.start || '9999'));
       rows.forEach((x) => { x.pick = !!x.start && x.start >= today; });
-      prog.innerHTML = (downgraded ? '<p class="notice">仔細判讀的 AI 現在不能用（今天的額度用完或太忙），有幾批改用一般判讀，請多核對。</p>' : '') + (errs.length ? `<p class="form-error">${errs.map(esc).join('<br>')}</p>` : '') + `<p>讀到 <strong>${rows.length}</strong> 筆活動${rows.length ? '，看一下、改一下，不要的取消勾選。已經過去的日期先不勾。' : '。'}</p>`;
+      prog.innerHTML = (downgraded ? '<p class="notice">Gemini Pro 現在不能用（太忙或額度用完），有幾批改用快速的 Flash，請多核對。</p>' : '') + (errs.length ? `<p class="form-error">${errs.map(esc).join('<br>')}</p>` : '') + `<p>讀到 <strong>${rows.length}</strong> 筆活動${rows.length ? '，看一下、改一下，不要的取消勾選。已經過去的日期先不勾。' : '。'}</p>`;
       drawRows();
     });
 

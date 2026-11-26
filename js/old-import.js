@@ -1,5 +1,5 @@
 // 管理後台：📂 從檔案帶入舊資料（#/admin/oldimport，2026/11/26）。規格見 docs/spec.md「從檔案帶入舊資料」。
-//   選檔案 → Excel／Word 的表格直接讀（OldParse，不經過 AI）→ 讀不懂的、PDF、照片才給 AI（adminOldImportAi，可以「仔細判讀」）
+//   選檔案 → Excel／Word 的表格直接讀（OldParse，不經過 AI）→ 讀不懂的、PDF、照片才給 AI（adminOldImportAi，預設 Gemini Pro）
 //   → 依月份核對、修改 → 每 60 場送一次 adminImportAttendance（已經有的勤務補名單、沒有的新增；名單上已經有的人跳過）。
 (function () {
   'use strict';
@@ -55,7 +55,7 @@
         <p class="muted" data-picked></p>
         <div class="form-grid-2">
           <label class="form-row"><span>年份（表上只寫月/日時用，可空白）</span><input class="input" data-year inputmode="numeric" placeholder="例：2024 或 113"></label>
-          <label class="form-row"><span>判讀方式（給 AI 的部分）</span><select class="input" data-careful><option value="">一般（快）</option><option value="1">🔍 仔細判讀（Gemini Pro，比較慢、比較準）</option></select></label>
+          <label class="form-row"><span>判讀方式（給 AI 的部分）</span><select class="input" data-careful><option value="1">Gemini Pro（準，預設）</option><option value="">⚡ 快速（Gemini Flash，比較快）</option></select></label>
           ${fixedCat ? '' : `<label class="form-row"><span>表上沒寫類別的算</span><select class="input" data-defcat>${CATS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select></label>`}
           <label class="form-row"><span>給 AI 的補充說明（可空白）</span><input class="input" data-hint placeholder="例：日期是民國年；只要出勤的人"></label>
         </div>
@@ -124,7 +124,7 @@
         .map((s) => Object.assign(s, { people: (s.people || []).map((p) => ({ name: key(p.name), identity: p.identity || '', temple: '' })) }))
         .sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999') || a.name.localeCompare(b.name));
       sessions.forEach((s) => { s.pick = !!(s.date && s.name); });
-      prog.innerHTML = (downgraded ? '<p class="notice">仔細判讀的 AI 現在不能用（今天的額度用完或太忙），有幾批改用一般判讀，請多核對。</p>' : '') +
+      prog.innerHTML = (downgraded ? '<p class="notice">Gemini Pro 現在不能用（太忙或額度用完），有幾批改用快速的 Flash，請多核對。</p>' : '') +
         (errs.length ? `<div class="notice notice-error"><p>${errs.slice(0, 30).map(esc).join('<br>')}${errs.length > 30 ? '<br>⋯還有 ' + (errs.length - 30) + ' 個' : ''}</p></div>` : '') +
         `<p>讀到 <strong>${sessions.length}</strong> 場${tables ? `（${tables} 個表格直接讀）` : ''}${toAi.length ? `，${toAi.length} 批給 AI 讀` : ''}。${sessions.length ? '請依月份打開核對，不要的取消勾選。' : ''}</p>`;
       draw();

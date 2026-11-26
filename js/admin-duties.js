@@ -134,7 +134,7 @@
       <div class="draft-photo">
         <label class="btn btn-block btn-photo">📷 選照片、拍照或選檔案<input type="file" accept="image/*,.pdf,.docx,.xlsx,.xls,.csv" multiple hidden data-photo></label>
         <input class="input" type="text" data-hint placeholder="補充說明（選填）例：這是 11 月的；我們負責香積">
-        <select class="input" data-careful aria-label="判讀方式"><option value="">一般判讀（快，約 10～30 秒）</option><option value="1">🔍 仔細判讀（Gemini Pro，比較準，約 30～90 秒）</option></select>
+        <select class="input" data-careful aria-label="判讀方式"><option value="1">Gemini Pro（準，預設）</option><option value="">⚡ 快速（Gemini Flash，比較快）</option></select>
         <p class="modal-note">照片一次最多 6 張，也可以選 PDF、Word、Excel；電腦也可以把照片拖進來，或截圖後按 Ctrl+V 貼上。AI 會先找活動、再找${esc(window.SITE.org)}那一行要幾個人，再找時間、地點、服裝、說明；只整理${esc(window.SITE.org)}的部分。內容會交給 Google Gemini 讀取，整理好後可以在下面直接修改，確認後才新增。</p>
         <div class="draft-thumbs" data-thumbs></div>
       </div>
@@ -243,7 +243,7 @@
         const res = await Api.admin('adminDraftFromImages', { images, text: text.slice(0, 30000), hint: el.querySelector('[data-hint]').value, careful });
         clearInterval(timer);
         Busy.hide();
-        await showEditor(res.duties, `<div class="notice notice-success" role="status"><p><strong>AI 整理好 ${res.duties.length} 筆（${Math.round((Date.now() - started) / 1000)} 秒）</strong></p>${res.downgraded ? '<p>仔細判讀的 AI 現在不能用（今天的額度用完或太忙），這次改用一般判讀，請多核對。</p>' : ''}<p>請看下面每一筆：「🔎 AI 看到的」是它從照片找到的關鍵字和本區那一段，可以對照；有錯直接改，名字已自動對照成員名單。確認後按最下面的「確認新增」。</p></div>`);
+        await showEditor(res.duties, `<div class="notice notice-success" role="status"><p><strong>AI 整理好 ${res.duties.length} 筆（${Math.round((Date.now() - started) / 1000)} 秒）</strong></p>${res.downgraded ? '<p>Gemini Pro 現在不能用（太忙或額度用完），這次改用快速的 Flash，請多核對。</p>' : ''}<p>請看下面每一筆：「🔎 AI 看到的」是它從照片找到的關鍵字和本區那一段，可以對照；有錯直接改，名字已自動對照成員名單。確認後按最下面的「確認新增」。</p></div>`);
       } catch (e) {
         clearInterval(timer);
         Busy.hide();

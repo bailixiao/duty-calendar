@@ -635,3 +635,5 @@
 - 提示（aiDraftPrompt_）改成照順序讀：1. 找每個活動的名稱、關鍵字、日期；2. 找本區在表上的那一行／欄／段（區名、簡寫、輪值區別、負責區）：負責哪些工作、每個工作幾人、已排好的人；3. 找時間、地點、服裝、報名截止、注意事項（整張的共同說明套到每個活動）。寫了本區要幾人時 min、max 都是那個數字；「5～8 人」就 5、8。多輸出 keywords、regionText（本區那一段原文）、regionNeed（本區總共要幾人）。
 - 草稿每一筆上面「🔎 AI 看到的」：關鍵字、本區那一段原文、本區總共要幾人；和了愿項目人數（每項 max，沒有就 min）加起來不一樣時提醒。
 - 呼叫改在 worker/src/hq.js special.adminDraftFromImages（{ images, text, hint, careful } → { duties, model, downgraded }）：這一區沒有 Gemini 金鑰就借教全區的（原本其他區沒有金鑰會失敗）。分壇不能用（用「從檔案匯入行事曆」）。
+
+- **2026/11/26 起 AI 預設用 Gemini Pro**（教全區已開 Gemini 付費、帳單設了每月上限）：從照片或檔案新增、從檔案帶入舊資料、分壇從檔案匯入行事曆的「判讀方式」預設「Gemini Pro（準）」，另一個選項「⚡ 快速（Gemini Flash）」；伺服器沒帶 careful 也用 Pro，只有 careful: false 才用 Flash；Pro 不能用時照舊改用 Flash 並提示。上面寫「仔細判讀」的地方都是指 Pro。

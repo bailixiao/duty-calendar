@@ -312,7 +312,7 @@ export function createHq({ gs, store, cross, openRegions }) {
       if (data.length > 6000000) throw err('BAD_REQUEST', '有一頁太大了，請稍後再試');
       parts.push({ inline_data: { mime_type: mime, data } });
     });
-    const res = await aiRun(parts, !!body.careful);
+    const res = await aiRun(parts, body.careful !== false);
     let items;
     try {
       const parsed = JSON.parse(res.text);
@@ -324,7 +324,7 @@ export function createHq({ gs, store, cross, openRegions }) {
     return { items, model: res.model, downgraded: res.downgraded };
   };
 
-  /** Gemini：這一區有金鑰就用自己的，沒有就借教全區的；仔細判讀（Pro）不能用時改用一般模型（downgraded） */
+  /** Gemini：這一區有金鑰就用自己的，沒有就借教全區的；預設用 Pro（2026/11/26 起；careful: false 才用 Flash），Pro 不能用時改用 Flash（downgraded） */
   async function aiRun(parts, careful) {
     let key = null;
     if (!gs.propsForAsync_().getProperty('GEMINI_API_KEY')) {
@@ -360,13 +360,13 @@ export function createHq({ gs, store, cross, openRegions }) {
       if (data.length > 6000000) throw err('BAD_REQUEST', '照片太大，請換一張小一點的');
       parts.push({ inline_data: { mime_type: mime, data } });
     });
-    const res = await aiRun(parts, !!body.careful);
+    const res = await aiRun(parts, body.careful !== false);
     let duties;
     try {
       const parsed = JSON.parse(res.text);
       duties = Array.isArray(parsed) ? parsed : Array.isArray(parsed.duties) ? parsed.duties : [parsed];
     } catch (e) {
-      throw err('AI', '看不太懂，請換清楚一點的照片或檔案再試，或改用「仔細判讀」');
+      throw err('AI', '看不太懂，請換清楚一點的照片或檔案再試');
     }
     duties = duties.filter((d) => d && typeof d === 'object' && d.name);
     if (!duties.length) throw err('AI', '找不到本區的勤務資料，請確認內容，或在補充說明寫「這是哪個活動」');
@@ -395,7 +395,7 @@ export function createHq({ gs, store, cross, openRegions }) {
       if (data.length > 6000000) throw err('BAD_REQUEST', '有一頁太大了，請稍後再試');
       parts.push({ inline_data: { mime_type: mime, data } });
     });
-    const res = await aiRun(parts, !!body.careful);
+    const res = await aiRun(parts, body.careful !== false);
     let list;
     try {
       const parsed = JSON.parse(res.text);
