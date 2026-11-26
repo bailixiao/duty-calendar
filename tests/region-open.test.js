@@ -60,7 +60,7 @@ test('開通工具：金鑰不對、區不認得都擋下；開通後這一區�
   assert.equal(site.org, '教發區');
   assert.deepEqual(site.locations, ['區中心']);
   assert.deepEqual(site.overseas, []); // 教全區的國外選項不帶過來
-  assert.equal(site.siteUrl, 'https://jiaoquan-cal.pages.dev/fa/'); // 網站網址以程式的 SITE_BASE 為準（2026/11/19 搬家）
+  assert.equal(site.siteUrl, 'https://jiaofa-cal.pages.dev/'); // 網站網址以程式為準：每一區自己的網站（2026/11/26）
   assert.ok(reg.store.getProp('VAPID_PUBLIC'));
   assert.equal(reg.store.getProp('VAPID_PUBLIC'), main.store.getProp('VAPID_PUBLIC'));
   assert.deepEqual(main.app.openRegions(), ['fa']);
@@ -119,7 +119,7 @@ test('區設定：其他區的總管理者可以改，存好後網站設定、�
   assert.equal(s.venue, '佛堂');
   assert.deepEqual(s.features, { venue: false, repair: true, help: true, push: true });
   assert.equal(s.categoryLabels['勤務'], '總務');
-  assert.equal(s.siteUrl, 'https://jiaoquan-cal.pages.dev/she/'); // 網址不會被改掉（以 SITE_BASE 為準）
+  assert.equal(s.siteUrl, 'https://jiaoshe-cal.pages.dev/'); // 網址不會被改掉（以程式為準）
   assert.equal(reg.app.gs.OPTIONS.location.join(), '區中心,測試地點');
   assert.equal(reg.store.getProp('ADMIN_CONTACT'), '總務組');
   // 存完還是登入中（沒有清掉通行碼）

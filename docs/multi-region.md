@@ -22,10 +22,9 @@
 
 ### 2.1 網址
 - 2026/11/19 起網站在 `https://jiaoquan-cal.pages.dev/`（Cloudflare Pages，`node tools/build-pages.js --deploy`）。舊網址 `bailixiao.github.io/duty-calendar/…` 打開會自動轉過去（路徑、?…、#… 一起帶）；但網域不同，手機裡記的東西（字體大小、查報名的名字）、加到主畫面的圖示、🔔 手機提醒都要在新網址重新設定（舊網址開的提醒還會繼續收到）。
-- 教全區：`https://jiaoquan-cal.pages.dev/`
-- 其他區：網址後面加區的代號，一區一個資料夾，例如
-  - 教真區：`https://jiaoquan-cal.pages.dev/zhen/`
-  - 教善區：`https://jiaoquan-cal.pages.dev/shan/`
+- 每一區自己的網站（2026/11/26）：`https://jiao<代號>-cal.pages.dev/`（教捨區 `https://jiaoshe-cal.pages.dev/`、教真區 `https://jiaozhen-cal.pages.dev/`），宏教分壇 `https://hong-cal.pages.dev/`，教全區照舊 `https://jiaoquan-cal.pages.dev/`。每一個是一個 Cloudflare Pages 專案，內容都一樣，`node tools/build-pages.js --deploy` 一起上傳（還沒建立的專案自動建立；`--only 專案,專案` 只傳幾個）。
+- 舊網址（2026/11/19～11/26）`https://jiaoquan-cal.pages.dev/she/`、`…/?r=she`、`…/she/j/…` 打開會自動轉到那一區自己的網站（?…、#… 一起帶）；網域不同，手機裡記的東西、後台登入、加到主畫面、🔔 手機提醒要在新網址重新設定。
+- 網站名稱：`jiao` ＋區名中間字的拼音（代號）＋ `-cal`；分壇是 `hong-cal`（worker/src/regions.js regionHost、js/region.js hostOf，兩邊要一樣）。
 - 代號用短的英文字母，因為中文網址貼到 LINE 會變成一長串 `%E6%95%99…`，看起來像壞掉的連結。
 - 建議代號（可改）：
 

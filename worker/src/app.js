@@ -5,7 +5,7 @@ import { createGs } from './gs.generated.js';
 import * as A from './async-actions.js';
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
-import { REGIONS, regionSiteDefaults, SITE_BASE } from './regions.js';
+import { REGIONS, regionSiteDefaults, regionSiteUrl } from './regions.js';
 import { createHq } from './hq.js';
 
 const CORS = {
@@ -386,8 +386,8 @@ export function createApp(store, opts) {
   };
 
   /** 分區（2026/11/19）：教全區（main）一直都能用；其他區要開通（REGION_OPEN＝1）才能用 */
-  /** 這一區的網站設定（SITE_JSON）蓋在 SITE 上；網站網址用 SITE_BASE（各區 …/she/） */
-  const applySite = () => gs.applySiteOverrides_(SITE_BASE + (curRegion && curRegion !== 'main' ? curRegion + '/' : ''));
+  /** 這一區的網站設定（SITE_JSON）蓋在 SITE 上；網站網址以程式為準（各區自己的網站，2026/11/26：https://jiaoshe-cal.pages.dev/） */
+  const applySite = () => gs.applySiteOverrides_(regionSiteUrl(curRegion));
 
   const isOpen = (region) => !region || region === 'main' || store.getProp('REGION_OPEN') === '1';
 

@@ -188,6 +188,7 @@ node --test
 
 > 2026/11/19 起正式網站在 **https://jiaoquan-cal.pages.dev/**（Cloudflare Pages 專案 `jiaoquan-cal`）。
 > 每次改完前端：`node tools/build-pages.js --deploy`（固定用 wrangler@4.40.0：新版 wrangler 的 pages 指令會變成建立 Worker）。
+> 每一區自己的網站（2026/11/26）：`https://jiao<代號>-cal.pages.dev/`（教捨區 `https://jiaoshe-cal.pages.dev/`、教真區 `https://jiaozhen-cal.pages.dev/`），宏教分壇 `https://hong-cal.pages.dev/`，教全區照舊 `https://jiaoquan-cal.pages.dev/`。每一個是一個 Cloudflare Pages 專案，內容都一樣，`node tools/build-pages.js --deploy` 一起上傳（還沒建立的專案自動建立；`--only 專案,專案` 只傳幾個）。
 > 舊網址 `bailixiao.github.io/duty-calendar/` 仍由 GitHub Pages 提供，`index.html` 最前面會轉到新網址（push 到 main 才會更新舊網址那份）。
 
 以下是當初用 GitHub Pages 的步驟（舊網址）：

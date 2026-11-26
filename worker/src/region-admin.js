@@ -1,7 +1,7 @@
 // 分區 ②（2026/11/19）：開通一區。Claude 用 tools/new-region.js 呼叫（POST /region-admin，要 Worker 的秘密金鑰 REGION_ADMIN_KEY），
 // 回傳一個「開通連結」（7 天內、只能用一次），交給那一區的總管理者自己設定密碼。Claude 不碰真的密碼。
 // main、target 是教全區與那一區（正式是 Durable Object，測試版是同樣方法的物件）。
-import { REGIONS } from './regions.js';
+import { REGIONS, regionSiteUrl } from './regions.js';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { backupAll, taipeiStamp } from './schedule.js';
 
@@ -19,7 +19,7 @@ export async function regionAdmin(body, opts) {
   const vapid = await main.vapidKeys(); // 推播金鑰各區共用（同一個網站在手機上只能有一組）
   const out = await opts.stub(region).openRegion({ region, vapid, siteBase: opts.siteBase });
   await main.addOpenRegion(region); // 排程（每天的提醒）會跑這一區
-  return { ok: true, data: Object.assign({ region, name: REGIONS[region], link: opts.siteBase + region + '/#/setup/' + out.token }, out) };
+  return { ok: true, data: Object.assign({ region, name: REGIONS[region], link: regionSiteUrl(region, opts.siteBase) + '#/setup/' + out.token }, out) };
 }
 
 // ---------- 備份（tools/region-backup.js） ----------

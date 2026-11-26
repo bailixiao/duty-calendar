@@ -2,7 +2,8 @@
 // 正式網站（2026/11/19 起）：https://jiaoquan-cal.pages.dev/（Cloudflare Pages，專案 jiaoquan-cal）。
 // 把網站要用的檔案複製到 .pages-dist/（不放後端、Apps Script、測試、工具、文件），再上傳。
 //   node tools/build-pages.js           只產生 .pages-dist/
-//   node tools/build-pages.js --deploy  產生後上傳到 Cloudflare Pages
+//   node tools/build-pages.js --deploy  產生後上傳到 Cloudflare Pages（教全區＋每一區自己的網站＋分壇，2026/11/26）
+//   node tools/build-pages.js --deploy --only jiaoquan-cal,jiaoshe-cal  只上傳這幾個網站
 // 舊網址 bailixiao.github.io/duty-calendar/ 還在（GitHub Pages），打開會自動轉到新網址（index.html 最前面）。
 // 注意：wrangler 新版的「pages」指令會改成建立 Worker，所以這裡固定用 wrangler@4.40.0。
 'use strict';
@@ -53,6 +54,28 @@ console.log('已產生 .pages-dist/（' + n + ' 個項目）');
   console.log('檔案版本號換成內容雜湊：' + hashed + ' 個');
 }
 
+// 每一區自己的網站（2026/11/26）：jiao<代號>-cal（教捨區 jiaoshe-cal）、分壇 hong-cal，內容都一樣，網頁用網域認是哪一區（js/region.js）。
+// 還沒建立的 Pages 專案先建立（正式分支 main）。
 if (process.argv.includes('--deploy')) {
-  execSync('npx -y wrangler@4.40.0 pages deploy .pages-dist --project-name jiaoquan-cal --branch main --commit-dirty=true', { cwd: ROOT, stdio: 'inherit' });
+  (async () => {
+    const { REGIONS, regionHost } = await import('../worker/src/regions.js');
+    let projects = ['jiaoquan-cal'].concat(Object.keys(REGIONS).map(regionHost));
+    const i = process.argv.indexOf('--only');
+    if (i !== -1) projects = String(process.argv[i + 1] || '').split(',').filter((p) => projects.indexOf(p) !== -1);
+    const W = 'npx -y wrangler@4.40.0 pages ';
+    const have = execSync(W + 'project list', { cwd: ROOT, encoding: 'utf8' });
+    projects.forEach((p) => {
+      if (!new RegExp('\\b' + p + '\\b').test(have)) {
+        console.log('建立網站 ' + p + '.pages.dev');
+        execSync(W + 'project create ' + p + ' --production-branch main', { cwd: ROOT, stdio: 'inherit' });
+      }
+    });
+    const failed = [];
+    projects.forEach((p) => {
+      console.log('\n===== 上傳 ' + p + '.pages.dev =====');
+      try { execSync(W + 'deploy .pages-dist --project-name ' + p + ' --branch main --commit-dirty=true', { cwd: ROOT, stdio: 'inherit' }); } catch (e) { failed.push(p); }
+    });
+    if (failed.length) { console.error('\n沒有上傳成功：' + failed.join('、') + '（可以用 --only 再傳一次）'); process.exit(1); }
+    console.log('\n全部上傳好了：' + projects.length + ' 個網站');
+  })().catch((e) => { console.error(e); process.exit(1); });
 }

@@ -49,6 +49,36 @@ test('區代號：沒帶是教全區（main），認得的代號照用，不認�
   assert.equal(Object.keys(regions.REGIONS).length, 13); // 12 區＋宏教分壇（hq）
 });
 
+test('每一區自己的網站（2026/11/26）：前後端的網站名稱一樣、網頁用網域認區、舊網址轉過去', async () => {
+  const { regions } = await load();
+  const run = (hostname, search) => {
+    const win = { SITE: { org: '教全區' } };
+    vm.runInNewContext(fs.readFileSync(path.join(root, 'js', 'region.js'), 'utf8'), { window: win, location: { hostname, search: search || '', origin: 'https://' + hostname, pathname: '/' }, document: { querySelector: () => null }, Storage: undefined, URL });
+    return win.Region;
+  };
+  Object.keys(regions.REGIONS).forEach((c) => {
+    const host = regions.regionHost(c) + '.pages.dev';
+    const R = run(host);
+    assert.equal(R.code, c, host);
+    assert.equal(R.hostOf(c), regions.regionHost(c));
+    assert.equal(R.home(), 'https://' + host + '/');
+    assert.equal(regions.regionSiteUrl(c), 'https://' + host + '/');
+  });
+  assert.equal(regions.regionHost('she'), 'jiaoshe-cal');
+  assert.equal(regions.regionHost('hq'), 'hong-cal');
+  assert.equal(run('jiaoquan-cal.pages.dev').code, '', '教全區');
+  assert.equal(run('localhost', '?r=she').code, 'she', '本機測試版照舊用 ?r=');
+  assert.equal(regions.regionSiteUrl('she', 'http://localhost:5175/'), 'http://localhost:5175/she/');
+  // index.html 最前面：舊網址 jiaoquan-cal.pages.dev/?r=she → jiaoshe-cal.pages.dev（其他參數、# 一起帶）
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const head = html.slice(html.indexOf('<script>') + 8, html.indexOf('</script>'));
+  const go = (hostname, search, hash) => { let to = ''; vm.runInNewContext(head, { location: { hostname, search, hash: hash || '', pathname: '/', replace: (u) => { to = u; } } }); return to; };
+  assert.equal(go('jiaoquan-cal.pages.dev', '?r=she&openExternalBrowser=1', '#/duty/D-1'), 'https://jiaoshe-cal.pages.dev/?openExternalBrowser=1#/duty/D-1');
+  assert.equal(go('jiaoquan-cal.pages.dev', '?r=hq', '#/admin'), 'https://hong-cal.pages.dev/#/admin');
+  assert.equal(go('jiaoquan-cal.pages.dev', '', ''), '', '教全區不轉');
+  assert.equal(go('jiaoshe-cal.pages.dev', '?r=she', ''), '', '已經在新網站不轉');
+});
+
 test('前端 js/region.js 的區清單和後端一樣', async () => {
   const { regions } = await load();
   const win = { SITE: { org: '教全區' } };

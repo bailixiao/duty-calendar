@@ -1,4 +1,5 @@
-// 分區（2026/11/19）：同一套網頁給 13 個區用。網址 ?r=<代號> 是哪一區（教全區沒有代號），見 docs/multi-region.md。
+// 分區（2026/11/19）：同一套網頁給 13 個區用。哪一區：先看網域（2026/11/26 每一區自己的網站 jiao<代號>-cal.pages.dev，分壇 hong-cal.pages.dev），
+// 再看網址 ?r=<代號>（本機測試版；教全區沒有代號），見 docs/multi-region.md。
 // 排在 site.js 之後、其他程式之前：
 //   - 手機裡記的東西（duty-calendar: 開頭）其他區改記成 duty-calendar:<代號>:，教全區不變。
 //   - 網站名稱、場地等設定（window.SITE）先用手機裡記的這一區設定，再向伺服器拿最新的（getSite）。
@@ -15,8 +16,14 @@
   const P = 'duty-calendar:';
   const SHARED = [P + 'text-size', P + 'api']; // 各區共用：字體大小（頁首一開始就要用）、API 測試開關
 
+  const isRegion = (c) => !!c && Object.prototype.hasOwnProperty.call(REGIONS, c);
+  /** 那一區自己的網站名稱（worker/src/regions.js regionHost 要一樣） */
+  const hostOf = (c) => (c === 'hq' ? 'hong-cal' : 'jiao' + c + '-cal');
+  const hm = /^(?:jiao([a-z]+)|(hong))-cal\.pages\.dev$/.exec(location.hostname);
+  const hostCode = hm ? (hm[2] ? 'hq' : hm[1]) : '';
   const m = /[?&]r=([a-z]+)(?:&|$)/.exec(location.search);
-  const code = m && Object.prototype.hasOwnProperty.call(REGIONS, m[1]) ? m[1] : '';
+  const code = isRegion(hostCode) ? hostCode : m && isRegion(m[1]) ? m[1] : '';
+  const ownSite = !!code && code === hostCode; // 在那一區自己的網站上
   const name = code ? REGIONS[code] : (window.SITE && window.SITE.org) || '';
 
   // ---------- 手機裡記的東西分區 ----------
@@ -39,8 +46,9 @@
     return location.origin + location.pathname.replace(/[^/]*$/, '');
   }
 
-  /** 這一區分享用的網址：教全區 …/duty-calendar/，其他區 …/duty-calendar/she/（轉址頁會轉回 ?r=she） */
+  /** 這一區分享用的網址：教全區 https://jiaoquan-cal.pages.dev/，其他區自己的網站 https://jiaoshe-cal.pages.dev/（本機測試版 …/she/） */
   function home() {
+    if (ownSite) return location.origin + '/';
     return root() + (code ? code + '/' : '');
   }
 
@@ -99,6 +107,7 @@
 
   window.Region = {
     REGIONS,
+    hostOf,
     code,
     name,
     home,
