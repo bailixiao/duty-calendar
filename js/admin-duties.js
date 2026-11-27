@@ -272,8 +272,19 @@
             const half = MemberFile.splitChunk(c);
             if (e.code === 'NETWORK' && half) { batches.splice(i + 1, 0, ...half); continue; }
             if (e.code === 'AI' && /找不到本區/.test(e.message || '')) continue; // 這幾頁沒有我們區的：跳過
+            // 每分鐘的次數用完（2026/11/27）：自己等一分鐘再讀同一批，最多等 3 次；每天的額度用完才停
+            if (e.code === 'AI_LIMIT' && !/明天/.test(e.message || '') && (c.waited || 0) < 3) {
+              c.waited = (c.waited || 0) + 1;
+              const until = Date.now() + 65000;
+              label = `${c.label}：AI 每分鐘的次數用完了，等一分鐘再讀`;
+              await new Promise((r) => { const t = setInterval(() => { const s = Math.ceil((until - Date.now()) / 1000); label = `${c.label}：AI 每分鐘的次數用完了，${s} 秒後自動再讀（第 ${c.waited} 次）`; if (s <= 0) { clearInterval(t); r(); } }, 1000); });
+              i--; continue;
+            }
             fails.push(`${c.label}：${e.code === 'NETWORK' ? '等太久沒有回應' : e.message}`);
-            if (e.code === 'AI_LIMIT' || e.code === 'CONFIG') break;
+            if (e.code === 'AI_LIMIT' || e.code === 'CONFIG') { // 後面的月曆是程式讀的，不用 AI，照樣收
+              batches.slice(i + 1).forEach((x) => { if (x.duties) found = found.concat(x.duties); });
+              break;
+            }
           }
         }
         clearInterval(timer);
