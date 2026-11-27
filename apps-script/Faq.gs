@@ -21,7 +21,7 @@ function faqSeedRows_() {
   var isMain = SITE.org === '教全區';
   return FAQ_DEFAULTS_.filter(function (f) { return isMain ? !f.regionOnly : !f.mainOnly; }).map(function (f, i) {
     return { '問題ID': f.id, '對象': f.audience, '分類': f.category, '問題': regionText_(f.q), '答案': regionText_(f.a), '別稱': f.alias || '',
-      '按鈕網址': f.linkUrl || '', '按鈕文字': f.linkText || '', '角色': (f.roles || []).join('、'), '排序': String((i + 1) * 10), '啟用': '是', '更新時間': '' };
+      '按鈕網址': f.linkUrl || '', '按鈕文字': f.linkText || '', '角色': (f.roles || []).join('、'), '排序': String((i + 1) * 10), '啟用': f.off ? '否' : '是', '更新時間': '' }; // off：先不顯示（例：還在測試的功能）
   });
 }
 

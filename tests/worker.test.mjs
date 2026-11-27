@@ -233,7 +233,13 @@ test('🎤 語音助理：AI 只提案；家人們只能 answer／open／signup�
     reply = { action: 'cancel', dutyId: ev.id, on: true, reason: '颱風' };
     r = await post({ action: 'voiceAsk', text: '停課，颱風', token });
     assert.deepEqual([r.data.plan.action, r.data.plan.on, r.data.plan.reason], ['cancel', true, '颱風']);
-    // 次數：同一個網路 10 分鐘最多 15 次（已經用了 3 次）
+    assert.doesNotMatch(sent.parts[0].text, /成員名字/, '問停課不附成員名字（省用量）');
+    await post({ action: 'adminSaveMember', token, member: { name: '測試成員丙', identity: '道親', groups: {}, active: true } });
+    reply = { action: 'attend', dutyId: ev.id, date: ev.start, names: ['測試甲'] };
+    r = await post({ action: 'voiceAsk', text: '補登測試甲', token });
+    assert.match(sent.parts[0].text, /成員名字.*測試成員丙/, '說到人（補登）才附成員名字');
+    assert.equal(r.data.plan.action, 'attend');
+    // 次數：同一個網路 10 分鐘最多 15 次（管理者不算；家人們用了 3 次）
     reply = { action: 'answer', say: '好' };
     for (let i = 0; i < 12; i++) assert.equal((await post({ action: 'voiceAsk', text: '問' })).ok, true);
     assert.equal((await post({ action: 'voiceAsk', text: '問' })).error.code, 'AI_LIMIT');

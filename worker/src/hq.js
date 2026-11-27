@@ -436,10 +436,12 @@ export function createHq({ gs, store, cross, openRegions, localAiKey }) {
       if (n > VOICE_IP_LIMIT) throw err('AI_LIMIT', '說太多次了，請 10 分鐘後再試，感恩您 🙏');
     }
     const isAdmin = !!who && who.role !== '唯讀';
-    const from = who ? gs.addDaysStr_(today, -45) : today;
+    const from = who ? gs.addDaysStr_(today, -14) : today; // 管理者多帶過去 14 天（補登用；2026/11/27 從 45 天縮短，省 AI 用量）
     const duties = gs.getEvents_({ from, to: gs.addDaysStr_(today, 90) }).duties;
     // 管理者：給成員名字（只有名字，不含電話、佛堂）讓 AI 改正名字的錯字；家人們不給
-    const members = isAdmin ? [...new Set(gs.readTableCached_(gs.SHEETS.MEMBERS).filter((m) => m['姓名'] && m['待確認'] !== '是' && m['啟用中'] !== '否').map((m) => gs.normalizeName_(m['姓名'])))].slice(0, 800).join('、') : '';
+    // 只有說到人的時候才附（補登、報名、誰有來⋯；台灣國語常把報名認成保名），問問題時不附，省 AI 用量（2026/11/27）
+    const aboutPeople = /補登|報名|保名|寶名|出席|有來|來了|點名|誰|簽到|加人|名單/.test(text);
+    const members = isAdmin && aboutPeople ? [...new Set(gs.readTableCached_(gs.SHEETS.MEMBERS).filter((m) => m['姓名'] && m['待確認'] !== '是' && m['啟用中'] !== '否').map((m) => gs.normalizeName_(m['姓名'])))].slice(0, 800).join('、') : '';
     const res = await aiRun([{ text: voicePrompt(text, voiceDutyLines(duties), isAdmin, today, members) }], false, curRegion, { fast: true });
     let plan;
     try {

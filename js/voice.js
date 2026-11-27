@@ -192,8 +192,18 @@
     if (!Rec) textBox.focus(); // 不自動開始：按麥克風才收音
   }
 
+  // 測試中先藏起來（2026/11/27 維護者要求）：網址加 ?voice=1 打開過的這台手機才有按鈕；?voice=0 關掉
+  const FLAG = 'duty-calendar:voice-on';
+  function enabled() {
+    try {
+      const q = new URLSearchParams(location.search).get('voice');
+      if (q === '1') localStorage.setItem(FLAG, '1');
+      if (q === '0') localStorage.removeItem(FLAG);
+      return localStorage.getItem(FLAG) === '1';
+    } catch (e) { return false; }
+  }
   function init() {
-    if (!window.Api || !window.Modal) return;
+    if (!window.Api || !window.Modal || !enabled()) return;
     mountButton();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
