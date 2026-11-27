@@ -3213,7 +3213,12 @@ body.yr-open { overflow: hidden; }
 .oi-item.is-warn { border-color: var(--accent); }
 .oi-item.is-off { opacity: .55; }
 .oi-pick { font-weight: 600; }
-.oi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 6px; }
+.oi-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.oi-grid > * { flex: 1 1 8.5em; min-width: 0; }
+.oi-grid [data-f=date] { flex: 1 0 11.5em; }
+.oi-grid [data-f=name] { flex: 3 1 18em; }
+.oi-grid [data-f=category] { flex: 1 0 9.5em; }
+.oi-grid [data-f=location] { flex: 2 1 12em; }
 .oi-tags { margin: 0; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: .85rem; }
 .tag-new { background: var(--ok-soft); color: var(--ok); }
 .sticky-actions { position: sticky; bottom: 0; padding: 10px 0; background: var(--paper); }
