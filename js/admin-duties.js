@@ -217,6 +217,16 @@
       fromPhotos([...ev.dataTransfer.files]);
     });
 
+    /** 前處理做了什麼（頁碼或表格名稱） */
+    function preText(pre) {
+      const list = (a) => a.map((x) => (typeof x === 'number' ? '第 ' + x + ' 頁' : x)).join('、');
+      const out = [];
+      if (pre.calendar.length) out.push(`月曆（${list(pre.calendar)}）程式直接讀`);
+      if (pre.part.length) out.push(`${list(pre.part)} 只給 AI 本區那幾行`);
+      if (pre.skip.length) out.push(`${list(pre.skip)} 沒有本區，跳過`);
+      return out.length ? `<p>✂️ 程式先整理：${esc(out.join('；'))}。</p>` : '';
+    }
+
     async function fromPhotos(all) {
       const isImg = (f) => /^image\//.test(f.type);
       const photos = all.filter(isImg).slice(0, 6);
@@ -233,7 +243,9 @@
       tick();
       const timer = setInterval(tick, 1000);
       // 一批一批讀（2026/11/26）：Gemini Pro 一次讀太多頁會等太久，照片 2 張一批、PDF 大約一頁一批；等太久就拆一半再讀
-      const size = careful ? { text: 2500, images: 1 } : { text: 8000, images: 3 };
+      // 前處理（2026/11/27，RegionLines）：很多區的表只給本區那幾行、沒有本區的頁跳過、月曆程式直接讀
+      const preDone = { skip: [], part: [], all: [], calendar: [] };
+      const size = Object.assign(careful ? { text: 2500, images: 1 } : { text: 8000, images: 3 }, { region: window.SITE.org, stats: preDone, pre: window.RegionLines });
       const batches = [];
       const fails = [];
       let found = [];
@@ -250,6 +262,7 @@
         for (let i = 0; i < batches.length; i++) {
           const c = batches[i];
           step = i + 1; steps = batches.length; label = c.label;
+          if (c.duties) { found = found.concat(c.duties); continue; } // 月曆：程式讀好了
           try {
             const r = await Api.admin('adminDraftFromImages', { images: c.images || [], text: c.text || '', hint: el.querySelector('[data-hint]').value, careful });
             if (r.downgraded) downgraded = true;
@@ -269,7 +282,7 @@
         const seen = new Set();
         found = found.filter((d) => { const k = String(d.name || '').replace(/\s/g, '') + '|' + (d.start || d.lunarDate || ''); if (seen.has(k)) return false; seen.add(k); return true; });
         if (!found.length) { err(fails.length ? fails.join('；') : `找不到${window.SITE.org}的勤務資料，請確認內容，或在補充說明寫「這是哪個活動」`); return; }
-        await showEditor(found, `<div class="notice notice-success" role="status"><p><strong>AI 整理好 ${found.length} 筆（${steps > 1 ? steps + ' 批，' : ''}${Math.round((Date.now() - started) / 1000)} 秒）</strong></p>${downgraded ? '<p>Gemini Pro 現在不能用（太忙或額度用完），有幾批改用 Flash，請多核對。</p>' : ''}${fails.length ? `<p>有幾批沒讀到：${esc(fails.join('；'))}</p>` : ''}<p>請看下面每一筆：「🔎 AI 看到的」是它找到的關鍵字和本區那一段，可以對照；有錯直接改，名字已自動對照成員名單。確認後按最下面的「確認新增」。</p></div>`);
+        await showEditor(found, `<div class="notice notice-success" role="status"><p><strong>AI 整理好 ${found.length} 筆（${steps > 1 ? steps + ' 批，' : ''}${Math.round((Date.now() - started) / 1000)} 秒）</strong></p>${downgraded ? '<p>Gemini Pro 現在不能用（太忙或額度用完），有幾批改用 Flash，請多核對。</p>' : ''}${fails.length ? `<p>有幾批沒讀到：${esc(fails.join('；'))}</p>` : ''}${preText(preDone)}<p>請看下面每一筆：「🔎 AI 看到的」是它找到的關鍵字和本區那一段，可以對照；有錯直接改，名字已自動對照成員名單。確認後按最下面的「確認新增」。</p></div>`);
       } catch (e) {
         clearInterval(timer);
         Busy.hide();

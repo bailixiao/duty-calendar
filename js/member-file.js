@@ -334,9 +334,26 @@
   const fileUrl = (f) => URL.createObjectURL(f);
 
   /** 把檔案拆成一批一批要給 AI 讀的：{ label, images: [{mime,data}], text } */
+  const tidyLine = (s) => String(s || '').normalize('NFKC').replace(/\s+/g, ' ').replace(/([㐀-鿿])\s+(?=[㐀-鿿])/g, '$1').trim();
+  /** 月曆讀到的本區日子 → 草稿（名稱用那一頁的標題） */
+  function calendarDrafts(cal, title) {
+    const name = tidyLine(title).replace(/^\d{2,4}\s*年度?\s*/, '').slice(0, 40) || '輪值';
+    return cal.map((c) => ({ name, start: c.date, regionText: c.text, keywords: ['月曆'] }));
+  }
+
+  /**
+   * size = { text, images, region?, year?, stats? }
+   *   region（2026/11/27，「從照片或檔案新增」用）：本區名稱。PDF、Word、Excel 的文字先用 size.pre（js/region-lines.js，後台才載入，由呼叫的畫面傳進來）挑：
+   *   很多區的表又沒有本區的頁跳過、只留本區那幾行、月曆程式直接讀（回傳 { label, duties }，不用給 AI）。
+   *   stats：{ skip: [], part: [], all: [], calendar: [] } 記下每一頁怎麼處理（頁碼；Word、Excel 記表格名稱）。
+   */
   async function chunksOf(file, pages, onPage, size) {
     const maxText = (size && size.text) || 12000;
     const maxImgs = (size && size.images) || 4;
+    const region = (size && size.region) || '';
+    const year = (size && size.year) || new Date().getFullYear();
+    const stats = size && size.stats;
+    const pre = size && size.pre;
     const name = file.name || '檔案';
     const ext = (name.split('.').pop() || '').toLowerCase();
     const out = [];
@@ -360,8 +377,21 @@
         // NFKC：PDF 的部首字（⽉⽇⼤）換回一般的字；中文字之間的空白拿掉
         const txt = tc.items.map((it) => it.str).join(' ').normalize('NFKC').replace(/\s+/g, ' ').replace(/([㐀-鿿])\s+(?=[㐀-鿿])/g, '$1').trim();
         if (txt.length > 80) { // 有文字的頁：直接給文字（快、準）
+          // 2026/11/27：照位置排成一行一行（表格的一列一行），AI 比較看得懂；有 region 時程式先挑本區的部分（size.pre）
+          let lines = pdfItemsToRows(tc.items.map((it) => ({ str: it.str, x: it.transform[4], y: it.transform[5], w: it.width, h: Math.abs(it.transform[3]) || it.height })))
+            .map((r) => tidyLine(r.map((c) => c.text).join(' '))).filter(Boolean);
+          let note = '';
+          if (region && pre) {
+            const cal = pre.calendar(lines, region, year);
+            if (cal) { if (stats) stats.calendar.push(p); out.push({ label: `${name} 第 ${p} 頁（月曆，程式直接讀）`, duties: calendarDrafts(cal, lines[0] || name) }); continue; }
+            const r = pre.pick(lines, region);
+            if (stats) stats[r.kind].push(p);
+            if (r.kind === 'skip') continue;
+            if (r.kind === 'part') note = '（只留表頭和有' + region + '的那幾行）';
+            lines = r.lines;
+          }
           if (!texts.length) textFrom = p;
-          texts.push('【第 ' + p + ' 頁】' + txt);
+          texts.push('【第 ' + p + ' 頁】' + note + '\n' + lines.join('\n'));
           textTo = p;
           if (texts.join('').length > maxText) flushText();
         } else { // 掃描的頁：畫成圖片
@@ -380,7 +410,18 @@
     }
     if (['docx', 'xlsx', 'xls', 'xlsm', 'csv', 'ods'].indexOf(ext) !== -1) {
       const srcs = await readFile(file);
-      const text = srcs.map((s) => '【' + s.label + '】\n' + s.rows.map((r) => r.map((x) => (x instanceof Date ? x.toISOString().slice(0, 10) : String(x == null ? '' : x))).filter(Boolean).join('\t')).filter(Boolean).join('\n')).join('\n\n');
+      const text = srcs.map((s) => {
+        let lines = s.rows.map((r) => r.map((x) => (x instanceof Date ? x.toISOString().slice(0, 10) : String(x == null ? '' : x))).filter(Boolean).join('\t')).filter(Boolean);
+        let note = '';
+        if (region && pre) { // 2026/11/27：同 PDF，表格先挑本區的列
+          const r = pre.pick(lines, region);
+          if (stats) stats[r.kind].push(s.label);
+          if (r.kind === 'skip') return '';
+          if (r.kind === 'part') note = '（只留表頭和有' + region + '的那幾列）';
+          lines = r.lines;
+        }
+        return '【' + s.label + '】' + note + '\n' + lines.join('\n');
+      }).filter(Boolean).join('\n\n');
       for (let i = 0; i < text.length; i += maxText) out.push({ label: name + (text.length > maxText ? ` 第 ${i / maxText + 1} 段` : ''), text: text.slice(i, i + maxText) });
       return out;
     }
