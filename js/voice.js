@@ -61,7 +61,7 @@
       <p class="hint">${inAdmin() ? '用說的做後台的事，每一件都會先給您確認。' : '用說的報名或問問題，會先給您確認。'}</p>
       <div class="voice-box">
         <button type="button" class="voice-mic" data-mic aria-label="開始說話">🎤</button>
-        <p class="voice-state" data-state>${Rec ? '按一下麥克風，開始說話' : '這個瀏覽器不能用語音，請在下面打字'}</p>
+        <p class="voice-state" data-state>${Rec ? '按一下麥克風開始說話，說完再按一次送出' : '這個瀏覽器不能用語音，請在下面打字'}</p>
       </div>
       <textarea class="input voice-text" rows="2" data-text placeholder="說的話會出現在這裡，也可以直接打字"></textarea>
       <p class="hint voice-eg">例如：${examples().map((x) => `「${esc(x)}」`).join('、')}</p>
@@ -78,37 +78,66 @@
     const err = (t) => { const e = $('[data-error]'); e.textContent = t || ''; e.hidden = !t; };
     let rec = null;
     const stop = () => { if (rec) { try { rec.stop(); } catch (e) { /* 已經停了 */ } } };
-    $('[data-close]').addEventListener('click', () => { stop(); m.close(); });
+    const quit = () => { want = false; stop(); };
+    $('[data-close]').addEventListener('click', () => { quit(); m.close(); });
 
-    function listen() {
-      if (!Rec) { textBox.focus(); return; }
-      if (rec) { stop(); return; }
-      err('');
-      $('[data-result]').innerHTML = '';
-      $('[data-send]').hidden = false;
+    // 按一次開始收音、再按一次停下並送出（2026/11/27 維護者要求）；中間手機自己停了（靜音太久）就自動接著收
+    let want = false; // 使用者還要繼續說
+    let heard = ''; // 已經確定的字（重新開始收音時接在後面）
+    /** 麥克風按鈕的樣子：idle 🎤（按了開始說）、listen 👂（正在聽，再按一次送出）、think ⏳（AI 在想，不能按） */
+    function setMic(mode) {
+      const b = $('[data-mic]');
+      b.classList.toggle('is-on', mode === 'listen');
+      b.classList.toggle('is-think', mode === 'think');
+      b.disabled = mode === 'think';
+      b.textContent = mode === 'listen' ? '👂' : mode === 'think' ? '⏳' : '🎤';
+      b.setAttribute('aria-label', mode === 'listen' ? '正在聽，說完再按一次送出' : mode === 'think' ? 'AI 在想' : '開始說話');
+    }
+    function startRec() {
       rec = new Rec();
       rec.lang = 'zh-TW';
       rec.interimResults = true;
-      rec.continuous = false;
-      let finalText = '';
-      $('[data-mic]').classList.add('is-on');
-      state('請說話⋯（說完會自動停）');
+      rec.continuous = true;
       rec.onresult = (ev) => {
+        let fin = '';
         let interim = '';
-        for (let i = ev.resultIndex; i < ev.results.length; i++) {
-          if (ev.results[i].isFinal) finalText += ev.results[i][0].transcript; else interim += ev.results[i][0].transcript;
+        for (let i = 0; i < ev.results.length; i++) {
+          if (ev.results[i].isFinal) fin += ev.results[i][0].transcript; else interim += ev.results[i][0].transcript;
         }
-        textBox.value = (finalText + interim).trim();
+        rec._fin = fin;
+        textBox.value = (heard + fin + interim).trim();
       };
       rec.onerror = (ev) => {
-        state(ev.error === 'not-allowed' || ev.error === 'service-not-allowed' ? '沒有麥克風權限，請在瀏覽器允許，或直接打字' : ev.error === 'no-speech' ? '沒有聽到聲音，再按一次麥克風試試' : '語音辨識出了點問題，可以直接打字');
+        if (ev.error === 'no-speech' || ev.error === 'aborted') return; // 還沒說話：等使用者按停
+        want = false;
+        state(ev.error === 'not-allowed' || ev.error === 'service-not-allowed' ? '沒有麥克風權限，請在瀏覽器允許，或直接打字' : '語音辨識出了點問題，可以直接打字');
       };
       rec.onend = () => {
+        heard = textBox.value.trim() ? textBox.value.trim() : heard;
         rec = null;
-        $('[data-mic]').classList.remove('is-on');
-        if (textBox.value.trim() && finalText) { state('聽到了，幫您整理中⋯'); send(); } else if ($('[data-state]').textContent.indexOf('請說話') === 0) state('按一下麥克風，開始說話');
+        if (want) { try { startRec(); return; } catch (e) { want = false; } } // 手機自己停了：接著收
+        setMic('idle');
+        if (textBox.value.trim()) { state('收到了，幫您整理中⋯'); send(); } else state('沒有聽到聲音，再按一次麥克風試試');
       };
-      try { rec.start(); } catch (e) { rec = null; state('語音辨識打不開，可以直接打字'); }
+      rec.start();
+    }
+    function listen() {
+      if (!Rec) { textBox.focus(); return; }
+      if (want) { // 第二次按：停下、送出
+        want = false;
+        state('收到了，幫您整理中⋯');
+        if (rec) stop(); else { setMic('idle'); send(); }
+        return;
+      }
+      err('');
+      $('[data-result]').innerHTML = '';
+      $('[data-send]').hidden = false;
+      textBox.value = '';
+      heard = '';
+      want = true;
+      setMic('listen');
+      state('👂 正在聽⋯說完再按一次送出');
+      try { startRec(); } catch (e) { want = false; rec = null; setMic('idle'); state('語音辨識打不開，可以直接打字'); }
     }
     $('[data-mic]').addEventListener('click', listen);
 
@@ -118,6 +147,7 @@
       err('');
       const btn = $('[data-send]');
       btn.disabled = true;
+      setMic('think');
       $('[data-result]').innerHTML = '<p class="muted voice-thinking">⏳ AI 想一下⋯（大約 5～15 秒）</p>';
       try {
         const res = inAdmin() ? await Api.admin('voiceAsk', { text }) : await Api.voiceAsk(text);
@@ -127,7 +157,7 @@
         $('[data-result]').innerHTML = '';
         err(e.message || '沒有成功，請再試一次');
         state('按一下麥克風，再說一次');
-      } finally { btn.disabled = false; }
+      } finally { btn.disabled = false; setMic('idle'); }
     }
     $('[data-send]').addEventListener('click', send);
     textBox.addEventListener('input', () => { $('[data-send]').hidden = false; }); // 改了字可以再送一次
@@ -149,15 +179,15 @@
         ok.addEventListener('click', async () => {
           ok.disabled = true;
           try {
-            const msg = await h.run(plan, { close: () => { stop(); m.close(); } });
-            if (msg) { box.innerHTML = `<div class="notice notice-success" role="status"><p>${esc(msg)}</p></div>`; } else { stop(); m.close(); }
+            const msg = await h.run(plan, { close: () => { quit(); m.close(); } });
+            if (msg) { box.innerHTML = `<div class="notice notice-success" role="status"><p>${esc(msg)}</p></div>`; } else { quit(); m.close(); }
           } catch (e) { ok.disabled = false; err(e.message || '沒有成功，請再試一次'); }
         });
         box.querySelector('[data-no]').addEventListener('click', () => { box.innerHTML = ''; textBox.value = ''; $('[data-send]').hidden = false; listen(); });
       }
     }
 
-    if (Rec) listen(); else textBox.focus();
+    if (!Rec) textBox.focus(); // 不自動開始：按麥克風才收音
   }
 
   function init() {
