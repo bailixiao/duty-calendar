@@ -198,3 +198,45 @@ test('活動回報照片：要有正確的回報碼才能上傳', async () => {
   assert.equal(r.ok, true, JSON.stringify(r.error));
   assert.match(r.data.id, /^F-/);
 });
+
+test('🎤 語音助理：AI 只提案；家人們只能 answer／open／signup，勤務 ID 要在清單裡；同一網路 10 分鐘最多 15 次', async () => {
+  const googleEnv = createEnv(OCT_1);
+  const sheets = Object.fromEntries(Object.entries(googleEnv.sheets).map(([n, s]) => [n, s.data]));
+  const store = createMemoryStore(); store.setProp('NEWCOMER_INFO', '0');
+  const app = createApp(store, { now: () => OCT_1, localAiKey: 'k-test' });
+  const post = async (payload, ip = '203.0.113.50') => { const r = await app.handle(new Request('https://w.test/', { method: 'POST', headers: { 'Content-Type': 'text/plain', 'CF-Connecting-IP': ip }, body: JSON.stringify(payload) })); store.persist(); return r.json(); };
+  assert.equal((await post({ action: 'import', sheets, props: { ADMIN_PASSWORD: 'test-pass', NEWCOMER_INFO: '0' } })).ok, true);
+  store.setProp('LOCAL_AI_URL', 'https://gate.test'); store.setProp('LOCAL_AI_AT', String(Date.now()));
+  const ev = googleEnv.get({ action: 'getEvents', from: '2026-10-01', to: '2026-12-31' }).data.duties.find((d) => d.mode !== '公告型' && d.start > '2026-10-01');
+  let reply = {};
+  let sent = null;
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    if (String(url).startsWith('https://gate.test')) { sent = JSON.parse(init.body); return new Response(JSON.stringify({ ok: true, text: JSON.stringify(reply), model: 'test' })); }
+    return realFetch(url, init);
+  };
+  try {
+    reply = { action: 'signup', say: '幫您報名', dutyId: ev.id, date: ev.start, names: ['測試甲', '測試乙'], position: '' };
+    let r = await post({ action: 'voiceAsk', text: '我要報名，測試甲和測試乙' });
+    assert.equal(r.ok, true, JSON.stringify(r.error));
+    assert.equal(sent.fast, true, '門口用快的模型');
+    assert.match(sent.parts[0].text, new RegExp(ev.id), '給 AI 看勤務清單');
+    assert.doesNotMatch(sent.parts[0].text, /09\d\d-\d{3}-\d{3}|電話/, '不給電話');
+    assert.deepEqual([r.data.plan.action, r.data.plan.dutyId, r.data.plan.names], ['signup', ev.id, ['測試甲', '測試乙']]);
+    reply = { action: 'cancel', dutyId: ev.id, on: true };
+    r = await post({ action: 'voiceAsk', text: '停課' });
+    assert.equal(r.data.plan.action, 'unclear', '家人們不能停課');
+    reply = { action: 'signup', dutyId: 'D-不存在', names: ['測試甲'] };
+    assert.equal((await post({ action: 'voiceAsk', text: '報名' })).data.plan.action, 'unclear', '找不到的勤務');
+    // 管理者可以停課
+    const token = (await post({ action: 'adminLogin', password: 'test-pass' })).data.token;
+    reply = { action: 'cancel', dutyId: ev.id, on: true, reason: '颱風' };
+    r = await post({ action: 'voiceAsk', text: '停課，颱風', token });
+    assert.deepEqual([r.data.plan.action, r.data.plan.on, r.data.plan.reason], ['cancel', true, '颱風']);
+    // 次數：同一個網路 10 分鐘最多 15 次（已經用了 3 次）
+    reply = { action: 'answer', say: '好' };
+    for (let i = 0; i < 12; i++) assert.equal((await post({ action: 'voiceAsk', text: '問' })).ok, true);
+    assert.equal((await post({ action: 'voiceAsk', text: '問' })).error.code, 'AI_LIMIT');
+    assert.equal((await post({ action: 'voiceAsk', text: '問' }, '198.51.100.60')).ok, true, '別的網路照常');
+  } finally { globalThis.fetch = realFetch; }
+});

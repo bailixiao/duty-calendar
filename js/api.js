@@ -209,6 +209,7 @@
     isAdmin: () => !!adminToken,
     adminWho: () => adminWho,
     getEvents: (from, to) => get('getEvents', { from, to }),
+    voiceAsk: (text) => post({ action: 'voiceAsk', text }), // 🎤 語音助理（js/voice.js，2026/11/27）
     // 先叫醒伺服器（點名字欄時呼叫），之後的名字搜尋比較不會遇到冷啟動
     warmUp: () => get('ping', {}, []).catch(() => {}),
     getDuty: (id) => get('getDuty', { id }),

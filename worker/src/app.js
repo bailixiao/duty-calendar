@@ -438,7 +438,7 @@ export function createApp(store, opts) {
     let body = null;
     try { body = JSON.parse(text || '{}'); } catch (e) { /* 交給 doPost 回錯誤 */ }
     const action = body && body.action;
-    if ((action === 'repairUpload' || action === 'reportUpload' || action === 'albumUpload' || action === 'feedbackUpload') && body) { // 帶上網路位址的雜湊（防止亂報名計數）
+    if ((action === 'repairUpload' || action === 'reportUpload' || action === 'albumUpload' || action === 'feedbackUpload' || action === 'voiceAsk') && body) { // 帶上網路位址的雜湊（防止亂報名計數）
       const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || '';
       if (ip) body._client = createHash('sha256').update('dc|' + ip).digest('hex').slice(0, 16);
     }

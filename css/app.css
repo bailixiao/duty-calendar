@@ -3243,3 +3243,26 @@ body.yr-open { overflow: hidden; }
 .series-name { font-weight: 700; font-size: 1.05rem; }
 .series-meta { font-size: .9rem; color: var(--ink-2); }
 .series-group > .card-list { padding: 0 10px 10px; }
+
+/* 🎤 語音助理（2026/11/27） */
+.voice-fab { position: fixed; right: 14px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 60; width: 56px; height: 56px; border-radius: 50%; border: 0; background: var(--accent); color: #fff; font-size: 1.6rem; box-shadow: 0 6px 18px rgba(0, 0, 0, .22); cursor: pointer; display: grid; place-items: center; }
+.voice-fab:active { transform: scale(.94); }
+body.has-modal .voice-fab { display: none; }
+.voice-box { display: flex; align-items: center; gap: 14px; margin: 8px 0 10px; }
+.voice-mic { flex: none; width: 72px; height: 72px; border-radius: 50%; border: 0; background: var(--accent); color: #fff; font-size: 2rem; cursor: pointer; }
+.voice-mic.is-on { animation: voice-pulse 1.2s ease-in-out infinite; }
+@keyframes voice-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(158, 61, 34, .45); } 50% { box-shadow: 0 0 0 14px rgba(158, 61, 34, 0); } }
+.voice-state { margin: 0; font-size: 1.05rem; color: var(--ink-2); }
+.voice-text { width: 100%; font-size: 1.05rem; }
+.voice-eg { font-size: .9rem; }
+.voice-plan { border: 1px solid var(--line); border-radius: var(--radius); background: var(--card, var(--paper)); padding: 12px 14px; margin: 10px 0; }
+.voice-plan.is-unclear { border-style: dashed; }
+.voice-plan-title { margin: 0 0 4px; font-weight: 700; color: var(--ink-2); }
+.voice-say { margin: 0 0 8px; font-size: 1.15rem; font-weight: 700; line-height: 1.5; }
+.voice-what { margin: 0 0 6px; }
+.voice-names { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.voice-plan-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.voice-plan-actions .btn { flex: 1 1 10em; min-height: 48px; }
+.voice-thinking { margin: 10px 0; }
+.voice-filled { margin-bottom: 10px; }
+@media print { .voice-fab { display: none; } }

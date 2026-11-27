@@ -2037,5 +2037,19 @@
     if (current) show(current.body, current.guard, current.sub);
   }
 
-  window.DutyAdminPage = { show, reload, createDuties, setFlash: (html) => { flash = html; } };
+  /** 🎤 語音助理（2026/11/27）：打開「從照片新增」的草稿編輯畫面，帶入這幾筆（同「進階：貼上文字草稿」） */
+  function openDraftWith(list) {
+    openDraft();
+    const el = [...document.querySelectorAll('.modal-box')].pop();
+    if (!el) return;
+    el.querySelector('[data-draft]').value = JSON.stringify(list);
+    el.querySelector('[data-read]').click();
+    // 語音來的：上面選照片那一塊用不到，收起來
+    const photo = el.querySelector('.draft-photo');
+    if (photo) photo.hidden = true;
+    const t = el.querySelector('.modal-title');
+    if (t) t.textContent = '🎤 用說的新增' + T();
+  }
+
+  window.DutyAdminPage = { show, reload, createDuties, openDraftWith, setFlash: (html) => { flash = html; } };
 })();

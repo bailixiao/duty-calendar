@@ -893,6 +893,23 @@
     renderDates();
     renderPositions(); // 日期可能因額滿被移除，了愿項目狀態再算一次
     renderNames();
+
+    // 🎤 語音報名（2026/11/27，js/voice.js）：幫忙填好的名字、了愿項目、日期；報名的人看過再按「送出報名」
+    const pre = window.Voice && Voice.takeSignup ? Voice.takeSignup(duty.id) : null;
+    if (pre) {
+      const key = (x) => String(x || '').replace(/[s（）()]/g, '');
+      const pos = pre.position ? duty.positions.find((p) => key(p.name) === key(pre.position)) || duty.positions.find((p) => key(p.name).indexOf(key(pre.position)) !== -1 || key(pre.position).indexOf(key(p.name)) !== -1) : null;
+      if (pos) { state.positionIds = new Set([pos.id]); }
+      if (multiDay && pre.date && openDates.indexOf(pre.date) !== -1) state.dates.add(pre.date);
+      renderPositions();
+      renderDates();
+      (pre.names || []).forEach((n) => addName(n));
+      const note = document.createElement('p');
+      note.className = 'notice voice-filled';
+      note.textContent = '🎤 已經幫您填好了，請看一下名字、身分、項目，沒問題再按「送出報名」。';
+      form.insertAdjacentElement('beforebegin', note);
+      setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+    }
   }
 
   window.SignupForm = { mount, splitInput };

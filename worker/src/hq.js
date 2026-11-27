@@ -334,11 +334,12 @@ export function createHq({ gs, store, cross, openRegions, localAiKey }) {
    * 交給維護者電腦的門口（tools/local-ai/gateway.js，用 Claude Code 讀）。2026/11/27 起有設 LOCAL_AI_KEY 就**只用門口、不用 Gemini**：
    * 門口沒開 → CONFIG（畫面停下）；太久 → NETWORK（畫面會拆小再讀）；門口說讀不好 → AI（訊息照門口的）。
    */
-  async function localRun(url, parts) {
+  async function localRun(url, parts, opts) {
+    const fast = !!(opts && opts.fast); // 語音助理（2026/11/27）：門口用快的模型、不排隊
     if (!url) throw err('CONFIG', '維護者電腦的 AI 門口現在沒開，暫時不能用 AI 讀；請晚一點再試，或請維護者開啟');
     let j;
     try {
-      const r = await fetch(url + '/generate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-local-ai-key': localAiKey }, body: JSON.stringify({ parts }), signal: AbortSignal.timeout(220000) });
+      const r = await fetch(url + '/generate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-local-ai-key': localAiKey }, body: JSON.stringify({ parts, fast }), signal: AbortSignal.timeout(fast ? 75000 : 220000) });
       if (!r.ok) throw err('CONFIG', '維護者電腦的 AI 門口連不上（' + r.status + '），請晚一點再試');
       j = await r.json();
     } catch (e) {
@@ -357,7 +358,7 @@ export function createHq({ gs, store, cross, openRegions, localAiKey }) {
       return { text: JSON.stringify(out), model: j.model || '本機', local: true };
     } catch (e) { throw err('AI', 'AI 回的格式看不懂，請再試一次'); }
   }
-  async function aiRun(parts, careful, curRegion) {
+  async function aiRun(parts, careful, curRegion, opts) {
     const isMain = !curRegion || curRegion === 'main';
     let key = null;
     // 其他區：沒有自己的 Gemini 金鑰、或要問本機 AI 門口的網址，就問教全區（教全區不叫自己）
@@ -365,7 +366,7 @@ export function createHq({ gs, store, cross, openRegions, localAiKey }) {
       try { key = await cross('main', 'hqAiKey'); } catch (e) { /* 問不到就用自己的 */ }
     }
     // 維護者電腦的門口（2026/11/27）：Worker 有設 LOCAL_AI_KEY 就只用門口（Claude Code），不用 Gemini；沒設才走下面的 Gemini
-    if (localAiKey) return localRun(isMain ? localUrlHere() : ((key && key.localUrl) || ''), parts);
+    if (localAiKey) return localRun(isMain ? localUrlHere() : ((key && key.localUrl) || ''), parts, opts);
     const override = key && key.key ? key : null;
     if (careful) {
       try { return await geminiGenerate(gs, parts, override, { careful: true }); } catch (e) {
@@ -375,6 +376,99 @@ export function createHq({ gs, store, cross, openRegions, localAiKey }) {
     }
     return geminiGenerate(gs, parts, override);
   }
+
+  // ---------- 🎤 語音助理（2026/11/27）：把一句話變成「提案」，畫面上確認後才用原本的 API 做 ----------
+  const VOICE_PUBLIC = ['answer', 'open', 'signup', 'unclear'];
+  const VOICE_ADMIN = VOICE_PUBLIC.concat(['create', 'cancel', 'pin', 'attend', 'notice']);
+  const WEEK = ['日', '一', '二', '三', '四', '五', '六'];
+  const weekdayOf = (d) => WEEK[new Date(Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10))).getUTCDay()];
+  /** 給 AI 看的勤務清單（不含名單、電話） */
+  function voiceDutyLines(duties) {
+    return duties.slice(0, 160).map((d) => {
+      const dates = d.start === d.end ? d.start + '（' + weekdayOf(d.start) + '）' : d.start + '～' + d.end;
+      const time = [d.startTime, d.endTime].filter(Boolean).join('-');
+      const short = Object.keys(d.days || {}).map((k) => (d.days[k].shortage > 0 ? k.slice(5) + ' 缺 ' + d.days[k].shortage : '')).filter(Boolean).join('、');
+      return [d.id, d.name, dates, time, d.location || '', '項目：' + (d.positions || []).map((x) => x.name).join('／'), d.category || '勤務',
+        d.mode === '公告型' ? '公告（輪值：' + (d.group || '') + '）' : '', d.cancelled ? '停課' : '', short ? '缺人：' + short : ''].filter(Boolean).join('｜');
+    }).join('\n');
+  }
+  function voicePrompt(text, lines, isAdmin, today) {
+    const days = Array.from({ length: 21 }, (_, i) => { const d = gs.addDaysStr_(today, i); return d.slice(5) + '（' + weekdayOf(d) + '）'; }).join('、');
+    const allowed = isAdmin ? VOICE_ADMIN : VOICE_PUBLIC;
+    return [
+      '你是佛堂行事曆（' + (gs.getSite_().name || gs.getSite_().org) + '）的語音助理。使用者用說的（語音辨識成文字，可能有錯字、同音字），請判斷他要做什麼，整理成一個 JSON 提案；畫面會給他確認後才做，你不會真的去做。',
+      '今天是 ' + today + '（' + weekdayOf(today) + '），台灣時間。接下來的日期和星期：' + days + '。「下週六」＝下一個星期的星期六；沒說年份就是今天以後最近的那天（已經過去的勤務只有在說「補登」「誰有來」時才用）。民國 115 年＝2026 年。',
+      '勤務清單（每行：ID｜名稱｜日期｜時間｜地點｜了愿項目｜類別｜公告｜停課｜缺人）：',
+      lines || '（沒有）',
+      '只能從這幾種 action 選一個：' + allowed.join('、') + '。',
+      '- answer：回答問題（只根據上面的清單；找不到就說找不到）。say＝回答（口語、簡短，日期寫「12/12（六）」）。',
+      '- open：打開某個勤務的頁面。dutyId、date。',
+      '- signup：幫忙報名。dutyId、date（那一天）、names（要報名的人的名字，照說的寫，不要加稱呼；「我」不算名字，沒說名字就給空陣列）、position（了愿項目名稱，照清單裡的；沒說就空字串）。',
+      isAdmin ? '- create：新增勤務。duty＝{ name, category（勤務／道務／教育）, nature, start, end, startTime, endTime, location, group（負責組，例：第三組）, positions: [{ name, min, max }], description }（沒說的填空字串；positions 沒說就 [{ "name": "了愿", "min": 2 }]）。' : '',
+      isAdmin ? '- cancel：標停課（取消）。dutyId、date、on（true＝停課、false＝恢復上課）、reason（原因，沒說就空字串）。' : '',
+      isAdmin ? '- pin：放到首頁。dutyId、on（true＝放、false＝拿掉）。' : '',
+      isAdmin ? '- attend：補登出席。dutyId、date、names（有來的人）。' : '',
+      isAdmin ? '- notice：複製通知（要發到 LINE 群組的報名通知）。dutyId、date。' : '',
+      '- unclear：聽不懂或清單裡找不到。say＝請他再說清楚一點（舉例怎麼說）。',
+      '輸出格式（只輸出這個 JSON，不要其他文字）：{ "action": "...", "say": "給使用者看的一句話（要做的事，例：幫您報名 12/12（六）讀經班：王小明）", "dutyId": "", "date": "", "names": [], "position": "", "on": true, "reason": "", "duty": {} }',
+      '使用者說：「' + text + '」'
+    ].filter(Boolean).join('\n');
+  }
+  const VOICE_IP_LIMIT = 15; // 家人們：同一個網路 10 分鐘最多幾次
+  const VOICE_DAY_LIMIT = 300; // 全站一天最多幾次（Claude 額度是維護者的）
+  special.voiceAsk = async (body, curRegion) => {
+    if (curRegion === HQ_CODE) throw err('FORBIDDEN', '宏教分壇還沒有開放語音助理');
+    const text = gs.cleanText_(body.text || '').slice(0, 300);
+    if (!text) throw err('BAD_REQUEST', '沒有聽到內容，請再說一次');
+    const who = body.token ? gs.requireAdmin_(body) : null;
+    const today = gs.todayString_();
+    const dayKey = 'voice-day:' + today;
+    const used = Number(store.cacheGet(dayKey) || 0) + 1;
+    if (used > VOICE_DAY_LIMIT) throw err('AI_LIMIT', '今天的語音次數用完了，請改用一般的方式操作，感恩您 🙏');
+    store.cachePut(dayKey, String(used), 26 * 3600);
+    if (!who && body._client) {
+      const k = 'voice:' + body._client + ':' + Math.floor(Date.now() / 600000);
+      const n = Number(store.cacheGet(k) || 0) + 1;
+      store.cachePut(k, String(n), 660);
+      if (n > VOICE_IP_LIMIT) throw err('AI_LIMIT', '說太多次了，請 10 分鐘後再試，感恩您 🙏');
+    }
+    const isAdmin = !!who && who.role !== '唯讀';
+    const from = who ? gs.addDaysStr_(today, -45) : today;
+    const duties = gs.getEvents_({ from, to: gs.addDaysStr_(today, 90) }).duties;
+    const res = await aiRun([{ text: voicePrompt(text, voiceDutyLines(duties), isAdmin, today) }], false, curRegion, { fast: true });
+    let plan;
+    try {
+      const raw = JSON.parse(String(res.text).replace(/```(json)?/g, '').trim());
+      plan = Array.isArray(raw) ? raw[0] : raw;
+    } catch (e) { plan = null; }
+    const unclear = (say) => ({ action: 'unclear', say: say || '不好意思，我沒有聽懂，可以再說一次嗎？例如：「我要報名 12/12 讀經班，王小明」' });
+    if (!plan || typeof plan !== 'object') return { plan: unclear(), heard: text };
+    const allowed = isAdmin ? VOICE_ADMIN : VOICE_PUBLIC;
+    const action = String(plan.action || '');
+    if (allowed.indexOf(action) === -1) return { plan: unclear(action && VOICE_ADMIN.indexOf(action) !== -1 ? '這件事要登入後台才能用說的做' : ''), heard: text };
+    const out = { action, say: gs.cleanText_(plan.say || '').slice(0, 300) };
+    if (action === 'answer' || action === 'unclear') return { plan: out.say ? out : unclear(), heard: text };
+    if (action === 'create') {
+      const d = plan.duty && typeof plan.duty === 'object' ? plan.duty : null;
+      if (!d || !d.name) return { plan: unclear('要新增什麼勤務、哪一天，可以再說一次嗎？'), heard: text };
+      out.duty = d;
+      return { plan: out, heard: text };
+    }
+    const duty = duties.find((x) => x.id === String(plan.dutyId || ''));
+    if (!duty) return { plan: unclear('我在行事曆上找不到這個勤務，可以再說一次名稱和日期嗎？'), heard: text };
+    out.dutyId = duty.id;
+    out.dutyName = duty.name;
+    const date = String(plan.date || '');
+    out.date = gs.isDateString_(date) && date >= duty.start && date <= duty.end ? date : (duty.start >= today ? duty.start : duty.end);
+    if (action === 'signup' || action === 'attend') {
+      out.names = (Array.isArray(plan.names) ? plan.names : []).map((n) => gs.cleanText_(n).slice(0, 20)).filter(Boolean).slice(0, 20);
+      out.position = gs.cleanText_(plan.position || '').slice(0, 30);
+      if (action === 'attend' && !out.names.length) return { plan: unclear('補登要寫哪些人有來，可以再說一次嗎？'), heard: text };
+    }
+    if (action === 'cancel' || action === 'pin') out.on = plan.on !== false;
+    if (action === 'cancel') out.reason = gs.cleanText_(plan.reason || '').slice(0, 40);
+    return { plan: out, heard: text };
+  };
 
   /**
    * 從照片／檔案新增勤務草稿（2026/11/26 改：比 async-actions.js 原本的多了檔案文字、最多 6 張、仔細判讀、借教全區的金鑰）。
