@@ -135,7 +135,7 @@
         <label class="btn btn-block btn-photo">📷 選照片、拍照或選檔案<input type="file" accept="image/*,.pdf,.docx,.xlsx,.xls,.csv" multiple hidden data-photo></label>
         <input class="input" type="text" data-hint placeholder="補充說明（選填）例：這是 11 月的；我們負責香積">
         <input class="input" type="text" data-pages placeholder="PDF 只讀第幾頁（選填）例：2-3, 18">
-        <p class="modal-note">照片一次最多 6 張，也可以選 PDF、Word、Excel；電腦也可以把照片拖進來，或截圖後按 Ctrl+V 貼上。AI 會先找活動、再找${esc(window.SITE.org)}那一行要幾個人，再找時間、地點、服裝、說明；只整理${esc(window.SITE.org)}的部分。內容會交給 Google Gemini 讀取，整理好後可以在下面直接修改，確認後才新增。</p>
+        <p class="modal-note">照片一次最多 6 張，也可以選 PDF、Word、Excel；電腦也可以把照片拖進來，或截圖後按 Ctrl+V 貼上。AI 會先找活動、再找${esc(window.SITE.org)}那一行要幾個人，再找時間、地點、服裝、說明；只整理${esc(window.SITE.org)}的部分。內容會交給 AI（Claude）讀取，每一批大約 1～2 分鐘；整理好後可以在下面直接修改，確認後才新增。</p>
         <div class="draft-thumbs" data-thumbs></div>
       </div>
       <div data-ai-note></div>

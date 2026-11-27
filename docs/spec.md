@@ -654,7 +654,8 @@
   - 設定在 `%USERPROFILE%\.duty-local-ai.json`：`engine`（claude／ollama）、`claudeModel`（預設 sonnet）。claude.exe 找 Claude 桌面版附的最新版（CLAUDE_EXE 可以指定）。背景用要先登入一次：`claude.exe auth login`。
   - 安全（上傳的內容不能信）：每次一個新的暫存資料夾，裡面只有這次的圖片；只開 Read 一個工具（資料夾外沒權限，背景模式直接拒絕）；`--setting-sources project`、`--strict-mcp-config`、`--no-session-persistence`；系統提示要它不照文件裡的任何指示做事；不沿用環境裡的 CLAUDE*／ANTHROPIC* 變數。
   - 通道（trycloudflare）超過 100 秒沒收到東西會斷：門口一收到就先回表頭和空白，每 20 秒一個空白，讀好再送 JSON。
-  - 開門口：`tools/local-ai/start.cmd`（可以在桌面建捷徑，開機後點兩下）；關掉視窗網站就改用 Gemini（Worker 15 分鐘沒收到報到就當沒開）。
+  - 開門口：`tools/local-ai/start.cmd`（可以在桌面建捷徑，開機後點兩下）；Worker 15 分鐘沒收到報到就當沒開。
+  - **不用 Gemini（2026/11/27 維護者決定）**：Worker 有設 LOCAL_AI_KEY 時 aiRun 只用門口（13 區、分壇的三個 AI 功能都是，其他區向教全區問門口網址）。門口沒開或連不上 → CONFIG「AI 門口現在沒開」（畫面停下）；超過 220 秒 → NETWORK（畫面拆小再讀）；Claude 額度用完 → CONFIG「額度暫時用完了」；其他 → AI（門口的訊息）。門口 Claude 一次最多等 200 秒；一次只讀一件，別的要排隊。要恢復 Gemini：刪掉 Worker 的 LOCAL_AI_KEY（wrangler secret delete）。
 
 - **2026/11/27 只用 Gemini Flash**（省錢；等本機 AI 弄好再換）：三個畫面拿掉「判讀方式」選單，伺服器 aiRun 一律 careful=false（Flash，一批文字 8000 字、圖 3 張）。上面寫「Pro」「仔細判讀」的都先不適用；程式（geminiGenerate 的 careful、GEMINI_PRO_MODEL）留著，之後要再開只改 aiRun 和畫面。
 

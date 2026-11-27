@@ -113,7 +113,7 @@ function generateClaude(parts) {
   return new Promise((resolve, reject) => {
     const cp = spawn(CLAUDE_EXE, args, { cwd: dir, env, windowsHide: true });
     let out = '', errs = '';
-    const timer = setTimeout(() => { cp.kill(); }, 160000);
+    const timer = setTimeout(() => { cp.kill(); }, 200000);
     cp.stdout.on('data', (d) => { out += d; });
     cp.stderr.on('data', (d) => { errs += d; });
     cp.on('error', (e) => { clearTimeout(timer); reject(new Error('找不到 Claude Code（' + CLAUDE_EXE + '）：' + e.message)); });
@@ -122,7 +122,12 @@ function generateClaude(parts) {
       fs.rm(dir, { recursive: true, force: true }, () => {});
       let j;
       try { j = JSON.parse(out); } catch (e) { return reject(new Error('Claude Code 沒有回應（' + Math.round((Date.now() - t0) / 1000) + ' 秒）' + errs.slice(0, 200))); }
-      if (j.is_error) return reject(new Error(/login/i.test(String(j.result)) ? 'Claude Code 還沒登入：請在終端機執行 "' + CLAUDE_EXE + '"，輸入 /login 登入一次' : String(j.result).slice(0, 200)));
+      if (j.is_error) {
+        const why = String(j.result || '');
+        if (/login/i.test(why)) console.error('Claude Code 還沒登入：請執行 "' + CLAUDE_EXE + '" auth login');
+        // 給網站看的訊息（網站畫面直接顯示）；「額度」兩個字網站會當成要停下
+        return reject(new Error(/login/i.test(why) ? '維護者電腦的 Claude 還沒登入，請維護者處理' : /limit|usage|quota|rate/i.test(why) ? '維護者的 Claude 額度暫時用完了，請過幾個小時再試' : 'AI 讀不好：' + why.slice(0, 120)));
+      }
       try {
         const text = pickJson(j.result);
         console.log(new Date().toLocaleTimeString() + ' Claude 讀好一批：' + names.length + ' 張圖、' + texts.join('').length + ' 字，' + Math.round((Date.now() - t0) / 1000) + ' 秒');

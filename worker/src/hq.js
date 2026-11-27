@@ -330,14 +330,24 @@ export function createHq({ gs, store, cross, openRegions, localAiKey }) {
     const at = Number(store.getProp('LOCAL_AI_AT') || 0);
     return Date.now() - at < 15 * 60 * 1000 ? String(store.getProp('LOCAL_AI_URL') || '') : '';
   }
-  /** 先問這台電腦的模型（tools/local-ai/gateway.js）；沒開、太久、讀不好就回 null，改用 Gemini */
+  /**
+   * 交給維護者電腦的門口（tools/local-ai/gateway.js，用 Claude Code 讀）。2026/11/27 起有設 LOCAL_AI_KEY 就**只用門口、不用 Gemini**：
+   * 門口沒開 → CONFIG（畫面停下）；太久 → NETWORK（畫面會拆小再讀）；門口說讀不好 → AI（訊息照門口的）。
+   */
   async function localRun(url, parts) {
-    if (!url || !localAiKey) return null;
+    if (!url) throw err('CONFIG', '維護者電腦的 AI 門口現在沒開，暫時不能用 AI 讀；請晚一點再試，或請維護者開啟');
+    let j;
     try {
-      const r = await fetch(url + '/generate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-local-ai-key': localAiKey }, body: JSON.stringify({ parts }), signal: AbortSignal.timeout(170000) });
-      if (!r.ok) return null;
-      const j = await r.json();
-      if (!j || !j.ok || !j.text) return null;
+      const r = await fetch(url + '/generate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-local-ai-key': localAiKey }, body: JSON.stringify({ parts }), signal: AbortSignal.timeout(220000) });
+      if (!r.ok) throw err('CONFIG', '維護者電腦的 AI 門口連不上（' + r.status + '），請晚一點再試');
+      j = await r.json();
+    } catch (e) {
+      if (e && e.code) throw e;
+      if (e && (e.name === 'TimeoutError' || e.name === 'AbortError')) throw err('NETWORK', 'AI 讀太久，沒有回應');
+      throw err('CONFIG', '維護者電腦的 AI 門口連不上，請晚一點再試');
+    }
+    if (!j || !j.ok || !j.text) throw err(/額度/.test(String(j && j.error)) ? 'CONFIG' : 'AI', String((j && j.error) || 'AI 讀不好，請換清楚一點的檔案再試'));
+    try {
       // 小模型常把陣列包在物件裡（{ "activities": [...] }）：拿出裡面那個陣列
       let out = JSON.parse(j.text);
       if (!Array.isArray(out) && out && typeof out === 'object') {
@@ -345,7 +355,7 @@ export function createHq({ gs, store, cross, openRegions, localAiKey }) {
         if (arr && !out.name && !out.title) out = arr;
       }
       return { text: JSON.stringify(out), model: j.model || '本機', local: true };
-    } catch (e) { return null; }
+    } catch (e) { throw err('AI', 'AI 回的格式看不懂，請再試一次'); }
   }
   async function aiRun(parts, careful, curRegion) {
     const isMain = !curRegion || curRegion === 'main';
@@ -354,11 +364,8 @@ export function createHq({ gs, store, cross, openRegions, localAiKey }) {
     if (!isMain && (!gs.propsForAsync_().getProperty('GEMINI_API_KEY') || localAiKey)) {
       try { key = await cross('main', 'hqAiKey'); } catch (e) { /* 問不到就用自己的 */ }
     }
-    // 本機模型（2026/11/26，先留著）：Worker 有設 LOCAL_AI_KEY、門口有開（tools/local-ai/gateway.js）才會先用，不行再用 Gemini；沒設就完全不影響
-    if (localAiKey) {
-      const local = await localRun(isMain ? localUrlHere() : ((key && key.localUrl) || ''), parts);
-      if (local && /[[{]/.test(local.text)) return local;
-    }
+    // 維護者電腦的門口（2026/11/27）：Worker 有設 LOCAL_AI_KEY 就只用門口（Claude Code），不用 Gemini；沒設才走下面的 Gemini
+    if (localAiKey) return localRun(isMain ? localUrlHere() : ((key && key.localUrl) || ''), parts);
     const override = key && key.key ? key : null;
     if (careful) {
       try { return await geminiGenerate(gs, parts, override, { careful: true }); } catch (e) {
