@@ -310,6 +310,7 @@
     const students = new Set(courses.flatMap((c) => c.students));
     const present = courses.reduce((n, c) => n + c.present, 0);
     const absent = courses.reduce((n, c) => n + c.absent, 0);
+    const expected = courses.reduce((n, c) => n + (c.expected || 0), 0); // 教育：應到人次（班上學生每堂都算，2026/11/27）
     const pctText = (v) => (v === null ? '—' : Math.round(v * 100) + '%');
     const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
     // 只有一種角色：只寫角色（場數看右邊「共 N 場」）；兩種以上才寫各幾場
@@ -340,7 +341,7 @@
           <button type="button" class="stat-card stat-card-btn${state.eduItemsOpen ? ' is-open' : ''}" data-items-toggle aria-expanded="${state.eduItemsOpen}"><span class="stat-label">${L.item} ${state.eduItemsOpen ? '▴' : '▾'}</span><span class="stat-num">${courses.length}</span><span class="stat-hint">${cat === '道務' && courses.length ? NATURE_ORDER.map((n) => `${n} ${courses.filter((c) => c.nature === n).length}`).join('・') : `同名的算同一個${L.item}`}</span></button>
           <div class="stat-card"><span class="stat-label">${cat === '教育' ? '上課堂數' : '場次'}</span><span class="stat-num">${courses.reduce((n, c) => n + c.sessions.length, 0)}</span><span class="stat-hint">只算今天以前</span></div>
           <div class="stat-card"><span class="stat-label">${L.person}（不重複）</span><span class="stat-num">${students.size}</span><span class="stat-hint">同一人只算 1 位，不含陪同</span></div>
-          <div class="stat-card"><span class="stat-label">出席率</span><span class="stat-num">${pctText(present + absent ? present / (present + absent) : null)}</span><span class="stat-hint">出席 ${present} 人次・未到 ${absent} 人次</span></div>
+          <div class="stat-card"><span class="stat-label">出席率</span><span class="stat-num">${cat === '教育' ? pctText(expected ? present / expected : null) : pctText(present + absent ? present / (present + absent) : null)}</span><span class="stat-hint">${cat === '教育' ? `出席 ${present}／應到 ${expected} 人次（班上學生從第一次來起，每堂都算）` : `出席 ${present} 人次・未到 ${absent} 人次`}</span></div>
         </div>
 
         ${state.eduItemsOpen ? itemsListHtml(courses, L, cat) : ''}
@@ -360,7 +361,7 @@
 
         ${cur ? `
         <section class="stats-section" data-grid-section>
-          <h3 class="admin-sub">出缺勤表：${esc(cur.name)}<span class="h2-sub">✓ 出席・✗ 未到・空白＝沒報名</span></h3>
+          <h3 class="admin-sub">出缺勤表：${esc(cur.name)}<span class="h2-sub">${cat === '教育' ? '✓ 出席・空白＝沒來（第一次來之前的不算）' : '✓ 出席・✗ 未到・空白＝沒報名'}</span></h3>
           ${cur.students.length ? `<div class="edu-table-wrap"><table class="edu-table edu-grid">
             <thead><tr><th class="edu-sticky">姓名</th>${cur.sessions.map((s) => `<th>${md(s.date)}<small>（${esc(Fmt.weekday(s.date))}）</small></th>`).join('')}<th>出席</th></tr></thead>
             <tbody>${(state.eduGridAll ? cur.students : cur.students.slice(0, GRID_FIRST)).map((n) => `

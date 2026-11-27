@@ -102,3 +102,21 @@ test('各年齡層適合的班（2026/11/23）：讀經班到國小 4 年級、�
   assert.equal(du.people.find((p) => p.name === '測試小二').attended, true);
   assert.deepEqual([r.preschool.map((p) => p.name), r.older.map((p) => p.name), r.unknown.map((p) => p.name)], [['測試寶寶'], ['測試長輩'], ['測試沒生日']]);
 });
+
+test('教育的出席率（2026/11/27）：班上學生從第一次來起每堂都算應到；匯入只記有來的人也算得出缺席', () => {
+  const sessions = [sess('2026-10-03', 'A1', ''), sess('2026-10-17', 'A2', ''), sess('2026-11-07', 'A3', ''), sess('2026-11-21', 'A4', '')];
+  const events = [
+    ev('2026-10-03', 'A1', ['測試甲', '測試乙'], []),
+    ev('2026-10-17', 'A2', ['測試甲', '測試乙', '測試丙'], []),
+    ev('2026-11-07', 'A3', ['測試甲'], [])
+    // 11/21 沒有任何出席紀錄（還沒登記）：不算
+  ];
+  const c = E.summarize(sessions, events, () => true).courses[0];
+  // 應到：甲 3、乙 3、丙 2（10/17 才第一次來）＝ 8；出席 6
+  assert.equal(c.expected, 8);
+  assert.equal(c.present, 6);
+  assert.equal(c.rate, 6 / 8);
+  // 道務照舊：出席÷（出席＋未到）
+  const d = E.summarize([], [ev('2026-10-03', 'B1', ['測試甲'], [], { category: '道務', nature: '法會', name: '測試法會', series: '測試法會' })], () => true, '道務').courses[0];
+  assert.equal(d.rate, 1);
+});

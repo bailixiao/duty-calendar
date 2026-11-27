@@ -19,7 +19,7 @@
   /**
    * inPeriod(date) → 是否在期間內。回傳
    *   courses: [{ name, sessions: [{ date, dutyId, teachers: [] }], students: [名字], grid: { 名字: { 'dutyId|date': '✓'|'✗' } },
-   *               present, absent, avg, rate, teachers: [], perStudent: { 名字: 出席堂數 }, perSession: { key: 出席人數 } }]
+   *               present, absent, expected（應到人次；教育＝學生從第一次來起每堂都算）, avg, rate, teachers: [], perStudent: { 名字: 出席堂數 }, perSession: { key: 出席人數 } }]
    *   teachers: [{ name, total, courses: [{ name, count }] }]
    */
   function summarize(eduSessions, events, inPeriod, category) {
@@ -72,11 +72,17 @@
       const students = Object.keys(grid).sort(strokeCompare);
       const perStudent = {};
       students.forEach((n) => { perStudent[n] = Object.values(grid[n]).filter((v) => v === '✓').length; });
+      // 應到（2026/11/27）：教育的課，班上的學生（這段期間來過的）從第一次來那堂起，每堂都算應到；沒來就算缺席。
+      // 匯入的出席表只記有來的人，原本只用「改未到」的人算，出席率會一直是 100%。道務（法會、會議）照舊：出席÷（出席＋未到）。
+      let expected = 0;
+      // 那一堂完全沒有出席紀錄的不算（多半是還沒登記，不是全班都沒來）
+      students.forEach((n) => { const first = c.sessions.findIndex((x) => grid[n][x.key]); if (first !== -1) expected += c.sessions.slice(first).filter((x) => perSession[x.key] > 0).length; });
       const teachers = [...new Set(c.sessions.flatMap((s) => s.teachers))];
       return {
         name: c.name, nature: c.nature, sessions: c.sessions, students, grid, present, absent, perStudent, perSession, teachers,
         avg: c.sessions.length ? Math.round((present / c.sessions.length) * 10) / 10 : 0,
-        rate: present + absent ? present / (present + absent) : null
+        expected: category === '教育' ? expected : present + absent,
+        rate: category === '教育' ? (expected ? present / expected : null) : present + absent ? present / (present + absent) : null
       };
     }).sort((a, b) => b.students.length - a.students.length || strokeCompare(a.name, b.name));
 
