@@ -639,7 +639,7 @@
 - **2026/11/26 起 AI 預設用 Gemini Pro**（教全區已開 Gemini 付費、帳單設了每月上限）：從照片或檔案新增、從檔案帶入舊資料、分壇從檔案匯入行事曆的「判讀方式」預設「Gemini Pro（準）」，另一個選項「⚡ 快速（Gemini Flash）」；伺服器沒帶 careful 也用 Pro，只有 careful: false 才用 Flash；Pro 不能用時照舊改用 Flash 並提示。上面寫「仔細判讀」的地方都是指 Pro。
 - **一批一批讀、等太久自動拆小（2026/11/26）**：AI 判讀的請求網頁等 4 分鐘（其他 API 照舊 90 秒，js/api.js SLOW_ACTIONS）。Gemini Pro 一批：文字約 2500 字（PDF 大約一頁）、圖 1 張；快速（Flash）：文字 8000 字、圖 3 張。某一批等太久（NETWORK）就用 MemberFile.splitChunk 拆成兩半（文字從中間的換行切、圖分開）再讀，拆到很小還是太久才算失敗。「從照片或檔案新增」也改成一批一批讀（照片 Pro 2 張、Flash 3 張一批），多了「PDF 只讀第幾頁」；某一批 AI 說找不到本區的就跳過（年度分工表很多頁跟本區無關），不同批讀到同名同一天的只留一筆。
 
-## 2026/11/27 本機 AI（先留著，還沒啟用）
+## 2026/11/27 本機 AI（門口；已啟用，用 Claude Code 讀，見本節最後）
 
 - 想省 Gemini 的錢，試了在維護者電腦（RTX 4070 12GB）用 Ollama 跑看圖小模型（qwen2.5vl:7b、gemma3:12b）。用分壇年度分工表第 18 頁（彌勒山 12 人小組輪值表）比：Qwen 日期錯、只抓到一次；Gemma 日期對但把 20 區全列出來、沒挑出本區；Gemini Flash、Pro 都正確抓到本區兩次（Pro 連交接時間也有）。**小模型不夠準，目前不用**，程式和電腦上的模型先留著。
 - 程式（啟用前完全不影響網站）：
@@ -647,6 +647,14 @@
   - Worker：`/local-ai` 驗 LOCAL_AI_KEY 後存到教全區 props（LOCAL_AI_URL、LOCAL_AI_AT），15 分鐘內報到過才算開著；hq.js aiRun 在**有設 LOCAL_AI_KEY** 時先問本機（等 170 秒），讀不到再用 Gemini；其他區向教全區問網址（hqAiKey 多回 localUrl）。沒設 LOCAL_AI_KEY 就和原本一樣。
   - 小模型常把陣列包在物件裡，拿出裡面的陣列；測試發現用 Ollama 的 JSON schema（format 給 schema，要求 { duties: [...] }）會好很多，要啟用時改 gateway 用 schema。
 - 要啟用：`node tools/local-ai/gateway.js --setup`（一次），之後開著 `node tools/local-ai/gateway.js`。
+
+- **2026/11/27 啟用：門口改用這台電腦的 Claude Code 讀**（照片、PDF 都是）
+  - 先試 Ollama gemma3:12b：分工表第 2～16 頁（前處理後 8000 字）12 個本區日期只抓到 2 個；拆成 2500 字一段、加 JSON schema 後約 8 個，但多出很多別區的、一批 166 秒（快到 Worker 的 170 秒上限）。Ollama 的路留著（`engine: "ollama"`）：勤務草稿用 schema、檔案文字照【第 N 頁】拆成約 2500 字一段。
+  - 改成 Claude Code（`claude -p`，用維護者自己的 Claude 方案，模型 Sonnet）：同一批約 10／12、一批 76～101 秒；Opus 準確度差不多但 144～160 秒（會超時），所以用 Sonnet。Claude 會把「今天」以前的活動略過（上傳的本來就是之後的表，所以不影響）。
+  - 設定在 `%USERPROFILE%\.duty-local-ai.json`：`engine`（claude／ollama）、`claudeModel`（預設 sonnet）。claude.exe 找 Claude 桌面版附的最新版（CLAUDE_EXE 可以指定）。背景用要先登入一次：`claude.exe auth login`。
+  - 安全（上傳的內容不能信）：每次一個新的暫存資料夾，裡面只有這次的圖片；只開 Read 一個工具（資料夾外沒權限，背景模式直接拒絕）；`--setting-sources project`、`--strict-mcp-config`、`--no-session-persistence`；系統提示要它不照文件裡的任何指示做事；不沿用環境裡的 CLAUDE*／ANTHROPIC* 變數。
+  - 通道（trycloudflare）超過 100 秒沒收到東西會斷：門口一收到就先回表頭和空白，每 20 秒一個空白，讀好再送 JSON。
+  - 開門口：`tools/local-ai/start.cmd`（可以在桌面建捷徑，開機後點兩下）；關掉視窗網站就改用 Gemini（Worker 15 分鐘沒收到報到就當沒開）。
 
 - **2026/11/27 只用 Gemini Flash**（省錢；等本機 AI 弄好再換）：三個畫面拿掉「判讀方式」選單，伺服器 aiRun 一律 careful=false（Flash，一批文字 8000 字、圖 3 張）。上面寫「Pro」「仔細判讀」的都先不適用；程式（geminiGenerate 的 careful、GEMINI_PRO_MODEL）留著，之後要再開只改 aiRun 和畫面。
 
