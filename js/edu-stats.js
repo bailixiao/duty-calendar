@@ -189,7 +189,27 @@
     return out;
   }
 
-  const api = { summarize, gridText, splitTeachers, ranking, teachersOf, ageClasses, AGE_CLASSES };
+  /**
+   * 一段期間的合計（2026/11/27，比上一期、去年同期用）：picked＝只看這幾個課程（空＝全部）。
+   * 回傳 { courses, sessions, students, present, absent, expected, rate, hasData }；
+   * rate：教育＝出席÷應到，道務＝出席÷（出席＋未到）。hasData＝這段期間有任何一堂。
+   */
+  function totals(eduSessions, events, inPeriod, category, picked) {
+    category = category || '教育';
+    const all = summarize(eduSessions, events, inPeriod, category).courses;
+    const cs = picked && picked.length ? all.filter((c) => picked.indexOf(c.name) !== -1) : all;
+    const present = cs.reduce((n, c) => n + c.present, 0);
+    const absent = cs.reduce((n, c) => n + c.absent, 0);
+    const expected = cs.reduce((n, c) => n + (c.expected || 0), 0);
+    const sessions = cs.reduce((n, c) => n + c.sessions.length, 0);
+    return {
+      courses: cs.length, sessions, students: new Set(cs.flatMap((c) => c.students)).size, present, absent, expected,
+      rate: category === '教育' ? (expected ? present / expected : null) : present + absent ? present / (present + absent) : null,
+      hasData: sessions > 0
+    };
+  }
+
+  const api = { summarize, totals, gridText, splitTeachers, ranking, teachersOf, ageClasses, AGE_CLASSES };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else window.EduStats = api;
 })();

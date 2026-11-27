@@ -311,6 +311,24 @@
     const present = courses.reduce((n, c) => n + c.present, 0);
     const absent = courses.reduce((n, c) => n + c.absent, 0);
     const expected = courses.reduce((n, c) => n + (c.expected || 0), 0); // 教育：應到人次（班上學生每堂都算，2026/11/27）
+    // 比上一期、比去年同期（2026/11/27）：本期還沒過完時，比較的期間也只算到相同天數（同總務的 C.compare）
+    const partial = C.contains(p, data.today);
+    const dayMs = (x) => Date.UTC(+x.slice(0, 4), +x.slice(5, 7) - 1, +x.slice(8, 10));
+    const elapsed = partial ? Math.round((dayMs(data.today) - dayMs(C.startOf(p))) / 86400000) : null;
+    const totalsOf = (q) => {
+      if (!q) return null;
+      const until = partial ? C.addDays(C.startOf(q), elapsed) : '';
+      const t = EduStats.totals(data.eduSessions || [], data.events, (d) => C.contains(q, d) && (!until || d <= until), cat, picked);
+      t.hasData = EduStats.totals(data.eduSessions || [], data.events, (d) => C.contains(q, d), cat, picked).hasData;
+      return t;
+    };
+    const prevE = totalsOf(C.shift(p, -1));
+    const lyE = p.unit === 'year' ? null : totalsOf({ unit: p.unit, year: p.year - 1, n: p.n });
+    const nowRate = cat === '教育' ? (expected ? present / expected : null) : present + absent ? present / (present + absent) : null;
+    const eduCmp = (now, key, isRatio) => cmpList([
+      deltaHtml('比' + C.prevName(p.unit), C.delta(now, prevE && prevE.hasData ? prevE[key] : null, isRatio)),
+      p.unit === 'year' ? '' : deltaHtml('比' + C.lastYearName(p.unit), C.delta(now, lyE && lyE.hasData ? lyE[key] : null, isRatio))
+    ]);
     const pctText = (v) => (v === null ? '—' : Math.round(v * 100) + '%');
     const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
     // 只有一種角色：只寫角色（場數看右邊「共 N 場」）；兩種以上才寫各幾場
@@ -339,11 +357,12 @@
 
         <div class="stat-cards">
           <button type="button" class="stat-card stat-card-btn${state.eduItemsOpen ? ' is-open' : ''}" data-items-toggle aria-expanded="${state.eduItemsOpen}"><span class="stat-label">${L.item} ${state.eduItemsOpen ? '▴' : '▾'}</span><span class="stat-num">${courses.length}</span><span class="stat-hint">${cat === '道務' && courses.length ? NATURE_ORDER.map((n) => `${n} ${courses.filter((c) => c.nature === n).length}`).join('・') : `同名的算同一個${L.item}`}</span></button>
-          <div class="stat-card"><span class="stat-label">${cat === '教育' ? '上課堂數' : '場次'}</span><span class="stat-num">${courses.reduce((n, c) => n + c.sessions.length, 0)}</span><span class="stat-hint">只算今天以前</span></div>
-          <div class="stat-card"><span class="stat-label">${L.person}（不重複）</span><span class="stat-num">${students.size}</span><span class="stat-hint">同一人只算 1 位，不含陪同</span></div>
-          <div class="stat-card"><span class="stat-label">出席率</span><span class="stat-num">${cat === '教育' ? pctText(expected ? present / expected : null) : pctText(present + absent ? present / (present + absent) : null)}</span><span class="stat-hint">${cat === '教育' ? `出席 ${present}／應到 ${expected} 人次（班上學生從第一次來起，每堂都算）` : `出席 ${present} 人次・未到 ${absent} 人次`}</span></div>
+          <div class="stat-card"><span class="stat-label">${cat === '教育' ? '上課堂數' : '場次'}</span><span class="stat-num">${courses.reduce((n, c) => n + c.sessions.length, 0)}</span><span class="stat-hint">只算今天以前</span>${eduCmp(courses.reduce((n, c) => n + c.sessions.length, 0), 'sessions')}</div>
+          <div class="stat-card"><span class="stat-label">${L.person}（不重複）</span><span class="stat-num">${students.size}</span><span class="stat-hint">同一人只算 1 位，不含陪同</span>${eduCmp(students.size, 'students')}</div>
+          <div class="stat-card"><span class="stat-label">出席率</span><span class="stat-num">${cat === '教育' ? pctText(expected ? present / expected : null) : pctText(present + absent ? present / (present + absent) : null)}</span><span class="stat-hint">${cat === '教育' ? `出席 ${present}／應到 ${expected} 人次（班上學生從第一次來起，每堂都算）` : `出席 ${present} 人次・未到 ${absent} 人次`}</span>${eduCmp(nowRate, 'rate', true)}</div>
         </div>
 
+        ${partial ? `<p class="stats-note">本${C.UNIT_NAME[p.unit]}還沒結束：算到今天 ${Number(data.today.slice(5, 7))}/${Number(data.today.slice(8, 10))}，比較的期間也只算到相同日期。</p>` : ''}
         ${state.eduItemsOpen ? itemsListHtml(courses, L, cat) : ''}
 
         <section class="stats-section">

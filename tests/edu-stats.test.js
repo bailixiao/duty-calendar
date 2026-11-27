@@ -120,3 +120,19 @@ test('教育的出席率（2026/11/27）：班上學生從第一次來起每堂�
   const d = E.summarize([], [ev('2026-10-03', 'B1', ['測試甲'], [], { category: '道務', nature: '法會', name: '測試法會', series: '測試法會' })], () => true, '道務').courses[0];
   assert.equal(d.rate, 1);
 });
+
+test('教育、道務的期間合計（2026/11/27，比上一期、去年同期用）：堂數、學生、出席率；只看勾的課程', () => {
+  const sessions = [sess('2026-10-03', 'A1', ''), sess('2026-10-17', 'A2', ''), sess('2026-10-08', 'D9', '', '書法課')];
+  const events = [
+    ev('2026-10-03', 'A1', ['測試甲', '測試乙'], []),
+    ev('2026-10-17', 'A2', ['測試甲'], []),
+    ev('2026-10-08', 'D9', ['測試丙'], [], { name: '書法課', series: '書法課' })
+  ];
+  const all = E.totals(sessions, events, () => true, '教育');
+  assert.deepEqual([all.courses, all.sessions, all.students, all.present, all.expected, all.hasData], [2, 3, 3, 4, 5, true]);
+  assert.equal(all.rate, 4 / 5);
+  const one = E.totals(sessions, events, () => true, '教育', ['讀經班']);
+  assert.deepEqual([one.courses, one.sessions, one.students, one.rate], [1, 2, 2, 3 / 4]);
+  const none = E.totals(sessions, events, (d) => d < '2026-01-01', '教育');
+  assert.deepEqual([none.hasData, none.rate], [false, null]);
+});
