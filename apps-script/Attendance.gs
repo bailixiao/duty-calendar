@@ -110,7 +110,8 @@ function adminAddAttendee_(body) {
 
 /**
  * 匯入出勤名單（後台「📋 匯入出勤名單」）：一次補登好幾場的出席名單，可順便新增還沒有的場次。
- * body = { sessions: [{ dutyId? , create?: { name, category, nature, startTime, location }, date, entries: [{ name, identity, note }] }] }
+ * body = { sessions: [{ dutyId? , create?: { name, category, nature, startTime, location }, date, entries: [{ name, identity, note, position? }] }] }
+ *   - position（2026/11/27）：了愿項目名稱（例：上禮）。這個勤務有同名的項目就記在那一項，沒有或沒寫就記在第一項。
  *   - dutyId：已經有的勤務；create：沒有就新增（同名、同一天、同類別已經有的就直接用）。
  *   - 同一場已經有的名字跳過（可以重複匯入不會重複）；身分照成員名單為準（同補登）；名額、重複只警告。
  *   - 每個名字記為出席，寫入操作紀錄（動作「修正」，內容「匯入出勤名單」）。
@@ -147,6 +148,16 @@ function adminImportAttendance_(body) {
     var positions = readTable_(SHEETS.POSITIONS).filter(function (p) { return p['勤務ID'] === duty['勤務ID']; });
     if (!positions.length) throw new ApiError_('VALIDATION', label + '「' + duty['名稱'] + '」沒有了愿項目');
     var position = positions[0];
+    // 了愿項目：一樣的名稱優先；沒有的話，只有一個項目名稱包含它也算（例：「茶水」→「經理、講師茶水」）
+    var posKey = function (x) { return cleanText_(x).replace(/[\s　、,，/／・·]/g, ''); };
+    var positionFor = function (name) {
+      var k = posKey(name);
+      if (!k) return position;
+      var same = positions.filter(function (p) { return posKey(p['了愿項目名稱']) === k; });
+      if (same.length) return same[0];
+      var part = k.length >= 2 ? positions.filter(function (p) { return posKey(p['了愿項目名稱']).indexOf(k) !== -1; }) : [];
+      return part.length === 1 ? part[0] : position;
+    };
     results.push(withSignupLock_(function () {
       var signups = readTable_(SHEETS.SIGNUPS).filter(function (r) { return r['勤務ID'] === duty['勤務ID'] && r['狀態'] === '有效' && r['日期'] === date; });
       var have = signups.map(function (r) { return normalizeName_(r['姓名']) + '|' + (r['佛堂'] || ''); });
@@ -168,7 +179,7 @@ function adminImportAttendance_(body) {
       if (bad.length) throw new ApiError_('VALIDATION', label + '（' + duty['名稱'] + ' ' + date + '）有人沒有身分', bad.map(function (e) { return { message: e.name + '：請填道親、壇辦或未求道' }; }));
       var now = nowString_();
       var rows = entries.map(function (e, k) {
-        return { '報名ID': newId_('S'), '勤務ID': duty['勤務ID'], '日期': date, '了愿項目ID': position['了愿項目ID'], '姓名': normalizeName_(e.name), '身分': e.identity,
+        return { '報名ID': newId_('S'), '勤務ID': duty['勤務ID'], '日期': date, '了愿項目ID': positionFor(fresh[k].position)['了愿項目ID'], '姓名': normalizeName_(e.name), '身分': e.identity,
           '佛堂': e.temple || '', '陪同': '否', '出席': '出席', '狀態': '有效', '建立時間': now, '更新時間': now, '註記': cleanText_(fresh[k].note || '').slice(0, 100) };
       });
       if (rows.length) {
@@ -178,7 +189,8 @@ function adminImportAttendance_(body) {
         SpreadsheetApp.flush();
         invalidateTable_(SHEETS.SIGNUPS);
       }
-      return { dutyId: duty['勤務ID'], name: duty['名稱'], date: date, added: rows.length, skipped: skipped };
+      var noRole = uniqueList_(fresh.filter(function (e) { return cleanText_(e.position) && positionFor(e.position) === position && posKey(position['了愿項目名稱']) !== posKey(e.position); }).map(function (e) { return cleanText_(e.position); }));
+      return { dutyId: duty['勤務ID'], name: duty['名稱'], date: date, added: rows.length, skipped: skipped, noRole: noRole };
     }));
   });
   return { results: results };

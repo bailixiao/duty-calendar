@@ -11,13 +11,14 @@
   const rocMonth = (ym) => `${Number(ym.slice(0, 4)) - 1911} 年 ${Number(ym.slice(5, 7))} 月（${ym.slice(0, 4)}）`;
 
   /** 「測試甲、測試乙（宏宗）」→ [{ name, temple }]（括號裡是佛堂，同名同姓時用） */
+  // 「上禮：甲、站班：乙、丙」：名字前面可以寫了愿項目（2026/11/27，OldParse.withRoles；換行重新算）
   function parsePeople(text) {
-    return String(text || '').split(/[、,，;；\n]+/).map((x) => x.trim()).filter(Boolean).map((x) => {
-      const m = /^(.+?)[（(]([^）)]+)[）)]$/.exec(x);
-      return m ? { name: key(m[1]), temple: m[2].trim() } : { name: key(x), temple: '' };
-    }).filter((p) => p.name);
+    return String(text || '').split(/\n+/).map((line) => OldParse.withRoles(line.split(/[、,，;；]+/).map((x) => x.trim()).filter(Boolean)).map((r) => {
+      const m = /^(.+?)[（(]([^）)]+)[）)]$/.exec(r.name);
+      return m ? { name: key(m[1]), temple: m[2].trim(), position: r.position } : { name: key(r.name), temple: '', position: r.position };
+    })).reduce((a, b) => a.concat(b), []).filter((p) => p.name);
   }
-  const peopleText = (list) => list.map((p) => p.name + (p.temple ? '（' + p.temple + '）' : '')).join('、');
+  const peopleText = (list) => list.map((p, i) => (p.position && (i === 0 || list[i - 1].position !== p.position) ? p.position + '：' : '') + p.name + (p.temple ? '（' + p.temple + '）' : '')).join('、');
 
   async function show(body, guard) {
     const who = Api.adminWho();
@@ -123,7 +124,7 @@
       }
       btn.disabled = false;
       sessions = OldParse.mergeSame(found.map((s) => Object.assign({}, s, { category: fixedCat || s.category || defCat() })))
-        .map((s) => Object.assign(s, { people: (s.people || []).map((p) => ({ name: key(p.name), identity: p.identity || '', temple: '' })) }))
+        .map((s) => Object.assign(s, { people: (s.people || []).map((p) => ({ name: key(p.name), identity: p.identity || '', temple: '', position: p.position || '' })) }))
         .sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999') || a.name.localeCompare(b.name));
       sessions.forEach((s) => { s.pick = !!(s.date && s.name); });
       prog.innerHTML = (downgraded ? '<p class="notice">Gemini Pro 現在不能用（太忙或額度用完），有幾批改用 Flash，請多核對。</p>' : '') +
@@ -155,7 +156,7 @@
           <input class="input" type="time" data-f="endTime" value="${esc(s.endTime)}" aria-label="結束時間">
           <input class="input" data-f="location" value="${esc(s.location)}" placeholder="地點" aria-label="地點">
         </div>
-        <label class="form-row"><span>參加的人（${s.people.length} 位，用「、」分開；同名同姓寫成 名字（佛堂））</span>
+        <label class="form-row"><span>參加的人（${s.people.length} 位，用「、」分開；同名同姓寫成 名字（佛堂）；要分工作寫 上禮：名字）</span>
           <textarea class="input" rows="2" data-f="people">${esc(peopleText(s.people))}</textarea></label>
         <p class="oi-tags">
           ${c.dup ? '<span class="tag">已經有這個勤務，只補名單</span>' : '<span class="tag tag-new">會新增</span>'}
@@ -247,7 +248,7 @@
       if (!ok) return;
       const res = $('[data-result]');
       res.innerHTML = '';
-      let done = 0, added = 0, skipped = 0, created = 0;
+      let done = 0, added = 0, skipped = 0, created = 0; const noRole = [];
       for (let i = 0; i < picked.length; i += BATCH) {
         const part = picked.slice(i, i + BATCH);
         Busy.show(`帶入中⋯（${i + 1}～${Math.min(i + BATCH, picked.length)}／${picked.length} 場）`, '請不要關閉畫面');
@@ -255,9 +256,9 @@
           const r = await Api.admin('adminImportAttendance', { sessions: part.map((s) => {
             const d = matchDuty(s);
             return Object.assign(d ? { dutyId: d.id } : { create: { name: s.name, category: s.category, nature: s.nature || '', startTime: s.startTime, endTime: s.endTime, location: s.location, end: s.end || '' } },
-              { date: s.date, entries: s.people.map((p) => ({ name: p.name, identity: p.identity || '', temple: p.temple || '', note: '' })) });
+              { date: s.date, entries: s.people.map((p) => ({ name: p.name, identity: p.identity || '', temple: p.temple || '', note: '', position: p.position || '' })) });
           }) });
-          r.results.forEach((x) => { added += x.added; skipped += x.skipped.length; });
+          r.results.forEach((x) => { added += x.added; skipped += x.skipped.length; (x.noRole || []).forEach((n) => { if (noRole.indexOf(n) === -1) noRole.push(n); }); });
           created += part.filter((s) => !matchDuty(s)).length;
           part.forEach((s) => { s.pick = false; s.done = true; });
           done += part.length;
@@ -274,7 +275,8 @@
       try { duties = await Api.admin('adminDutyList', {}, true); } catch (e) { /* 下次再更新 */ }
       sessions = sessions.filter((s) => !s.done);
       draw();
-      $('[data-result]').innerHTML = AdminPage.notice('success', `✅ 帶入完成：${done} 場`, `新增勤務約 ${created} 場，加了 ${added} 人次${skipped ? `，已經在名單上的 ${skipped} 人次跳過` : ''}。到「統計」就看得到。`);
+      $('[data-result]').innerHTML = AdminPage.notice('success', `✅ 帶入完成：${done} 場`, `新增勤務約 ${created} 場，加了 ${added} 人次${skipped ? `，已經在名單上的 ${skipped} 人次跳過` : ''}。到「統計」就看得到。`) +
+        (noRole.length ? AdminPage.notice('error', '有些工作找不到', `勤務裡沒有「${noRole.join('」「')}」這個了愿項目，那些人先記在第一個項目，請到勤務的名單上改。`) : '');
       $('[data-result]').scrollIntoView({ block: 'center' });
     }
   }

@@ -1887,17 +1887,32 @@
       if (r.error) { box.innerHTML = ''; return showError(esc(r.error)); }
       body.querySelector('[data-error]').hidden = true;
       if (!r.items.length) { box.innerHTML = '<div class="notice notice-error"><p>這段期間沒有符合的日期</p></div>'; return; }
+      // 2026/11/27：每一天可以改名稱（例：加「（大典）」）、換負責組（照表冊不規則的輪值）、取消勾選
+      const gnames = s.groupType ? groupsOf(s.groupType) : [];
       box.innerHTML = `
         <section class="lunar-preview">
-          <h3 class="admin-sub">將建立 ${r.items.length} 筆${F()}</h3>
-          <ol class="preview-list">${r.items.map((it) => `
-            <li><span class="preview-date">${esc(Fmt.rocDate(it.date))}</span>
-              <span>${esc(it.name)}</span>${it.group ? `<span class="tag">${esc(it.group)}</span>` : ''}</li>`).join('')}
+          <h3 class="admin-sub">將建立 <span data-lcount>${r.items.length}</span> 筆${F()}</h3>
+          <p class="muted">每一天的名稱${gnames.length ? '、負責組' : ''}都可以改；不要的取消勾選。</p>
+          <ol class="preview-list lunar-edit">${r.items.map((it, i) => `
+            <li><label class="check"><input type="checkbox" data-lpick="${i}" checked aria-label="建立這一天"></label>
+              <span class="preview-date">${esc(Fmt.rocDate(it.date))}</span>
+              <input class="input" data-lname="${i}" value="${esc(it.name)}" aria-label="名稱">
+              ${gnames.length ? `<select class="input" data-lgroup="${i}" aria-label="負責組"><option value=""${it.group ? '' : ' selected'}>（不指定）</option>${gnames.map((g) => `<option${g === it.group ? ' selected' : ''}>${esc(g)}</option>`).join('')}</select>` : ''}</li>`).join('')}
           </ol>
           <button type="button" class="btn btn-primary btn-block" data-create>確定建立 ${r.items.length} 筆</button>
         </section>`;
       box.scrollIntoView({ block: 'start', behavior: 'smooth' });
-      box.querySelector('[data-create]').addEventListener('click', () => createLunar(r.items));
+      const picked = () => r.items.map((it, i) => {
+        if (!box.querySelector(`[data-lpick="${i}"]`).checked) return null;
+        const g = box.querySelector(`[data-lgroup="${i}"]`);
+        return Object.assign({}, it, { name: box.querySelector(`[data-lname="${i}"]`).value.trim() || it.name, group: g ? g.value : it.group });
+      }).filter(Boolean);
+      box.querySelector('.lunar-edit').addEventListener('change', () => {
+        const n = picked().length;
+        box.querySelector('[data-lcount]').textContent = n;
+        const b = box.querySelector('[data-create]'); b.textContent = `確定建立 ${n} 筆`; b.disabled = !n;
+      });
+      box.querySelector('[data-create]').addEventListener('click', () => { const items = picked(); if (items.length) createLunar(items); });
     }
 
     async function createLunar(items, extra) {

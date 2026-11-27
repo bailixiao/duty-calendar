@@ -61,3 +61,27 @@ test('從照片或檔案新增：提示照順序找活動、本區要幾人，�
   assert.match(p, /min 和 max 都填那個數字/);
   assert.match(p, /管理者補充說明：我們負責香積/);
 });
+
+test('帶入時名字前面寫工作（2026/11/27）：表格與畫面都認得，記到同名或包含它的了愿項目，找不到的回報', () => {
+  const OldParse = require('../js/old-parse.js');
+  assert.deepEqual(OldParse.withRoles(['上禮:測試甲', '站班：測試乙', '測試丙', '測試丁']).map((p) => p.position + '/' + p.name),
+    ['上禮/測試甲', '站班/測試乙', '站班/測試丙', '站班/測試丁']);
+  assert.deepEqual(OldParse.withRoles(['測試甲', '測試乙']).map((p) => p.position), ['', '']);
+  const t = OldParse.parseTable([['日期', '名稱', '人員'], ['2026/3/19', '拜香輪值', '上禮：測試甲、站班：測試乙、測試丙、茶水： 測試丁']], {});
+  assert.deepEqual(t.sessions[0].people.map((p) => p.position + '/' + p.name), ['上禮/測試甲', '站班/測試乙', '站班/測試丙', '茶水/測試丁']);
+
+  const env = createEnv(NOW);
+  const token = env.post({ action: 'adminLogin', password: 'test-pass' }).data.token;
+  const c = env.post({ action: 'adminCreateDuties', token, duties: [{ name: '二月初一拜香輪值', category: '勤務', start: '2026-03-19', end: '2026-03-19',
+    positions: [{ name: '上禮', min: 1, max: 1 }, { name: '站班', min: 2, max: 2 }, { name: '經理、講師茶水', min: 1 }] }] });
+  assert.equal(c.ok, true, JSON.stringify(c.error));
+  const id = c.data.ids[0];
+  const r = env.post({ action: 'adminImportAttendance', token, sessions: [{ dutyId: id, date: '2026-03-19', entries: [
+    { name: '測試甲', position: '上禮' }, { name: '測試乙', position: '站班' }, { name: '測試丙', position: '茶水' }, { name: '測試丁', position: '端供果' }, { name: '測試戊' }] }] });
+  assert.equal(r.ok, true, JSON.stringify(r.error));
+  assert.deepEqual(r.data.results[0].noRole, ['端供果']);
+  const d = env.post({ action: 'adminDuty', token, id }).data;
+  const pos = new Map(d.positions.map((p) => [p.id, p.name]));
+  const got = Object.fromEntries(d.signups.map((s) => [s.name, pos.get(s.positionId)]));
+  assert.deepEqual(got, { 測試甲: '上禮', 測試乙: '站班', 測試丙: '經理、講師茶水', 測試丁: '上禮', 測試戊: '上禮' });
+});

@@ -649,3 +649,7 @@
 - 要啟用：`node tools/local-ai/gateway.js --setup`（一次），之後開著 `node tools/local-ai/gateway.js`。
 
 - **2026/11/27 只用 Gemini Flash**（省錢；等本機 AI 弄好再換）：三個畫面拿掉「判讀方式」選單，伺服器 aiRun 一律 careful=false（Flash，一批文字 8000 字、圖 3 張）。上面寫「Pro」「仔細判讀」的都先不適用；程式（geminiGenerate 的 careful、GEMINI_PRO_MODEL）留著，之後要再開只改 aiRun 和畫面。
+
+- **2026/11/27 農曆規則每一天可以改、帶入時可以分工作**：
+  - 新增勤務選「農曆規則」，按預覽後列出的每一天都可以改名稱（例：加「（大典）」）、換負責組（下拉選單，有「（不指定）」）、取消勾選；「確定建立 N 筆」跟著勾選數變。照表冊排、不規則的輪值（例：拜香輪值各組負責的日子）一次建好（js/admin-duties.js previewLunar）。
+  - 從檔案帶入舊資料：參加的人可以寫「上禮：甲、站班：乙、丙」，工作一直用到下一個「工作：」（表格那一格、畫面上的名單都認得，畫面上換行重新算；OldParse.withRoles）。adminImportAttendance 的 entries 多 position（了愿項目名稱）：先找名稱一樣的（比對時去掉空白和「、，／」），沒有的話只有一個項目名稱包含它也算（「茶水」→「經理、講師茶水」）；都沒有或沒寫就記在第一個項目，回傳 noRole（沒對到的工作名稱），畫面提示「有些工作找不到」。

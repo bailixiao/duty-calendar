@@ -85,7 +85,20 @@
       .replace(/[（(][^）)]*[）)]/g, ' ')
       .split(/[、,，;；/／|\s\n]+/)
       .map((x) => x.replace(/^\d+[.、)]?/, '').replace(/等$/, '').trim())
-      .filter((x) => x && !/^\d+$/.test(x) && /[一-鿿A-Za-z]/.test(x) && !/^(無|共|合計|小計|人)$/.test(x) && x.length <= 10);
+      .filter((x) => x && !/^\d+$/.test(x) && /[一-鿿A-Za-z]/.test(x) && !/^(無|共|合計|小計|人)$/.test(x) && x.length <= 16);
+  }
+
+  /**
+   * 名字前面寫了愿項目（2026/11/27）：「上禮：甲、站班：乙、丙」→ [{ name: 甲, position: 上禮 }, { 乙, 站班 }, { 丙, 站班 }]
+   * 項目一直用到下一個「項目：」為止；沒寫項目的 position 是空的。冒號全形半形都可以。
+   */
+  function withRoles(list) {
+    let role = '';
+    return (list || []).map((x) => {
+      const m = /^([^:：]{1,10})[:：]\s*(.*)$/.exec(String(x).trim());
+      if (m) { role = m[1].trim(); x = m[2]; }
+      return { name: String(x).trim(), position: role };
+    }).filter((p) => p.name);
   }
 
   const RE = {
@@ -137,7 +150,7 @@
       const name = clean(row[c.name]);
       const rawDate = row[c.date];
       const people = [];
-      c.people.forEach((p) => peopleOf(row[p.i]).forEach((n) => people.push({ name: n, identity: p.identity })));
+      c.people.forEach((p) => withRoles(peopleOf(row[p.i])).forEach((n) => people.push({ name: n.name, identity: p.identity, position: n.position })));
       if (/合計|小計|總計|共計/.test(name) || /合計|小計|總計|共計/.test(clean(rawDate))) continue;
       if (!name && !clean(rawDate)) {
         if (prev && people.length) prev.people = prev.people.concat(people);
@@ -182,7 +195,7 @@
     return out;
   }
 
-  const api = { yearOf, oneDate, dateRange, timeRange, peopleOf, findHeader, parseTable, mergeSame };
+  const api = { yearOf, oneDate, dateRange, timeRange, peopleOf, withRoles, findHeader, parseTable, mergeSame };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.OldParse = api;
 })(typeof window !== 'undefined' ? window : globalThis);

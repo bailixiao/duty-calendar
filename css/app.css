@@ -1437,6 +1437,9 @@ select.input { appearance: auto; }
 .preview-list { margin: 0 0 14px; padding-left: 1.6em; display: grid; gap: 6px; max-height: 50vh; overflow-y: auto; }
 .preview-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
 .preview-date { min-width: 8.5em; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.lunar-edit li { padding: 4px 0; border-bottom: 1px dashed var(--line, #ddd); }
+.lunar-edit input[data-lname] { flex: 1 1 12em; min-width: 0; }
+.lunar-edit select[data-lgroup] { flex: 0 1 11em; min-width: 0; }
 
 .bulk-list {
   display: grid;
