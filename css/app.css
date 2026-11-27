@@ -3268,3 +3268,4 @@ body.has-modal .voice-fab { display: none; }
 @media print { .voice-fab { display: none; } }
 .voice-mic.is-think { background: var(--muted); animation: voice-spin 1.6s ease-in-out infinite; }
 @keyframes voice-spin { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(180deg); } }
+.voice-heard { margin: 0 0 6px; color: var(--ink-2); font-size: .95rem; }

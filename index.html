@@ -15,7 +15,7 @@
   if (location.hostname === 'bailixiao.github.io') location.replace('https://jiaoquan-cal.pages.dev/' + location.pathname.replace(/^\/duty-calendar\/?/, '').replace(/index\.html$/, '') + location.search + location.hash);
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="app-version" content="20261127m"><!-- 整個網站的版本：部署時和 ?v= 一起換（js/update-check.js 用；正式網站的 ?v= 會換成各檔案的雜湊，見 tools/build-pages.js） -->
+  <meta name="app-version" content="20261127n"><!-- 整個網站的版本：部署時和 ?v= 一起換（js/update-check.js 用；正式網站的 ?v= 會換成各檔案的雜湊，見 tools/build-pages.js） -->
   <meta name="theme-color" content="#f6f1e7">
   <title>教全區行事曆</title>
   <!-- 加到手機主畫面時的圖示與名稱 -->
@@ -32,7 +32,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/app.css?v=20261127m">
+  <link rel="stylesheet" href="css/app.css?v=20261127n">
   <script>try { var t = localStorage.getItem('duty-calendar:text-size'); if (t === 'l' || t === 'xl') document.documentElement.classList.add('text-' + t); } catch (e) {}</script>
 </head>
 <body class="splash-on">
@@ -127,81 +127,81 @@
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.21/index.global.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.21/locales/zh-tw.global.min.js"></script>
   <!-- 改了 js、css 後把 ?v= 的日期換新，手機才不會用到舊的檔案（GitHub Pages 會快取 10 分鐘） -->
-  <script src="js/site.js?v=20261127m"></script>
-  <script src="js/region.js?v=20261127m"></script>
-  <script src="js/config.js?v=20261127m"></script>
-  <script src="js/api.js?v=20261127m"></script>
-  <script src="js/format.js?v=20261127m"></script>
-  <script src="js/member-suggest.js?v=20261127m"></script>
-  <script src="js/newcomer.js?v=20261127m"></script>
-  <script src="js/album.js?v=20261127m"></script>
-  <script src="js/member-file.js?v=20261127m"></script>
-  <script src="js/family.js?v=20261127m"></script>
-  <script src="js/lunar-util.js?v=20261127m"></script>
-  <script src="js/date-list.js?v=20261127m"></script>
-  <script src="js/share.js?v=20261127m"></script>
-  <script src="js/addcal.js?v=20261127m"></script>
-  <script src="js/duty-cache.js?v=20261127m"></script>
-  <script src="js/thanks-board.js?v=20261127m"></script>
-  <script src="js/calendar.js?v=20261127m"></script>
-  <script src="js/confirm.js?v=20261127m"></script>
-  <script src="js/voice.js?v=20261127m"></script>
-  <script src="js/reschedule.js?v=20261127m"></script>
-  <script src="js/signup.js?v=20261127m"></script>
-  <script src="js/duty-images.js?v=20261127m"></script>
-  <script src="js/roster-grid.js?v=20261127m"></script>
-  <script src="js/grid-page.js?v=20261127m"></script>
-  <script src="js/grid-image.js?v=20261127m"></script>
-  <script src="js/thanks-image.js?v=20261127m"></script>
-  <script src="js/celebrate.js?v=20261127m"></script>
-  <script src="js/duty.js?v=20261127m"></script>
-  <script src="js/mine.js?v=20261127m"></script>
-  <script src="js/venue-hours.js?v=20261127m"></script>
-  <script src="js/venue.js?v=20261127m"></script>
-  <script src="js/push.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/attend-check.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/member-dups.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/admin.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/admin-pages.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/draft-editor.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/group-fair.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/admin-duties.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/voice-admin.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/admin-accounts.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/admin-site.js?v=20261127m"></script>
-  <script src="js/region-setup.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/import-parse.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/admin-import.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/old-parse.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/region-lines.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/old-import.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/admin-people.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/admin-hq.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/stats-calc.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/edu-stats.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/edu-care.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/admin-goals.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/admin-venue.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/admin-push.js?v=20261127m"></script>
-  <script src="js/tutorial.js?v=20261127m"></script>
-  <script src="js/feedback.js?v=20261127m"></script>
-  <script src="js/help.js?v=20261127m"></script>
-  <script src="js/rollcall.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/stats-export.js?v=20261127m"></script>
-  <script src="js/repair.js?v=20261127m"></script>
-  <script src="js/activity-report.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/member-stats.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/year-report.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/admin-stats.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/admin-report.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/admin-recent-signups.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/admin-notice.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/admin-notify.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/history-parse.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/admin-history.js?v=20261127m"></script>
-  <script type="text/x-admin" src="js/site-report.js?v=20261127m"></script>
-  <script src="js/easy-mode.js?v=20261127m"></script>
-  <script src="js/app.js?v=20261127m"></script>
-  <script src="js/update-check.js?v=20261127m"></script>
+  <script src="js/site.js?v=20261127n"></script>
+  <script src="js/region.js?v=20261127n"></script>
+  <script src="js/config.js?v=20261127n"></script>
+  <script src="js/api.js?v=20261127n"></script>
+  <script src="js/format.js?v=20261127n"></script>
+  <script src="js/member-suggest.js?v=20261127n"></script>
+  <script src="js/newcomer.js?v=20261127n"></script>
+  <script src="js/album.js?v=20261127n"></script>
+  <script src="js/member-file.js?v=20261127n"></script>
+  <script src="js/family.js?v=20261127n"></script>
+  <script src="js/lunar-util.js?v=20261127n"></script>
+  <script src="js/date-list.js?v=20261127n"></script>
+  <script src="js/share.js?v=20261127n"></script>
+  <script src="js/addcal.js?v=20261127n"></script>
+  <script src="js/duty-cache.js?v=20261127n"></script>
+  <script src="js/thanks-board.js?v=20261127n"></script>
+  <script src="js/calendar.js?v=20261127n"></script>
+  <script src="js/confirm.js?v=20261127n"></script>
+  <script src="js/voice.js?v=20261127n"></script>
+  <script src="js/reschedule.js?v=20261127n"></script>
+  <script src="js/signup.js?v=20261127n"></script>
+  <script src="js/duty-images.js?v=20261127n"></script>
+  <script src="js/roster-grid.js?v=20261127n"></script>
+  <script src="js/grid-page.js?v=20261127n"></script>
+  <script src="js/grid-image.js?v=20261127n"></script>
+  <script src="js/thanks-image.js?v=20261127n"></script>
+  <script src="js/celebrate.js?v=20261127n"></script>
+  <script src="js/duty.js?v=20261127n"></script>
+  <script src="js/mine.js?v=20261127n"></script>
+  <script src="js/venue-hours.js?v=20261127n"></script>
+  <script src="js/venue.js?v=20261127n"></script>
+  <script src="js/push.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/attend-check.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/member-dups.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/admin.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/admin-pages.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/draft-editor.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/group-fair.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/admin-duties.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/voice-admin.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/admin-accounts.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/admin-site.js?v=20261127n"></script>
+  <script src="js/region-setup.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/import-parse.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/admin-import.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/old-parse.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/region-lines.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/old-import.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/admin-people.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/admin-hq.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/stats-calc.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/edu-stats.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/edu-care.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/admin-goals.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/admin-venue.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/admin-push.js?v=20261127n"></script>
+  <script src="js/tutorial.js?v=20261127n"></script>
+  <script src="js/feedback.js?v=20261127n"></script>
+  <script src="js/help.js?v=20261127n"></script>
+  <script src="js/rollcall.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/stats-export.js?v=20261127n"></script>
+  <script src="js/repair.js?v=20261127n"></script>
+  <script src="js/activity-report.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/member-stats.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/year-report.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/admin-stats.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/admin-report.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/admin-recent-signups.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/admin-notice.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/admin-notify.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/history-parse.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/admin-history.js?v=20261127n"></script>
+  <script type="text/x-admin" src="js/site-report.js?v=20261127n"></script>
+  <script src="js/easy-mode.js?v=20261127n"></script>
+  <script src="js/app.js?v=20261127n"></script>
+  <script src="js/update-check.js?v=20261127n"></script>
 </body>
 </html>

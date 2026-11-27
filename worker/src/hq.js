@@ -392,7 +392,7 @@ export function createHq({ gs, store, cross, openRegions, localAiKey }) {
         d.mode === '公告型' ? '公告（輪值：' + (d.group || '') + '）' : '', d.cancelled ? '停課' : '', short ? '缺人：' + short : ''].filter(Boolean).join('｜');
     }).join('\n');
   }
-  function voicePrompt(text, lines, isAdmin, today) {
+  function voicePrompt(text, lines, isAdmin, today, members) {
     const days = Array.from({ length: 21 }, (_, i) => { const d = gs.addDaysStr_(today, i); return d.slice(5) + '（' + weekdayOf(d) + '）'; }).join('、');
     const allowed = isAdmin ? VOICE_ADMIN : VOICE_PUBLIC;
     return [
@@ -411,7 +411,10 @@ export function createHq({ gs, store, cross, openRegions, localAiKey }) {
       isAdmin ? '- notice：複製通知（要發到 LINE 群組的報名通知）。dutyId、date。' : '',
       '- unclear：聽不懂或清單裡找不到。say＝請他再說清楚一點（舉例怎麼說）。',
       '輸出格式（只輸出這個 JSON，不要其他文字）：{ "action": "...", "say": "給使用者看的一句話（要做的事，例：幫您報名 12/12（六）讀經班：王小明）", "dutyId": "", "date": "", "names": [], "position": "", "on": true, "reason": "", "duty": {} }',
-      '使用者說：「' + text + '」'
+      '【先整理再判斷】使用者是用說的：常有贅字（嗯、啊、那個、就是、然後、對、好、你幫我、我想說），而且多半是台灣國語，語音辨識常常把字認錯：ㄓㄔㄕ／ㄗㄘㄙ、ㄣ／ㄥ、ㄈ／ㄏ、ㄋ／ㄌ 不分，同音字、近音字也常錯（例：讀經班→獨經班、讀金班；停課→聽課、亭課；宏宗→紅中、洪宗；第三組→第山組；報名→保名；彌勒山→迷樂山；拜香→敗香）。請先把贅字去掉、依照上面的勤務清單' + (members ? '和成員名字' : '') + '把認錯的字改成最可能的，整理成一句通順的話，再判斷要做什麼。',
+      members ? '成員名字（只用來改正名字的錯字；說的名字和某位成員同音或近音就用成員的寫法，完全對不上就照說的寫）：' + members : '',
+      '輸出時多一個 "heard"：整理過、改正錯字後的那句話（例：「幫我報名 12/12 讀經班，王小明」）。',
+      '使用者說（語音辨識的原文）：「' + text + '」'
     ].filter(Boolean).join('\n');
   }
   const VOICE_IP_LIMIT = 15; // 家人們：同一個網路 10 分鐘最多幾次
@@ -435,7 +438,9 @@ export function createHq({ gs, store, cross, openRegions, localAiKey }) {
     const isAdmin = !!who && who.role !== '唯讀';
     const from = who ? gs.addDaysStr_(today, -45) : today;
     const duties = gs.getEvents_({ from, to: gs.addDaysStr_(today, 90) }).duties;
-    const res = await aiRun([{ text: voicePrompt(text, voiceDutyLines(duties), isAdmin, today) }], false, curRegion, { fast: true });
+    // 管理者：給成員名字（只有名字，不含電話、佛堂）讓 AI 改正名字的錯字；家人們不給
+    const members = isAdmin ? [...new Set(gs.readTableCached_(gs.SHEETS.MEMBERS).filter((m) => m['姓名'] && m['待確認'] !== '是' && m['啟用中'] !== '否').map((m) => gs.normalizeName_(m['姓名'])))].slice(0, 800).join('、') : '';
+    const res = await aiRun([{ text: voicePrompt(text, voiceDutyLines(duties), isAdmin, today, members) }], false, curRegion, { fast: true });
     let plan;
     try {
       const raw = JSON.parse(String(res.text).replace(/```(json)?/g, '').trim());
@@ -446,7 +451,7 @@ export function createHq({ gs, store, cross, openRegions, localAiKey }) {
     const allowed = isAdmin ? VOICE_ADMIN : VOICE_PUBLIC;
     const action = String(plan.action || '');
     if (allowed.indexOf(action) === -1) return { plan: unclear(action && VOICE_ADMIN.indexOf(action) !== -1 ? '這件事要登入後台才能用說的做' : ''), heard: text };
-    const out = { action, say: gs.cleanText_(plan.say || '').slice(0, 300) };
+    const out = { action, say: gs.cleanText_(plan.say || '').slice(0, 300), heard: gs.cleanText_(plan.heard || '').slice(0, 300) };
     if (action === 'answer' || action === 'unclear') return { plan: out.say ? out : unclear(), heard: text };
     if (action === 'create') {
       const d = plan.duty && typeof plan.duty === 'object' ? plan.duty : null;

@@ -164,10 +164,12 @@
 
     function showPlan(plan) {
       const h = handlers[plan.action] || handlers.unclear;
+      if (plan.heard) textBox.value = plan.heard; // 去掉贅字、改正錯字後的那句話（可以再改、再送）
       const box = $('[data-result]');
       const names = plan.names && plan.names.length ? `<p class="voice-names">${plan.names.map((n) => `<span class="tag">${esc(n)}</span>`).join(' ')}</p>` : '';
       box.innerHTML = `<div class="voice-plan${plan.action === 'unclear' ? ' is-unclear' : ''}">
         <p class="voice-plan-title">${esc(h.title)}</p>
+        ${plan.heard ? `<p class="voice-heard">🗣 我聽成：「${esc(plan.heard)}」</p>` : ''}
         <p class="voice-say">${esc(plan.say || '')}</p>
         ${plan.action === 'signup' || plan.action === 'attend' ? names : ''}
         ${h.detail ? h.detail(plan) : ''}
