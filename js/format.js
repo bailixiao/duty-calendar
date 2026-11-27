@@ -92,6 +92,38 @@
 
   /** 「最少」留空時預設 2 人；「最多」小於 2 時以最多為準（與後端 Rules.gs effectiveMin_ 相同） */
   const DEFAULT_MIN_PEOPLE = 2;
+  /**
+   * 勤務管理「依項目」看（2026/11/27）：同一種的名稱。去掉開頭的農曆日期（十一月初一拜香輪值 → 拜香輪值），
+   * 括號裡的地點保留（初一十五打掃（宏宗）和（區中心）是不同組）。
+   */
+  function seriesName(name) {
+    return String(name || '')
+      .replace(/^閏?[正一二三四五六七八九十冬臘腊]{1,2}月(初[一二三四五六七八九十]|十[一二三四五六七八九]?|二十[一二三四五六七八九]?|廿[一二三四五六七八九]?|三十)/, '')
+      .replace(/^[\s　]+|[\s　]+$/g, '') || String(name || '');
+  }
+
+  /**
+   * 照項目分組：items 照原本的順序（日期）；回傳 [{ name, items, next, cancelled }]，
+   * next＝今天（含）以後最近的一筆日期（沒有就是最後一筆）；組的順序照 next（還有之後的排前面）。
+   */
+  function groupSeries(items, today) {
+    const map = new Map();
+    items.forEach((d) => {
+      const k = seriesName(d.name);
+      if (!map.has(k)) map.set(k, { name: k, items: [], next: '', cancelled: 0 });
+      const g = map.get(k);
+      g.items.push(d);
+      if (d.cancelled) g.cancelled += 1;
+    });
+    const groups = [...map.values()];
+    groups.forEach((g) => {
+      const up = g.items.filter((d) => (d.end || d.start) >= today).map((d) => d.start).sort();
+      g.upcoming = up.length;
+      g.next = up.length ? up[0] : g.items.map((d) => d.start).sort().pop();
+    });
+    return groups.sort((a, b) => (b.upcoming > 0) - (a.upcoming > 0) || (a.upcoming ? (a.next < b.next ? -1 : a.next > b.next ? 1 : 0) : (a.next > b.next ? -1 : a.next < b.next ? 1 : 0)) || a.name.localeCompare(b.name, 'zh-Hant'));
+  }
+
   /** 停課的字：教育、道務的課程寫「停課」，其他（勤務、活動）寫「取消」 */
   function cancelLabel(duty) {
     return duty && (duty.category === '教育' || duty.nature === '課程') ? '停課' : '取消';
@@ -238,6 +270,6 @@
   window.Fmt = {
     parseTime,
     esc, toDateStr, parseDate, addDays, datesBetween, rocYear, weekday, shortDate, rocDate, catLabel,
-    timeRange, cardTime, effectiveMin, dayState, cancelLabel, groupText, groupNames, leaderWord, ticketSum, ticketGroups, sameName, byStroke, setContact, askAdmin, shortDateList
+    timeRange, cardTime, effectiveMin, dayState, cancelLabel, seriesName, groupSeries, groupText, groupNames, leaderWord, ticketSum, ticketGroups, sameName, byStroke, setContact, askAdmin, shortDateList
   };
 })();

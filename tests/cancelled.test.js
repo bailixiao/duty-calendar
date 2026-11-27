@@ -48,3 +48,21 @@ test('停課：存得起來（原因選填）、取消勾選就恢復；行事�
   const sessions = env.fn('eduSessions_')().filter((s) => s.name === '測試讀經班').map((s) => s.date);
   assert.deepEqual(sessions, ['2026-12-19']);
 });
+
+test('勤務管理依項目：去掉開頭農曆日期分組、括號地點分開；還有之後的排前面、照下一次排', () => {
+  assert.equal(Fmt.seriesName('十一月初一拜香輪值'), '拜香輪值');
+  assert.equal(Fmt.seriesName('正月十五拜香輪值（大典）'), '拜香輪值（大典）');
+  assert.equal(Fmt.seriesName('初一十五打掃（宏宗）'), '初一十五打掃（宏宗）', '初一十五不是農曆日期開頭（沒有月）');
+  const d = (name, start, extra) => Object.assign({ name, start, end: start }, extra);
+  const items = [
+    d('測試讀經班', '2026-11-07'), d('十月十五拜香輪值', '2026-11-23'), d('測試讀經班', '2026-11-21', { cancelled: true }),
+    d('十一月初一拜香輪值', '2026-12-09'), d('測試讀經班', '2026-12-12'), d('測試舊活動', '2026-10-01'), d('測試大掃除', '2027-01-30')
+  ];
+  const g = Fmt.groupSeries(items, '2026-11-27');
+  assert.deepEqual(g.map((x) => [x.name, x.items.length, x.next, x.cancelled]), [
+    ['拜香輪值', 2, '2026-12-09', 0],
+    ['測試讀經班', 3, '2026-12-12', 1],
+    ['測試大掃除', 1, '2027-01-30', 0],
+    ['測試舊活動', 1, '2026-10-01', 0]
+  ]);
+});

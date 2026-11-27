@@ -351,7 +351,10 @@
 
   // ---------- 列表 ----------
 
-  const listState = { filter: 'future', q: '', picked: new Set(), scrollY: 0, restoreUntil: 0 };
+  // view：date（依日期）| series（依項目，同一種收成一組；記在這台裝置，2026/11/27）；open＝依項目時打開的組
+  const VIEW_KEY = 'duty-calendar:admin-list-view';
+  const savedView = () => { try { return localStorage.getItem(VIEW_KEY) === 'series' ? 'series' : 'date'; } catch (e) { return 'date'; } };
+  const listState = { filter: 'future', q: '', picked: new Set(), scrollY: 0, restoreUntil: 0, view: savedView(), open: new Set() };
 
   function list(body, guard) {
     AdminPage.swr('dutyList', () => Api.admin('adminDutyList', {}, true), (data, stale) => renderList(body, data, stale), body);
@@ -372,6 +375,9 @@
           ${monthOptions.map(([v, label]) => `<option value="${v}"${v === listState.filter ? ' selected' : ''}>${esc(label)}</option>`).join('')}
         </select>
         <input class="input" type="search" data-q placeholder="搜尋${T()}名稱" value="${esc(listState.q)}">
+      </div>
+      <div class="segmented list-view" role="radiogroup" aria-label="怎麼排">
+        ${[['date', '📅 依日期'], ['series', '📚 依項目']].map(([v, label]) => `<label class="segment${listState.view === v ? ' is-checked' : ''}"><input type="radio" name="lview" value="${v}"${listState.view === v ? ' checked' : ''}>${label}</label>`).join('')}
       </div>
       ${Share.noNeedHtml()}
       <div data-pins></div>
@@ -430,15 +436,34 @@
         return !q || d.name.indexOf(q) !== -1;
       });
       if (listState.filter === 'past') items.reverse(); // 已過去：最近的排最前面
-      rows.innerHTML = items.length ? `
-        <p class="muted">共 ${items.length} 筆${listState.filter === 'past' ? '・點進去就是報名名單，選日期後按「＋ 補登」加人' : ''}</p>
+      const total = `<p class="muted">共 ${items.length} 筆${listState.filter === 'past' ? '・點進去就是報名名單，選日期後按「＋ 補登」加人' : ''}</p>`;
+      if (!items.length) rows.innerHTML = `<p class="panel-empty">沒有符合的${T()}</p>`;
+      else if (listState.view === 'series') {
+        // 依項目：同一種收成一組（名稱、幾筆、下一次、停課幾堂），點開才列每一筆；只有一筆的直接列
+        const groups = Fmt.groupSeries(items, data.today);
+        rows.innerHTML = `<p class="muted">共 ${items.length} 筆・${groups.length} 種</p><div class="card-list">${groups.map((g) => g.items.length === 1 ? itemHtml(g.items[0]) : `
+          <details class="series-group" data-series="${esc(g.name)}"${listState.open.has(g.name) || q ? ' open' : ''}>
+            <summary><span class="series-name">${esc(g.name)}</span><span class="series-meta">${g.items.length} 筆${g.upcoming ? `・下一次 ${esc(Fmt.shortDate(g.next))}` : `・最後 ${esc(Fmt.shortDate(g.next))}`}${g.cancelled ? `・${esc(Fmt.cancelLabel(g.items[0]))} ${g.cancelled}` : ''}</span></summary>
+            <div class="card-list">${g.items.map((d) => itemHtml(d, g.name)).join('')}</div>
+          </details>`).join('')}</div>`;
+        rows.querySelectorAll('[data-series]').forEach((x) => x.addEventListener('toggle', () => { if (x.open) listState.open.add(x.dataset.series); else listState.open.delete(x.dataset.series); }));
+      } else rows.innerHTML = `${total}
         <div class="card-list">
-          ${items.map((d) => `
+          ${items.map((d) => itemHtml(d)).join('')}
+        </div>`;
+      bindInvite();
+    }
+
+    /** 列表的一筆（依日期、依項目共用）；inGroup＝依項目那一組的名稱：標題寫日期，名稱不一樣才寫在下面 */
+    function itemHtml(d, inGroup) {
+      const title = inGroup ? dateRange(d) : d.name;
+      const meta = inGroup ? [d.name !== inGroup ? d.name : '', d.startTime, d.location, d.group] : [dateRange(d), d.startTime, d.location, d.group];
+      return `
             <div class="recent-item">
-            <a class="duty-card${d.mode === '公告型' ? ' kind-notice' : ''}" href="${d.end < data.today && d.mode !== '公告型' ? `#/admin/duty/${encodeURIComponent(d.id)}?date=${d.end}` : `#/admin/duties/edit/${encodeURIComponent(d.id)}`}">
+            <a class="duty-card${d.cancelled ? ' kind-cancelled' : d.mode === '公告型' ? ' kind-notice' : ''}" href="${d.end < data.today && d.mode !== '公告型' ? `#/admin/duty/${encodeURIComponent(d.id)}?date=${d.end}` : `#/admin/duties/edit/${encodeURIComponent(d.id)}`}">
               <span class="card-main">
-                <span class="card-title">${esc(d.name)}</span>
-                <span class="card-meta">${esc([dateRange(d), d.startTime, d.location, d.group].filter(Boolean).join('・'))}</span>
+                <span class="card-title">${esc(title)}</span>
+                <span class="card-meta">${esc(meta.filter(Boolean).join('・'))}</span>
               </span>
               <span class="badge ${d.cancelled ? 'badge-cancelled' : d.mode === '公告型' ? 'badge-notice' : d.signups ? 'badge-ok' : 'badge-full'}">${d.cancelled ? esc(Fmt.cancelLabel(d)) : d.mode === '公告型' ? '公告' : `${d.signups} 筆報名`}</span>
             </a>
@@ -447,9 +472,7 @@
               <button type="button" class="link-btn" data-invite="${esc(d.id)}">📋 複製通知</button>` : ''}
               ${pinBtn(d)}
             </div>` : ''}
-            </div>`).join('')}
-        </div>` : `<p class="panel-empty">沒有符合的${T()}</p>`;
-      bindInvite();
+            </div>`;
     }
 
     // 複製通知（同近期勤務）：按的時候才讀那一天的名額與人數
@@ -504,6 +527,12 @@
     drawPins();
     draw();
     body.querySelector('[data-filter]').addEventListener('change', (ev) => { listState.filter = ev.target.value; draw(); });
+    body.querySelectorAll('[name=lview]').forEach((r) => r.addEventListener('change', () => {
+      listState.view = r.value;
+      try { localStorage.setItem(VIEW_KEY, r.value); } catch (e) { /* 存不了就算了 */ }
+      body.querySelectorAll('.list-view .segment').forEach((x) => x.classList.toggle('is-checked', x.querySelector('input').checked));
+      draw();
+    }));
     // 點進某一筆時記住捲到哪裡；從名單頁回來時捲回原位（2026/11/21）
     rows.addEventListener('click', (ev) => {
       if (ev.target.closest('a[href^="#/admin/duty"]')) { listState.scrollY = window.scrollY; listState.restoreUntil = Date.now() + 120000; }
