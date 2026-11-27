@@ -252,7 +252,7 @@ server.listen(PORT, '127.0.0.1', async () => {
     if (m && m[0] !== tunnelUrl) {
       tunnelUrl = m[0];
       // 通道剛開好時網址要等一下才連得到
-      setTimeout(async () => { if (await register(tunnelUrl)) console.log('✅ 網站現在會先用這台電腦讀（關掉這個視窗就改用 Gemini）'); }, 8000);
+      setTimeout(async () => { if (await register(tunnelUrl)) console.log('✅ 網站現在用這台電腦的 AI 讀（關掉這個視窗，網站的 AI 判讀就暫停）'); }, 8000);
     }
   };
   cf.stdout.on('data', onLine);
