@@ -229,6 +229,8 @@ function dutyToJson_(d, positions) {
     pinned: d['首頁置頂'] === '是', // 首頁上面的大按鈕
     hqShow: d['分壇看得到'] === '是', // 讓宏教分壇看得到（撞期提醒，2026/11/23）
     photoRemind: d['提醒上傳照片'] === '是', // 活動隔天提醒上傳照片（2026/11/24）
+    cancelled: !!d['停課'], // 停課（2026/11/27）：行事曆標停課、不能報名、不算缺人、統計不算
+    cancelReason: d['停課'] && d['停課'] !== '是' ? d['停課'] : '',
     hqId: isHqDuty_(d) ? String(d['來源']).slice(HQ_SOURCE_PREFIX.length) : '', // 分壇派下來的（排活動時的撞期提示不提自己，2026/11/24）
     templePick: d['報名選佛堂'] === '是', // 報名時先選佛堂、再點這個佛堂的家人
     tickets: d['登記張數'] === '是', // 報名時每人填張數（例：園遊券）
@@ -272,8 +274,8 @@ function daysStatus_(duty, positions, signups, dates) {
     var people = Object.keys(names).length;
     // 可兼任且有填共需人數：缺幾人＝共需人數－不重複人數
     var need = duty['可兼任'] === '是' ? Number(duty['共需人數']) || 0 : 0;
-    var shortage = free ? 0 : need ? Math.max(need - people, 0) : s.shortage;
-    days[date] = { total: s.total, people: people, shortage: shortage, full: s.full, counts: counts };
+    var shortage = free || duty['停課'] ? 0 : need ? Math.max(need - people, 0) : s.shortage; // 停課的不算缺人（2026/11/27）
+    days[date] = { total: s.total, people: people, shortage: shortage, full: duty['停課'] ? false : s.full, counts: counts };
   });
   return days;
 }

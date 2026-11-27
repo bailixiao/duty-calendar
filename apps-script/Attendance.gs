@@ -136,7 +136,7 @@ function adminImportAttendance_(body) {
         var natures = NATURES_BY_CATEGORY_[cat] || ['勤務'];
         var nature = natures.indexOf(c.nature) !== -1 ? c.nature : natures[0];
         var end = isDateString_(cleanText_(c.end)) && cleanText_(c.end) > date ? cleanText_(c.end) : '';
-        adminCreateDuties_({ allowDuplicate: true, duties: [{ name: c.name, category: cat, nature: nature, mode: '報名型', start: date, end: end, startTime: c.startTime || '', endTime: c.endTime || '', location: c.location || '',
+        adminCreateDuties_({ allowDuplicate: true, duties: [{ name: c.name, category: cat, nature: nature, mode: '報名型', start: date, end: end, startTime: c.startTime || '', endTime: c.endTime || '', location: c.location || '', cancelled: c.cancelled === true, cancelReason: c.cancelReason || '', // 停課的場次也可以一起建（2026/11/27）
           positions: [{ name: cat === '勤務' ? '出勤' : '參加', min: 0, max: null }] }] });
         created = true;
         duty = readTable_(SHEETS.DUTIES).filter(function (d) { return d['勤務ID'] && d['名稱'] === c.name && d['開始日'] === date && dutyCategory_(d) === cat; })[0];

@@ -315,7 +315,7 @@ function pushItems_(when) {
   var events = getEvents_({ from: date, to: date });
   var items = events.duties.map(function (d) {
     var day = d.days[date];
-    var label = d.mode === '公告型' ? (d.group ? '輪值：' + d.group : '公告')
+    var label = d.cancelled ? '停課' : d.mode === '公告型' ? (d.group ? '輪值：' + d.group : '公告')
       : day && day.full ? '額滿' : day && day.shortage > 0 ? '缺 ' + day.shortage + ' 人' : '';
     return {
       id: d.id, name: d.name, nature: d.nature,

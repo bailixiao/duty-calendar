@@ -210,6 +210,7 @@ a { color: var(--accent); }
 .dot-full { background: var(--full); }
 .dot-ok { background: var(--ok); }
 .dot-notice { background: transparent; box-shadow: inset 0 0 0 2px var(--notice); }
+.dot-cancelled { background: transparent; box-shadow: inset 0 0 0 2px var(--muted); opacity: .6; } /* 停課（2026/11/27） */
 
 .legend {
   display: flex;
@@ -396,6 +397,10 @@ a { color: var(--accent); }
 .duty-card.kind-short { border-left-color: var(--accent); }
 .duty-card.kind-full { border-left-color: var(--full); }
 .duty-card.kind-notice { border-left-color: var(--notice); }
+/* 停課（2026/11/27）：淡掉、名稱劃線 */
+.duty-card.kind-cancelled { border-left-color: var(--muted); opacity: .72; }
+.duty-card.kind-cancelled .card-title { text-decoration: line-through; text-decoration-color: var(--muted); }
+.merge-row:has(.badge-cancelled) .card-title { text-decoration: line-through; text-decoration-color: var(--muted); }
 
 .card-main {
   display: flex;
@@ -420,6 +425,8 @@ a { color: var(--accent); }
 .badge-full { background: var(--full-soft); color: var(--ink-2); }
 .badge-ok { background: var(--ok-soft); color: var(--ok); }
 .badge-notice { background: var(--notice-soft); color: var(--notice); }
+.badge-cancelled { background: var(--line); color: var(--ink-2); }
+.cancel-banner { font-weight: 700; }
 
 .duty-card.is-compact { padding: 10px 12px; }
 .duty-card.is-compact .card-title { font-size: 1rem; }

@@ -636,6 +636,7 @@
           <span class="card-title">${catTag(duty)}${duty.fromHq ? '<span class="hq-tag" title="宏教分壇分派">📣</span>' : ''}${Fmt.esc(duty.name)}${mine.keys.has(duty.id + '|' + date) ? '<span class="card-mine">✓ 我有報名</span>' : ''}</span>
           ${meta.length ? `<span class="card-meta">${meta.map(Fmt.esc).join('・')}</span>` : ''}
           ${group && !compact ? `<span class="card-meta">${Fmt.esc(group)}</span>` : ''}
+          ${duty.cancelled && duty.cancelReason ? `<span class="card-meta">原因：${Fmt.esc(duty.cancelReason)}</span>` : ''}
         </span>
         <span class="badge badge-${st.kind}">${Fmt.esc(st.label)}</span>
       </a>`;

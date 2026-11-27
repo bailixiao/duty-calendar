@@ -35,6 +35,15 @@
     if (window.CalendarPage) CalendarPage.refresh();
   }
 
+  /** 停課（2026/11/27）：表上存「是」或原因；畫面上 cancelled 可能是 true／false、「是」或原因 */
+  function cancelOn(s) {
+    return s.cancelled === true || (typeof s.cancelled === 'string' && s.cancelled !== '' && s.cancelled !== 'false');
+  }
+  function cancelWhy(s) {
+    if (s.cancelReason !== undefined) return String(s.cancelReason || '');
+    return typeof s.cancelled === 'string' && s.cancelled !== '是' && s.cancelled !== 'true' ? s.cancelled : '';
+  }
+
   function rocMonth(ym) {
     return `${Number(ym.slice(0, 4)) - 1911} 年 ${Number(ym.slice(5, 7))} 月`;
   }
@@ -431,7 +440,7 @@
                 <span class="card-title">${esc(d.name)}</span>
                 <span class="card-meta">${esc([dateRange(d), d.startTime, d.location, d.group].filter(Boolean).join('・'))}</span>
               </span>
-              <span class="badge ${d.mode === '公告型' ? 'badge-notice' : d.signups ? 'badge-ok' : 'badge-full'}">${d.mode === '公告型' ? '公告' : `${d.signups} 筆報名`}</span>
+              <span class="badge ${d.cancelled ? 'badge-cancelled' : d.mode === '公告型' ? 'badge-notice' : d.signups ? 'badge-ok' : 'badge-full'}">${d.cancelled ? esc(Fmt.cancelLabel(d)) : d.mode === '公告型' ? '公告' : `${d.signups} 筆報名`}</span>
             </a>
             ${d.end >= data.today ? `<div class="recent-tools">
               ${d.mode !== '公告型' ? `<label class="check"><input type="checkbox" data-invite-pick="${esc(d.id)}"${listState.picked.has(d.id) ? ' checked' : ''}> 勾選</label>
@@ -979,6 +988,13 @@
           </fieldset>`}
 
           <fieldset class="form-block">
+            <legend>🚫 停課／取消</legend>
+            <label class="check"><input type="checkbox" name="cancelled"${cancelOn(s) ? ' checked' : ''}> 這一天停課（或活動取消）</label>
+            <input class="input" type="text" name="cancelReason" maxlength="40" placeholder="原因（選填）例：颱風、老師請假" value="${esc(cancelWhy(s))}">
+            <p class="hint">行事曆會標「停課」（課程）或「取消」並劃線，不能報名、不算缺人，統計也不算這一堂。已經報名的人不會自動取消，要通知的話用「📋 複製通知」或推播。之後恢復上課，取消勾選再存檔就好。</p>
+          </fieldset>
+
+          <fieldset class="form-block">
             <legend>📌 放到首頁</legend>
             <label class="check"><input type="checkbox" name="pinned"${s.pinned === true || s.pinned === '是' ? ' checked' : ''}> 在行事曆首頁上面放一個大按鈕（例如 12人小組報名、特別活動）</label>
             <p class="hint">按鈕點了就到這個${T()}的報名頁；${T()}最後一天過了會自動不顯示。</p>
@@ -1203,6 +1219,8 @@
       if (f.elements.pinned) s.pinned = f.elements.pinned.checked;
       if (f.elements.hqShow) s.hqShow = f.elements.hqShow.checked;
       if (f.elements.photoRemind) s.photoRemind = f.elements.photoRemind.checked;
+      if (f.elements.cancelled) s.cancelled = f.elements.cancelled.checked;
+      if (f.elements.cancelReason) s.cancelReason = f.elements.cancelReason.value.trim();
       if (f.elements.templePick) s.templePick = f.elements.templePick.checked;
       if (f.elements.tickets) s.tickets = f.elements.tickets.checked;
       if (f.elements.price) s.price = f.elements.price.value.trim();
@@ -1458,6 +1476,8 @@
         pinned: !!(s.pinned === true || s.pinned === '是'),
         hqShow: !!(s.hqShow === true || s.hqShow === '是'),
         photoRemind: !!(s.photoRemind === true || s.photoRemind === '是'),
+        cancelled: cancelOn(s),
+        cancelReason: cancelOn(s) ? cancelWhy(s) : '',
         tickets: s.mode !== '公告型' && quotaOnly() && !!(s.tickets === true || s.tickets === '是'),
         price: s.mode !== '公告型' && quotaOnly() && (s.tickets === true || s.tickets === '是') ? String(s.price || '') : '',
         batches: s.mode !== '公告型' && st.dateType !== 'multi' ? s.batches.filter(Boolean) : [],

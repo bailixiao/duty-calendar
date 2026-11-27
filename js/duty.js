@@ -120,6 +120,7 @@
           <p class="detail-kicker"><span class="cat-tag cat-${esc(d.category || '勤務')}">${esc(Fmt.catLabel(d.category))}</span>${esc(d.nature || '勤務')}${isNotice ? '・公告（不需報名）' : ''}${d.fromHq ? '<span class="hq-tag">📣 宏教分壇分派</span>' : ''}</p>
           <h1 class="detail-title">${esc(d.name)}</h1>
         </header>
+        ${d.cancelled ? `<p class="notice notice-error cancel-banner" role="status">🚫 這一天${esc(Fmt.cancelLabel(d))}${d.cancelReason ? '：' + esc(d.cancelReason) : ''}</p>` : ''}
         <div id="duty-flash">${flash || ''}</div>
         <dl class="detail-info">
           ${info.map((row) => `<div><dt>${row[0]}</dt><dd>${esc(row[1])}</dd></div>`).join('')}
@@ -491,6 +492,10 @@
     const d = page.data;
     const el = document.getElementById('duty-signup');
     const open = Fmt.datesBetween(d.start, d.end).some((x) => x > d.today); // 當天（含）之後不能報名
+    if (d.cancelled) { // 停課（2026/11/27）：不用報名
+      el.innerHTML = `<h2>我要報名</h2><p class="muted">已經${esc(Fmt.cancelLabel(d))}，不用報名。</p>`;
+      return;
+    }
     // 過了報名截止日：不能再報名，只看名單（管理者仍可補登）
     if (open && d.deadline && d.today && d.today > d.deadline) {
       el.innerHTML = `<h2>我要報名</h2><p class="notice notice-error">報名已在 ${Fmt.esc(Fmt.rocDate(d.deadline))} 截止。如需報名或更改，${Fmt.esc(Fmt.askAdmin())}。</p>`;

@@ -102,7 +102,7 @@ function eduSessions_() {
     var cat = dutyCategory_(d);
     // 教育：課程；道務：課程、法會、會議
     var ok = (cat === '教育' && d['性質'] === '課程') || (cat === '道務' && ['課程', '法會', '會議'].indexOf(d['性質']) !== -1);
-    if (!d['勤務ID'] || !ok || d['模式'] === '公告型') return;
+    if (!d['勤務ID'] || !ok || d['模式'] === '公告型' || d['停課']) return; // 停課的不算一堂（2026/11/27）
     datesInRange_(d['開始日'], d['結束日'] || d['開始日']).forEach(function (date) {
       if (date > today) return;
       out.push({ date: date, dutyId: d['勤務ID'], name: d['名稱'], series: seriesKey_(d['名稱']) || d['名稱'], nature: d['性質'], category: cat,
@@ -249,6 +249,7 @@ var STATS_EXCLUDE_NAMES = ['天道加披'];
 
 function statsExcluded_(duty) {
   if (duty['性質'] === '活動') return true;
+  if (duty['停課']) return true; // 停課的不算（2026/11/27）
   var name = String(duty['名稱'] || '');
   return STATS_EXCLUDE_NAMES.some(function (w) { return name.indexOf(w) !== -1; });
 }

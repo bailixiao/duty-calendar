@@ -92,6 +92,11 @@
 
   /** 「最少」留空時預設 2 人；「最多」小於 2 時以最多為準（與後端 Rules.gs effectiveMin_ 相同） */
   const DEFAULT_MIN_PEOPLE = 2;
+  /** 停課的字：教育、道務的課程寫「停課」，其他（勤務、活動）寫「取消」 */
+  function cancelLabel(duty) {
+    return duty && (duty.category === '教育' || duty.nature === '課程') ? '停課' : '取消';
+  }
+
   function effectiveMin(p) {
     if (p.min !== null && p.min !== undefined) return p.min;
     return p.max !== null && p.max !== undefined ? Math.min(DEFAULT_MIN_PEOPLE, p.max) : DEFAULT_MIN_PEOPLE;
@@ -99,9 +104,10 @@
 
   /**
    * 某勤務某天的狀態。
-   * kind：notice（公告型）| full（額滿）| short（缺人，含不到預設 2 人）| ok（人數足）
+   * kind：cancelled（停課）| notice（公告型）| full（額滿）| short（缺人，含不到預設 2 人）| ok（人數足）
    */
   function dayState(duty, day) {
+    if (duty.cancelled) return { kind: 'cancelled', label: cancelLabel(duty) }; // 停課（2026/11/27）
     if (duty.mode === '公告型') {
       return { kind: 'notice', label: duty.group ? `輪值：${duty.group}` : '公告' };
     }
@@ -232,6 +238,6 @@
   window.Fmt = {
     parseTime,
     esc, toDateStr, parseDate, addDays, datesBetween, rocYear, weekday, shortDate, rocDate, catLabel,
-    timeRange, cardTime, effectiveMin, dayState, groupText, groupNames, leaderWord, ticketSum, ticketGroups, sameName, byStroke, setContact, askAdmin, shortDateList
+    timeRange, cardTime, effectiveMin, dayState, cancelLabel, groupText, groupNames, leaderWord, ticketSum, ticketGroups, sameName, byStroke, setContact, askAdmin, shortDateList
   };
 })();

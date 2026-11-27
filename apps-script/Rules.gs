@@ -135,6 +135,7 @@ function validateSignup_(req) {
 
   if (!duty) return [{ message: '找不到這個勤務' }];
   if (duty['模式'] === '公告型') return [{ message: '公告型勤務不需要報名' }];
+  if (duty['停課']) return [{ message: '這一天已經停課（取消），不用報名' }]; // 停課（2026/11/27）
 
   var position = (req.positions || []).filter(function (p) { return p['了愿項目ID'] === req.positionId; })[0];
   if (!position) return [{ message: '請選擇了愿項目' }];

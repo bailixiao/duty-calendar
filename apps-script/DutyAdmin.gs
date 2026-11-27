@@ -22,6 +22,7 @@ function adminDutyList_() {
         start: d['開始日'], end: d['結束日'] || d['開始日'], startTime: d['開始時間'],
         location: d['地點'], groupType: d['分組類型'], group: d['負責組'],
         pinned: d['首頁置頂'] === '是', // 放到首頁（勤務管理列表可以直接開關，2026/11/19）
+        cancelled: !!d['停課'], // 停課（2026/11/27）
         signups: counts[d['勤務ID']] || 0
       };
     })
