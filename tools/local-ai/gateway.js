@@ -31,7 +31,7 @@ function loadConf() {
 if (process.argv.includes('--setup')) {
   let conf = loadConf();
   if (!conf || !conf.key) {
-    conf = Object.assign(conf || {}, { key: crypto.randomBytes(32).toString('hex'), model: (conf && conf.model) || 'qwen2.5vl:7b' });
+    conf = Object.assign(conf || {}, { key: crypto.randomBytes(32).toString('hex'), model: (conf && conf.model) || 'gemma3:12b' });
     fs.writeFileSync(CONF, JSON.stringify(conf, null, 2));
     console.log('已產生門口密碼，存在 ' + CONF);
   } else {
@@ -45,7 +45,7 @@ if (process.argv.includes('--setup')) {
 
 const conf = loadConf();
 if (!conf || !conf.key) { console.error('還沒設定：先執行 node tools/local-ai/gateway.js --setup'); process.exit(1); }
-const MODEL = process.env.LOCAL_AI_MODEL || conf.model || 'qwen2.5vl:7b';
+const MODEL = process.env.LOCAL_AI_MODEL || conf.model || 'gemma3:12b';
 
 const same = (a, b) => { const x = crypto.createHash('sha256').update(String(a || '')).digest(); const y = crypto.createHash('sha256').update(String(b || '')).digest(); return crypto.timingSafeEqual(x, y); };
 
@@ -53,7 +53,41 @@ const same = (a, b) => { const x = crypto.createHash('sha256').update(String(a |
 let chain = Promise.resolve();
 const queue = (fn) => { const p = chain.then(fn, fn); chain = p.catch(() => {}); return p; };
 
+// 「從照片或檔案新增」的格式（2026/11/27）：小模型照 JSON schema 輸出準很多
+const S = { type: 'string' };
+const DRAFT_SCHEMA = { type: 'object', required: ['duties'], properties: { duties: { type: 'array', items: { type: 'object', required: ['name', 'start', 'end', 'regionText', 'positions'], properties: {
+  name: S, nature: S, mode: S, start: S, end: S, lunarDate: S, startTime: S, endTime: S, location: S, attire: S, description: S, deadline: S,
+  positions: { type: 'array', items: { type: 'object', required: ['name', 'min'], properties: { name: S, min: { type: 'number' }, max: { type: 'number' } } } },
+  keywords: { type: 'array', items: S }, regionText: S, uncertain: { type: 'array', items: S }
+} } } } };
+const FILE_HEAD = '以下是檔案的文字：\n';
+const PIECE = 2500; // 本機一次讀太多會漏：用分工表量過，8000 字一次只抓到 12 個本區日期裡的 2 個
+
+/** 檔案文字照【第 N 頁】切成大約 2500 字一段（一頁太長就整頁） */
+function pieces(text) {
+  const pages = text.split(/\n(?=【第 \d+ 頁】)/);
+  const out = [];
+  pages.forEach((p) => { if (out.length && out[out.length - 1].length + p.length + 1 <= PIECE) out[out.length - 1] += '\n' + p; else out.push(p); });
+  return out;
+}
+
 async function generate(parts) {
+  const list = Array.isArray(parts) ? parts : [];
+  const isDraft = list.some((p) => p && typeof p.text === 'string' && /整理成勤務草稿 JSON/.test(p.text));
+  const file = list.find((p) => p && typeof p.text === 'string' && p.text.startsWith(FILE_HEAD));
+  if (!isDraft || !file || file.text.length <= FILE_HEAD.length + PIECE) return generateOne(list, isDraft);
+  // 檔案文字太長：一段一段讀再合起來
+  const duties = [];
+  let model = '';
+  for (const piece of pieces(file.text.slice(FILE_HEAD.length))) {
+    const r = await generateOne(list.map((p) => (p === file ? { text: FILE_HEAD + piece } : p)), true);
+    model = r.model;
+    try { const j = JSON.parse(r.text); (Array.isArray(j) ? j : j.duties || []).forEach((d) => duties.push(d)); } catch (e) { /* 這段看不懂就算了 */ }
+  }
+  return { text: JSON.stringify({ duties }), model };
+}
+
+async function generateOne(parts, isDraft) {
   const texts = [];
   const images = [];
   (Array.isArray(parts) ? parts : []).forEach((p) => {
@@ -65,7 +99,7 @@ async function generate(parts) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: MODEL, stream: false, format: 'json', keep_alive: '30m',
+      model: MODEL, stream: false, format: isDraft ? DRAFT_SCHEMA : 'json', keep_alive: '30m',
       options: { temperature: 0.1, num_ctx: 16384 },
       messages: [{ role: 'user', content: texts.join('\n\n'), images }]
     }),
@@ -89,7 +123,14 @@ const server = http.createServer((req, res) => {
   req.on('end', async () => {
     let body;
     try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch (e) { return send(400, { ok: false }); }
-    try { send(200, Object.assign({ ok: true }, await queue(() => generate(body.parts)))); } catch (e) { console.error('讀不好：' + e.message); send(500, { ok: false, error: e.message }); }
+    // 通道（trycloudflare）超過 100 秒沒收到東西就斷（524）；本機讀一批常要 1～2 分鐘：先回表頭，每 20 秒送一個空白（JSON 前面的空白不影響解析），讀好再送結果
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.write(' ');
+    const keep = setInterval(() => res.write(' '), 20000);
+    let out;
+    try { out = Object.assign({ ok: true }, await queue(() => generate(body.parts))); } catch (e) { console.error('讀不好：' + e.message); out = { ok: false, error: e.message }; }
+    clearInterval(keep);
+    res.end(JSON.stringify(out));
   });
 });
 
@@ -110,9 +151,11 @@ server.listen(PORT, '127.0.0.1', async () => {
     if (!(tags.models || []).some((m) => m.name === MODEL || m.model === MODEL)) { console.error('Ollama 裡沒有模型 ' + MODEL + '，請先執行：ollama pull ' + MODEL); process.exit(1); }
   } catch (e) { console.error('連不到 Ollama（' + OLLAMA + '），請確認 Ollama 有開'); process.exit(1); }
   console.log('本機 AI 門口開好了（模型 ' + MODEL + '），開通道中⋯');
-  const exe = process.env.CLOUDFLARED || 'cloudflared';
+  const exe = process.env.CLOUDFLARED || ['C:/Program Files (x86)/cloudflared/cloudflared.exe', 'C:/Program Files/cloudflared/cloudflared.exe'].find((p) => fs.existsSync(p)) || 'cloudflared';
   const cf = spawn(exe, ['tunnel', '--no-autoupdate', '--url', 'http://127.0.0.1:' + PORT], { windowsHide: true });
+  let lastLog = '';
   const onLine = async (buf) => {
+    lastLog = (lastLog + String(buf)).slice(-600);
     const m = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/.exec(String(buf));
     if (m && m[0] !== tunnelUrl) {
       tunnelUrl = m[0];
@@ -122,7 +165,7 @@ server.listen(PORT, '127.0.0.1', async () => {
   };
   cf.stdout.on('data', onLine);
   cf.stderr.on('data', onLine);
-  cf.on('exit', (code) => { console.error('通道關了（' + code + '）'); register('').finally(() => process.exit(1)); });
+  cf.on('exit', (code) => { console.error('通道關了（' + code + '）：' + lastLog.trim().split(/\r?\n/).slice(-2).join(' / ')); register('').finally(() => process.exit(1)); });
   setInterval(() => { if (tunnelUrl) register(tunnelUrl); }, 5 * 60 * 1000);
   const bye = () => { cf.kill(); register('').finally(() => process.exit(0)); };
   process.on('SIGINT', bye);
