@@ -206,7 +206,7 @@ async function generateOne(parts, isDraft) {
 
 const server = http.createServer((req, res) => {
   const send = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(obj)); };
-  if (req.method === 'GET' && req.url === '/ping') return send(200, { ok: true, model: MODEL });
+  if (req.method === 'GET' && req.url === '/ping') return send(200, { ok: true, engine: ENGINE, model: ENGINE === 'claude' ? CLAUDE_MODEL : MODEL });
   if (req.method !== 'POST' || req.url !== '/generate') return send(404, { ok: false });
   if (!same(req.headers['x-local-ai-key'], conf.key)) return send(401, { ok: false });
   const chunks = [];
